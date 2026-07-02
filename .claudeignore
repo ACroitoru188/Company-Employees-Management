@@ -1,0 +1,35 @@
+# Build output
+bin/
+obj/
+**/bin/
+**/obj/
+out/
+publish/
+
+# IDE / tooling
+.vs/
+.vscode/
+*.user
+*.suo
+
+# NuGet
+*.nupkg
+packages/
+.nuget/
+
+# Blazor / wwwroot generated assets
+wwwroot/lib/
+**/wwwroot/lib/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test results / coverage
+TestResults/
+coverage/
+*.trx

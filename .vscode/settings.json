@@ -1,0 +1,6 @@
+{
+  "files.autoSave": "onFocusChange",
+  "claude.model": "sonnet",
+  "claude.effort": "high",
+  "claude.autoSave": true
+}
