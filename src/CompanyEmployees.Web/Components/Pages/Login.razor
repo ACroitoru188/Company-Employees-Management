@@ -1,63 +1,41 @@
 @page "/"
 @layout AuthLayout
 
-<PageTitle>Sign in · CompanyEmployees</PageTitle>
+<PageTitle>Sign in · Siemens Leave</PageTitle>
 
-<div class="auth">
-    <div class="auth-shell">
-        <aside class="auth-aside" data-cursor>
-            <div class="auth-brand">
-                <div class="brand-mark">CE</div>
-                <span class="brand-name">CompanyEmployees</span>
-            </div>
+@* ponytail: static mockup — the form does not authenticate yet, Sign in
+   navigates straight to /dashboard so the flow is clickable. Wire real SSO later. *@
+<div class="lm login-page">
+    <header class="login-brand" data-intro>
+        <div class="brand-sq"><div></div></div>
+        <span class="brand-word">SIEMENS</span>
+    </header>
 
-            <div class="aside-lead">
-                <h2>Your whole team, in one calm place.</h2>
-                <p>People, departments and time off, kept tidy and up to date.</p>
-            </div>
+    <form method="get" action="/dashboard" class="login-card">
+        <div class="microlabel" data-intro>Leave management</div>
+        <h1 data-intro>Sign in to your workspace</h1>
+        <p class="login-sub" data-intro>Use your Siemens single sign-on credentials.</p>
 
-            <ul class="aside-list">
-                <li><span class="tick">@Tick</span> Live headcount and department breakdowns</li>
-                <li><span class="tick">@Tick</span> Onboarding and time-off in one view</li>
-                <li><span class="tick">@Tick</span> Role-based access for every manager</li>
-            </ul>
-        </aside>
+        <label class="lfield" data-intro>
+            Work email
+            <input type="email" placeholder="yourname@siemens.com" autocomplete="username" />
+        </label>
+        <label class="lfield" data-intro>
+            Password
+            <input type="password" autocomplete="current-password" />
+        </label>
 
-        <div class="auth-main">
-            <div class="auth-head">
-                <h1>Sign in</h1>
-                <p>Welcome back. Enter your details to continue.</p>
-            </div>
-
-            @* ponytail: static mockup, the form does not post yet. Sign in navigates
-               straight to the dashboard so the flow is clickable. Wire real auth later. *@
-            <form method="get" action="/dashboard">
-                <div class="field">
-                    <label for="email">Work email</label>
-                    <input id="email" name="email" type="email" placeholder="you@nordwave.io" autocomplete="username" />
-                </div>
-
-                <div class="field">
-                    <label for="password">Password</label>
-                    <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" />
-                </div>
-
-                <div class="field-row">
-                    <label class="check"><input type="checkbox" /> Remember me</label>
-                    <a href="#">Forgot password?</a>
-                </div>
-
-                <button class="btn btn--primary btn--block" type="submit">Sign in</button>
-            </form>
-
-            <div class="auth-foot">
-                No account yet? <a href="#">Contact your administrator</a>
-            </div>
+        <div class="login-row" data-intro>
+            <label class="check"><input type="checkbox" checked /> Keep me signed in</label>
+            <a href="/forgot-password">Forgot password?</a>
         </div>
-    </div>
-</div>
 
-@code {
-    private static readonly MarkupString Tick = new(
-        """<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17 19 7"/></svg>""");
-}
+        <button type="submit" class="btn-pri btn-block" data-intro>Sign in</button>
+
+        <div class="login-foot" data-intro>Protected by Siemens SSO · Demo workspace</div>
+    </form>
+
+    <footer class="login-legal" data-intro>
+        <span>© 2026 Siemens AG</span><span>Privacy</span><span>Terms</span><span>Help</span>
+    </footer>
+</div>
