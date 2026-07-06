@@ -6,11 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Company Employees Management — an internship project built by a team of 4 developers.
 
-- `src/CompanyEmployees.Web` — Blazor Web App (.NET 10 / C#), **Interactive Server** render mode
-  available. The login + dashboard are a **static UI mockup** (sample data hardcoded in `@code`,
-  marked with `ponytail:` comments); no API or auth yet. Real functionality is layered on later.
+- `src/CompanyEmployees.Web` — Blazor Web App (.NET 10 / C#), **Interactive Server** render mode.
+  References `CompanyEmployees.Data` and registers `ApplicationDbContext` via DI in `Program.cs`
+  (`ConnectionStrings:Default` in `appsettings.Development.json`, LocalDB). `Login.razor` is the
+  first page wired to a real flow: it verifies email/password against `Employee.PasswordHash`
+  directly from its `@code` block (no separate API layer — Blazor Server already runs this
+  server-side). `Dashboard.razor` is still a **static UI mockup** (sample data hardcoded,
+  `ponytail:`-marked). No cookie/session auth yet — a successful login just navigates to
+  `/dashboard`.
 - `src/CompanyEmployees.Data` — data layer (.NET 8 / C#), Entity Framework Core 8 (Code-First),
-  SQL Server LocalDB. Not yet referenced by the Web project.
+  SQL Server LocalDB.
 
 ## Commands
 
@@ -18,7 +23,7 @@ Run from the repo root. `dotnet-ef` is a local tool (see `dotnet-tools.json`) �
 clone run `dotnet tool restore` once.
 
 ```sh
-dotnet build                              # build the solution (CompanyEmployees.slnx)
+dotnet build                                             # build the solution (CompanyEmployees.slnx)
 dotnet run --project src/CompanyEmployees.Web            # build + run, http://localhost:5269
 dotnet run --project src/CompanyEmployees.Web --no-build # run WITHOUT rebuilding (after a build)
 dotnet watch --project src/CompanyEmployees.Web          # run with hot reload
@@ -31,6 +36,8 @@ dotnet dotnet-ef database update --project src/CompanyEmployees.Data  # requires
 - On Windows a running instance **locks `CompanyEmployees.Web.exe`**, so `dotnet build` fails with
   MSB3027/MSB3026 (file-in-use) rather than a compile error. Stop the running app first
   (`taskkill /F /IM CompanyEmployees.Web.exe`) before rebuilding.
+- In Development, `Program.cs` seeds a demo login (`demo@siemens.com` / `Passw0rd!`) into the
+  `Employees` table on startup if it doesn't already exist — that's how you sign in locally today.
 - No test project exists yet. When one is added, wire up `dotnet test` and document it here.
 
 ## UI history
@@ -52,7 +59,8 @@ src/CompanyEmployees.Data/
   Services/PermissionService.cs # HasPermission(employee, permission): ORs permissions across all
                                 # of the employee's roles; Administrator flag overrides everything
   DesignTimeDbContextFactory.cs # hardcoded LocalDB connection string, used only by dotnet ef
-                                # until the Web project wires up the DbContext via DI
+                                # design-time tooling (separate from the Web app's own DI-registered
+                                # connection string in appsettings.Development.json)
   Migrations/            # EF Core migrations (InitialCreate)
 ```
 
@@ -91,14 +99,17 @@ Two design systems coexist — know which one a page uses before styling it:
 
 ### Interactivity
 
-`Dashboard.razor` is `@rendermode InteractiveServer` (registered in `Program.cs` via
-`AddInteractiveServerComponents` / `AddInteractiveServerRenderMode`). It holds all app state in
-`@code` — role (employee/manager) switch, an in-shell view switch (`_view`: dashboard /
-my requests / calendar — views, not routes, so submitted requests and role survive navigation),
-the request slide-over with a working range-select calendar, a month calendar page fed by
-`_events` + dated `_myRequests`, cancel/approve/decline, and a toast. `Login.razor` is static
-SSR: the form is a `GET` to `/dashboard`
-(no auth). Add `@rendermode InteractiveServer` per-component when a page needs interactivity.
+Both `Login.razor` and `Dashboard.razor` are `@rendermode InteractiveServer` (registered in
+`Program.cs` via `AddInteractiveServerComponents` / `AddInteractiveServerRenderMode`).
+`Dashboard.razor` holds all app state in `@code` — role (employee/manager) switch, an in-shell
+view switch (`_view`: dashboard / my requests / calendar — views, not routes, so submitted
+requests and role survive navigation), the request slide-over with a working range-select
+calendar, a month calendar page fed by `_events` + dated `_myRequests`, cancel/approve/decline,
+and a toast — none of it persisted yet. `Login.razor` queries `ApplicationDbContext` directly and
+verifies the password with `PasswordHasher<Employee>` (same hasher ASP.NET Core Identity uses
+internally); there's no cookie/session yet, so a successful check just navigates to `/dashboard`
+with no actual signed-in state. Add `@rendermode InteractiveServer` per-component when a page
+needs interactivity.
 
 ### Animation layer (GSAP)
 
@@ -129,13 +140,15 @@ pattern for other dismiss-with-animation cases.
   now wants to move to **ASP.NET Core Identity** instead (for its built-in password hashing,
   lockout, and role management) — this hasn't been implemented yet. Confirm with whoever owns
   `CompanyEmployees.Data` before ripping out `Role`/`EmployeeRole`/`PermissionService`, since it's
-  already merged and other in-flight work may depend on it.
+  already merged and other in-flight work (including the new `Login.razor` password check) reads
+  `Employee.PasswordHash` directly and will need rework once Identity lands.
 - Delete behaviors: `Employee.DepartmentId` is `SetNull` (deleting a department keeps its
   employees); `Department.ManagerId` is `NoAction` because SQL Server rejects referential-action
   cycles with the other FK — detach a manager before deleting them. `EmployeeRole` cascades both ways.
 - Firing an employee = soft delete via `Employee.IsActive`, not row deletion.
-- `PasswordHash` exists in the schema but no hashing logic is implemented yet — if the move to
-  Identity happens, this column is superseded by Identity's own password/security-stamp columns.
+- `PasswordHash` is populated via `PasswordHasher<Employee>` (from `Login.razor`'s verification
+  code and `Program.cs`'s dev seed) — if the move to Identity happens, this column is superseded
+  by Identity's own password/security-stamp columns.
 - TFM mismatch is deliberate: the Data project targets `net8.0` (per assignment spec) and the Web
   project `net10.0` — referencing the lower-TFM library from Web works fine.
 
@@ -143,6 +156,8 @@ pattern for other dismiss-with-animation cases.
 
 - Team project (4 devs) — avoid unrequested refactors of others' code; keep changes scoped.
 - Icons are inline SVGs (no icon package).
+- `TODO.md` at the repo root tracks the production-readiness checklist (DB wiring, auth, security
+  hardening, testing, deployment) — check it before starting infra-adjacent work to avoid
+  duplicating what's already planned or done.
 - Keep this file current as real structure lands: add `dotnet test` when a test project exists, and
-  document architectural patterns (layering, EF Core wiring in the Web app, auth) as they're
-  established.
+  document architectural patterns (layering, auth) as they're established.

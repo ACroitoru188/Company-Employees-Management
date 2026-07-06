@@ -436,6 +436,7 @@ table.emp { width: 100%; border-collapse: collapse; min-width: 560px; }
 .lm .login-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--l-accent); margin: 0; }
 .lm .login-row a { color: var(--l-accent); font-weight: 600; text-decoration: none; }
 .lm .login-row a:hover { color: var(--l-accent-hi); }
+.lm .login-error { margin: -6px 0 16px; font-size: 13px; color: #C4314B; }
 .lm .btn-block { width: 100%; height: 42px; }
 .lm .login-foot { margin-top: 20px; font-size: 12px; color: var(--l-muted); text-align: center; }
 .lm .login-foot a { color: var(--l-accent); font-weight: 600; text-decoration: none; }
