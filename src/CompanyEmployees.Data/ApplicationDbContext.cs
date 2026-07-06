@@ -1,9 +1,11 @@
 using CompanyEmployees.Data.Entities;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace CompanyEmployees.Data;
 
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext : IdentityDbContext<Employee, Role, int>
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
@@ -12,13 +14,16 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Department> Departments => Set<Department>();
-    public DbSet<Role> Roles => Set<Role>();
-    public DbSet<EmployeeRole> EmployeeRoles => Set<EmployeeRole>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
         modelBuilder.Entity<Employee>(entity =>
         {
+            // Păstrăm numele de domeniu în loc de AspNetUsers/AspNetRoles/AspNetUserRoles.
+            entity.ToTable("Employees");
+
             entity.Property(e => e.FirstName).HasMaxLength(100).IsRequired();
             entity.Property(e => e.LastName).HasMaxLength(100).IsRequired();
             entity.Property(e => e.Email).HasMaxLength(256).IsRequired();
@@ -26,7 +31,6 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.PhoneNumber).HasMaxLength(30).IsRequired();
             entity.Property(e => e.Address).HasMaxLength(500).IsRequired();
             entity.Property(e => e.Salary).HasPrecision(18, 2);
-            entity.Property(e => e.PasswordHash).IsRequired();
             entity.Property(e => e.IsActive).HasDefaultValue(true);
 
             // La ștergerea unui Department, angajații rămân (DepartmentId devine null).
@@ -34,7 +38,17 @@ public class ApplicationDbContext : DbContext
                 .WithMany(d => d.Employees)
                 .HasForeignKey(e => e.DepartmentId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // Navigație many-to-many peste tabelul de join al Identity (cascade implicit,
+            // ca vechiul EmployeeRole).
+            entity.HasMany(e => e.Roles)
+                .WithMany(r => r.Employees)
+                .UsingEntity<IdentityUserRole<int>>(
+                    join => join.HasOne<Role>().WithMany().HasForeignKey(ur => ur.RoleId),
+                    join => join.HasOne<Employee>().WithMany().HasForeignKey(ur => ur.UserId));
         });
+
+        modelBuilder.Entity<IdentityUserRole<int>>(entity => entity.ToTable("EmployeeRoles"));
 
         modelBuilder.Entity<Department>(entity =>
         {
@@ -53,15 +67,18 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<Role>(entity =>
         {
-            entity.Property(r => r.Name).HasMaxLength(100).IsRequired();
-            entity.HasIndex(r => r.Name).IsUnique();
+            entity.ToTable("Roles");
+
             entity.Property(r => r.Color).HasMaxLength(7).IsRequired();
 
+            // ConcurrencyStamp fix, altfel HasData generează o migrare nouă la fiecare build.
             entity.HasData(
                 new Role
                 {
                     Id = 1,
                     Name = "Admin",
+                    NormalizedName = "ADMIN",
+                    ConcurrencyStamp = "a3b9c1d4-0000-4000-8000-000000000001",
                     Color = "#ED4245",
                     Position = 3,
                     Permissions = Permission.Administrator
@@ -70,6 +87,8 @@ public class ApplicationDbContext : DbContext
                 {
                     Id = 2,
                     Name = "Department Manager",
+                    NormalizedName = "DEPARTMENT MANAGER",
+                    ConcurrencyStamp = "a3b9c1d4-0000-4000-8000-000000000002",
                     Color = "#5865F2",
                     Position = 2,
                     Permissions = Permission.ViewEmployees | Permission.EditEmployees |
@@ -79,25 +98,12 @@ public class ApplicationDbContext : DbContext
                 {
                     Id = 3,
                     Name = "Employee",
+                    NormalizedName = "EMPLOYEE",
+                    ConcurrencyStamp = "a3b9c1d4-0000-4000-8000-000000000003",
                     Color = "#99AAB5",
                     Position = 1,
                     Permissions = Permission.ViewEmployees
                 });
-        });
-
-        modelBuilder.Entity<EmployeeRole>(entity =>
-        {
-            entity.HasKey(er => new { er.EmployeeId, er.RoleId });
-
-            entity.HasOne(er => er.Employee)
-                .WithMany(e => e.EmployeeRoles)
-                .HasForeignKey(er => er.EmployeeId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(er => er.Role)
-                .WithMany(r => r.EmployeeRoles)
-                .HasForeignKey(er => er.RoleId)
-                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
