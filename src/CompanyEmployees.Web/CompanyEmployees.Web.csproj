@@ -11,4 +11,8 @@
     <Folder Include="Assets\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\CompanyEmployees.Data\CompanyEmployees.Data.csproj" />
+  </ItemGroup>
+
 </Project>
