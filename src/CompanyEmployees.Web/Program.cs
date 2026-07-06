@@ -15,19 +15,24 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 var app = builder.Build();
 
-// ponytail: dev-only demo login (demo@siemens.com / Passw0rd!) so Login.razor is testable
-// before real employee signup exists. Delete once Identity migration lands.
+// ponytail: dev-only demo logins (Passw0rd!), one per role, so Login.razor and the
+// permission model are testable before real employee signup exists. Delete once
+// Identity migration lands.
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    if (!db.Employees.Any(e => e.Email == "demo@siemens.com"))
+
+    void SeedDemoUser(string email, string firstName, string lastName, int roleId)
     {
-        var demo = new Employee
+        if (db.Employees.Any(e => e.Email == email))
+            return;
+
+        var user = new Employee
         {
-            FirstName = "Demo",
-            LastName = "User",
-            Email = "demo@siemens.com",
+            FirstName = firstName,
+            LastName = lastName,
+            Email = email,
             PhoneNumber = "000-000-0000",
             DateOfBirth = new DateTime(1990, 1, 1),
             Address = "N/A",
@@ -36,10 +41,15 @@ if (app.Environment.IsDevelopment())
             PasswordHash = "",
             CreatedAt = DateTime.UtcNow
         };
-        demo.PasswordHash = new PasswordHasher<Employee>().HashPassword(demo, "Passw0rd!");
-        db.Employees.Add(demo);
+        user.PasswordHash = new PasswordHasher<Employee>().HashPassword(user, "Passw0rd!");
+        user.Roles.Add(db.Roles.Find(roleId)!);
+        db.Employees.Add(user);
         db.SaveChanges();
     }
+
+    SeedDemoUser("employee@siemens.com", "Demo", "Employee", roleId: 3);
+    SeedDemoUser("linemanager@siemens.com", "Demo", "Manager", roleId: 2);
+    SeedDemoUser("itadmin@siemens.com", "Demo", "Admin", roleId: 1);
 }
 
 // Configure the HTTP request pipeline.

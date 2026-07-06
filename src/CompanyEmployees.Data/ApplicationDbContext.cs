@@ -76,8 +76,8 @@ public class ApplicationDbContext : IdentityDbContext<Employee, Role, int>
                 new Role
                 {
                     Id = 1,
-                    Name = "Admin",
-                    NormalizedName = "ADMIN",
+                    Name = "IT Admin",
+                    NormalizedName = "IT ADMIN",
                     ConcurrencyStamp = "a3b9c1d4-0000-4000-8000-000000000001",
                     Color = "#ED4245",
                     Position = 3,
@@ -86,13 +86,14 @@ public class ApplicationDbContext : IdentityDbContext<Employee, Role, int>
                 new Role
                 {
                     Id = 2,
-                    Name = "Department Manager",
-                    NormalizedName = "DEPARTMENT MANAGER",
+                    Name = "Line Manager",
+                    NormalizedName = "LINE MANAGER",
                     ConcurrencyStamp = "a3b9c1d4-0000-4000-8000-000000000002",
                     Color = "#5865F2",
                     Position = 2,
                     Permissions = Permission.ViewEmployees | Permission.EditEmployees |
-                                  Permission.ViewSalaries | Permission.ManageDepartments
+                                  Permission.ViewSalaries | Permission.ManageDepartments |
+                                  Permission.ApproveLeave
                 },
                 new Role
                 {
@@ -102,7 +103,7 @@ public class ApplicationDbContext : IdentityDbContext<Employee, Role, int>
                     ConcurrencyStamp = "a3b9c1d4-0000-4000-8000-000000000003",
                     Color = "#99AAB5",
                     Position = 1,
-                    Permissions = Permission.ViewEmployees
+                    Permissions = Permission.ViewEmployees | Permission.RequestLeave
                 });
         });
     }
