@@ -1,150 +1,738 @@
 @page "/dashboard"
+@layout AuthLayout
+@rendermode InteractiveServer
+@implements IDisposable
+@using System.Globalization
 
-<PageTitle>Dashboard · CompanyEmployees</PageTitle>
+<PageTitle>Dashboard · Siemens Leave</PageTitle>
 
-<section class="stats">
-    <div class="stat" data-cursor>
-        <div class="stat-top">
-            <span class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="9" cy="8" r="3.2" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0" /><path d="M16 5.2a3 3 0 0 1 0 5.6M17.5 20a5.5 5.5 0 0 0-3-4.9" />
-                </svg>
-            </span>
-            <svg class="spark" viewBox="0 0 74 30" preserveAspectRatio="none"><path d="M0 24 12 22 24 23 37 16 49 17 61 9 74 6" /></svg>
-        </div>
-        <div class="stat-label">Total employees</div>
-        <div class="stat-value">247</div>
-        <div class="stat-note"><span class="delta up">+8</span> vs last month</div>
-    </div>
+@* ponytail: whole app screen (top nav + views + slide-over + toast). All state
+   is local and the data is hardcoded — swap for real services later. *@
+<div class="lm shell">
 
-    <div class="stat" data-cursor>
-        <div class="stat-top">
-            <span class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 20V7l6-3 6 3v13" /><path d="M16 11h4v9M4 20h16" />
-                </svg>
-            </span>
-            <svg class="spark" viewBox="0 0 74 30" preserveAspectRatio="none"><path d="M0 20 12 20 24 15 37 15 49 11 61 12 74 8" /></svg>
-        </div>
-        <div class="stat-label">Departments</div>
-        <div class="stat-value">9</div>
-        <div class="stat-note">Across 3 office locations</div>
-    </div>
-
-    <div class="stat" data-cursor>
-        <div class="stat-top">
-            <span class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="9" cy="8" r="3.2" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0" /><path d="M19 8v6M22 11h-6" />
-                </svg>
-            </span>
-            <svg class="spark" viewBox="0 0 74 30" preserveAspectRatio="none"><path d="M0 22 12 18 24 20 37 12 49 14 61 7 74 10" /></svg>
-        </div>
-        <div class="stat-label">New hires (30d)</div>
-        <div class="stat-value">12</div>
-        <div class="stat-note"><span class="delta up">+3</span> vs previous 30 days</div>
-    </div>
-
-    <div class="stat" data-cursor>
-        <div class="stat-top">
-            <span class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="4" width="18" height="17" rx="2" /><path d="M3 9h18M8 2v4M16 2v4" />
-                </svg>
-            </span>
-            <svg class="spark" viewBox="0 0 74 30" preserveAspectRatio="none"><path d="M0 12 12 15 24 11 37 18 49 14 61 20 74 18" /></svg>
-        </div>
-        <div class="stat-label">On leave today</div>
-        <div class="stat-value">5</div>
-        <div class="stat-note">2 returning this week</div>
-    </div>
-</section>
-
-<div class="grid-2">
-    <div class="panel" data-cursor>
-        <div class="panel-head">
-            <span class="panel-title">Recent employees</span>
-            <a class="panel-link" href="#">View all</a>
-        </div>
-        <div class="table-wrap">
-            <table class="emp">
-                <thead>
-                    <tr><th>Name</th><th>Department</th><th>Role</th><th>Start date</th><th>Status</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var e in _employees)
+    <!-- Top nav -->
+    <header class="topnav">
+        <div class="tn-inner">
+            <div class="tn-brand">
+                <div class="brand-sq"><div></div></div>
+                <span class="brand-word">SIEMENS</span>
+            </div>
+            <nav class="tn-links">
+                <span class="tn-link @ViewIs("dashboard")" @onclick="GoDashboard">Dashboard</span>
+                <span class="tn-link @ViewIs("requests")" @onclick="GoRequests">
+                    @RequestsNavLabel
+                    @if (IsManager && PendingCount > 0)
                     {
-                        <tr>
-                            <td>
-                                <div class="person">
-                                    <span class="avatar avatar--sm">@e.Initials</span>
-                                    <div>
-                                        <div class="name">@e.Name</div>
-                                        <div class="email">@e.Email</div>
+                        <span class="tn-badge">@PendingCount</span>
+                    }
+                </span>
+                <span class="tn-link @ViewIs("calendar")" @onclick="GoCalendar">Calendar</span>
+                <span class="tn-link">Team</span>
+                <span class="tn-link">Reports</span>
+            </nav>
+            <div class="tn-actions">
+                <div class="seg">
+                    <button class="seg-btn @(!IsManager ? "on" : "")" @onclick="SetEmployee">Employee</button>
+                    <button class="seg-btn @(IsManager ? "on" : "")" @onclick="SetManager">Line manager</button>
+                </div>
+                <button class="icon-btn" aria-label="Notifications">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 7.5a5 5 0 0 1 10 0c0 3 1.2 4 1.2 4H2.8s1.2-1 1.2-4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.3 14.2a1.9 1.9 0 0 0 3.4 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <span class="ping"></span>
+                </button>
+                <button class="btn-pri" @onclick="OpenRequest">Request time off</button>
+                <div class="profile-wrap">
+                    <div class="avatar-chip" title="Your account · @RoleLabel" @onclick="ToggleProfileMenu">·</div>
+                    @if (_profileMenuOpen)
+                    {
+                        <div class="profile-backdrop" @onclick="CloseProfileMenu"></div>
+                        <div class="profile-menu" @onclick:stopPropagation="true">
+                            <button class="pm-item" @onclick="ChangeProfilePicture">Change profile picture</button>
+                            <button class="pm-item" @onclick="ContactAdministration">Contact administration</button>
+                            <div class="pm-sep"></div>
+                            <a class="pm-item pm-danger" href="/">Sign out</a>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        @if (_view == "requests")
+        {
+            <!-- MY REQUESTS PAGE (employee) -->
+            <div class="greet" data-drift>
+                <div>
+                    <h1>My requests</h1>
+                    <p>Everything you've requested this year.</p>
+                </div>
+                <div class="greet-date">@_myRequests.Count(r => r.Status == "Pending") pending · @_myRequests.Count(r => r.Status == "Approved") approved</div>
+            </div>
+
+            <section class="card" data-reveal>
+                <div class="card-head">
+                    <div>
+                        <div class="microlabel">2026</div>
+                        <div class="card-title">All requests</div>
+                    </div>
+                    <button class="card-link" @onclick="OpenRequest">New request</button>
+                </div>
+                @if (_myRequests.Count == 0)
+                {
+                    <div class="empty">No requests yet. Use "Request time off" to create one.</div>
+                }
+                <div class="rows" data-reveal="stagger">
+                    @foreach (var r in _myRequests)
+                    {
+                        var pill = Pill(r.Status);
+                        <div class="row">
+                            <span class="dot dot-@TypeTone(r.Type)"></span>
+                            <div class="row-main">
+                                <div class="row-name">@r.Type</div>
+                                <div class="row-sub">@r.Range · @r.Days @(r.Days == 1 ? "day" : "days")</div>
+                            </div>
+                            @if (r.Status == "Pending")
+                            {
+                                <button class="card-link" @onclick="() => Cancel(r)">Cancel</button>
+                            }
+                            <span class="pill @pill.Css">@pill.Text</span>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+        else if (_view == "calendar")
+        {
+            <!-- CALENDAR PAGE -->
+            <div class="greet" data-drift>
+                <div>
+                    <h1>Calendar</h1>
+                    <p>Team availability at a glance.</p>
+                </div>
+                <div class="greet-date">@TodayLabel</div>
+            </div>
+
+            <section class="card" data-reveal>
+                <div class="card-head">
+                    <div>
+                        <div class="microlabel">Team schedule</div>
+                        <div class="card-title">@CpMonthLabel</div>
+                    </div>
+                    <div class="cp-nav">
+                        <button class="cal-nav" @onclick="CpPrev">‹</button>
+                        <button class="cp-today" @onclick="CpToday">Today</button>
+                        <button class="cal-nav" @onclick="CpNext">›</button>
+                    </div>
+                </div>
+                <div class="cp-grid cp-wds">
+                    @foreach (var w in _calWeekdays)
+                    {
+                        <div class="cp-wd">@w</div>
+                    }
+                </div>
+                <div class="cp-grid">
+                    @foreach (var c in CpCells())
+                    {
+                        <div class="cp-cell @(c.Dim ? "dim" : "") @(c.Wknd ? "wknd" : "") @(c.IsToday ? "today" : "")">
+                            <div class="cp-day">@c.Date.Day</div>
+                            <div class="cp-evts">
+                                @foreach (var e in c.Events.Take(3))
+                                {
+                                    <div class="cp-evt tone-@e.Tone @(e.Pending ? "pending" : "")" title="@e.Title">@e.Label</div>
+                                }
+                                @if (c.Events.Count > 3)
+                                {
+                                    <div class="cp-more">+@(c.Events.Count - 3) more</div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="cp-legend">
+                    <span><span class="dot dot-accent"></span> Annual</span>
+                    <span><span class="dot dot-amber"></span> Sick</span>
+                    <span><span class="dot dot-purple"></span> Parental</span>
+                    <span><span class="dot dot-gray"></span> Unpaid</span>
+                    <span class="note">Dashed outline = pending approval</span>
+                </div>
+            </section>
+        }
+        else
+        {
+        <div class="greet" data-drift>
+            <div>
+                <h1>Good morning</h1>
+                @if (!IsManager)
+                {
+                    <p>Here's what's happening with your time off.</p>
+                }
+                else
+                {
+                    <p>You have <b>@PendingCount requests</b> waiting for your review.</p>
+                }
+            </div>
+            <div class="greet-date">@TodayLabel</div>
+        </div>
+
+        @if (!IsManager)
+        {
+            <!-- EMPLOYEE VIEW -->
+            <section class="kpis">
+                @foreach (var b in _balances)
+                {
+                    <div class="kpi" data-reveal>
+                        <div class="kpi-label"><span class="dot dot-@b.Tone"></span>@b.Label</div>
+                        <div class="kpi-value" data-count>@b.Value</div>
+                        <div class="kpi-note">@b.Note</div>
+                        <div class="meter"><div class="fill-@b.Tone" data-grow style="width: @b.Pct"></div></div>
+                    </div>
+                }
+            </section>
+
+            <div class="grid-main">
+                <div class="col">
+                    <!-- Who's out this week -->
+                    <section class="card" data-reveal>
+                        <div class="card-head">
+                            <div>
+                                <div class="microlabel">This week</div>
+                                <div class="card-title">Who's out of office</div>
+                            </div>
+                            <button class="card-link">Open calendar</button>
+                        </div>
+                        <div class="week">
+                            @foreach (var d in _week)
+                            {
+                                <div class="wcell @(d.IsToday ? "today" : "") @(d.Wknd ? "wknd" : "")">
+                                    <div class="wcell-wd">@d.Wd</div>
+                                    <div class="wcell-n">@d.N</div>
+                                    <div class="wcell-dot">
+                                        @if (d.HasOut)
+                                        {
+                                            <span class="dot-@d.DotTone"></span>
+                                        }
                                     </div>
                                 </div>
-                            </td>
-                            <td>@e.Department</td>
-                            <td>@e.Role</td>
-                            <td>@e.StartDate</td>
-                            <td><span class="badge @e.StatusClass">@e.Status</span></td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+                            }
+                        </div>
+                        <div class="rows" data-reveal="stagger">
+                            @foreach (var p in _whoOut)
+                            {
+                                <div class="row">
+                                    <div class="av tone-@p.Tone">@p.Initials</div>
+                                    <div class="row-main">
+                                        <div class="row-name">@p.Name</div>
+                                        <div class="row-sub">@p.Type</div>
+                                    </div>
+                                    <div class="row-side">@p.Range</div>
+                                </div>
+                            }
+                        </div>
+                    </section>
 
-    <div class="panel" data-cursor>
-        <div class="panel-head">
-            <span class="panel-title">Headcount by department</span>
-        </div>
-        <div class="panel-body">
-            <div class="bars">
-                @foreach (var d in _departments)
+                    <!-- Recent activity -->
+                    <section class="card" data-reveal>
+                        <div class="card-head">
+                            <div>
+                                <div class="microlabel">Timeline</div>
+                                <div class="card-title">Recent activity</div>
+                            </div>
+                        </div>
+                        <div class="timeline">
+                            <div class="tl-rail" data-draw></div>
+                            @foreach (var a in _activity)
+                            {
+                                <div class="tl-item">
+                                    <span class="tl-dot dot-@a.Tone"></span>
+                                    <div class="tl-text">@a.Text</div>
+                                    <div class="tl-time">@a.Time</div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col">
+                    <!-- My requests -->
+                    <section class="card" data-reveal>
+                        <div class="card-head">
+                            <div>
+                                <div class="microlabel">Status</div>
+                                <div class="card-title">My requests</div>
+                            </div>
+                        </div>
+                        <div class="rows" data-reveal="stagger">
+                            @foreach (var r in _myRequests)
+                            {
+                                var pill = Pill(r.Status);
+                                <div class="row">
+                                    <div class="row-main">
+                                        <div class="row-name">@r.Type</div>
+                                        <div class="row-sub">@r.Range · @r.Days @(r.Days == 1 ? "day" : "days")</div>
+                                    </div>
+                                    <span class="pill @pill.Css">@pill.Text</span>
+                                </div>
+                            }
+                        </div>
+                    </section>
+
+                    <!-- Annual leave used -->
+                    <section class="card" data-reveal>
+                        <div class="card-head">
+                            <div>
+                                <div class="microlabel">Overview</div>
+                                <div class="card-title">Annual leave used</div>
+                            </div>
+                        </div>
+                        <div class="donut-row">
+                            <div class="donut" data-donut="0">
+                                <div class="donut-hole"><b data-count>0</b><span>days left</span></div>
+                            </div>
+                            <div class="legend">
+                                <div><span class="dot dot-accent"></span><span>Used <b>0 days</b></span></div>
+                                <div><span class="dot dot-tint"></span><span>Remaining <b>0 days</b></span></div>
+                            </div>
+                        </div>
+                        <div class="divider"></div>
+                        <div class="microlabel">Days off per month</div>
+                        <div class="mbars">
+                            @foreach (var m in _months)
+                            {
+                                <div class="mbar @(m.Current ? "cur" : "")">
+                                    <div data-grow="height" style="height: @m.H"></div>
+                                    <span>@m.Label</span>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- MANAGER VIEW -->
+            <section class="kpis">
+                @foreach (var s in MgrStats)
                 {
-                    <div class="bar-row">
-                        <div class="bar-meta">
-                            <span>@d.Name</span>
-                            <span class="val">@d.Count</span>
+                    <div class="kpi" data-reveal>
+                        <div class="kpi-label">@s.Label</div>
+                        <div class="kpi-value @s.Css" data-count>@s.Value</div>
+                        <div class="kpi-note">@s.Note</div>
+                    </div>
+                }
+            </section>
+
+            <div class="grid-main">
+                <!-- Pending approvals -->
+                <section class="card" data-reveal>
+                    <div class="card-head">
+                        <div>
+                            <div class="microlabel">Action needed</div>
+                            <div class="card-title">Pending approvals</div>
                         </div>
-                        <div class="bar-track">
-                            <div class="bar-fill" style="width:@(d.Count * 100 / _deptMax)%;background:@d.Color"></div>
+                        <span class="pill tone-accent">@PendingCount to review</span>
+                    </div>
+                    <div data-reveal="stagger">
+                        @foreach (var a in _approvals)
+                        {
+                            var tone = TypeTone(a.Type);
+                            bool approved = a.Status == "approved";
+                            <div class="appr @(a.Status != "pending" ? "done" : "")">
+                                <div class="appr-top">
+                                    <div class="av tone-@tone">@a.Initials</div>
+                                    <div class="row-main">
+                                        <div class="row-name">@a.Name <span class="appr-dept">· @a.Dept</span></div>
+                                        <div class="appr-meta">
+                                            <span class="pill tone-@tone">@a.Type</span>
+                                            <span class="appr-range">@a.Range</span>
+                                            <span class="appr-days">· @a.Days @(a.Days == 1 ? "day" : "days")</span>
+                                        </div>
+                                        <div class="appr-reason">"@a.Reason"</div>
+                                    </div>
+                                </div>
+                                @if (a.Status == "pending")
+                                {
+                                    <div class="appr-actions">
+                                        <button class="btn-pri" @onclick="() => Approve(a.Id)">Approve</button>
+                                        <button class="btn-red" @onclick="() => Reject(a.Id)">Decline</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="appr-done @(approved ? "ok" : "no")">@(approved ? "✓ Approved · employee notified" : "× Declined · employee notified")</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </section>
+
+                <div class="col">
+                    <!-- On leave today -->
+                    <section class="card" data-reveal>
+                        <div class="card-head">
+                            <div>
+                                <div class="microlabel">Today</div>
+                                <div class="card-title">On leave</div>
+                            </div>
                         </div>
+                        <div class="rows" data-reveal="stagger">
+                            @foreach (var p in _whoOut)
+                            {
+                                <div class="row">
+                                    <div class="av tone-@p.Tone">@p.Initials</div>
+                                    <div class="row-main">
+                                        <div class="row-name">@p.Name</div>
+                                        <div class="row-sub">@p.Type</div>
+                                    </div>
+                                    <div class="row-side">@p.Range</div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+
+                    <!-- Leave distribution -->
+                    <section class="card" data-reveal>
+                        <div class="card-head">
+                            <div>
+                                <div class="microlabel">Breakdown</div>
+                                <div class="card-title">Leave distribution</div>
+                            </div>
+                        </div>
+                        <div class="dist">
+                            @foreach (var d in _distribution)
+                            {
+                                <div>
+                                    <div class="dist-meta"><span>@d.Label</span><span>@d.Pct</span></div>
+                                    <div class="meter"><div class="fill-@d.Tone" data-grow style="width: @d.Pct"></div></div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </div>
+            </div>
+        }
+        }
+    </main>
+</div>
+
+@if (_requestOpen)
+{
+    <!-- Request slide-over -->
+    <div @onclick="CloseRequest" class="lm sheet-backdrop @(_requestClosing ? "closing" : "")">
+        <aside class="sheet" @onclick:stopPropagation="true">
+            <button class="sheet-close" @onclick="CloseRequest" aria-label="Close">×</button>
+            <div class="microlabel">New request</div>
+            <h2>Request time off</h2>
+            <p class="sheet-sub">Your line manager will be notified for approval.</p>
+
+            <div class="divider"></div>
+
+            <label class="flabel">Leave type</label>
+            <div class="type-grid">
+                @foreach (var label in _leaveTypes)
+                {
+                    <div class="type-opt @(_newType == label ? "on" : "")" @onclick="() => _newType = label">
+                        <span class="dot dot-@TypeTone(label)"></span>@label
                     </div>
                 }
             </div>
-        </div>
+
+            <div class="cal-sel">
+                <label class="flabel">Dates</label>
+                <span class="sel-label @(_selStart is null ? "empty" : "")">@SelectionLabel</span>
+            </div>
+            <div class="cal-head">
+                <button class="cal-nav" @onclick="PrevMonth">‹</button>
+                <b>@CalMonthLabel</b>
+                <button class="cal-nav" @onclick="NextMonth">›</button>
+            </div>
+            <div class="cal-grid">
+                @foreach (var w in _calWeekdays)
+                {
+                    <div class="cal-wd">@w</div>
+                }
+            </div>
+            <div class="cal-grid">
+                @foreach (var c in CalCells())
+                {
+                    <div class="cal-cell @c.Css" @onclick="() => ClickDay(c.Ts)">@c.Label</div>
+                }
+            </div>
+
+            <div class="sheet-sec">
+                <label class="flabel">Reason <span class="opt">(optional)</span></label>
+                <textarea @bind="_newReason" placeholder="Add a short note for your manager…"></textarea>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="sheet-foot">
+                <button class="btn-ghost" @onclick="CloseRequest">Cancel</button>
+                <button class="btn-pri" @onclick="Submit">Submit request</button>
+            </div>
+        </aside>
     </div>
-</div>
+}
+
+@if (_toastShow)
+{
+    <!-- Toast -->
+    <div class="lm toast">
+        <span class="toast-ic">✓</span>
+        <span>@_toast</span>
+    </div>
+}
 
 @code {
-    private record Employee(string Name, string Email, string Department, string Role, string StartDate, string Status, string StatusClass)
+    // ---- state ----
+    private string _role = "employee";
+    private string _view = "dashboard";  // dashboard | requests | calendar (in-shell views, state survives switching)
+    private int _cpYear = Today.Year;
+    private int _cpMonth = Today.Month - 1;   // 0-based — calendar page month
+    private bool _requestOpen;
+    private bool _profileMenuOpen;
+    private bool _requestClosing;
+    private string _toast = "";
+    private bool _toastShow;
+    private string _newType = "Annual leave";
+    private string _newReason = "";
+    private int _viewYear = Today.Year;
+    private int _viewMonth = Today.Month - 1;   // 0-based
+    private DateTime? _selStart;
+    private DateTime? _selEnd;
+    private CancellationTokenSource? _toastCts;
+
+    private static readonly DateTime Today = DateTime.Today;
+    private static string TodayLabel => Today.ToString("dddd, d MMMM yyyy", CultureInfo.InvariantCulture);
+    private static readonly string[] _leaveTypes = { "Annual leave", "Sick leave", "Parental", "Unpaid leave" };
+    private static readonly string[] _calWeekdays = { "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN" };
+
+    private bool IsManager => _role == "manager";
+    private int PendingCount => _approvals.Count(a => a.Status == "pending");
+    private string RoleLabel => IsManager ? "Line manager" : "Employee";
+    private string RequestsNavLabel => IsManager ? "Approvals" : "My requests";
+
+    // ---- actions ----
+    private void SetEmployee() => _role = "employee";
+    private void SetManager() { _role = "manager"; if (_view == "requests") _view = "dashboard"; }  // managers have no "my requests" view
+    private void OpenRequest() => _requestOpen = true;
+
+    // ---- profile menu ----
+    private void ToggleProfileMenu() => _profileMenuOpen = !_profileMenuOpen;
+    private void CloseProfileMenu() => _profileMenuOpen = false;
+    // ponytail: no backend — these acknowledge with a toast until real endpoints exist. Sign out is a plain link to /.
+    private void ChangeProfilePicture() { _profileMenuOpen = false; ShowToast("Profile picture upload coming soon"); }
+    private void ContactAdministration() { _profileMenuOpen = false; ShowToast("A message has been sent to administration"); }
+
+    // ---- in-shell navigation ----
+    private string ViewIs(string v) => _view == v ? "active" : "";
+    private void GoDashboard() => _view = "dashboard";
+    private void GoRequests() { if (!IsManager) _view = "requests"; }   // ponytail: manager "Approvals" link stays inert — approvals live on the dashboard
+    private void GoCalendar() => _view = "calendar";
+
+    private void Cancel(Request r)
     {
-        public string Initials => string.Concat(Name.Split(' ').Select(p => p[0]));
+        _myRequests.Remove(r);
+        ShowToast("Request cancelled");
     }
 
-    private record Dept(string Name, int Count, string Color);
-
-    // ponytail: hardcoded sample data for the mockup. Swap for a real query later.
-    private readonly Employee[] _employees =
+    private async Task CloseRequest()
     {
-        new("Andreea Ionescu", "andreea.ionescu@nordwave.io", "Design", "Product Designer", "Jun 24, 2026", "Active", "active"),
-        new("Mihai Popescu", "mihai.popescu@nordwave.io", "Engineering", "Backend Engineer", "Jun 18, 2026", "Active", "active"),
-        new("Elena Dumitrescu", "elena.dumitrescu@nordwave.io", "People", "HR Specialist", "Jun 10, 2026", "On leave", "leave"),
-        new("Radu Constantinescu", "radu.constantinescu@nordwave.io", "Sales", "Sales Lead", "May 29, 2026", "Remote", "remote"),
-        new("Ioana Marin", "ioana.marin@nordwave.io", "Engineering", "QA Engineer", "May 21, 2026", "Active", "active"),
+        if (_requestClosing) return;          // guard against double-trigger during the exit
+        _requestClosing = true;
+        await Task.Delay(200);                // let sheetOut/fadeOut play
+        _requestOpen = false;
+        _requestClosing = false;
+    }
+    private void PrevMonth() { if (--_viewMonth < 0) { _viewMonth = 11; _viewYear--; } }
+    private void NextMonth() { if (++_viewMonth > 11) { _viewMonth = 0; _viewYear++; } }
+
+    private void ClickDay(DateTime? ts)
+    {
+        if (ts is not DateTime d) return;
+        if (_selStart is null || _selEnd is not null) { _selStart = d; _selEnd = null; }
+        else if (d < _selStart) { _selStart = d; _selEnd = null; }
+        else { _selEnd = d; }
+    }
+
+    private async Task Submit()
+    {
+        string range; int days; DateTime start, end;
+        if (_selStart is DateTime s && _selEnd is DateTime e) { range = $"{Fmt(s)} – {Fmt(e)}"; days = (e - s).Days + 1; start = s; end = e; }
+        else if (_selStart is DateTime s2) { range = Fmt(s2); days = 1; start = end = s2; }
+        else { range = Fmt(Today); days = 1; start = end = Today; }
+
+        _myRequests.Insert(0, new Request(_newType, range, days, "Pending", start, end));
+        _selStart = _selEnd = null;
+        _newReason = "";
+        ShowToast("Request submitted — pending approval");
+        await CloseRequest();
+    }
+
+    private void Approve(int id)
+    {
+        var a = _approvals.First(x => x.Id == id);
+        a.Status = "approved";
+        ShowToast("Request approved");
+    }
+
+    private void Reject(int id)
+    {
+        var a = _approvals.First(x => x.Id == id);
+        a.Status = "rejected";
+        ShowToast("Request declined");
+    }
+
+    private void ShowToast(string msg)
+    {
+        _toast = msg;
+        _toastShow = true;
+        _toastCts?.Cancel();
+        var cts = _toastCts = new CancellationTokenSource();
+        _ = HideToastLater(cts.Token);
+    }
+
+    private async Task HideToastLater(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(2800, ct);
+            _toastShow = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public void Dispose() => _toastCts?.Cancel();
+
+    private static string Fmt(DateTime d) => d.ToString("MMM d", CultureInfo.InvariantCulture);
+
+    // ---- class helpers (design system classes live in app.css) ----
+    private (string Css, string Text) Pill(string status) => status.ToLowerInvariant() switch
+    {
+        "approved" => ("pill-green", "Approved"),
+        "rejected" => ("pill-red", "Declined"),
+        _          => ("pill-amber", "Pending"),
     };
 
-    private readonly Dept[] _departments =
+    // leave-type tone key → .tone-* / .dot-* / .fill-* classes
+    private static string TypeTone(string t) => t switch
     {
-        new("Engineering", 84, "var(--deep-ocean)"),
-        new("Operations",  41, "var(--blue-spruce)"),
-        new("Sales",       38, "var(--jungle-teal)"),
-        new("Design",      28, "var(--seagrass-2)"),
-        new("People",      22, "var(--mint-leaf-2)"),
-        new("Finance",     16, "var(--mint-leaf)"),
+        "Sick leave"   => "amber",
+        "Parental"     => "purple",
+        "Unpaid leave" => "gray",
+        _              => "accent",   // Annual leave
     };
 
-    private int _deptMax => _departments.Max(d => d.Count);
+    // ---- calendar page (month grid of team leave + own requests) ----
+    private string CpMonthLabel => new DateTime(_cpYear, _cpMonth + 1, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+    private void CpPrev() { if (--_cpMonth < 0) { _cpMonth = 11; _cpYear--; } }
+    private void CpNext() { if (++_cpMonth > 11) { _cpMonth = 0; _cpYear++; } }
+    private void CpToday() { _cpYear = Today.Year; _cpMonth = Today.Month - 1; }
+
+    private List<CpCell> CpCells()
+    {
+        var first = new DateTime(_cpYear, _cpMonth + 1, 1);
+        int lead = ((int)first.DayOfWeek + 6) % 7;                              // Monday-first
+        var start = first.AddDays(-lead);
+        int total = (lead + DateTime.DaysInMonth(_cpYear, _cpMonth + 1) + 6) / 7 * 7;   // whole weeks
+
+        var cells = new List<CpCell>();
+        for (int i = 0; i < total; i++)
+        {
+            var d = start.AddDays(i);
+            var evts = new List<CpEvt>();
+            foreach (var e in _events)
+                if (d >= e.Start && d <= e.End)
+                    evts.Add(new(e.Person.Split(' ')[0], TypeTone(e.Type), false, $"{e.Person} · {e.Type}"));
+            foreach (var r in _myRequests)
+                if (r.Start is DateTime rs && r.End is DateTime re && d >= rs && d <= re)
+                    evts.Add(new("You", TypeTone(r.Type), r.Status == "Pending", $"You · {r.Type} ({r.Status})"));
+            cells.Add(new(d, d.Month != _cpMonth + 1, d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday, d == Today, evts));
+        }
+        return cells;
+    }
+
+    // ---- request-sheet calendar / selection derived values ----
+    private string CalMonthLabel => new DateTime(_viewYear, _viewMonth + 1, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    private string SelectionLabel
+    {
+        get
+        {
+            if (_selStart is DateTime s && _selEnd is DateTime e) return $"{Fmt(s)} – {Fmt(e)} · {(e - s).Days + 1} days";
+            if (_selStart is DateTime s2) return $"{Fmt(s2)} – …";
+            return "Select your dates";
+        }
+    }
+
+    private List<CalCell> CalCells()
+    {
+        var cells = new List<CalCell>();
+        int firstW = ((int)new DateTime(_viewYear, _viewMonth + 1, 1).DayOfWeek + 6) % 7;   // Monday-first
+        int dim = DateTime.DaysInMonth(_viewYear, _viewMonth + 1);
+        for (int i = 0; i < firstW; i++)
+            cells.Add(new CalCell(null, "", "empty"));
+
+        for (int day = 1; day <= dim; day++)
+        {
+            var ts = new DateTime(_viewYear, _viewMonth + 1, day);
+            bool isStart = _selStart == ts, isEnd = _selEnd == ts;
+            bool inRange = _selStart is not null && _selEnd is not null && ts > _selStart && ts < _selEnd;
+
+            string css;
+            if (isStart && isEnd) css = "ep";                       // single-day range
+            else if (isStart && _selEnd is not null) css = "ep ep-l";
+            else if (isEnd) css = "ep ep-r";
+            else if (isStart) css = "ep";
+            else if (inRange) css = "range";
+            else if (ts == Today) css = "today";
+            else css = "";
+
+            cells.Add(new CalCell(ts, day.ToString(), css));
+        }
+        return cells;
+    }
+
+    // ---- types ----
+    private record Balance(string Label, string Tone, string Value, string Note, string Pct);
+    private record WeekDay(string Wd, int N, bool HasOut, string DotTone, bool IsToday, bool Wknd);
+    private record Person(string Name, string Initials, string Type, string Range, string Tone);
+    private record ActivityItem(string Text, string Time, string Tone);
+    private record Request(string Type, string Range, int Days, string Status, DateTime? Start = null, DateTime? End = null);
+    private record MonthBar(string Label, string H, bool Current);
+    private record MgrStat(string Label, string Value, string Note, string Css);
+    private record Dist(string Label, string Pct, string Tone);
+    private record CalCell(DateTime? Ts, string Label, string Css);
+    private record LeaveEvent(string Person, string Type, DateTime Start, DateTime End);
+    private record CpEvt(string Label, string Tone, bool Pending, string Title);
+    private record CpCell(DateTime Date, bool Dim, bool Wknd, bool IsToday, List<CpEvt> Events);
+
+    private class Approval
+    {
+        public int Id;
+        public string Name = "", Initials = "", Dept = "", Type = "", Range = "", Reason = "";
+        public int Days;
+        public string Status = "pending";
+    }
+
+    // ponytail: no backend yet — collections start empty, so every list renders its
+    // empty state. Real services will populate these later.
+    private readonly Balance[] _balances = Array.Empty<Balance>();
+    private readonly WeekDay[] _week = Array.Empty<WeekDay>();
+    private readonly Person[] _whoOut = Array.Empty<Person>();
+    private readonly ActivityItem[] _activity = Array.Empty<ActivityItem>();
+    private readonly List<Request> _myRequests = new();
+    private readonly LeaveEvent[] _events = Array.Empty<LeaveEvent>();
+    private readonly MonthBar[] _months = Array.Empty<MonthBar>();
+    private readonly Dist[] _distribution = Array.Empty<Dist>();
+    private readonly List<Approval> _approvals = new();
+
+    private MgrStat[] MgrStats =>
+    [
+        new("On leave today",      "0",                     "of 0 team members",  ""),
+        new("Pending approvals",   PendingCount.ToString(), "awaiting your review", "accent"),
+        new("Approved this month", "0",                     "requests",           "green"),
+        new("Avg. approval time",  "—",                     "across the team",    ""),
+    ];
 }

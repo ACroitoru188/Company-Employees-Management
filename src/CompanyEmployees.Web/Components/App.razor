@@ -9,7 +9,8 @@
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["CompanyEmployees.Web.styles.css"]" />
     <ImportMap />
-    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <script>if (!matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('anim');</script>
     <HeadOutlet />
 </head>
 
@@ -18,6 +19,9 @@
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="@Assets["js/pointer.js"]" defer></script>
+    <script src="@Assets["lib/gsap.min.js"]" defer></script>
+    <script src="@Assets["lib/ScrollTrigger.min.js"]" defer></script>
+    <script src="@Assets["js/anim.js"]" defer></script>
 </body>
 
 </html>
