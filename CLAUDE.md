@@ -52,10 +52,12 @@ truth; the fidelity-driven inline-style exception died with it.
 
 ```
 src/CompanyEmployees.Data/
-  Entities/              # Employee, Department, Role, EmployeeRole (join, composite key) and the
-                         # Permission [Flags] enum (Discord-style bitmask stored as long)
-  ApplicationDbContext.cs      # all Fluent API config in OnModelCreating + HasData seed of the
-                               # 3 default roles (Admin, Department Manager, Employee)
+  Entities/              # Employee (: IdentityUser<int>), Department, Role (: IdentityRole<int>,
+                         # keeps Color/Position/Permissions) and the Permission [Flags] enum
+                         # (Discord-style bitmask stored as long)
+  ApplicationDbContext.cs      # IdentityDbContext<Employee, Role, int>; all Fluent API config in
+                               # OnModelCreating + HasData seed of the 3 default roles (Admin,
+                               # Department Manager, Employee)
   Services/PermissionService.cs # HasPermission(employee, permission): ORs permissions across all
                                 # of the employee's roles; Administrator flag overrides everything
   DesignTimeDbContextFactory.cs # hardcoded LocalDB connection string, used only by dotnet ef
@@ -134,21 +136,25 @@ pattern for other dismiss-with-animation cases.
 
 ### Data
 
-- **Role/permission model is under reconsideration**: `main` currently ships a custom bitmask
-  system (`Role.Permissions` as a `[Flags] enum`, OR'd across an employee's roles via
-  `PermissionService.HasPermission`), built *deliberately* NOT on ASP.NET Core Identity. The team
-  now wants to move to **ASP.NET Core Identity** instead (for its built-in password hashing,
-  lockout, and role management) — this hasn't been implemented yet. Confirm with whoever owns
-  `CompanyEmployees.Data` before ripping out `Role`/`EmployeeRole`/`PermissionService`, since it's
-  already merged and other in-flight work (including the new `Login.razor` password check) reads
-  `Employee.PasswordHash` directly and will need rework once Identity lands.
+- **Auth model is ASP.NET Core Identity** (July 2026, replacing the earlier custom-only bitmask
+  system): `Employee : IdentityUser<int>`, `Role : IdentityRole<int>`. The bitmask permission
+  layer survives on top of it — `Role.Permissions` (`[Flags] enum`) is OR'd across an employee's
+  roles via `PermissionService.HasPermission`, with `Administrator` overriding everything.
+  Identity's own tables are remapped to domain names: `Employees`, `Roles`, and `EmployeeRoles`
+  (the `IdentityUserRole<int>` join, exposed as `Employee.Roles`/`Role.Employees` skip
+  navigations); the rarely-used ones keep their `AspNet*` defaults. Role seeds carry **fixed
+  `ConcurrencyStamp` values** — keep them fixed, or every model change regenerates the seed data.
+  The Web project's `Login.razor`/`Program.cs` predate this migration (they built `Employee`
+  objects and verified `PasswordHash` directly against the old plain-`Employee` shape) and need
+  rework to match the new `IdentityUser<int>`-based entity — see the note in that project's own
+  `Interactivity` section above once updated.
 - Delete behaviors: `Employee.DepartmentId` is `SetNull` (deleting a department keeps its
   employees); `Department.ManagerId` is `NoAction` because SQL Server rejects referential-action
   cycles with the other FK — detach a manager before deleting them. `EmployeeRole` cascades both ways.
 - Firing an employee = soft delete via `Employee.IsActive`, not row deletion.
-- `PasswordHash` is populated via `PasswordHasher<Employee>` (from `Login.razor`'s verification
-  code and `Program.cs`'s dev seed) — if the move to Identity happens, this column is superseded
-  by Identity's own password/security-stamp columns.
+- `Email`, `PhoneNumber` and `PasswordHash` live on `IdentityUser` now (hashing comes from
+  Identity's `PasswordHasher` once sign-in is wired up); `Email` keeps a unique index on top of
+  Identity's defaults.
 - TFM mismatch is deliberate: the Data project targets `net8.0` (per assignment spec) and the Web
   project `net10.0` — referencing the lower-TFM library from Web works fine.
 
