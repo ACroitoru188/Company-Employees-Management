@@ -1,8 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="CompanyEmployees.Data.IntegrationTests/CompanyEmployees.Data.IntegrationTests.csproj" Id="47e2c71f-067c-4512-83ae-8d79885a6de3" />
-    <Project Path="CompanyEmployees.Data.UnitTests/CompanyEmployees.Data.UnitTests.csproj" Id="b842bd23-b14a-4651-ad1a-26f14ca2af91" />
-    <Project Path="src/CompanyEmployees.Data/CompanyEmployees.Data.csproj" />
+    <Project Path="CompanyEmployees.Data/CompanyEmployees.Data.csproj" />
+    <Project Path="src/CompanyEmployees.BusinessLogic/CompanyEmployees.BusinessLogic.csproj" Id="6666db6d-f93e-416b-a29c-a00c39bbf1b8" />
+    <Project Path="src/CompanyEmployees.Data.UnitTests/CompanyEmployees.Data.UnitTests.csproj" Id="b842bd23-b14a-4651-ad1a-26f14ca2af91" />
     <Project Path="src/CompanyEmployees.Web/CompanyEmployees.Web.csproj" />
   </Folder>
 </Solution>

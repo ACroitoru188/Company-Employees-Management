@@ -8,11 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11" />
     <Folder Include="Assets\" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CompanyEmployees.Data\CompanyEmployees.Data.csproj" />
+    <ProjectReference Include="..\CompanyEmployees.BusinessLogic\CompanyEmployees.BusinessLogic.csproj" />
   </ItemGroup>
 
 </Project>
