@@ -8,7 +8,7 @@ namespace CompanyEmployees.BusinessLogic.DTOs
 
         public string Email { get; set; } = null!;
 
-        public Role UserRole { get; set; } = null!;
+        public string UserRole { get; set; } = null!;
 
         public DateTime Expiration { get; set; }
     }
