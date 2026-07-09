@@ -1,4 +1,5 @@
-﻿using CompanyEmployees.Domain.Exceptions;
+﻿using CompanyEmployees.Domain.Enums;
+using CompanyEmployees.Domain.Exceptions;
 using CompanyEmployees.Domain.GatewayInterfaces;
 using CompanyEmployees.Infrastructure.Security;
 using CompanyEmployees.Persistence;
@@ -13,15 +14,15 @@ namespace CompanyEmployees.Application.Contexts
 {
     public class AuthenticationContext : BaseContext
     {
-        private readonly IEmployeeGateway _employeeGateway;
+        private readonly IUserGateway _userGateway;
         private readonly IPasswordHasher _passwordHasher;
 
         public AuthenticationContext(CompanyEmployeesDbContext dbContext,
             ILogger<AuthenticationContext> logger,
-            IEmployeeGateway employeeGateway,
+            IUserGateway userGateway,
             IPasswordHasher passwordHasher) : base(dbContext, logger)
         {
-            _employeeGateway = employeeGateway;
+            _userGateway = userGateway;
             _passwordHasher = passwordHasher;
         }
 
@@ -30,19 +31,19 @@ namespace CompanyEmployees.Application.Contexts
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
                 throw new UnauthorizedException("Invalid credentials");
 
-            var employee = await _employeeGateway.GetEmployeeByEmailAsync(email);
+            var user = await _userGateway.GetUserByEmailAsync(email);
 
-            if (employee == null)
+            if (user == null)
             {
                 _logger.LogWarning("Login failed for {Email}: User not found.", email);
                 throw new UnauthorizedException("Invalid credentials");
             }
-            if (!employee.IsActive)
+            if (user.Status != UserStatus.Active)
             {
                 _logger.LogWarning("Login failed for {Email}: Account is inactive.", email);
                 throw new UnauthorizedException("Invalid credentials");
             }
-            var isPasswordValid = _passwordHasher.VerifyPassword(password, employee.PasswordHash);
+            var isPasswordValid = _passwordHasher.VerifyPassword(password, user.PasswordHash);
 
             if (!isPasswordValid)
             {
@@ -54,10 +55,10 @@ namespace CompanyEmployees.Application.Contexts
 
             return new LoginResult
             {
-                EmployeeId = employee.EmployeeId,
-                Email = employee.Email,
-                FullName = $"{employee.FirstName} {employee.LastName}",
-                RoleId = employee.Roles.FirstOrDefault()?.RoleId ?? 0
+                UserId = user.Id,
+                Email = user.Email,
+                FullName = user.Name,
+                Role = user.Role
             };
         }
     }

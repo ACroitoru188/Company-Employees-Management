@@ -1,5 +1,4 @@
-﻿using CompanyEmployees.Application.Contexts;
-using CompanyEmployees.Persistence;
+﻿using CompanyEmployees.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -11,10 +10,10 @@ namespace CompanyEmployees.Application
 {
     public class LoginResult
     {
-        public int EmployeeId { get; set; }
+        public Guid UserId { get; set; }
         public string Email { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
-        public int RoleId { get; set; }
+        public UserRole Role { get; set; }
         public string SessionToken { get; set; } = string.Empty;
     }
 }
