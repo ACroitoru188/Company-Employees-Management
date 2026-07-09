@@ -2,8 +2,13 @@
   <Folder Name="/src/">
     <Project Path="CompanyEmployees.Data.IntegrationTests/CompanyEmployees.Data.IntegrationTests.csproj" Id="47e2c71f-067c-4512-83ae-8d79885a6de3" />
     <Project Path="CompanyEmployees.Data/CompanyEmployees.Data.csproj" />
+    <Project Path="src/CompanyEmployees.Application/CompanyEmployees.Application.csproj" Id="e5cd2230-551e-4169-be72-dd17afa905a2" />
     <Project Path="src/CompanyEmployees.BusinessLogic/CompanyEmployees.BusinessLogic.csproj" Id="6666db6d-f93e-416b-a29c-a00c39bbf1b8" />
     <Project Path="src/CompanyEmployees.Data.UnitTests/CompanyEmployees.Data.UnitTests.csproj" Id="b842bd23-b14a-4651-ad1a-26f14ca2af91" />
+    <Project Path="src/CompanyEmployees.Domain/CompanyEmployees.Domain.csproj" Id="ad814f76-22d6-48b2-a428-865aaec0d833" />
+    <Project Path="src/CompanyEmployees.Gateway/CompanyEmployees.Gateway.csproj" Id="3db5c2af-ed09-4a01-996d-12e5bcbaae80" />
+    <Project Path="src/CompanyEmployees.Infrastructure/CompanyEmployees.Infrastructure.csproj" Id="63a71a7d-0821-4127-ab9b-4a36729d60eb" />
+    <Project Path="src/CompanyEmployees.Persistence/CompanyEmployees.Persistence.csproj" Id="5ef5785b-4eea-4b7c-8e04-ec0d87bf6662" />
     <Project Path="src/CompanyEmployees.Web/CompanyEmployees.Web.csproj" />
   </Folder>
 </Solution>
