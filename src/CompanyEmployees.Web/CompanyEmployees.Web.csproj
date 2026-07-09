@@ -13,8 +13,4 @@
     <Folder Include="Assets\" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\CompanyEmployees.BusinessLogic\CompanyEmployees.BusinessLogic.csproj" />
-  </ItemGroup>
-
 </Project>
