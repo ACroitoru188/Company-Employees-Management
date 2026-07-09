@@ -1,21 +1,15 @@
-﻿using CompanyEmployees.Persistence;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace CompanyEmployees.Application.Contexts
 {
+    // ponytail: contexts reach data only through Gateway interfaces (per the layering spec),
+    // so no DbContext here — Application must not know about Persistence.
     public abstract class BaseContext
     {
-        protected readonly CompanyEmployeesDbContext _dbContext;
         protected readonly ILogger _logger;
 
-        protected BaseContext(CompanyEmployeesDbContext dbContext, ILogger logger)
+        protected BaseContext(ILogger logger)
         {
-            _dbContext = dbContext;
             _logger = logger;
         }
     }

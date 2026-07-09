@@ -1,4 +1,5 @@
-﻿using CompanyEmployees.Infrastructure.Security;
+﻿using CompanyEmployees.Domain.Interfaces;
+using CompanyEmployees.Infrastructure.Security;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;

@@ -2,18 +2,15 @@
 @layout AuthLayout
 @rendermode InteractiveServer
 @using System.ComponentModel.DataAnnotations
-@using CompanyEmployees.Data
-@using CompanyEmployees.Data.Entities
-@using Microsoft.AspNetCore.Identity
-@using Microsoft.EntityFrameworkCore
-@inject ApplicationDbContext Db
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Exceptions
+@inject AuthenticationContext Auth
 @inject NavigationManager Nav
 
 <PageTitle>Sign in · Siemens Leave</PageTitle>
 
-@* ponytail: verifies against Employee.PasswordHash directly (PasswordHasher<Employee>,
-   same hasher Identity uses). No cookie/session yet — Sign in just navigates to /dashboard
-   on success. Superseded once the bitmask->Identity migration lands (SignInManager). *@
+@* ponytail: verifies through AuthenticationContext (BCrypt via IPasswordHasher). No
+   cookie/session yet — Sign in just navigates to /dashboard on success. *@
 <div class="lm login-page">
     <header class="login-brand" data-intro>
         <div class="brand-sq"><div></div></div>
@@ -65,15 +62,11 @@
         _checking = true;
         _error = null;
 
-        var employee = await Db.Employees
-            .FirstOrDefaultAsync(e => e.Email == _form.Email && e.IsActive);
-
-        var hasher = new PasswordHasher<Employee>();
-        var verified = employee is not null &&
-            hasher.VerifyHashedPassword(employee, employee.PasswordHash, _form.Password)
-                is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded;
-
-        if (!verified)
+        try
+        {
+            await Auth.LoginAsync(_form.Email, _form.Password);
+        }
+        catch (UnauthorizedException)
         {
             _error = "Invalid email or password.";
             _checking = false;

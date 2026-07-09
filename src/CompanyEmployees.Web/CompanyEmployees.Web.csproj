@@ -13,4 +13,12 @@
     <Folder Include="Assets\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\CompanyEmployees.Domain\CompanyEmployees.Domain.csproj" />
+    <ProjectReference Include="..\CompanyEmployees.Persistence\CompanyEmployees.Persistence.csproj" />
+    <ProjectReference Include="..\CompanyEmployees.Gateway\CompanyEmployees.Gateway.csproj" />
+    <ProjectReference Include="..\CompanyEmployees.Application\CompanyEmployees.Application.csproj" />
+    <ProjectReference Include="..\CompanyEmployees.Infrastructure\CompanyEmployees.Infrastructure.csproj" />
+  </ItemGroup>
+
 </Project>

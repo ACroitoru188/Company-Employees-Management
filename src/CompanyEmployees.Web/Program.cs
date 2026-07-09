@@ -1,13 +1,16 @@
-using CompanyEmployees.Data;
-using CompanyEmployees.Data.Entities;
 using CompanyEmployees.Web.Components;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using CompanyEmployees.BusinessLogic.Interfaces;
-using CompanyEmployees.BusinessLogic.Implementations;
+using CompanyEmployees.Application;
+using CompanyEmployees.Infrastructure;
+using CompanyEmployees.Persistence;
+using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Domain.Enums;
+using CompanyEmployees.Domain.GatewayInterfaces;
+using CompanyEmployees.Domain.Interfaces;
+using CompanyEmployees.Gateway.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,11 +18,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+builder.Services.AddDbContext<CompanyEmployeesDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 
 builder.Services.AddControllers();
-builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<IUserGateway, UserRepository>();
+builder.Services.AddApplicationLayer();
+builder.Services.AddInfrastructureLayer();
 
 var secretKey = builder.Configuration.GetSection("JwtSettings:Secret").Value;
 var key = Encoding.UTF8.GetBytes(secretKey ?? throw new InvalidOperationException("Missing JwtSettings:Secret"));
@@ -39,47 +44,37 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddIdentityCore<Employee>()
-    .AddRoles<Role>()
-    .AddEntityFrameworkStores<ApplicationDbContext>();
-
 var app = builder.Build();
 
 // ponytail: dev-only demo logins (Passw0rd!), one per role, so Login.razor and the
-// permission model are testable before real employee signup exists. Delete once
-// Identity migration lands.
+// permission model are testable before real user signup exists.
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
+    var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
-    void SeedDemoUser(string email, string firstName, string lastName, int roleId)
+    void SeedDemoUser(string email, string name, UserRole role)
     {
-        if (db.Employees.Any(e => e.Email == email))
+        if (db.Users.Any(u => u.Email == email))
             return;
 
-        var user = new Employee
+        db.Users.Add(new User
         {
-            FirstName = firstName,
-            LastName = lastName,
+            Name = name,
             Email = email,
-            PhoneNumber = "000-000-0000",
-            DateOfBirth = new DateTime(1990, 1, 1),
-            Address = "N/A",
-            HireDate = DateTime.UtcNow,
-            Salary = 0,
-            PasswordHash = "",
-            CreatedAt = DateTime.UtcNow
-        };
-        user.PasswordHash = new PasswordHasher<Employee>().HashPassword(user, "Passw0rd!");
-        user.Roles.Add(db.Roles.Find(roleId)!);
-        db.Employees.Add(user);
+            PasswordHash = hasher.HashPassword("Passw0rd!"),
+            Role = role,
+            Status = UserStatus.Active,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
         db.SaveChanges();
     }
 
-    SeedDemoUser("employee@siemens.com", "Demo", "Employee", roleId: 3);
-    SeedDemoUser("linemanager@siemens.com", "Demo", "Manager", roleId: 2);
-    SeedDemoUser("itadmin@siemens.com", "Demo", "Admin", roleId: 1);
+    SeedDemoUser("employee@siemens.com", "Demo Employee", UserRole.Employee);
+    SeedDemoUser("linemanager@siemens.com", "Demo Manager", UserRole.ProjectManager);
+    SeedDemoUser("itadmin@siemens.com", "Demo Admin", UserRole.Admin);
 }
 
 // Configure the HTTP request pipeline.

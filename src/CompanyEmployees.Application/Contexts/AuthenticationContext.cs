@@ -1,8 +1,7 @@
 ﻿using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Domain.Exceptions;
 using CompanyEmployees.Domain.GatewayInterfaces;
-using CompanyEmployees.Infrastructure.Security;
-using CompanyEmployees.Persistence;
+using CompanyEmployees.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -17,10 +16,10 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IUserGateway _userGateway;
         private readonly IPasswordHasher _passwordHasher;
 
-        public AuthenticationContext(CompanyEmployeesDbContext dbContext,
+        public AuthenticationContext(
             ILogger<AuthenticationContext> logger,
             IUserGateway userGateway,
-            IPasswordHasher passwordHasher) : base(dbContext, logger)
+            IPasswordHasher passwordHasher) : base(logger)
         {
             _userGateway = userGateway;
             _passwordHasher = passwordHasher;

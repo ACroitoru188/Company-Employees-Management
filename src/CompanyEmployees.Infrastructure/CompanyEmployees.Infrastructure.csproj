@@ -8,11 +8,16 @@
 
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
+    <!-- ponytail: ASP.NET Core types for GlobalExceptionHandler middleware, via the
+         shared framework — not a reference to the Web app (that was a dependency cycle). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CompanyEmployees.Domain\CompanyEmployees.Domain.csproj" />
-    <ProjectReference Include="..\CompanyEmployees.Web\CompanyEmployees.Web.csproj" />
+    <ProjectReference Include="..\CompanyEmployees.Persistence\CompanyEmployees.Persistence.csproj" />
+    <ProjectReference Include="..\CompanyEmployees.Gateway\CompanyEmployees.Gateway.csproj" />
+    <ProjectReference Include="..\CompanyEmployees.Application\CompanyEmployees.Application.csproj" />
   </ItemGroup>
 
 </Project>

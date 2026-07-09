@@ -1,31 +1,37 @@
-using CompanyEmployees.BusinessLogic.DTOs;
-using CompanyEmployees.BusinessLogic.Interfaces;
+using System.ComponentModel.DataAnnotations;
+using CompanyEmployees.Application.Contexts;
+using CompanyEmployees.Domain.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CompanyEmployees.Web.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthenticationController : ControllerBase
+public class 
+    AuthenticationController : ControllerBase
 {
-    private readonly IAuthenticationService _authenticationService;
+    private readonly AuthenticationContext _authentication;
 
-    public AuthenticationController(IAuthenticationService authenticationService)
+    public AuthenticationController(AuthenticationContext authentication)
     {
-        _authenticationService = authenticationService;
+        _authentication = authentication;
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         try
         {
-            var result = await _authenticationService.LoginAsync(request);
+            var result = await _authentication.LoginAsync(request.Email, request.Password);
             return Ok(result);
         }
-        catch (UnauthorizedAccessException ex)
+        catch (UnauthorizedException ex)
         {
             return Unauthorized(new { error = ex.Message });
         }
     }
+
+    public record LoginRequest(
+        [property: Required, EmailAddress] string Email,
+        [property: Required] string Password);
 }
