@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace CompanyEmployees.Domain.Enums;
 
-namespace CompanyEmployees.Domain.Enums
+public enum LeaveStatus
 {
-    internal class LeaveStatus
-    {
-    }
+    Pending ,
+    Approved,
+    Rejected,
+    Cancelled
 }

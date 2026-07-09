@@ -6,7 +6,12 @@ using System.Threading.Tasks;
 
 namespace CompanyEmployees.Domain.Enums
 {
-    internal class EmployeeRole
-    {
-    }
+   public enum UserRole
+   {
+      Guest = 0, //default
+      Employee = 1,
+      ProjectManager = 2, 
+      HR = 3,
+      Admin = 4
+   }
 }
