@@ -1,0 +1,21 @@
+@* MudBlazor providers must live inside the interactive page, not EmployeeLayout:
+   with per-page render modes the layout stays statically rendered, so providers
+   placed there never register with the circuit's scoped services (popovers,
+   dialogs and snackbars would crash the circuit). Include this at the top of
+   every employee page. *@
+
+<MudThemeProvider Theme="Theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@code {
+    public static readonly MudTheme Theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = Colors.Blue.Darken1,
+            AppbarBackground = Colors.Blue.Darken1
+        }
+    };
+}

@@ -1,0 +1,60 @@
+@inherits LayoutComponentBase
+@inject ITimeOffService TimeOff
+
+@* No Mud providers here: this layout is rendered statically (per-page render
+   modes never make the layout interactive), so providers live in
+   EmployeeProviders.razor, included by each interactive page. The static
+   prerender pass still needs the theme, hence the ThemeProvider-only below. *@
+<MudThemeProvider Theme="Employee.EmployeeProviders.Theme" />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudText Typo="Typo.h6" Style="font-weight:700; letter-spacing:.06em;">SIEMENS</MudText>
+        <MudText Typo="Typo.body2" Class="ml-3" Style="opacity:.85;">Time Off Management</MudText>
+        <MudSpacer />
+        <MudBadge Content="3" Color="Color.Error" Overlap="true" Class="mr-4">
+            <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
+        </MudBadge>
+        <MudAvatar Size="Size.Small" Style="background:rgba(255,255,255,.25); color:white;">
+            @TimeOff.CurrentUser.Initials
+        </MudAvatar>
+        <MudText Typo="Typo.body2" Class="ml-2">@TimeOff.CurrentUser.Name</MudText>
+    </MudAppBar>
+
+    <MudDrawer Open="true" Variant="DrawerVariant.Persistent" ClipMode="DrawerClipMode.Always" Elevation="1">
+        <div class="d-flex flex-column" style="height:100%;">
+            <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">
+                WORKSPACE
+            </MudText>
+            <MudNavMenu>
+                <MudNavLink Href="employee/dashboard" Match="NavLinkMatch.All"
+                            Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+                <MudNavLink Href="employee/calendar" Match="NavLinkMatch.All"
+                            Icon="@Icons.Material.Filled.CalendarMonth">Calendar</MudNavLink>
+                <MudNavLink Href="employee/my-requests" Match="NavLinkMatch.All"
+                            Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
+            </MudNavMenu>
+            <div class="mt-auto pa-4 d-flex align-center gap-3" style="border-top:1px solid var(--mud-palette-lines-default);">
+                <MudAvatar Size="Size.Small" Color="Color.Primary">@TimeOff.CurrentUser.Initials</MudAvatar>
+                <div>
+                    <MudText Typo="Typo.body2">@TimeOff.CurrentUser.Name</MudText>
+                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                        Employee · @TimeOff.CurrentUser.Department
+                    </MudText>
+                </div>
+            </div>
+        </div>
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>

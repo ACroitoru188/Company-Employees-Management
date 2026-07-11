@@ -1,0 +1,45 @@
+/* left column fixed-width sidebar, right column flexible — the 2-column split the
+   wireframe asks for */
+.shell { display: flex; min-height: 100dvh; background: var(--color-cream); font-family: var(--font-mono); color: var(--color-ink); }
+
+/* right column: thin TopBar row (auto height) + content-panel that fills the rest —
+   the 2-row split on top of the 2-column shell */
+.main { flex: 1; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+
+/* the single bordered panel that wraps whichever view is active */
+.content-panel {
+    margin: 0 var(--space-6) var(--space-6);
+    display: flex; flex-direction: column;
+    background: var(--color-surface);
+    border: var(--border-width) solid var(--color-ink);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+/* window-chrome strip: full-bleed so its border-bottom spans the whole panel width,
+   independent of the inner content's own padding */
+.chrome-strip {
+    flex: none; display: flex; align-items: center; gap: var(--space-3);
+    height: 46px; padding: 0 var(--space-5);
+    border-bottom: 2px solid var(--color-ink);
+}
+.chrome-dot { width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--color-ink); flex: none; }
+.chrome-title { font-weight: 700; font-size: 13.5px; letter-spacing: .02em; }
+
+.content-body { flex: 1; padding: var(--space-6) var(--space-7); overflow: auto; }
+
+.greet { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6); }
+.greet h1 { font-size: 24px; font-weight: 650; letter-spacing: -.02em; margin: 0; }
+.greet p { margin: 6px 0 0; font-size: 14px; color: var(--color-muted); }
+.greet p b { color: var(--color-teal-hi); font-weight: 650; }
+.greet-date { font-size: 13px; color: var(--color-muted); white-space: nowrap; padding-bottom: 4px; }
+
+@media (max-width: 820px) {
+    .shell { flex-direction: column; }
+}
+@media (max-width: 900px) {
+    .content-panel { margin: 0 var(--space-4) var(--space-4); padding: var(--space-5); }
+}
+@media (max-width: 640px) {
+    .greet { flex-direction: column; align-items: flex-start; }
+}

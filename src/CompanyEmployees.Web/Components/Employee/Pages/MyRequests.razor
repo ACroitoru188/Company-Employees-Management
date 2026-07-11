@@ -1,0 +1,68 @@
+@page "/employee/my-requests"
+@layout EmployeeLayout
+@rendermode InteractiveServer
+@using System.Globalization
+@inject ITimeOffService TimeOff
+@inject IDialogService DialogService
+
+<PageTitle>My Requests · Time Off Management</PageTitle>
+<EmployeeProviders />
+
+<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">My Requests</MudText>
+
+<MudTable T="TimeOffRequest" Items="@_requests" Hover="true" Elevation="1"
+          OnRowClick="@(args => OpenDetails(args.Item))">
+    <HeaderContent>
+        <MudTh>Type</MudTh>
+        <MudTh>Dates</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Submitted</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Type">
+            <MudChip T="string" Size="Size.Small"
+                     Style="@($"background:{LeaveTypePalette.Hex(context.Type)}; color:white;")">
+                @LeaveTypePalette.Label(context.Type)
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Dates">
+            @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
+            @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                @context.Days @(context.Days == 1 ? "day" : "days")
+            </MudText>
+        </MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">
+                @context.Status
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Submitted">
+            @context.SubmittedAt.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private IReadOnlyList<TimeOffRequest> _requests = [];
+
+    protected override void OnInitialized() =>
+        _requests = TimeOff.GetMyRequests();
+
+    private static Color StatusColor(RequestStatus status) => status switch
+    {
+        RequestStatus.Pending => Color.Warning,
+        RequestStatus.Approved => Color.Success,
+        RequestStatus.Rejected => Color.Error,
+        _ => Color.Default
+    };
+
+    private Task OpenDetails(TimeOffRequest request)
+    {
+        var parameters = new DialogParameters<RequestDetailsDialog>
+        {
+            { d => d.Request, request }
+        };
+        return DialogService.ShowAsync<RequestDetailsDialog>("Request details", parameters);
+    }
+}

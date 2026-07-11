@@ -1,0 +1,196 @@
+@page "/employee/calendar"
+@layout EmployeeLayout
+@rendermode InteractiveServer
+@using System.Globalization
+@inject ITimeOffService TimeOff
+@inject ISnackbar Snackbar
+
+<PageTitle>Calendar · Time Off Management</PageTitle>
+<EmployeeProviders />
+
+<LeaveBalanceSummary UserName="@TimeOff.CurrentUser.Name" Balances="@_balances" />
+
+<div class="d-flex align-center flex-wrap gap-2 mt-6 mb-2">
+    @foreach (var balance in _balances)
+    {
+        var isSelected = _selectedType == balance.Type;
+        <MudChip T="LeaveType" Value="@balance.Type"
+                 Disabled="@(balance.Remaining <= 0)"
+                 Variant="@(isSelected ? Variant.Filled : Variant.Outlined)"
+                 Style="@TypeChipStyle(balance.Type, isSelected)"
+                 OnClick="@(() => SelectType(balance.Type))">
+            @LeaveTypePalette.Label(balance.Type)
+        </MudChip>
+    }
+</div>
+
+@if (_selectedType is null)
+{
+    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+        Selecteaza intai tipul de concediu
+    </MudAlert>
+}
+
+<MudPaper Elevation="1" Class="pa-4">
+    <div class="cal-toolbar">
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="@(() => ChangeMonth(-1))" />
+        <MudText Typo="Typo.h6" Class="cal-title">
+            @_visibleMonth.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
+        </MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="@(() => ChangeMonth(1))" />
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="GoToday">Today</MudButton>
+    </div>
+
+    <div class="cal-grid cal-header">
+        @foreach (var name in new[] { "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN" })
+        {
+            <div class="cal-dow">@name</div>
+        }
+    </div>
+
+    <div class="cal-grid">
+        @foreach (var day in _days)
+        {
+            var inMonth = day.Month == _visibleMonth.Month;
+            var isPast = day < _today;
+            var selected = IsSelected(day);
+            <div class="cal-cell @(inMonth ? "" : "cal-other") @(isPast ? "cal-past" : "") @(day == _today ? "cal-today" : "")"
+                 style="@(selected && _selectedType is { } t ? $"background:{LeaveTypePalette.HighlightHex(t)};" : "")"
+                 @onclick="() => OnDayClick(day)">
+                <span class="cal-daynum">@day.Day</span>
+                @if (_teamByDay.TryGetValue(day, out var absences))
+                {
+                    @foreach (var absence in absences)
+                    {
+                        <MudTooltip Text="@($"{absence.MemberName} · {LeaveTypePalette.Label(absence.Type)}")">
+                            <span class="cal-chip" style="background:@LeaveTypePalette.Hex(absence.Type);">
+                                @ShortName(absence.MemberName)
+                            </span>
+                        </MudTooltip>
+                    }
+                }
+            </div>
+        }
+    </div>
+</MudPaper>
+
+@if (_range is { } range && _selectedType is { } type)
+{
+    <MudPaper Elevation="4" Class="pa-4 mt-4 d-flex align-center flex-wrap gap-4 cal-submitbar">
+        <MudText Typo="Typo.subtitle1" Style="font-weight:600;">
+            @LeaveTypePalette.Label(type) ·
+            @range.Start.ToString("MMM d", CultureInfo.InvariantCulture) –
+            @range.End.ToString("MMM d", CultureInfo.InvariantCulture)
+            (@RangeDays(range) @(RangeDays(range) == 1 ? "day" : "days"))
+        </MudText>
+        <MudTextField @bind-Value="_reason" Label="Reason (optional)" Variant="Variant.Outlined"
+                      Margin="Margin.Dense" Class="flex-grow-1" Style="min-width:220px;" />
+        <MudButton Variant="Variant.Text" OnClick="CancelSelection">Cancel selection</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Submit request</MudButton>
+    </MudPaper>
+}
+
+@code {
+    private IReadOnlyList<LeaveBalance> _balances = [];
+    private Dictionary<DateOnly, List<TeamAbsence>> _teamByDay = [];
+    private List<DateOnly> _days = [];
+
+    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly _visibleMonth;
+
+    private LeaveType? _selectedType;
+    private DateOnly? _anchor;
+    private (DateOnly Start, DateOnly End)? _range;
+    private string? _reason;
+
+    protected override void OnInitialized()
+    {
+        _balances = TimeOff.GetMyBalances();
+        _visibleMonth = new DateOnly(_today.Year, _today.Month, 1);
+        LoadMonth();
+    }
+
+    private void LoadMonth()
+    {
+        _teamByDay = TimeOff.GetTeamScheduleForMonth(_visibleMonth)
+            .GroupBy(a => a.Date)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var gridStart = _visibleMonth.AddDays(-(((int)_visibleMonth.DayOfWeek + 6) % 7));
+        _days = Enumerable.Range(0, 42).Select(gridStart.AddDays).ToList();
+    }
+
+    private void ChangeMonth(int delta)
+    {
+        _visibleMonth = _visibleMonth.AddMonths(delta);
+        LoadMonth();
+    }
+
+    private void GoToday()
+    {
+        _visibleMonth = new DateOnly(_today.Year, _today.Month, 1);
+        LoadMonth();
+    }
+
+    private void SelectType(LeaveType type) => _selectedType = type;
+
+    private bool IsSelected(DateOnly day) =>
+        _range is { } r && day >= r.Start && day <= r.End;
+
+    private void OnDayClick(DateOnly day)
+    {
+        if (_selectedType is null || day < _today || day.Month != _visibleMonth.Month)
+            return;
+
+        if (IsSelected(day))
+        {
+            _range = null;
+            _anchor = null;
+            return;
+        }
+
+        if (_anchor is not { } anchor || _range is { } existing && existing.Start != existing.End)
+        {
+            _anchor = day;
+            _range = (day, day);
+            return;
+        }
+
+        _range = day < anchor ? (day, anchor) : (anchor, day);
+    }
+
+    private void CancelSelection()
+    {
+        _range = null;
+        _anchor = null;
+        _reason = null;
+    }
+
+    private void Submit()
+    {
+        if (_range is not { } range || _selectedType is not { } type)
+            return;
+
+        TimeOff.SubmitRequest(type, range.Start, range.End, _reason);
+        Snackbar.Add("Time off request submitted", Severity.Success);
+        CancelSelection();
+        _selectedType = null;
+    }
+
+    private static int RangeDays((DateOnly Start, DateOnly End) range) =>
+        range.End.DayNumber - range.Start.DayNumber + 1;
+
+    private string TypeChipStyle(LeaveType type, bool isSelected)
+    {
+        var hex = LeaveTypePalette.Hex(type);
+        return isSelected
+            ? $"background:{hex}; color:white;"
+            : $"color:{hex}; border-color:{hex};";
+    }
+
+    private static string ShortName(string fullName)
+    {
+        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 1 ? $"{parts[0]} {parts[^1][0]}." : fullName;
+    }
+}

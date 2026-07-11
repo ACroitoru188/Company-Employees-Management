@@ -1,0 +1,76 @@
+@page "/employee/dashboard"
+@layout EmployeeLayout
+@rendermode InteractiveServer
+@using System.Globalization
+@inject ITimeOffService TimeOff
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard · Time Off Management</PageTitle>
+<EmployeeProviders />
+
+<LeaveBalanceSummary UserName="@TimeOff.CurrentUser.Name" Balances="@TimeOff.GetMyBalances()">
+    <Actions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => Nav.NavigateTo("/employee/calendar"))">
+            Request time off
+        </MudButton>
+    </Actions>
+</LeaveBalanceSummary>
+
+<MudCard Elevation="1" Class="mt-6">
+    <MudCardContent>
+        <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Team time off</MudText>
+        @if (_teamTimeOff.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                No upcoming time off in your team.
+            </MudText>
+        }
+        else
+        {
+            @foreach (var entry in _teamTimeOff)
+            {
+                <div class="d-flex align-center gap-3 py-3"
+                     style="border-bottom:1px solid var(--mud-palette-lines-default);">
+                    <MudAvatar Size="Size.Small"
+                               Style="@($"background:{LeaveTypePalette.Hex(entry.Type)}; color:white; font-size:.7rem;")">
+                        @entry.Initials
+                    </MudAvatar>
+                    <div class="flex-grow-1">
+                        <MudText Typo="Typo.body2" Style="font-weight:500;">@entry.MemberName</MudText>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                            @entry.Department
+                        </MudText>
+                    </div>
+                    <MudChip T="string" Size="Size.Small"
+                             Style="@($"background:{LeaveTypePalette.Hex(entry.Type)}; color:white;")">
+                        @LeaveTypePalette.Label(entry.Type)
+                    </MudChip>
+                    <div style="text-align:right; min-width:150px;">
+                        <MudText Typo="Typo.body2">
+                            @entry.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
+                            @entry.EndDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                        </MudText>
+                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                            @entry.Days @(entry.Days == 1 ? "day" : "days")@(IsOngoing(entry) ? " · away now" : "")
+                        </MudText>
+                    </div>
+                </div>
+            }
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private IReadOnlyList<TeamTimeOff> _teamTimeOff = [];
+
+    protected override void OnInitialized() =>
+        _teamTimeOff = TimeOff.GetTeamTimeOff();
+
+    private static bool IsOngoing(TeamTimeOff entry)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return entry.StartDate <= today && today <= entry.EndDate;
+    }
+}

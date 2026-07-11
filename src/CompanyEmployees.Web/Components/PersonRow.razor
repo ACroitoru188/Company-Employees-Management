@@ -1,0 +1,16 @@
+<div class="row">
+    <Avatar Initials="@Initials" Tone="Tone" />
+    <div class="row-main">
+        <div class="row-name">@Name</div>
+        <div class="row-sub">@Sub</div>
+    </div>
+    <div class="row-side">@Side</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+    [Parameter, EditorRequired] public string Initials { get; set; } = "";
+    [Parameter] public LeaveTone Tone { get; set; } = LeaveTone.Accent;
+    [Parameter, EditorRequired] public string Sub { get; set; } = "";
+    [Parameter, EditorRequired] public string Side { get; set; } = "";
+}

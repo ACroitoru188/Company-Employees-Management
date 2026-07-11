@@ -1,0 +1,56 @@
+@using System.Globalization
+
+<div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
+    <div>
+        <MudText Typo="Typo.h5" Style="font-weight:600;">Good morning, @FirstName</MudText>
+        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">@Subtitle</MudText>
+    </div>
+    @if (Actions is not null)
+    {
+        <div>@Actions</div>
+    }
+</div>
+
+<MudGrid Spacing="3">
+    @foreach (var balance in Balances)
+    {
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="1">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+                        @balance.Type.ToString().ToUpperInvariant()
+                    </MudText>
+                    <div class="d-flex align-baseline gap-1 mb-2">
+                        <MudText Typo="Typo.h4" Style="font-weight:700;">@balance.Remaining</MudText>
+                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                            / @balance.DaysTotal days
+                        </MudText>
+                    </div>
+                    <MudProgressLinear Value="@(100.0 * balance.Remaining / balance.DaysTotal)"
+                                       Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mb-2"
+                                       Style="@($"--mud-palette-primary:{LeaveTypePalette.Hex(balance.Type)};")" />
+                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                        @balance.DaysUsed used this year
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    }
+</MudGrid>
+
+@code {
+    [Parameter, EditorRequired] public string UserName { get; set; } = "";
+    [Parameter, EditorRequired] public IReadOnlyList<LeaveBalance> Balances { get; set; } = [];
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    private string FirstName => UserName.Split(' ')[0];
+
+    private static string Subtitle
+    {
+        get
+        {
+            var d = DateTime.Today;
+            return $"{d.ToString("dddd, MMMM d, yyyy", CultureInfo.InvariantCulture)} · Week {ISOWeek.GetWeekOfYear(d)}";
+        }
+    }
+}

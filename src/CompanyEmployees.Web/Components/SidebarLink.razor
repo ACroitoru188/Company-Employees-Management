@@ -1,0 +1,19 @@
+<span class="sb-link @ActiveCssClass" @onclick="OnClick">
+    @Icon
+    @Label
+    @if (Badge is not null && Badge > 0)
+    {
+        <span class="sb-badge">@Badge</span>
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment Icon { get; set; } = default!;
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public string ViewName { get; set; } = "";
+    [Parameter, EditorRequired] public string ActiveView { get; set; } = "";
+    [Parameter] public int? Badge { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private string ActiveCssClass => ViewName == ActiveView ? "active" : "";
+}

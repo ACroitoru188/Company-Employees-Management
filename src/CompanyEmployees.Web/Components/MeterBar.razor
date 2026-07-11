@@ -1,0 +1,8 @@
+<div class="meter">
+    <div class="meter-fill tone-fill-@Tone.ToString().ToLowerInvariant()" style="width: @Percent"></div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Percent { get; set; } = "0%";
+    [Parameter] public LeaveTone Tone { get; set; } = LeaveTone.Accent;
+}

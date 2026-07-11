@@ -1,0 +1,84 @@
+.cal-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.cal-title {
+    min-width: 170px;
+    text-align: center;
+}
+
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.cal-header {
+    margin-bottom: 4px;
+}
+
+.cal-dow {
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--mud-palette-text-secondary);
+    padding: 4px 0;
+}
+
+.cal-cell {
+    min-height: 84px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 4px;
+    padding: 4px 6px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.cal-cell:hover {
+    border-color: var(--mud-palette-primary);
+}
+
+.cal-daynum {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.cal-other {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+.cal-past {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+.cal-today .cal-daynum {
+    color: var(--mud-palette-primary);
+}
+
+.cal-chip {
+    display: inline-block;
+    max-width: 100%;
+    font-size: 0.68rem;
+    line-height: 1.5;
+    color: white;
+    border-radius: 10px;
+    padding: 0 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-submitbar {
+    position: sticky;
+    bottom: 16px;
+    z-index: 10;
+}

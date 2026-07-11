@@ -1,0 +1,19 @@
+<span class="pill pill-@StatusCss">@StatusText</span>
+
+@code {
+    [Parameter, EditorRequired] public string Status { get; set; } = "";
+
+    private string StatusCss => Status.ToLowerInvariant() switch
+    {
+        "approved" => "green",
+        "rejected" => "red",
+        _          => "amber",
+    };
+
+    private string StatusText => Status.ToLowerInvariant() switch
+    {
+        "approved" => "Approved",
+        "rejected" => "Declined",
+        _          => "Pending",
+    };
+}

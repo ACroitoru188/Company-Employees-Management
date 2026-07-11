@@ -1,0 +1,119 @@
+<KpiBand>
+    @foreach (var b in Balances)
+    {
+        <KpiTile Label="@b.Label" Value="@b.Value" Note="@b.Note" Percent="@b.Pct" Tone="@ParseTone(b.Tone)" />
+    }
+</KpiBand>
+
+<div class="grid-main">
+    <div class="col">
+        <!-- Who's out this week -->
+        <Card Eyebrow="This week" Title="Who's out of office">
+            <HeaderAction><button class="card-link">Open calendar</button></HeaderAction>
+            <ChildContent>
+                <div class="week">
+                    @foreach (var d in Week)
+                    {
+                        <div class="wcell @(d.IsToday ? "today" : "") @(d.Wknd ? "wknd" : "")">
+                            <div class="wcell-wd">@d.Wd</div>
+                            <div class="wcell-n">@d.N</div>
+                            <div class="wcell-dot">
+                                @if (d.HasOut)
+                                {
+                                    <span class="wcell-dot-mark tone-mark-@d.DotTone"></span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+                <RowList>
+                    @foreach (var p in WhoOut)
+                    {
+                        <PersonRow Name="@p.Name" Initials="@p.Initials" Tone="@ParseTone(p.Tone)" Sub="@p.Type" Side="@p.Range" />
+                    }
+                </RowList>
+            </ChildContent>
+        </Card>
+
+        <!-- Recent activity -->
+        <Card Eyebrow="Timeline" Title="Recent activity">
+            <ChildContent>
+                <div class="timeline">
+                    <div class="tl-rail"></div>
+                    @foreach (var a in Activity)
+                    {
+                        <div class="tl-item">
+                            <span class="tl-dot tone-mark-@a.Tone"></span>
+                            <div class="tl-text">@a.Text</div>
+                            <div class="tl-time">@a.Time</div>
+                        </div>
+                    }
+                </div>
+            </ChildContent>
+        </Card>
+    </div>
+
+    <div class="col">
+        <!-- My requests -->
+        <Card Eyebrow="Status" Title="My requests">
+            <ChildContent>
+                <RowList>
+                    @foreach (var r in MyRequests)
+                    {
+                        <RequestRow Type="@r.Type" Range="@r.Range" Days="@r.Days" Status="@r.Status" />
+                    }
+                </RowList>
+            </ChildContent>
+        </Card>
+
+        <!-- Annual leave used -->
+        <Card Eyebrow="Overview" Title="Annual leave used">
+            <ChildContent>
+                <div class="donut-row">
+                    <div class="donut">
+                        <div class="donut-hole"><b>0</b><span>days left</span></div>
+                    </div>
+                    <div class="legend">
+                        <div><span class="tone-mark-accent"></span><span>Used <b>0 days</b></span></div>
+                        <div><span class="dot-tint"></span><span>Remaining <b>0 days</b></span></div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <div class="microlabel">Days off per month</div>
+                <div class="mbars">
+                    @foreach (var m in Months)
+                    {
+                        <div class="mbar @(m.Current ? "cur" : "")">
+                            <div style="height: @m.H"></div>
+                            <span>@m.Label</span>
+                        </div>
+                    }
+                </div>
+            </ChildContent>
+        </Card>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<Balance> Balances { get; set; } = Array.Empty<Balance>();
+    [Parameter, EditorRequired] public IReadOnlyList<WeekDay> Week { get; set; } = Array.Empty<WeekDay>();
+    [Parameter, EditorRequired] public IReadOnlyList<PersonEntry> WhoOut { get; set; } = Array.Empty<PersonEntry>();
+    [Parameter, EditorRequired] public IReadOnlyList<ActivityItem> Activity { get; set; } = Array.Empty<ActivityItem>();
+    [Parameter, EditorRequired] public IReadOnlyList<MyRequestsView.RequestEntry> MyRequests { get; set; } = Array.Empty<MyRequestsView.RequestEntry>();
+    [Parameter, EditorRequired] public IReadOnlyList<MonthBar> Months { get; set; } = Array.Empty<MonthBar>();
+
+    private static LeaveTone ParseTone(string tone) => tone switch
+    {
+        "amber"  => LeaveTone.Amber,
+        "purple" => LeaveTone.Purple,
+        "gray"   => LeaveTone.Gray,
+        "green"  => LeaveTone.Green,
+        _        => LeaveTone.Accent,
+    };
+
+    public record Balance(string Label, string Tone, string Value, string Note, string Pct);
+    public record WeekDay(string Wd, int N, bool HasOut, string DotTone, bool IsToday, bool Wknd);
+    public record PersonEntry(string Name, string Initials, string Type, string Range, string Tone);
+    public record ActivityItem(string Text, string Time, string Tone);
+    public record MonthBar(string Label, string H, bool Current);
+}

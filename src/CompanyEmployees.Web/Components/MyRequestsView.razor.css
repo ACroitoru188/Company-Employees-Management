@@ -1,0 +1,16 @@
+.greet { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6); }
+.greet h1 { font-size: 24px; font-weight: 650; letter-spacing: -.02em; margin: 0; }
+.greet p { margin: 6px 0 0; font-size: 14px; color: var(--color-muted); }
+.greet-date { font-size: 13px; color: var(--color-muted); white-space: nowrap; padding-bottom: 4px; }
+
+.card-link {
+    font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--color-teal-hi);
+    cursor: pointer; background: none; border: none; padding: 0; text-decoration: underline;
+}
+.card-link:hover { color: var(--color-ink); }
+
+.empty { padding: 26px 0; text-align: center; color: var(--color-muted); font-size: 13.5px; }
+
+@media (max-width: 640px) {
+    .greet { flex-direction: column; align-items: flex-start; }
+}

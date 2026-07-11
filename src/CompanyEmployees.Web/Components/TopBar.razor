@@ -1,0 +1,51 @@
+<header class="topbar">
+    <div class="seg">
+        <button class="seg-btn @(!IsManager ? "on" : "")" @onclick="OnSetEmployee">Employee</button>
+        <button class="seg-btn @(IsManager ? "on" : "")" @onclick="OnSetManager">Line manager</button>
+    </div>
+    <button class="icon-btn" aria-label="Notifications">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 7.5a5 5 0 0 1 10 0c0 3 1.2 4 1.2 4H2.8s1.2-1 1.2-4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.3 14.2a1.9 1.9 0 0 0 3.4 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span class="ping"></span>
+    </button>
+    <RetroButton Variant="RetroButton.ButtonVariant.Primary" OnClick="OnOpenRequest">Request time off</RetroButton>
+    <div class="profile-wrap">
+        <div class="avatar-chip" title="@($"Your account · {RoleLabel}")" @onclick="ToggleProfileMenu">·</div>
+        @if (_profileMenuOpen)
+        {
+            <div class="profile-backdrop" @onclick="CloseProfileMenu"></div>
+            <div class="profile-menu" @onclick:stopPropagation="true">
+                <button class="pm-item" @onclick="HandleChangeProfilePicture">Change profile picture</button>
+                <button class="pm-item" @onclick="HandleContactAdministration">Contact administration</button>
+                <div class="pm-sep"></div>
+                <a class="pm-item pm-danger" href="/">Sign out</a>
+            </div>
+        }
+    </div>
+</header>
+
+@code {
+    [Parameter] public bool IsManager { get; set; }
+    [Parameter, EditorRequired] public string RoleLabel { get; set; } = "";
+
+    [Parameter] public EventCallback OnSetEmployee { get; set; }
+    [Parameter] public EventCallback OnSetManager { get; set; }
+    [Parameter] public EventCallback OnOpenRequest { get; set; }
+    [Parameter] public EventCallback OnChangeProfilePicture { get; set; }
+    [Parameter] public EventCallback OnContactAdministration { get; set; }
+
+    private bool _profileMenuOpen;
+    private void ToggleProfileMenu() => _profileMenuOpen = !_profileMenuOpen;
+    private void CloseProfileMenu() => _profileMenuOpen = false;
+
+    private async Task HandleChangeProfilePicture()
+    {
+        _profileMenuOpen = false;
+        await OnChangeProfilePicture.InvokeAsync();
+    }
+
+    private async Task HandleContactAdministration()
+    {
+        _profileMenuOpen = false;
+        await OnContactAdministration.InvokeAsync();
+    }
+}

@@ -1,87 +1,84 @@
 @page "/"
 @layout AuthLayout
 @rendermode InteractiveServer
-@using System.ComponentModel.DataAnnotations
-@using CompanyEmployees.Application.Contexts
-@using CompanyEmployees.Domain.Exceptions
-@inject AuthenticationContext Auth
 @inject NavigationManager Nav
 
-<PageTitle>Sign in · Siemens Leave</PageTitle>
+<PageTitle>Sign in · Time Off Management</PageTitle>
+<EmployeeProviders />
 
-@* ponytail: verifies through AuthenticationContext (BCrypt via IPasswordHasher). No
-   cookie/session yet — Sign in just navigates to /dashboard on success. *@
-<div class="lm login-page">
-    <header class="login-brand" data-intro>
-        <div class="brand-sq"><div></div></div>
-        <span class="brand-word">SIEMENS</span>
-    </header>
+@* Mock sign-in for the Employee UI stage: no real authentication yet — any
+   well-formed credentials navigate to the employee dashboard. The previous
+   DB-backed check (PasswordHasher against Employee.PasswordHash) was removed
+   with the MudBlazor redesign; bring it back via Identity/SignInManager when
+   real auth lands. *@
 
-    <EditForm Model="_form" OnValidSubmit="HandleLogin" class="login-card">
-        <DataAnnotationsValidator />
-        <div class="microlabel" data-intro>Leave management</div>
-        <h1 data-intro>Sign in to your workspace</h1>
-        <p class="login-sub" data-intro>Use your Siemens single sign-on credentials.</p>
-
-        @if (_error is not null)
-        {
-            <div class="login-error" data-intro>@_error</div>
-        }
-
-        <label class="lfield" data-intro>
-            Work email
-            <InputText type="email" @bind-Value="_form.Email" placeholder="yourname@siemens.com" autocomplete="username" />
-        </label>
-        <label class="lfield" data-intro>
-            Password
-            <InputText type="password" @bind-Value="_form.Password" autocomplete="current-password" />
-        </label>
-
-        <div class="login-row" data-intro>
-            <label class="check"><input type="checkbox" checked /> Keep me signed in</label>
-            <a href="/forgot-password">Forgot password?</a>
+<div class="login-wrap">
+    <MudPaper Elevation="3" Class="pa-8 login-card">
+        <div class="d-flex align-baseline gap-3 mb-6">
+            <MudText Typo="Typo.h5" Style="font-weight:700; letter-spacing:.06em; color:var(--mud-palette-primary);">
+                SIEMENS
+            </MudText>
+            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                Time Off Management
+            </MudText>
         </div>
 
-        <button type="submit" class="btn-pri btn-block" data-intro disabled="@_checking">Sign in</button>
+        <MudText Typo="Typo.h6" Style="font-weight:600;">Sign in to your workspace</MudText>
+        <MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
+            Use your Siemens credentials.
+        </MudText>
 
-        <div class="login-foot" data-intro>Protected by Siemens SSO · Demo workspace</div>
-    </EditForm>
+        <MudForm @ref="_form">
+            <MudTextField T="string" @bind-Value="_email" Label="Work email"
+                          Variant="Variant.Outlined" InputType="InputType.Email"
+                          Required="true" RequiredError="Email is required"
+                          Validation="@(new Func<string, string?>(ValidateEmail))"
+                          Placeholder="yourname@siemens.com" Class="mb-4" />
+            <MudTextField T="string" @bind-Value="_password" Label="Password"
+                          Variant="Variant.Outlined"
+                          InputType="@(_showPassword ? InputType.Text : InputType.Password)"
+                          Required="true" RequiredError="Password is required"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                          OnAdornmentClick="@(() => _showPassword = !_showPassword)"
+                          AdornmentAriaLabel="Show password" />
 
-    <footer class="login-legal" data-intro>
-        <span>© 2026 Siemens AG</span><span>Privacy</span><span>Terms</span><span>Help</span>
-    </footer>
+            <div class="d-flex justify-space-between align-center gap-4 my-4 flex-wrap">
+                <MudCheckBox T="bool" @bind-Value="_keepSignedIn" Label="Keep me signed in" Dense="true" />
+                <MudLink Href="/forgot-password" Typo="Typo.body2" Class="ml-auto">Forgot password?</MudLink>
+            </div>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                       FullWidth="true" OnClick="SignIn">
+                Sign in
+            </MudButton>
+        </MudForm>
+
+        <MudText Typo="Typo.caption" Class="d-block mt-6"
+                 Style="text-align:center; color:var(--mud-palette-text-secondary);">
+            Demo workspace · no real authentication yet
+        </MudText>
+    </MudPaper>
+
+    <MudText Typo="Typo.caption" Class="mt-4" Style="color:var(--mud-palette-text-secondary);">
+        © 2026 Siemens AG · Privacy · Terms · Help
+    </MudText>
 </div>
 
 @code {
-    private readonly LoginForm _form = new();
-    private string? _error;
-    private bool _checking;
+    private MudForm _form = default!;
+    private string _email = "";
+    private string _password = "";
+    private bool _showPassword;
+    private bool _keepSignedIn = true;
 
-    private async Task HandleLogin()
+    private static string? ValidateEmail(string value) =>
+        string.IsNullOrWhiteSpace(value) || value.Contains('@') ? null : "Enter a valid email address";
+
+    private async Task SignIn()
     {
-        _checking = true;
-        _error = null;
-
-        try
-        {
-            await Auth.LoginAsync(_form.Email, _form.Password);
-        }
-        catch (UnauthorizedException)
-        {
-            _error = "Invalid email or password.";
-            _checking = false;
-            return;
-        }
-
-        Nav.NavigateTo("/dashboard");
-    }
-
-    private class LoginForm
-    {
-        [Required, EmailAddress]
-        public string Email { get; set; } = "";
-
-        [Required]
-        public string Password { get; set; } = "";
+        await _form.Validate();
+        if (_form.IsValid)
+            Nav.NavigateTo("/employee/dashboard");
     }
 }

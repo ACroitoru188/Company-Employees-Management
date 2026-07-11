@@ -1,0 +1,37 @@
+.topbar {
+    display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
+    font-family: var(--font-mono);
+}
+
+.seg { display: flex; padding: 3px; background: var(--color-navy); border: var(--border-width-sm) solid var(--color-ink); border-radius: var(--radius-sm); gap: 2px; }
+.seg-btn { border: none; cursor: pointer; padding: 6px 13px; border-radius: 6px; font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; background: transparent; color: var(--color-cream); }
+.seg-btn.on { background: var(--color-coral); color: var(--color-navy); }
+
+.icon-btn { width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--color-surface); border: var(--border-width-sm) solid var(--color-ink); display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; color: var(--color-ink); }
+.icon-btn:hover { background: var(--color-teal-tint); }
+.icon-btn .ping { position: absolute; top: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--color-coral); border: 1.5px solid var(--color-surface); }
+
+.avatar-chip {
+    width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--color-cream);
+    border: 2px solid var(--color-ink); color: var(--color-ink);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex: none; cursor: pointer;
+}
+
+.profile-wrap { position: relative; }
+.profile-backdrop { position: fixed; inset: 0; z-index: 40; }
+.profile-menu {
+    position: absolute; top: calc(100% + 8px); right: 0; z-index: 50;
+    min-width: 220px; padding: 6px; background: var(--color-surface);
+    border: var(--border-width) solid var(--color-ink); border-radius: var(--radius-sm);
+    display: flex; flex-direction: column;
+}
+.pm-item {
+    display: block; width: 100%; text-align: left; border: none; background: transparent;
+    padding: 9px 11px; border-radius: 7px; font-family: var(--font-mono); font-size: 13.5px; font-weight: 500;
+    color: var(--color-ink); cursor: pointer; text-decoration: none;
+}
+.pm-item:hover { background: var(--color-teal-tint); }
+.pm-sep { height: var(--border-width-sm); background: var(--color-cream-2); margin: 5px 0; }
+.pm-danger { color: var(--color-red); }
+.pm-danger:hover { background: var(--color-red-tint); color: var(--color-red); }

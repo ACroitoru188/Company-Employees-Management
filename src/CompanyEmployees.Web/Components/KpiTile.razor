@@ -1,0 +1,27 @@
+<div class="kpi">
+    <div class="kpi-label">
+        @if (Tone is not null)
+        {
+            <Dot Tone="Tone.Value" />
+        }
+        @Label
+    </div>
+    <div class="kpi-value @ValueCss">@Value</div>
+    @if (Note is not null)
+    {
+        <div class="kpi-note">@Note</div>
+    }
+    @if (Percent is not null)
+    {
+        <MeterBar Percent="@Percent" Tone="@(Tone ?? LeaveTone.Accent)" />
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public string Value { get; set; } = "";
+    [Parameter] public string? Note { get; set; }
+    [Parameter] public string? Percent { get; set; }
+    [Parameter] public LeaveTone? Tone { get; set; }
+    [Parameter] public string ValueCss { get; set; } = "";
+}

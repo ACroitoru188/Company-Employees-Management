@@ -1,0 +1,5 @@
+.card-link {
+    font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--color-teal-hi);
+    cursor: pointer; background: none; border: none; padding: 0; text-decoration: underline;
+}
+.card-link:hover { color: var(--color-ink); }

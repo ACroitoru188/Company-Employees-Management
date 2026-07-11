@@ -1,0 +1,25 @@
+<div class="row">
+    @if (ShowDot)
+    {
+        <Dot Tone="Tone" />
+    }
+    <div class="row-main">
+        <div class="row-name">@Type</div>
+        <div class="row-sub">@Range · @Days @(Days == 1 ? "day" : "days")</div>
+    </div>
+    @if (OnCancel.HasDelegate && Status == "Pending")
+    {
+        <button class="card-link" @onclick="() => OnCancel.InvokeAsync()">Cancel</button>
+    }
+    <Pill Status="@Status" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Type { get; set; } = "";
+    [Parameter, EditorRequired] public string Range { get; set; } = "";
+    [Parameter] public int Days { get; set; }
+    [Parameter, EditorRequired] public string Status { get; set; } = "";
+    [Parameter] public LeaveTone Tone { get; set; } = LeaveTone.Accent;
+    [Parameter] public bool ShowDot { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+}

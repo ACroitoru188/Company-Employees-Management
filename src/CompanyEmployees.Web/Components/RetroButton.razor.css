@@ -1,0 +1,17 @@
+.retro-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    height: 38px; padding: 0 var(--space-4);
+    border: var(--border-width) solid var(--color-ink); border-radius: var(--radius-sm);
+    font-family: var(--font-mono); font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.retro-btn:disabled { cursor: default; opacity: .55; }
+.retro-btn-block { width: 100%; }
+
+.retro-btn-primary { background: var(--color-teal); color: var(--color-ink); }
+.retro-btn-primary:hover:not(:disabled) { background: var(--color-teal-hi); }
+
+.retro-btn-ghost { background: var(--color-surface); color: var(--color-ink); }
+.retro-btn-ghost:hover:not(:disabled) { background: var(--color-cream); }
+
+.retro-btn-danger { background: var(--color-coral); color: var(--color-ink); }
+.retro-btn-danger:hover:not(:disabled) { background: var(--color-coral-hi); }

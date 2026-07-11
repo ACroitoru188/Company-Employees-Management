@@ -1,0 +1,79 @@
+<KpiBand>
+    @foreach (var s in Stats)
+    {
+        <KpiTile Label="@s.Label" Value="@s.Value" Note="@s.Note" ValueCss="@s.Css" />
+    }
+</KpiBand>
+
+<div class="grid-main">
+    <!-- Pending approvals -->
+    <Card Eyebrow="Action needed" Title="Pending approvals">
+        <HeaderAction><span class="pill tone-accent">@PendingCount to review</span></HeaderAction>
+        <ChildContent>
+            @foreach (var a in Approvals)
+            {
+                <ApprovalRow Name="@a.Name" Initials="@a.Initials" Dept="@a.Dept" Type="@a.Type"
+                             Tone="@ParseTone(a.Type)" Range="@a.Range" Days="@a.Days" Reason="@a.Reason"
+                             Status="@a.Status"
+                             OnApprove="() => OnApprove.InvokeAsync(a.Id)"
+                             OnReject="() => OnReject.InvokeAsync(a.Id)" />
+            }
+        </ChildContent>
+    </Card>
+
+    <div class="col">
+        <!-- On leave today -->
+        <Card Eyebrow="Today" Title="On leave">
+            <ChildContent>
+                <RowList>
+                    @foreach (var p in WhoOut)
+                    {
+                        <PersonRow Name="@p.Name" Initials="@p.Initials" Tone="@ParseTone(p.Tone)" Sub="@p.Type" Side="@p.Range" />
+                    }
+                </RowList>
+            </ChildContent>
+        </Card>
+
+        <!-- Leave distribution -->
+        <Card Eyebrow="Breakdown" Title="Leave distribution">
+            <ChildContent>
+                <div class="dist">
+                    @foreach (var d in Distribution)
+                    {
+                        <div>
+                            <div class="dist-meta"><span>@d.Label</span><span>@d.Pct</span></div>
+                            <MeterBar Percent="@d.Pct" Tone="@ParseTone(d.Tone)" />
+                        </div>
+                    }
+                </div>
+            </ChildContent>
+        </Card>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<MgrStat> Stats { get; set; } = Array.Empty<MgrStat>();
+    [Parameter] public int PendingCount { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<ApprovalEntry> Approvals { get; set; } = Array.Empty<ApprovalEntry>();
+    [Parameter, EditorRequired] public IReadOnlyList<EmployeeOverview.PersonEntry> WhoOut { get; set; } = Array.Empty<EmployeeOverview.PersonEntry>();
+    [Parameter, EditorRequired] public IReadOnlyList<Dist> Distribution { get; set; } = Array.Empty<Dist>();
+
+    [Parameter] public EventCallback<int> OnApprove { get; set; }
+    [Parameter] public EventCallback<int> OnReject { get; set; }
+
+    private static LeaveTone ParseTone(string tone) => tone switch
+    {
+        "Sick leave"   => LeaveTone.Amber,
+        "Parental"     => LeaveTone.Purple,
+        "Unpaid leave" => LeaveTone.Gray,
+        "amber"        => LeaveTone.Amber,
+        "purple"       => LeaveTone.Purple,
+        "gray"         => LeaveTone.Gray,
+        "green"        => LeaveTone.Green,
+        _              => LeaveTone.Accent,
+    };
+
+    public record MgrStat(string Label, string Value, string Note, string Css);
+    public record ApprovalEntry(int Id, string Name, string Initials, string Dept, string Type, string Range, int Days, string Reason, string Status);
+    public record Dist(string Label, string Pct, string Tone);
+}

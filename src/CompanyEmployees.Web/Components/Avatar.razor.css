@@ -1,0 +1,10 @@
+.avatar {
+    width: 36px; height: 36px; border-radius: var(--radius-sm);
+    border: var(--border-width-sm) solid var(--color-ink);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-weight: 700; font-size: 12.5px; flex: none;
+}
+.tone-accent { background: var(--color-teal-tint); color: var(--color-teal-hi); }
+.tone-amber  { background: var(--color-amber-tint); color: var(--color-amber); }
+.tone-purple { background: var(--color-purple-tint); color: var(--color-purple); }
+.tone-gray   { background: var(--color-gray-tint); color: var(--color-gray); }

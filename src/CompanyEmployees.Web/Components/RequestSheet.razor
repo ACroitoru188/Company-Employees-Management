@@ -1,0 +1,82 @@
+<div @onclick="() => OnClose.InvokeAsync()" class="sheet-backdrop">
+    <aside class="sheet" @onclick:stopPropagation="true">
+        <button class="sheet-close" @onclick="() => OnClose.InvokeAsync()" aria-label="Close">×</button>
+        <div class="microlabel">New request</div>
+        <h2>Request time off</h2>
+        <p class="sheet-sub">Your line manager will be notified for approval.</p>
+
+        <div class="divider"></div>
+
+        <label class="flabel">Leave type</label>
+        <div class="type-grid">
+            @foreach (var label in LeaveTypes)
+            {
+                <div class="type-opt @(SelectedType == label ? "on" : "")" @onclick="() => OnTypeChanged.InvokeAsync(label)">
+                    <span class="dot-mark tone-mark-@ParseTone(label)"></span>@label
+                </div>
+            }
+        </div>
+        
+        <div class="cal-sel">
+            <label class="flabel">Dates</label>
+            <span class="sel-label @(string.IsNullOrEmpty(SelectionLabel) ? "empty" : "")">@(string.IsNullOrEmpty(SelectionLabel) ? "Select your dates" : SelectionLabel)</span>
+        </div>
+        <div class="cal-head">
+            <button class="cal-nav" @onclick="() => OnPrevMonth.InvokeAsync()">‹</button>
+            <b>@MonthLabel</b>
+            <button class="cal-nav" @onclick="() => OnNextMonth.InvokeAsync()">›</button>
+        </div>
+        <div class="cal-grid">
+            @foreach (var w in Weekdays)
+            {
+                <div class="cal-wd">@w</div>
+            }
+        </div>
+        <div class="cal-grid">
+            @foreach (var c in Cells)
+            {
+                <div class="cal-cell @c.Css" @onclick="() => OnDayClicked.InvokeAsync(c.Ts)">@c.Label</div>
+            }
+        </div>
+
+        <div class="sheet-sec">
+            <label class="flabel">Reason <span class="opt">(optional)</span></label>
+            <textarea value="@Reason" @oninput="e => OnReasonChanged.InvokeAsync((string?)e.Value ?? string.Empty)" placeholder="Add a short note for your manager…"></textarea>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="sheet-foot">
+            <RetroButton Variant="RetroButton.ButtonVariant.Ghost" OnClick="() => OnClose.InvokeAsync()">Cancel</RetroButton>
+            <RetroButton Variant="RetroButton.ButtonVariant.Primary" OnClick="() => OnSubmit.InvokeAsync()">Submit request</RetroButton>
+        </div>
+    </aside>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<string> LeaveTypes { get; set; } = Array.Empty<string>();
+    [Parameter, EditorRequired] public string SelectedType { get; set; } = "";
+    [Parameter, EditorRequired] public string SelectionLabel { get; set; } = "";
+    [Parameter, EditorRequired] public string MonthLabel { get; set; } = "";
+    [Parameter, EditorRequired] public IReadOnlyList<string> Weekdays { get; set; } = Array.Empty<string>();
+    [Parameter, EditorRequired] public IReadOnlyList<CalCell> Cells { get; set; } = Array.Empty<CalCell>();
+    [Parameter, EditorRequired] public string Reason { get; set; } = "";
+
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+    [Parameter] public EventCallback<string> OnTypeChanged { get; set; }
+    [Parameter] public EventCallback<DateTime?> OnDayClicked { get; set; }
+    [Parameter] public EventCallback OnPrevMonth { get; set; }
+    [Parameter] public EventCallback OnNextMonth { get; set; }
+    [Parameter] public EventCallback<string> OnReasonChanged { get; set; }
+
+    private static string ParseTone(string t) => t switch
+    {
+        "Sick leave"   => "amber",
+        "Parental"     => "purple",
+        "Unpaid leave" => "gray",
+        _              => "accent",
+    };
+
+    public record CalCell(DateTime? Ts, string Label, string Css);
+}

@@ -103,6 +103,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using MudBlazor.Services;
+using CompanyEmployees.Web.Services;
 
 using CompanyEmployees.Application;
 using CompanyEmployees.Infrastructure;
@@ -116,6 +117,10 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddMudServices();
 builder.Services.AddControllers();
+
+// ponytail: mock leave data for the employee UI. Swap for a real API client when the
+// /employee pages are wired to the backend.
+builder.Services.AddScoped<ITimeOffService, InMemoryTimeOffService>();
 
 builder.Services.AddPersistenceLayer(builder.Configuration);
 builder.Services.AddGatewayLayer();
