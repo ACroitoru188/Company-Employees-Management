@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,7 +11,7 @@ namespace CompanyEmployees.Domain.GatewayInterfaces
     {
         Task<UserSession> CreateSessionAsync(UserSession session);
         Task<UserSession?> GetSessionByTokenAsync(string token);
-        Task<UserSession> InvalidateSessionAsync();
-        Task<UserSession> InvalidateAllSessionsAsync();
+        Task<bool> InvalidateSessionAsync(string token);
+        Task<bool> InvalidateAllSessionsAsync(Guid userId);
     }
 }

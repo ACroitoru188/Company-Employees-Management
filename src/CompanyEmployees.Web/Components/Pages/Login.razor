@@ -76,13 +76,12 @@
     private async Task SignIn()
     {
         _error = null;
-        await _form.Validate();
+        await _form.ValidateAsync();
         if (!_form.IsValid) return;
         _busy = true;
         try
         {
-            var result = await Auth.LoginAsync(_email, _password);
-            //aici probabil va urma implementata sesiunea/cookies ?
+            var result = await Auth.LoginAsync(_email, _password, "unknown", "unknown");
 
             Nav.NavigateTo("/employee/dashboard");
         }

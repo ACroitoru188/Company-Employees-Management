@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.GatewayInterfaces;
 using CompanyEmployees.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -16,9 +16,11 @@ namespace CompanyEmployees.Gateway.Repositories
         {
         }
 
-        public Task<UserSession> CreateSessionAsync(UserSession session)
+        public async Task<UserSession> CreateSessionAsync(UserSession session)
         {
-            throw new NotImplementedException();
+            _context.UserSessions.Add(session);
+            await _context.SaveChangesAsync();
+            return session;
         }
 
         public async Task<UserSession?> GetSessionByTokenAsync(string token)
@@ -27,14 +29,32 @@ namespace CompanyEmployees.Gateway.Repositories
                 FirstOrDefaultAsync(s => s.SessionToken == token && s.IsActive);
         }
 
-        public Task<UserSession> InvalidateAllSessionsAsync()
+        public async Task<bool> InvalidateAllSessionsAsync(Guid userId)
         {
-            throw new NotImplementedException();
+            var sessions = await _context.UserSessions
+                .Where(s => s.UserId == userId && s.IsActive)
+                .ToListAsync();
+
+            if (!sessions.Any()) return false;
+
+            foreach (var session in sessions)
+            {
+                session.IsActive = false;
+            }
+            await _context.SaveChangesAsync();
+            return true;
         }
 
-        public Task<UserSession> InvalidateSessionAsync()
+        public async Task<bool> InvalidateSessionAsync(string token)
         {
-            throw new NotImplementedException();
+            var session = await _context.UserSessions
+                .FirstOrDefaultAsync(s => s.SessionToken == token && s.IsActive);
+
+            if (session == null) return false;
+
+            session.IsActive = false;
+            await _context.SaveChangesAsync();
+            return true;
         }
     }
 }
