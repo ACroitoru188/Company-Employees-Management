@@ -8,7 +8,7 @@
 <PageTitle>Dashboard · Time Off Management</PageTitle>
 <EmployeeProviders />
 
-<LeaveBalanceSummary UserName="@TimeOff.CurrentUser.Name" Balances="@TimeOff.GetMyBalances()">
+<LeaveBalanceSummary UserName="@_userName" Balances="@_balances">
     <Actions>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.Add"
@@ -64,9 +64,15 @@
 
 @code {
     private IReadOnlyList<TeamTimeOff> _teamTimeOff = [];
+    private IReadOnlyList<LeaveBalance> _balances = [];
+    private string _userName = "";
 
-    protected override void OnInitialized() =>
-        _teamTimeOff = TimeOff.GetTeamTimeOff();
+    protected override async Task OnInitializedAsync()
+    {
+        _userName = (await TimeOff.GetCurrentUserAsync()).Name;
+        _balances = await TimeOff.GetMyBalancesAsync();
+        _teamTimeOff = await TimeOff.GetTeamTimeOffAsync();
+    }
 
     private static bool IsOngoing(TeamTimeOff entry)
     {

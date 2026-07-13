@@ -118,9 +118,9 @@ builder.Services.AddRazorComponents()
 builder.Services.AddMudServices();
 builder.Services.AddControllers();
 
-// ponytail: mock leave data for the employee UI. Swap for a real API client when the
-// /employee pages are wired to the backend.
-builder.Services.AddScoped<ITimeOffService, InMemoryTimeOffService>();
+// Employee UI reads real data through EmployeeContext; InMemoryTimeOffService
+// remains available as a mock if the DB is unreachable.
+builder.Services.AddScoped<ITimeOffService, DbTimeOffService>();
 
 builder.Services.AddPersistenceLayer(builder.Configuration);
 builder.Services.AddGatewayLayer();

@@ -2,15 +2,10 @@
 @layout AuthLayout
 @rendermode InteractiveServer
 @inject NavigationManager Nav
+@inject CompanyEmployees.Application.Contexts.AuthenticationContext Auth
 
 <PageTitle>Sign in · Time Off Management</PageTitle>
 <EmployeeProviders />
-
-@* Mock sign-in for the Employee UI stage: no real authentication yet — any
-   well-formed credentials navigate to the employee dashboard. The previous
-   DB-backed check (PasswordHasher against Employee.PasswordHash) was removed
-   with the MudBlazor redesign; bring it back via Identity/SignInManager when
-   real auth lands. *@
 
 <div class="login-wrap">
     <MudPaper Elevation="3" Class="pa-8 login-card">
@@ -27,6 +22,11 @@
         <MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
             Use your Siemens credentials.
         </MudText>
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true">@_error</MudAlert>
+        }
 
         <MudForm @ref="_form">
             <MudTextField T="string" @bind-Value="_email" Label="Work email"
@@ -49,15 +49,11 @@
             </div>
 
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
-                       FullWidth="true" OnClick="SignIn">
-                Sign in
+                       FullWidth="true" Disabled="_busy" OnClick="SignIn">
+                @(_busy ? "Signing in…" : "Sign in")
             </MudButton>
         </MudForm>
-
-        <MudText Typo="Typo.caption" Class="d-block mt-6"
-                 Style="text-align:center; color:var(--mud-palette-text-secondary);">
-            Demo workspace · no real authentication yet
-        </MudText>
+        
     </MudPaper>
 
     <MudText Typo="Typo.caption" Class="mt-4" Style="color:var(--mud-palette-text-secondary);">
@@ -71,14 +67,32 @@
     private string _password = "";
     private bool _showPassword;
     private bool _keepSignedIn = true;
+    private string? _error;
+    private bool _busy;
 
     private static string? ValidateEmail(string value) =>
         string.IsNullOrWhiteSpace(value) || value.Contains('@') ? null : "Enter a valid email address";
 
     private async Task SignIn()
     {
+        _error = null;
         await _form.Validate();
-        if (_form.IsValid)
+        if (!_form.IsValid) return;
+        _busy = true;
+        try
+        {
+            var result = await Auth.LoginAsync(_email, _password);
+            //aici probabil va urma implementata sesiunea/cookies ?
+
             Nav.NavigateTo("/employee/dashboard");
+        }
+        catch (CompanyEmployees.Domain.Exceptions.UnauthorizedException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 }

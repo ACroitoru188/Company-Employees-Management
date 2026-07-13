@@ -8,7 +8,7 @@
 <PageTitle>Calendar · Time Off Management</PageTitle>
 <EmployeeProviders />
 
-<LeaveBalanceSummary UserName="@TimeOff.CurrentUser.Name" Balances="@_balances" />
+<LeaveBalanceSummary UserName="@_userName" Balances="@_balances" />
 
 <div class="d-flex align-center flex-wrap gap-2 mt-6 mb-2">
     @foreach (var balance in _balances)
@@ -103,16 +103,19 @@
     private (DateOnly Start, DateOnly End)? _range;
     private string? _reason;
 
-    protected override void OnInitialized()
+    private string _userName = "";
+
+    protected override async Task OnInitializedAsync()
     {
-        _balances = TimeOff.GetMyBalances();
+        _userName = (await TimeOff.GetCurrentUserAsync()).Name;
+        _balances = await TimeOff.GetMyBalancesAsync();
         _visibleMonth = new DateOnly(_today.Year, _today.Month, 1);
-        LoadMonth();
+        await LoadMonthAsync();
     }
 
-    private void LoadMonth()
+    private async Task LoadMonthAsync()
     {
-        _teamByDay = TimeOff.GetTeamScheduleForMonth(_visibleMonth)
+        _teamByDay = (await TimeOff.GetTeamScheduleForMonthAsync(_visibleMonth))
             .GroupBy(a => a.Date)
             .ToDictionary(g => g.Key, g => g.ToList());
 
@@ -120,16 +123,16 @@
         _days = Enumerable.Range(0, 42).Select(gridStart.AddDays).ToList();
     }
 
-    private void ChangeMonth(int delta)
+    private async Task ChangeMonth(int delta)
     {
         _visibleMonth = _visibleMonth.AddMonths(delta);
-        LoadMonth();
+        await LoadMonthAsync();
     }
 
-    private void GoToday()
+    private async Task GoToday()
     {
         _visibleMonth = new DateOnly(_today.Year, _today.Month, 1);
-        LoadMonth();
+        await LoadMonthAsync();
     }
 
     private void SelectType(LeaveType type) => _selectedType = type;
@@ -166,15 +169,23 @@
         _reason = null;
     }
 
-    private void Submit()
+    private async Task Submit()
     {
         if (_range is not { } range || _selectedType is not { } type)
             return;
 
-        TimeOff.SubmitRequest(type, range.Start, range.End, _reason);
-        Snackbar.Add("Time off request submitted", Severity.Success);
-        CancelSelection();
-        _selectedType = null;
+        try
+        {
+            await TimeOff.SubmitRequestAsync(type, range.Start, range.End, _reason);
+            Snackbar.Add("Time off request submitted", Severity.Success);
+            CancelSelection();
+            _selectedType = null;
+        }
+        catch (Exception ex)
+        {
+            // Business validations (overlap, balance, past dates) surface here.
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
     }
 
     private static int RangeDays((DateOnly Start, DateOnly End) range) =>

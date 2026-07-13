@@ -14,8 +14,8 @@ namespace CompanyEmployees.Gateway
         public static IServiceCollection AddGatewayLayer(this IServiceCollection services)
         {
             services.AddScoped<IUserGateway, UserRepository>();
+            services.AddScoped<ILeaveRequestGateway, LeaveRequestRepository>();
             services.AddScoped<IUserSessionGateway, UserSessionRepository>();
-
             return services;
         }
     }
