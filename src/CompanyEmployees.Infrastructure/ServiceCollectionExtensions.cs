@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Interfaces;
+using CompanyEmployees.Domain.Interfaces;
 using CompanyEmployees.Infrastructure.Security;
 using CompanyEmployees.Persistence;
 using Microsoft.Extensions.DependencyInjection;

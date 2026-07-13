@@ -22,7 +22,10 @@ public class
     {
         try
         {
-            var result = await _authentication.LoginAsync(request.Email, request.Password);
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var userAgent = Request.Headers.UserAgent.ToString();
+
+            var result = await _authentication.LoginAsync(request.Email, request.Password, ipAddress, userAgent);
             return Ok(result);
         }
         catch (UnauthorizedException ex)
