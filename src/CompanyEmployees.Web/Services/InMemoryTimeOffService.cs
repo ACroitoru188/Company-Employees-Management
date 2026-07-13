@@ -13,7 +13,7 @@ public class InMemoryTimeOffService : ITimeOffService
     private readonly List<TimeOffRequest> _myRequests;
     private readonly List<TeamMember> _team;
 
-    public TeamMember CurrentUser { get; } = new() { Name = "Anna Keller", Department = "Marketing" };
+    private readonly TeamMember _currentUser = new() { Name = "Anna Keller", Department = "Marketing" };
 
     public InMemoryTimeOffService()
     {
@@ -93,35 +93,41 @@ public class InMemoryTimeOffService : ITimeOffService
         ];
     }
 
-    public IReadOnlyList<LeaveBalance> GetMyBalances() => _balances;
+    public Task<TeamMember> GetCurrentUserAsync() => Task.FromResult(_currentUser);
 
-    public IReadOnlyList<TimeOffRequest> GetMyRequests() =>
-        _myRequests.OrderByDescending(r => r.SubmittedAt).ToList();
+    public Task<IReadOnlyList<LeaveBalance>> GetMyBalancesAsync() =>
+        Task.FromResult<IReadOnlyList<LeaveBalance>>(_balances);
 
-    public IReadOnlyList<TeamAbsence> GetTeamScheduleForMonth(DateOnly monthStart)
+    public Task<IReadOnlyList<TimeOffRequest>> GetMyRequestsAsync() =>
+        Task.FromResult<IReadOnlyList<TimeOffRequest>>(
+            _myRequests.OrderByDescending(r => r.SubmittedAt).ToList());
+
+    public Task<IReadOnlyList<TeamAbsence>> GetTeamScheduleForMonthAsync(DateOnly monthStart)
     {
         var monthEnd = monthStart.AddMonths(1).AddDays(-1);
-        return _team
+        IReadOnlyList<TeamAbsence> result = _team
             .SelectMany(m => m.Requests, (m, r) => (Member: m, Request: r))
             .SelectMany(x => DaysInRange(
                     Max(x.Request.StartDate, monthStart), Min(x.Request.EndDate, monthEnd))
                 .Select(day => new TeamAbsence(
                     x.Member.Name, x.Member.Initials, x.Member.Department, x.Request.Type, day)))
             .ToList();
+        return Task.FromResult(result);
     }
 
-    public IReadOnlyList<TeamTimeOff> GetTeamTimeOff()
+    public Task<IReadOnlyList<TeamTimeOff>> GetTeamTimeOffAsync()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        return _team
+        IReadOnlyList<TeamTimeOff> result = _team
             .SelectMany(m => m.Requests,
                 (m, r) => new TeamTimeOff(m.Name, m.Initials, m.Department, r.Type, r.StartDate, r.EndDate))
             .Where(t => t.EndDate >= today)
             .OrderBy(t => t.StartDate)
             .ToList();
+        return Task.FromResult(result);
     }
 
-    public TimeOffRequest SubmitRequest(LeaveType type, DateOnly start, DateOnly end, string? reason)
+    public Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason)
     {
         var request = new TimeOffRequest
         {
@@ -133,7 +139,7 @@ public class InMemoryTimeOffService : ITimeOffService
             SubmittedAt = DateTime.Now
         };
         _myRequests.Add(request);
-        return request;
+        return Task.FromResult(request);
     }
 
     private static TeamMember Member(string name, string department, LeaveType type, DateOnly start, DateOnly end) =>

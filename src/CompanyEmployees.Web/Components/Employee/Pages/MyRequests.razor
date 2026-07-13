@@ -46,8 +46,8 @@
 @code {
     private IReadOnlyList<TimeOffRequest> _requests = [];
 
-    protected override void OnInitialized() =>
-        _requests = TimeOff.GetMyRequests();
+    protected override async Task OnInitializedAsync() =>
+        _requests = await TimeOff.GetMyRequestsAsync();
 
     private static Color StatusColor(RequestStatus status) => status switch
     {

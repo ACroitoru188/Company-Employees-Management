@@ -16,9 +16,9 @@
             <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
         </MudBadge>
         <MudAvatar Size="Size.Small" Style="background:rgba(255,255,255,.25); color:white;">
-            @TimeOff.CurrentUser.Initials
+            @_user?.Initials
         </MudAvatar>
-        <MudText Typo="Typo.body2" Class="ml-2">@TimeOff.CurrentUser.Name</MudText>
+        <MudText Typo="Typo.body2" Class="ml-2">@_user?.Name</MudText>
     </MudAppBar>
 
     <MudDrawer Open="true" Variant="DrawerVariant.Persistent" ClipMode="DrawerClipMode.Always" Elevation="1">
@@ -35,11 +35,11 @@
                             Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
             </MudNavMenu>
             <div class="mt-auto pa-4 d-flex align-center gap-3" style="border-top:1px solid var(--mud-palette-lines-default);">
-                <MudAvatar Size="Size.Small" Color="Color.Primary">@TimeOff.CurrentUser.Initials</MudAvatar>
+                <MudAvatar Size="Size.Small" Color="Color.Primary">@_user?.Initials</MudAvatar>
                 <div>
-                    <MudText Typo="Typo.body2">@TimeOff.CurrentUser.Name</MudText>
+                    <MudText Typo="Typo.body2">@_user?.Name</MudText>
                     <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                        Employee · @TimeOff.CurrentUser.Department
+                        Employee · @_user?.Department
                     </MudText>
                 </div>
             </div>
@@ -58,3 +58,10 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private TeamMember? _user;
+
+    protected override async Task OnInitializedAsync() =>
+        _user = await TimeOff.GetCurrentUserAsync();
+}

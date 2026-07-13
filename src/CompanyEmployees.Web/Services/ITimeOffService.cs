@@ -14,12 +14,13 @@ public record TeamTimeOff(string MemberName, string Initials, string Department,
     public int Days => EndDate.DayNumber - StartDate.DayNumber + 1;
 }
 
+// Async because the real implementation hits the database.
 public interface ITimeOffService
 {
-    TeamMember CurrentUser { get; }
-    IReadOnlyList<LeaveBalance> GetMyBalances();
-    IReadOnlyList<TimeOffRequest> GetMyRequests();
-    IReadOnlyList<TeamAbsence> GetTeamScheduleForMonth(DateOnly monthStart);
-    IReadOnlyList<TeamTimeOff> GetTeamTimeOff();
-    TimeOffRequest SubmitRequest(LeaveType type, DateOnly start, DateOnly end, string? reason);
+    Task<TeamMember> GetCurrentUserAsync();
+    Task<IReadOnlyList<LeaveBalance>> GetMyBalancesAsync();
+    Task<IReadOnlyList<TimeOffRequest>> GetMyRequestsAsync();
+    Task<IReadOnlyList<TeamAbsence>> GetTeamScheduleForMonthAsync(DateOnly monthStart);
+    Task<IReadOnlyList<TeamTimeOff>> GetTeamTimeOffAsync();
+    Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason);
 }

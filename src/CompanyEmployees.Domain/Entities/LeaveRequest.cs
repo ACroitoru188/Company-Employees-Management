@@ -14,4 +14,5 @@ public class LeaveRequest
     public LeaveStatus Status { get; set; } = LeaveStatus.Pending;
     public ICollection<LeaveApproval> Approvals { get; set; } = new List<LeaveApproval>();
     public DateTime CreatedAt { get; set; }
+    public LeaveType Type { get; set; }
 }
