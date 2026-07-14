@@ -10,10 +10,6 @@ namespace CompanyEmployees.Persistence.Configurations
         {
             builder.HasKey(u => u.Id);
 
-            builder.Property(u => u.Name).IsRequired().HasMaxLength(200);
-            builder.Property(u => u.Email).IsRequired().HasMaxLength(255);
-            builder.HasIndex(u => u.Email).IsUnique();
-
             // Self-referencing manager hierarchy: pair Manager (ManagerId) with DirectReports
             // so EF treats them as one relationship instead of two separate FKs.
             builder.HasOne(u => u.Manager)

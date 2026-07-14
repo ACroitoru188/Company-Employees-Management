@@ -1,16 +1,13 @@
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
-using CompanyEmployees.Domain.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using Microsoft.AspNetCore.Identity;
 
 namespace CompanyEmployees.Persistence
 {
     public class DatabaseSeeder
     {
         private readonly CompanyEmployeesDbContext _db;
-        private readonly IPasswordHasher _hasher;
+        private readonly UserManager<User> _userManager;
 
         // Days granted per leave type for every demo user (current year).
         private static readonly Dictionary<LeaveType, int> DefaultAllocations = new()
@@ -21,10 +18,10 @@ namespace CompanyEmployees.Persistence
             [LeaveType.Unpaid] = 30
         };
 
-        public DatabaseSeeder(CompanyEmployeesDbContext db, IPasswordHasher hasher)
+        public DatabaseSeeder(CompanyEmployeesDbContext db, UserManager<User> userManager)
         {
             _db = db;
-            _hasher = hasher;
+            _userManager = userManager;
         }
 
         public void Seed()
@@ -46,21 +43,24 @@ namespace CompanyEmployees.Persistence
         {
             var existing = _db.Users.FirstOrDefault(u => u.Email == email);
             if (existing != null)
+            {
                 return existing;
-
+            }
+                
             var user = new User
             {
                 Name = name,
+                UserName = email,
                 Email = email,
-                PasswordHash = _hasher.HashPassword("Passw0rd!"),
                 Role = role,
                 Status = UserStatus.Active,
                 ManagerId = managerId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
-            _db.Users.Add(user);
-            _db.SaveChanges();
+
+            var result = _userManager.CreateAsync(user, "Passw0rd!").Result;
+
             return user;
         }
 

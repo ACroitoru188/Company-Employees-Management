@@ -1,8 +1,8 @@
-@page "/"
+﻿@page "/"
 @layout AuthLayout
 @rendermode InteractiveServer
 @inject NavigationManager Nav
-@inject CompanyEmployees.Application.Contexts.AuthenticationContext Auth
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Sign in · Time Off Management</PageTitle>
 <EmployeeProviders />
@@ -27,6 +27,12 @@
         {
             <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true">@_error</MudAlert>
         }
+
+        <form id="hiddenLoginForm" method="post" action="/api/auth/login" style="display:none;">
+            <AntiforgeryToken />
+            <input type="hidden" name="email" value="@_email" />
+            <input type="hidden" name="password" value="@_password" />
+        </form>
 
         <MudForm @ref="_form">
             <MudTextField T="string" @bind-Value="_email" Label="Work email"
@@ -53,7 +59,7 @@
                 @(_busy ? "Signing in…" : "Sign in")
             </MudButton>
         </MudForm>
-        
+
     </MudPaper>
 
     <MudText Typo="Typo.caption" Class="mt-4" Style="color:var(--mud-palette-text-secondary);">
@@ -70,6 +76,17 @@
     private string? _error;
     private bool _busy;
 
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? QueryError { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(QueryError))
+        {
+            _error = "Invalid email or password.";
+        }
+    }
+
     private static string? ValidateEmail(string value) =>
         string.IsNullOrWhiteSpace(value) || value.Contains('@') ? null : "Enter a valid email address";
 
@@ -78,19 +95,16 @@
         _error = null;
         await _form.ValidateAsync();
         if (!_form.IsValid) return;
+
         _busy = true;
+
         try
         {
-            var result = await Auth.LoginAsync(_email, _password, "unknown", "unknown");
-
-            Nav.NavigateTo("/employee/dashboard");
+            await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('hiddenLoginForm').submit();");
         }
-        catch (CompanyEmployees.Domain.Exceptions.UnauthorizedException ex)
+        catch (Exception ex)
         {
             _error = ex.Message;
-        }
-        finally
-        {
             _busy = false;
         }
     }

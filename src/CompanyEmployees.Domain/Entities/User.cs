@@ -1,14 +1,12 @@
 ﻿using CompanyEmployees.Domain.Enums;
+using Microsoft.AspNetCore.Identity;
 
 namespace CompanyEmployees.Domain.Entities;
 
-public class User
+public class User : IdentityUser<Guid>
 {
     //inf. comune
-    public Guid Id { get; set; }
     public string Name { get; set; }
-    public string Email { get; set; }
-    public string PasswordHash { get; set; }
 
     //rol si status
     public UserRole Role { get; set; } = UserRole.Guest;

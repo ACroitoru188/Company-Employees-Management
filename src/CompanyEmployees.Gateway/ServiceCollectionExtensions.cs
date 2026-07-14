@@ -15,7 +15,6 @@ namespace CompanyEmployees.Gateway
         {
             services.AddScoped<IUserGateway, UserRepository>();
             services.AddScoped<ILeaveRequestGateway, LeaveRequestRepository>();
-            services.AddScoped<IUserSessionGateway, UserSessionRepository>();
             return services;
         }
     }

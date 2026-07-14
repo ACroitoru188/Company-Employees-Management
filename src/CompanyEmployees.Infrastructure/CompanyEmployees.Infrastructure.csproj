@@ -20,4 +20,8 @@
     <ProjectReference Include="..\CompanyEmployees.Application\CompanyEmployees.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Security\" />
+  </ItemGroup>
+
 </Project>
