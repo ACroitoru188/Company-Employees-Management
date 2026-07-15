@@ -25,6 +25,11 @@ namespace CompanyEmployees.Infrastructure.ExceptionHandling
             }
             catch (Exception exception)
             {
+                // The JSON envelope is an API contract; for Blazor page requests we
+                // rethrow so the framework shows an error page instead of raw JSON.
+                if (!context.Request.Path.StartsWithSegments("/api"))
+                    throw;
+
                 await HandleExceptionAsync(context, exception);
             }
         }
