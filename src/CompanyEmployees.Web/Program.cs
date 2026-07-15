@@ -6,6 +6,7 @@ using CompanyEmployees.Infrastructure;
 using CompanyEmployees.Infrastructure.ExceptionHandling;
 using CompanyEmployees.Persistence;
 using CompanyEmployees.Web.Components;
+using CompanyEmployees.Web.Security;
 using CompanyEmployees.Web.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -29,7 +30,8 @@ builder.Services.AddInfrastructureLayer();
 
 builder.Services.AddIdentity<User, IdentityRole<Guid>>()
     .AddEntityFrameworkStores<CompanyEmployeesDbContext>()
-    .AddSignInManager();
+    .AddSignInManager()
+    .AddClaimsPrincipalFactory<AppClaimsPrincipalFactory>();
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, CompanyEmployees.Web.Security.IdentityRevalidatingAuthenticationStateProvider>();

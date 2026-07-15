@@ -13,6 +13,7 @@ namespace CompanyEmployees.Application
         public static IServiceCollection AddApplicationLayer(this IServiceCollection services)
         {
             services.AddScoped<EmployeeContext>();
+            services.AddScoped<ManagerContext>();
 
             return services;
         }

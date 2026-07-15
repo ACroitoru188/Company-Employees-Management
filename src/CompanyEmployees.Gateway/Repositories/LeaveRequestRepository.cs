@@ -47,5 +47,31 @@ namespace CompanyEmployees.Gateway.Repositories
             await _context.LeaveRequests.AddAsync(request);
             await _context.SaveChangesAsync();
         }
+
+        public async Task<List<LeaveRequest>> GetPendingRequestsByManagerAsync(Guid managerId)
+        {
+            return await _context.LeaveRequests
+                .Include(r => r.User)
+                .Where(r => r.User.ManagerId == managerId && r.Status == LeaveStatus.Pending)
+                .OrderBy(r => r.StartDate)
+                .ToListAsync();
+        }
+
+        public async Task<LeaveRequest?> GetRequestByIdAsync(Guid requestId)
+        {
+            // User is included because the decision flow needs the requester's ManagerId.
+            return await _context.LeaveRequests
+                .Include(r => r.User)
+                .FirstOrDefaultAsync(r => r.Id == requestId);
+        }
+
+        public async Task SaveDecisionAsync(LeaveRequest request, LeaveApproval approval)
+        {
+            // "request" is already tracked (it came from GetRequestByIdAsync), so its
+            // status change and the new approval land in the same SaveChanges — one
+            // transaction; a crash can't leave the status updated without its approval.
+            _context.LeaveApprovals.Add(approval);
+            await _context.SaveChangesAsync();
+        }
     }
 }

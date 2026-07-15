@@ -29,14 +29,16 @@ namespace CompanyEmployees.Persistence
             _db.Database.EnsureDeleted();
             _db.Database.EnsureCreated();
 
-            // The manager must be saved first so the employees can reference his Id.
-            var manager = SeedDemoUser("linemanager@siemens.com", "Demo Manager", UserRole.ProjectManager);
-            var employee = SeedDemoUser("employee@siemens.com", "Demo Employee", UserRole.Employee, manager.Id);
-            var colleague = SeedDemoUser("colleague@siemens.com", "Demo Colleague", UserRole.Employee, manager.Id);
+            // Reporting chain (Admin -> LM -> PM -> employees) is expressed only through
+            // ManagerId, so each level must be saved before the one below can reference it.
             var admin = SeedDemoUser("itadmin@siemens.com", "Demo Admin", UserRole.Admin);
+            var lineManager = SeedDemoUser("linemanager@siemens.com", "Demo Line Manager", UserRole.LineManager, admin.Id);
+            var projectManager = SeedDemoUser("projectmanager@siemens.com", "Demo Project Manager", UserRole.ProjectManager, lineManager.Id);
+            var employee = SeedDemoUser("employee@siemens.com", "Demo Employee", UserRole.Employee, projectManager.Id);
+            var colleague = SeedDemoUser("colleague@siemens.com", "Demo Colleague", UserRole.Employee, projectManager.Id);
 
-            SeedAllocations([manager, employee, colleague, admin]);
-            SeedDemoRequests(employee, colleague, manager);
+            SeedAllocations([admin, lineManager, projectManager, employee, colleague]);
+            SeedDemoRequests(employee, colleague, projectManager);
         }
 
         private User SeedDemoUser(string email, string name, UserRole role, Guid? managerId = null)
@@ -85,7 +87,7 @@ namespace CompanyEmployees.Persistence
             _db.SaveChanges();
         }
 
-        private void SeedDemoRequests(User employee, User colleague, User manager)
+        private void SeedDemoRequests(User employee, User colleague, User projectManager)
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
 
@@ -102,7 +104,7 @@ namespace CompanyEmployees.Persistence
             };
             approvedRequest.Approvals.Add(new LeaveApproval
             {
-                ApproverId = manager.Id,
+                ApproverId = projectManager.Id,
                 Step = 1,
                 Status = LeaveStatus.Approved,
                 ReviewedAt = DateTime.UtcNow.AddDays(-12),
@@ -135,13 +137,26 @@ namespace CompanyEmployees.Persistence
             };
             colleagueRequest.Approvals.Add(new LeaveApproval
             {
-                ApproverId = manager.Id,
+                ApproverId = projectManager.Id,
                 Step = 1,
                 Status = LeaveStatus.Approved,
                 ReviewedAt = DateTime.UtcNow.AddDays(-5),
                 CreatedAt = DateTime.UtcNow.AddDays(-6)
             });
             _db.LeaveRequests.Add(colleagueRequest);
+
+            // The PM's own pending request gives the line manager something to review,
+            // proving the approval flow works at every level of the hierarchy.
+            _db.LeaveRequests.Add(new LeaveRequest
+            {
+                UserId = projectManager.Id,
+                Type = LeaveType.Annual,
+                StartDate = today.AddDays(21),
+                EndDate = today.AddDays(23),
+                Reason = "Conference",
+                Status = LeaveStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            });
 
             _db.SaveChanges();
         }
