@@ -1,12 +1,13 @@
+
+
 <header class="topbar">
     <div class="seg">
         <button class="seg-btn @(!IsManager ? "on" : "")" @onclick="OnSetEmployee">Employee</button>
         <button class="seg-btn @(IsManager ? "on" : "")" @onclick="OnSetManager">Line manager</button>
     </div>
-    <button class="icon-btn" aria-label="Notifications">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 7.5a5 5 0 0 1 10 0c0 3 1.2 4 1.2 4H2.8s1.2-1 1.2-4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.3 14.2a1.9 1.9 0 0 0 3.4 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <span class="ping"></span>
-    </button>
+    
+    <NotificationBell/>
+
     <RetroButton Variant="RetroButton.ButtonVariant.Primary" OnClick="OnOpenRequest">Request time off</RetroButton>
     <div class="profile-wrap">
         <div class="avatar-chip" title="@($"Your account · {RoleLabel}")" @onclick="ToggleProfileMenu">·</div>

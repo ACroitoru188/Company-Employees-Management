@@ -1,12 +1,10 @@
 @page "/employee/calendar"
 @layout EmployeeLayout
-@rendermode InteractiveServer
 @using System.Globalization
 @inject ITimeOffService TimeOff
 @inject ISnackbar Snackbar
 
 <PageTitle>Calendar · Time Off Management</PageTitle>
-<EmployeeProviders />
 
 <LeaveBalanceSummary UserName="@_userName" Balances="@_balances" />
 

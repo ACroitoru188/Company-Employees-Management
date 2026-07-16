@@ -17,6 +17,7 @@ public class DbTimeOffService : ITimeOffService
 
     private readonly EmployeeContext _employee;
     private User? _currentUser; // cached per circuit (service is Scoped)
+    private readonly SemaphoreSlim _lock = new(1, 1);
 
     public DbTimeOffService(EmployeeContext employee)
     {
@@ -28,67 +29,115 @@ public class DbTimeOffService : ITimeOffService
 
     public async Task<TeamMember> GetCurrentUserAsync()
     {
-        var user = await GetDomainUserAsync();
-        // The domain has no Department yet; show the role in its place.
-        return new TeamMember { Name = user.Name, Department = user.Role.ToString() };
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            // The domain has no Department yet; show the role in its place.
+            return new TeamMember { Name = user.Name, Department = user.Role.ToString() };
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task<IReadOnlyList<LeaveBalance>> GetMyBalancesAsync()
     {
-        var user = await GetDomainUserAsync();
-        var balances = await _employee.GetMyBalancesAsync(user.Id, DateTime.Today.Year);
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            var balances = await _employee.GetMyBalancesAsync(user.Id, DateTime.Today.Year);
 
-        return balances
-            .Select(b => new LeaveBalance
-            {
-                Type = MapType(b.Type),
-                DaysTotal = b.DaysTotal,
-                DaysUsed = b.DaysUsed
-            })
-            .OrderBy(b => b.Type)
-            .ToList();
+            return balances
+                .Select(b => new LeaveBalance
+                {
+                    Type = MapType(b.Type),
+                    DaysTotal = b.DaysTotal,
+                    DaysUsed = b.DaysUsed
+                })
+                .OrderBy(b => b.Type)
+                .ToList();
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task<IReadOnlyList<TimeOffRequest>> GetMyRequestsAsync()
     {
-        var user = await GetDomainUserAsync();
-        var requests = await _employee.GetMyRequestsAsync(user.Id);
-        return requests.Select(MapRequest).ToList();
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            var requests = await _employee.GetMyRequestsAsync(user.Id);
+            return requests.Select(MapRequest).ToList();
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task<IReadOnlyList<TeamAbsence>> GetTeamScheduleForMonthAsync(DateOnly monthStart)
     {
-        var user = await GetDomainUserAsync();
-        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
-        var requests = await _employee.GetTeamRequestsAsync(user.Id, monthStart, monthEnd);
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+            var requests = await _employee.GetTeamRequestsAsync(user.Id, monthStart, monthEnd);
 
-        // Flatten each request into one entry per day, clamped to the visible month.
-        return requests
-            .SelectMany(r => DaysInRange(Max(r.StartDate, monthStart), Min(r.EndDate, monthEnd))
-                .Select(day => new TeamAbsence(
-                    r.User.Name, Initials(r.User.Name), r.User.Role.ToString(), MapType(r.Type), day)))
-            .ToList();
+            // Flatten each request into one entry per day, clamped to the visible month.
+            return requests
+                .SelectMany(r => DaysInRange(Max(r.StartDate, monthStart), Min(r.EndDate, monthEnd))
+                    .Select(day => new TeamAbsence(
+                        r.User.Name, Initials(r.User.Name), r.User.Role.ToString(), MapType(r.Type), day)))
+                .ToList();
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task<IReadOnlyList<TeamTimeOff>> GetTeamTimeOffAsync()
     {
-        var user = await GetDomainUserAsync();
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        var requests = await _employee.GetTeamRequestsAsync(user.Id, today, today.AddMonths(3));
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var requests = await _employee.GetTeamRequestsAsync(user.Id, today, today.AddMonths(3));
 
-        return requests
-            .Select(r => new TeamTimeOff(
-                r.User.Name, Initials(r.User.Name), r.User.Role.ToString(),
-                MapType(r.Type), r.StartDate, r.EndDate))
-            .OrderBy(t => t.StartDate)
-            .ToList();
+            return requests
+                .Select(r => new TeamTimeOff(
+                    r.User.Name, Initials(r.User.Name), r.User.Role.ToString(),
+                    MapType(r.Type), r.StartDate, r.EndDate))
+                .OrderBy(t => t.StartDate)
+                .ToList();
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason)
     {
-        var user = await GetDomainUserAsync();
-        var created = await _employee.SubmitRequestAsync(user.Id, MapTypeToDomain(type), start, end, reason);
-        return MapRequest(created);
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            var created = await _employee.SubmitRequestAsync(user.Id, MapTypeToDomain(type), start, end, reason);
+            return MapRequest(created);
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     // --- mapping helpers -------------------------------------------------

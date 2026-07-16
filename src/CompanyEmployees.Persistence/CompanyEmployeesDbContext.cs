@@ -15,6 +15,7 @@ namespace CompanyEmployees.Persistence
         public DbSet<LeaveRequest> LeaveRequests { get; set; }
         public DbSet<LeaveApproval> LeaveApprovals { get; set; }
         public DbSet<LeaveAllocation> LeaveAllocations { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

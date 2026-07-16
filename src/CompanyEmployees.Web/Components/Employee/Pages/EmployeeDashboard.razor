@@ -1,12 +1,10 @@
 @page "/employee/dashboard"
 @layout EmployeeLayout
-@rendermode InteractiveServer
 @using System.Globalization
 @inject ITimeOffService TimeOff
 @inject NavigationManager Nav
 
 <PageTitle>Dashboard · Time Off Management</PageTitle>
-<EmployeeProviders />
 
 <LeaveBalanceSummary UserName="@_userName" Balances="@_balances">
     <Actions>

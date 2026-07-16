@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Core" Version="1.2.11" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\CompanyEmployees.Domain\CompanyEmployees.Domain.csproj" />
     <ProjectReference Include="..\CompanyEmployees.Gateway\CompanyEmployees.Gateway.csproj" />
   </ItemGroup>

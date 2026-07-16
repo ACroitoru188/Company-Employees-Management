@@ -6,7 +6,9 @@ using CompanyEmployees.Infrastructure;
 using CompanyEmployees.Infrastructure.ExceptionHandling;
 using CompanyEmployees.Persistence;
 using CompanyEmployees.Web.Components;
+using CompanyEmployees.Application.Hubs;
 using CompanyEmployees.Web.Services;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using MudBlazor.Services;
@@ -17,6 +19,10 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddMudServices();
 builder.Services.AddControllers();
+builder.Services.AddSignalR(options =>
+{
+    options.MaximumReceiveMessageSize = 1024 * 1024; // 1 MB
+});
 
 // Employee UI reads real data through EmployeeContext; InMemoryTimeOffService
 // remains available as a mock if the DB is unreachable.
@@ -59,7 +65,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseStatusCodePagesWithReExecute("/not-found");
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Comentat temporar pentru a permite testarea pe HTTP (port 5269)
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
@@ -87,6 +93,10 @@ app.MapPost("/api/auth/login", async (HttpContext context,
     {
         return Results.Redirect("/?error=InvalidCredentials");
     }
-}
-);
+}).DisableAntiforgery();
+
+app.MapHub<NotificationHub>("/notificationHub");
+
+
+
 app.Run();

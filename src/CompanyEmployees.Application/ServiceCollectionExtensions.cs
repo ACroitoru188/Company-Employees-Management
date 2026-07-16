@@ -1,10 +1,7 @@
 ﻿using CompanyEmployees.Application.Contexts;
+using CompanyEmployees.Domain.GatewayInterfaces;
+using CompanyEmployees.Gateway.Repositories;
 using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace CompanyEmployees.Application
 {
@@ -13,6 +10,8 @@ namespace CompanyEmployees.Application
         public static IServiceCollection AddApplicationLayer(this IServiceCollection services)
         {
             services.AddScoped<EmployeeContext>();
+            services.AddScoped<INotificationGateway, NotificationGateway>();
+            services.AddScoped<NotificationContext>();
 
             return services;
         }

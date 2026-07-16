@@ -1,0 +1,111 @@
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Security.Claims
+@using CompanyEmployees.Domain.Entities
+@inject IServiceScopeFactory ScopeFactory
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager NavManager
+
+<div class="profile-wrap">
+    <MudBadge Content="@_notifications.Count" Color="Color.Error" Overlap="true" Visible="@_notifications.Any()">
+        <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" OnClick="ToggleNotifications" />
+    </MudBadge>
+
+    @if(_notificationsOpen)
+    {
+		<div class="profile-backdrop" @onclick="CloseNotifications"></div>
+        <div class="profile-menu" @onclick:stopPropagation="true"
+             style="width: 300px; padding: 12px; max-height: 400px; overflow-y: auto; background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: absolute; right: 0; top: 100%; z-index: 9999;">
+
+            <div class="d-flex justify-space-between align-center mb-2">
+                <strong style="font-size: 14px;">Notifications</strong>
+                @if(_notifications.Any())
+                {
+                    <button class="pm-item"
+                    style="padding: 0; color: var(--mud-palette-primary); background: none; border: none; font-size: 12px; cursor: pointer;"
+                    @onclick="CloseNotifications">Mark all as read</button>
+                }
+            </div>
+
+            <div class="pm-sep"></div>
+
+            @if(!_notifications.Any())
+            {
+                <div style="padding: 16px; text-align: center; color: gray; font-size: 13px;">
+                    No new notifications. You're all caught up!
+                </div>
+            }
+            else
+            {
+                foreach (var notification in _notifications)
+                {
+                    <div style="padding: 8px 0; border-bottom: 1px solid #eee;">
+                        <div style="font-size: 13px; margin-bottom: 4px;">@notification.Message</div>
+                        <div style="font-size: 11px; color: gray;">@notification.CreatedAt.ToString("g")</div>
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private Guid _currentUserId;
+    private List<Notification> _notifications = new();
+    private HubConnection? _hubConnection;
+	private bool _notificationsOpen;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var userIdString = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (Guid.TryParse(userIdString, out var id))
+        {
+            _currentUserId = id;
+        }
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<CompanyEmployees.Application.Contexts.NotificationContext>();
+        _notifications = await context.GetMyUnreadNotificationsAsync(_currentUserId);
+
+        _hubConnection = new HubConnectionBuilder()
+        .WithUrl(NavManager.ToAbsoluteUri("/notificationHub"))
+        .Build();
+
+        _hubConnection.On<Notification>("ReceiveNotification", (newNotification) =>
+        {
+            _notifications.Add(newNotification);
+            InvokeAsync(StateHasChanged);
+        });
+
+        try 
+        {
+            await _hubConnection.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("SignalR Connection Failed: " + ex.Message);
+        }
+    }
+
+    private async Task CloseNotifications()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<CompanyEmployees.Application.Contexts.NotificationContext>();
+
+        foreach (var notification in _notifications)
+        {
+            await context.MarkAsReadAsync(notification.Id);
+        }
+
+        _notifications.Clear();
+        _notificationsOpen = false;
+    }
+
+    private void ToggleNotifications()
+    {
+        _notificationsOpen = !_notificationsOpen;
+	}   
+}
