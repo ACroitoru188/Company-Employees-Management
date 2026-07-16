@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Application.Contexts;
+using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.GatewayInterfaces;
 using CompanyEmployees.Gateway.Repositories;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +12,7 @@ namespace CompanyEmployees.Application
             services.AddScoped<EmployeeContext>();
             services.AddScoped<INotificationGateway, NotificationGateway>();
             services.AddScoped<NotificationContext>();
+            services.AddScoped<ManagerContext>();
 
             return services;
         }

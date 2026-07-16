@@ -10,8 +10,8 @@ namespace CompanyEmployees.Domain.Enums
    {
       Guest = 0, //default
       Employee = 1,
-      ProjectManager = 2, 
-      HR = 3,
+      ProjectManager = 2,
+      LineManager = 3, // one per department; HR is a department, not a role
       Admin = 4
    }
 }

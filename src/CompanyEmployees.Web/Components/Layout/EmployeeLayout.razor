@@ -1,5 +1,6 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
 @inherits LayoutComponentBase
-@inject ITimeOffService TimeOff
 
 <CompanyEmployees.Web.Components.Employee.EmployeeProviders />
 
@@ -15,9 +16,9 @@
         </div>
 
         <MudAvatar Size="Size.Small" Style="background:rgba(255,255,255,.25); color:white;">
-            @_user?.Initials
+            @_initials
         </MudAvatar>
-        <MudText Typo="Typo.body2" Class="ml-2">@_user?.Name</MudText>
+        <MudText Typo="Typo.body2" Class="ml-2">@_name</MudText>
     </MudAppBar>
 
     <MudDrawer Open="true" Variant="DrawerVariant.Persistent" ClipMode="DrawerClipMode.Always" Elevation="1">
@@ -34,11 +35,11 @@
                             Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
             </MudNavMenu>
             <div class="mt-auto pa-4 d-flex align-center gap-3" style="border-top:1px solid var(--mud-palette-lines-default);">
-                <MudAvatar Size="Size.Small" Color="Color.Primary">@_user?.Initials</MudAvatar>
+                <MudAvatar Size="Size.Small" Color="Color.Primary">@_initials</MudAvatar>
                 <div>
-                    <MudText Typo="Typo.body2">@_user?.Name</MudText>
+                    <MudText Typo="Typo.body2">@_name</MudText>
                     <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                        Employee · @_user?.Department
+                        @_role
                     </MudText>
                 </div>
             </div>
@@ -59,8 +60,25 @@
 </div>
 
 @code {
-    private TeamMember? _user;
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
 
-    protected override async Task OnInitializedAsync() =>
-        _user = await TimeOff.GetCurrentUserAsync();
+    private string _name = "";
+    private string _initials = "";
+    private string _role = "";
+
+    // User info comes from the auth cookie's claims, never from the database:
+    // the layout shares the page's scoped DbContext, and a second query in
+    // flight on the same context throws. Claims are already in memory.
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateTask is null)
+            return;
+
+        var user = (await AuthStateTask).User;
+        _name = user.FindFirst("FullName")?.Value ?? "";
+        _role = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
+        _initials = string.Concat(
+            _name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
+    }
 }
