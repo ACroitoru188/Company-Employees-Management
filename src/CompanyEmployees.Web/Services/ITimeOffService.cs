@@ -14,6 +14,14 @@ public record TeamTimeOff(string MemberName, string Initials, string Department,
     public int Days => EndDate.DayNumber - StartDate.DayNumber + 1;
 }
 
+/// <summary>
+/// One member of the user's team (the manager plus everyone sharing the same manager)
+/// and their current-or-next approved leave. The leave fields are null when the
+/// member has no upcoming leave.
+/// </summary>
+public record TeamRosterEntry(string Name, string Initials, string RoleLabel, bool IsManager,
+    LeaveType? Type, DateOnly? Start, DateOnly? End);
+
 // Async because the real implementation hits the database.
 public interface ITimeOffService
 {
@@ -22,5 +30,6 @@ public interface ITimeOffService
     Task<IReadOnlyList<TimeOffRequest>> GetMyRequestsAsync();
     Task<IReadOnlyList<TeamAbsence>> GetTeamScheduleForMonthAsync(DateOnly monthStart);
     Task<IReadOnlyList<TeamTimeOff>> GetTeamTimeOffAsync();
+    Task<IReadOnlyList<TeamRosterEntry>> GetTeamRosterAsync();
     Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason);
 }

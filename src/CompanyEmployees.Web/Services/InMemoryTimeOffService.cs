@@ -127,6 +127,26 @@ public class InMemoryTimeOffService : ITimeOffService
         return Task.FromResult(result);
     }
 
+    public Task<IReadOnlyList<TeamRosterEntry>> GetTeamRosterAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var roster = new List<TeamRosterEntry>();
+        foreach (var member in _team)
+        {
+            var leave = member.Requests
+                .Where(r => r.EndDate >= today)
+                .OrderBy(r => r.StartDate)
+                .FirstOrDefault();
+            if (leave == null)
+                roster.Add(new TeamRosterEntry(member.Name, member.Initials, member.Department,
+                    false, null, null, null));
+            else
+                roster.Add(new TeamRosterEntry(member.Name, member.Initials, member.Department,
+                    false, leave.Type, leave.StartDate, leave.EndDate));
+        }
+        return Task.FromResult<IReadOnlyList<TeamRosterEntry>>(roster);
+    }
+
     public Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason)
     {
         var request = new TimeOffRequest

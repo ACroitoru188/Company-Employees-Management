@@ -59,27 +59,47 @@ namespace CompanyEmployees.Application.Contexts
             return balances;
         }
 
-        // Approved leave of the user's teammates (same manager, excluding the user)
-        // that touches the [from, to] interval.
+        // Approved leave of the user's team (same manager, excluding the user,
+        // plus the manager themself) that touches the [from, to] interval.
         public async Task<List<LeaveRequest>> GetTeamRequestsAsync(Guid userId, DateOnly from, DateOnly to)
+        {
+            var team = await GetTeamMembersAsync(userId);
+
+            var teamIds = new List<Guid>();
+            foreach (var member in team)
+            {
+                teamIds.Add(member.Id);
+            }
+
+            if (teamIds.Count == 0)
+                return [];
+
+            return await _leaveRequestGateway.GetApprovedRequestsForUsersAsync(teamIds, from, to);
+        }
+
+        // The user's team: their manager first, then the active colleagues who
+        // share the same manager. A user without a manager has no team.
+        public async Task<List<User>> GetTeamMembersAsync(Guid userId)
         {
             var me = await _userGateway.GetUserByIdAsync(userId);
             if (me == null)
                 throw new EntityNotFoundException($"No user with id {userId}.");
 
+            var team = new List<User>();
             if (me.ManagerId == null)
-                return [];
+                return team;
+
+            var manager = await _userGateway.GetUserByIdAsync(me.ManagerId.Value);
+            if (manager != null)
+                team.Add(manager);
 
             var allUsers = await _userGateway.GetAllUsersAsync();
-            var teammateIds = allUsers
-                .Where(u => u.ManagerId == me.ManagerId && u.Id != userId)
-                .Select(u => u.Id)
-                .ToList();
-
-            if (teammateIds.Count == 0)
-                return [];
-
-            return await _leaveRequestGateway.GetApprovedRequestsForUsersAsync(teammateIds, from, to);
+            foreach (var user in allUsers)
+            {
+                if (user.ManagerId == me.ManagerId && user.Id != userId && user.Status == UserStatus.Active)
+                    team.Add(user);
+            }
+            return team;
         }
 
         public async Task<LeaveRequest> SubmitRequestAsync(

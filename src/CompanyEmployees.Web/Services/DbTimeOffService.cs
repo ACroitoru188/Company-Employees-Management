@@ -125,6 +125,52 @@ public class DbTimeOffService : ITimeOffService
         }
     }
 
+    public async Task<IReadOnlyList<TeamRosterEntry>> GetTeamRosterAsync()
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            var today = DateOnly.FromDateTime(DateTime.Today);
+
+            var members = await _employee.GetTeamMembersAsync(user.Id);
+            var requests = await _employee.GetTeamRequestsAsync(user.Id, today, today.AddMonths(3));
+            var sortedRequests = requests.OrderBy(r => r.StartDate).ToList();
+
+            var roster = new List<TeamRosterEntry>();
+            foreach (var member in members)
+            {
+                // The member's current or next approved leave, if they have one.
+                LeaveRequest? leave = null;
+                foreach (var request in sortedRequests)
+                {
+                    if (request.UserId == member.Id)
+                    {
+                        leave = request;
+                        break;
+                    }
+                }
+
+                var isManager = member.Id == user.ManagerId;
+                if (leave == null)
+                {
+                    roster.Add(new TeamRosterEntry(member.Name, Initials(member.Name),
+                        member.Role.ToString(), isManager, null, null, null));
+                }
+                else
+                {
+                    roster.Add(new TeamRosterEntry(member.Name, Initials(member.Name),
+                        member.Role.ToString(), isManager, MapType(leave.Type), leave.StartDate, leave.EndDate));
+                }
+            }
+            return roster;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason)
     {
         await _lock.WaitAsync();

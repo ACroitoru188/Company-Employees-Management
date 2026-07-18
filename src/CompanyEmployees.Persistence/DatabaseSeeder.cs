@@ -38,7 +38,7 @@ namespace CompanyEmployees.Persistence
             var colleague = SeedDemoUser("colleague@siemens.com", "Demo Colleague", UserRole.Employee, projectManager.Id);
 
             SeedAllocations([admin, lineManager, projectManager, employee, colleague]);
-            SeedDemoRequests(employee, colleague, projectManager);
+            SeedDemoRequests(employee, colleague, projectManager, lineManager);
         }
 
         private User SeedDemoUser(string email, string name, UserRole role, Guid? managerId = null)
@@ -87,7 +87,7 @@ namespace CompanyEmployees.Persistence
             _db.SaveChanges();
         }
 
-        private void SeedDemoRequests(User employee, User colleague, User projectManager)
+        private void SeedDemoRequests(User employee, User colleague, User projectManager, User lineManager)
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
 
@@ -144,6 +144,28 @@ namespace CompanyEmployees.Persistence
                 CreatedAt = DateTime.UtcNow.AddDays(-6)
             });
             _db.LeaveRequests.Add(colleagueRequest);
+
+            // The PM's approved leave shows up on the team calendar and Team page of the
+            // employees they manage (the manager is part of the team).
+            var managerRequest = new LeaveRequest
+            {
+                UserId = projectManager.Id,
+                Type = LeaveType.Annual,
+                StartDate = today.AddDays(1),
+                EndDate = today.AddDays(2),
+                Reason = "Long weekend",
+                Status = LeaveStatus.Approved,
+                CreatedAt = DateTime.UtcNow.AddDays(-3)
+            };
+            managerRequest.Approvals.Add(new LeaveApproval
+            {
+                ApproverId = lineManager.Id,
+                Step = 1,
+                Status = LeaveStatus.Approved,
+                ReviewedAt = DateTime.UtcNow.AddDays(-2),
+                CreatedAt = DateTime.UtcNow.AddDays(-3)
+            });
+            _db.LeaveRequests.Add(managerRequest);
 
             // The PM's own pending request gives the line manager something to review,
             // proving the approval flow works at every level of the hierarchy.
