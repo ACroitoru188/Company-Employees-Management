@@ -12,14 +12,17 @@ namespace CompanyEmployees.Application.Contexts
     {
         private readonly ILeaveRequestGateway _leaveRequestGateway;
         private readonly IUserGateway _userGateway;
+        private readonly IDepartmentGateway _departmentGateway;
 
         public EmployeeContext(
             ILogger<EmployeeContext> logger,
             ILeaveRequestGateway leaveRequestGateway,
-            IUserGateway userGateway) : base(logger)
+            IUserGateway userGateway,
+            IDepartmentGateway departmentGateway) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
+            _departmentGateway = departmentGateway;
         }
 
         public async Task<User> GetEmployeeByEmailAsync(string email)
@@ -100,6 +103,51 @@ namespace CompanyEmployees.Application.Contexts
                     team.Add(user);
             }
             return team;
+        }
+
+        // --- administrare departamente (folosit de pagina admin crud) -----------------
+
+        public Task<List<Department>> GetDepartmentsAsync() =>
+            _departmentGateway.GetAllAsync();
+
+        public Task<List<User>> GetAllUsersAsync() =>
+            _userGateway.GetAllUsersAsync();
+
+        public async Task<Department> CreateDepartmentAsync(string name, Guid? managerId)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new InvalidOperationException("Department name is required.");
+
+            var department = new Department { Name = name.Trim(), ManagerId = managerId };
+            await _departmentGateway.CreateAsync(department);
+            return department;
+        }
+
+        public async Task UpdateDepartmentAsync(Guid id, string name, Guid? managerId)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new InvalidOperationException("Department name is required.");
+
+            var department = await _departmentGateway.GetByIdAsync(id);
+            if (department == null)
+                throw new EntityNotFoundException($"No department with id {id}.");
+
+            department.Name = name.Trim();
+            department.ManagerId = managerId;
+            await _departmentGateway.UpdateAsync(department);
+        }
+
+        public Task DeleteDepartmentAsync(Guid id) =>
+            _departmentGateway.DeleteAsync(id);
+
+        public async Task AssignUserToDepartmentAsync(Guid userId, Guid? departmentId)
+        {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            user.DepartmentId = departmentId;
+            await _userGateway.UpdateUserAsync(user);
         }
 
         public async Task<LeaveRequest> SubmitRequestAsync(

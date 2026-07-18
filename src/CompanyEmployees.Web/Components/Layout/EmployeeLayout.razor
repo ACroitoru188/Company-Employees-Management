@@ -35,6 +35,11 @@
                             Icon="@Icons.Material.Filled.Groups">Team</MudNavLink>
                 <MudNavLink Href="employee/my-requests" Match="NavLinkMatch.All"
                             Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
+                @if (_role == "Admin")
+                {
+                    <MudNavLink Href="admin/departments" Match="NavLinkMatch.All"
+                                Icon="@Icons.Material.Filled.Business">Departments</MudNavLink>
+                }
             </MudNavMenu>
             <div class="mt-auto pa-4 d-flex align-center gap-3" style="border-top:1px solid var(--mud-palette-lines-default);">
                 <MudAvatar Size="Size.Small" Color="Color.Primary">@_initials</MudAvatar>

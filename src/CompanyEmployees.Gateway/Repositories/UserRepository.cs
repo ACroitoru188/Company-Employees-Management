@@ -16,12 +16,14 @@ namespace CompanyEmployees.Gateway.Repositories
         {
             return await _context.Users
                 .Include(u => u.Manager)
+                .Include(u => u.Department)
                 .FirstOrDefaultAsync(u => u.Id == userId);
         }
 
         public async Task<User?> GetUserByEmailAsync(string email)
         {
             return await _context.Users
+                .Include(u => u.Department)
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
 

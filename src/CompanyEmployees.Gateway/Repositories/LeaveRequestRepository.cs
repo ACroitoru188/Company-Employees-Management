@@ -35,6 +35,7 @@ namespace CompanyEmployees.Gateway.Repositories
             // Two ranges overlap when each one starts before the other ends.
             return await _context.LeaveRequests
                 .Include(r => r.User)
+                    .ThenInclude(u => u.Department)
                 .Where(r => userIds.Contains(r.UserId)
                             && r.Status == LeaveStatus.Approved
                             && r.StartDate <= to

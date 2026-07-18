@@ -16,7 +16,11 @@ public class User : IdentityUser<Guid>
     public Guid? ManagerId { get; set; }
     public User? Manager { get; set; }
     public ICollection<User> DirectReports { get; set; } = new List<User>(); //< cine ii raporteaza managerului
-    
+
+    //departamentul din care face parte (echipa)
+    public Guid? DepartmentId { get; set; }
+    public Department? Department { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

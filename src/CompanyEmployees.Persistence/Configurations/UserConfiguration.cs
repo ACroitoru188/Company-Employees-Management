@@ -16,6 +16,12 @@ namespace CompanyEmployees.Persistence.Configurations
                    .WithMany(u => u.DirectReports)
                    .HasForeignKey(u => u.ManagerId)
                    .OnDelete(DeleteBehavior.NoAction);
+
+            // apartenenta la departament: stergerea unui departament pune null pe departmentid al membrilor.
+            builder.HasOne(u => u.Department)
+                   .WithMany(d => d.Members)
+                   .HasForeignKey(u => u.DepartmentId)
+                   .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

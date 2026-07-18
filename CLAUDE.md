@@ -85,12 +85,20 @@ dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
 - Fluent config lives in `Persistence/Configurations/*Configuration.cs` (one class per entity,
   auto-applied from the assembly). "Deleting" a user = soft delete via `Status = Inactive`
   (`UserRepository.DeleteUserAsync`).
-- There is **no Department entity** — `TeamMember.Department` / `TeamAbsence.Department` /
-  `TeamRosterEntry.RoleLabel` carry `Role.ToString()` as a placeholder until departments land.
-- **Team** = the user's manager **plus** the active users sharing the same `ManagerId`
-  (excluding the user). `EmployeeContext.GetTeamMembersAsync` / `GetTeamRequestsAsync` are the
-  single source of that definition — calendar, dashboard "Team time off" and the Team page all
-  route through them; change team visibility there only.
+- **`Department`** — `Name`, `Guid? ManagerId` (a LineManager; separate from `User.ManagerId`),
+  `Members`. FKs: `User.DepartmentId` → `SetNull` on department delete;
+  `Department.ManagerId` → `NoAction` (avoids an FK cascade cycle — detach a manager before
+  deleting them). Admin CRUD lives in `EmployeeContext` (`GetDepartmentsAsync`,
+  `Create/Update/DeleteDepartmentAsync`, `AssignUserToDepartmentAsync`) behind
+  `IDepartmentGateway`/`DepartmentRepository`. Seeded: "Design" (managed by the line manager,
+  containing LM + the two employees) and empty "Production"; admin + PM have no department.
+- **Departments are org data, not team visibility** (deliberate): **Team** = the user's manager
+  **plus** the active users sharing the same `ManagerId` (excluding the user).
+  `EmployeeContext.GetTeamMembersAsync` / `GetTeamRequestsAsync` are the single source of that
+  definition — calendar, dashboard "Team time off" and the Team page all route through them;
+  change team visibility there only. The Web view-models' `Department`/`RoleLabel` fields still
+  display `Role.ToString()`, not the real department — wiring `user.Department?.Name` into
+  `DbTimeOffService` is a pending follow-up.
 - Domain defines its own `InvalidOperationException` in `Domain/Exceptions` —
   `EmployeeContext` uses a `using` alias to pick it over System's; keep that in mind when
   catching.
@@ -153,6 +161,11 @@ Pages in `Web/Components/Employee/Pages/` — `EmployeeDashboard` (`/employee/da
 - `EmployeeTeam.razor` lists the team roster (`GetTeamRosterAsync` → `TeamRosterEntry`):
   manager first with a "Manager" chip, then teammates, each with their current-or-next approved
   leave period or "Available".
+- `AdminDepartments.razor` (`/admin/departments`, admin-only) is the department CRUD page: edit
+  name/manager per department, create/delete, assign users. It injects `EmployeeContext`
+  directly (admin CRUD isn't time-off, so it skips `ITimeOffService`) and gates on the role
+  claim — non-admins are redirected to the dashboard; the drawer link renders only when the
+  claim says Admin.
 - Date formatting: always `CultureInfo.InvariantCulture` (server culture may not be English).
 
 ## Notifications (SignalR)
@@ -204,5 +217,5 @@ no `data-*` anim attributes; the declarative contract (`data-reveal`, `data-intr
   Gateway, logic in an Application context, thin mapping in a Web service. Don't add a new
   context class for a handful of pass-throughs — extend `EmployeeContext`.
 - `TODO.md` is stale (pre-rearchitecture).
-- Keep this file current as structure lands: `dotnet test` when tests exist, the departments
-  model if/when implemented, auth hardening as it happens.
+- Keep this file current as structure lands: `dotnet test` when tests exist, auth hardening as
+  it happens.

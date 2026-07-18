@@ -37,6 +37,7 @@ namespace CompanyEmployees.Persistence
             var employee = SeedDemoUser("employee@siemens.com", "Demo Employee", UserRole.Employee, projectManager.Id);
             var colleague = SeedDemoUser("colleague@siemens.com", "Demo Colleague", UserRole.Employee, projectManager.Id);
 
+            SeedDepartments(lineManager, employee, colleague);
             SeedAllocations([admin, lineManager, projectManager, employee, colleague]);
             SeedDemoRequests(employee, colleague, projectManager, lineManager);
         }
@@ -64,6 +65,20 @@ namespace CompanyEmployees.Persistence
             var result = _userManager.CreateAsync(user, "Passw0rd!").Result;
 
             return user;
+        }
+
+        private void SeedDepartments(User lineManager, User employee, User colleague)
+        {
+            var design = new Department { Name = "Design", ManagerId = lineManager.Id };
+            var production = new Department { Name = "Production" }; // fara manager — contrast pentru demo
+            _db.Departments.AddRange(design, production);
+            _db.SaveChanges();
+
+            lineManager.DepartmentId = design.Id;
+            employee.DepartmentId = design.Id;
+            colleague.DepartmentId = design.Id;
+            // admin si projectmanager raman fara departament — testeaza cazul cu echipa goala.
+            _db.SaveChanges();
         }
 
         private void SeedAllocations(List<User> users)
