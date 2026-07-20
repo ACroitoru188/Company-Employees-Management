@@ -105,6 +105,75 @@ namespace CompanyEmployees.Application.Contexts
             return team;
         }
 
+        // Org-wide figures for the HR dashboard. One call, so the page issues a
+        // single round trip instead of several against the same scoped context.
+        public async Task<HrDashboardResult> GetHrDashboardAsync()
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var result = new HrDashboardResult();
+
+            var users = await _userGateway.GetAllUsersAsync();
+            var activeIds = new List<Guid>();
+            var perDepartment = new Dictionary<string, int>();
+
+            foreach (var user in users)
+            {
+                if (user.Status != UserStatus.Active)
+                    continue;
+
+                result.ActiveEmployees++;
+                activeIds.Add(user.Id);
+
+                if (user.CreatedAt >= DateTime.UtcNow.AddDays(-30))
+                    result.NewEmployees++;
+
+                var department = user.Department == null ? "No department" : user.Department.Name;
+                if (perDepartment.ContainsKey(department))
+                    perDepartment[department]++;
+                else
+                    perDepartment[department] = 1;
+            }
+
+            foreach (var entry in perDepartment)
+            {
+                result.Departments.Add(new HrDepartmentCount
+                {
+                    Name = entry.Key,
+                    Count = entry.Value
+                });
+            }
+            result.Departments.Sort((a, b) => b.Count.CompareTo(a.Count));
+
+            var pending = await _leaveRequestGateway.GetAllPendingRequestsAsync();
+            result.PendingRequests = pending.Count;
+
+            foreach (var request in pending)
+            {
+                var waiting = (DateTime.UtcNow - request.CreatedAt).Days;
+                if (waiting > 7)
+                    result.StaleRequests++;
+
+                result.Pending.Add(new HrPendingRequest
+                {
+                    Name = request.User.Name,
+                    Department = request.User.Department == null ? "—" : request.User.Department.Name,
+                    Type = request.Type.ToString(),
+                    Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
+                    WaitingDays = waiting
+                });
+            }
+
+            // Approved leave that covers today tells HR who is out right now.
+            if (activeIds.Count > 0)
+            {
+                var todaysLeave = await _leaveRequestGateway
+                    .GetApprovedRequestsForUsersAsync(activeIds, today, today);
+                result.OnLeaveToday = todaysLeave.Count;
+            }
+
+            return result;
+        }
+
         // --- administrare departamente (folosit de pagina admin crud) -----------------
 
         public Task<List<Department>> GetDepartmentsAsync() =>

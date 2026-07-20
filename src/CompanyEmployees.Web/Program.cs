@@ -84,7 +84,8 @@ app.MapRazorComponents<App>()
 app.MapPost("/api/auth/login", async (HttpContext context,
     [Microsoft.AspNetCore.Mvc.FromForm] string email,
     [Microsoft.AspNetCore.Mvc.FromForm] string password,
-    SignInManager<User> signInManager) =>
+    SignInManager<User> signInManager,
+    UserManager<User> userManager) =>
 {
     var result = await signInManager.PasswordSignInAsync(
         userName: email,
@@ -94,6 +95,16 @@ app.MapPost("/api/auth/login", async (HttpContext context,
 
     if(result.Succeeded)
     {
+        // HR staff start on their own dashboard; everyone else on the employee one.
+        // HR is a department, not a UserRole, so this checks the department name.
+        var department = await userManager.Users
+            .Where(u => u.NormalizedUserName == email.ToUpperInvariant())
+            .Select(u => u.Department != null ? u.Department.Name : null)
+            .FirstOrDefaultAsync();
+
+        if (department == "HR")
+            return Results.Redirect("/hr/dashboard");
+
         return Results.Redirect("/employee/dashboard");
     }
     else

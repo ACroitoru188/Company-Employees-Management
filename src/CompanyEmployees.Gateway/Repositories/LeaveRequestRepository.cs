@@ -58,6 +58,18 @@ namespace CompanyEmployees.Gateway.Repositories
                 .ToListAsync();
         }
 
+        public async Task<List<LeaveRequest>> GetAllPendingRequestsAsync()
+        {
+            // Department is included so the HR list can show where each requester sits.
+            return await _context.LeaveRequests
+                .Include(r => r.User)
+                    .ThenInclude(u => u.Department)
+                .Where(r => r.Status == LeaveStatus.Pending)
+                .OrderBy(r => r.StartDate)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
         public async Task<LeaveRequest?> GetRequestByIdAsync(Guid requestId)
         {
             // User is included because the decision flow needs the requester's ManagerId.
