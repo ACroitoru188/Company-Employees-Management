@@ -1,6 +1,7 @@
 using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Web.Models;
+using Microsoft.AspNetCore.Components.Authorization;
 using DomainEnums = CompanyEmployees.Domain.Enums;
 
 namespace CompanyEmployees.Web.Services;
@@ -11,21 +12,29 @@ namespace CompanyEmployees.Web.Services;
 /// </summary>
 public class DbTimeOffService : ITimeOffService
 {
-    // TODO: replace with the authenticated user once login issues a real session
-    // (see AuthenticationContext — Blazor login is still a mock).
-    private const string CurrentUserEmail = "employee@siemens.com";
-
     private readonly EmployeeContext _employee;
+    private readonly AuthenticationStateProvider _authStateProvider;
     private User? _currentUser; // cached per circuit (service is Scoped)
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    public DbTimeOffService(EmployeeContext employee)
+    public DbTimeOffService(EmployeeContext employee, AuthenticationStateProvider authStateProvider)
     {
         _employee = employee;
+        _authStateProvider = authStateProvider;
     }
 
-    private async Task<User> GetDomainUserAsync() =>
-        _currentUser ??= await _employee.GetEmployeeByEmailAsync(CurrentUserEmail);
+    private async Task<User> GetDomainUserAsync()
+    {
+        if (_currentUser != null)
+            return _currentUser;
+
+        // UserName == Email for every account, so Identity.Name from the auth state is the email.
+        var state = await _authStateProvider.GetAuthenticationStateAsync();
+        var email = state.User.Identity?.Name
+            ?? throw new InvalidOperationException("No authenticated user.");
+
+        return _currentUser = await _employee.GetEmployeeByEmailAsync(email);
+    }
 
     public async Task<TeamMember> GetCurrentUserAsync()
     {

@@ -124,10 +124,15 @@ dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
   (or `/?error=InvalidCredentials`). The hidden-form hop exists because an interactive circuit
   can't set the auth cookie itself; don't "simplify" it away.
 - `UserName == Email` for all users, so `Identity.Name` from the auth state *is* the email.
-- **Gaps to know about**: `DbTimeOffService` still **hardcodes the current user**
-  (`employee@siemens.com`, marked TODO) instead of reading the auth state, and no `/employee/*`
-  page carries `[Authorize]`. `[Authorize(Roles=...)]` *does* have role claims available now
-  (via `AppClaimsPrincipalFactory`), but pages don't use it yet.
+- `DbTimeOffService` resolves the current user from the **auth state**
+  (`AuthenticationStateProvider.GetAuthenticationStateAsync()` → `Identity.Name` → email →
+  `GetEmployeeByEmailAsync`), cached per circuit. Every `ITimeOffService` method funnels through
+  its `GetDomainUserAsync()`, so Dashboard/Calendar/Team/My Requests all follow whoever is logged
+  in. (Ported from `refactorizare-departamente-1` on 2026-07-20; it previously hardcoded
+  `employee@siemens.com`, which showed every user Demo Employee's team and requests.)
+- **Gaps to know about**: no `/employee/*` page carries `[Authorize]`.
+  `[Authorize(Roles=...)]` *does* have role claims available now (via
+  `AppClaimsPrincipalFactory`), but pages don't use it yet.
 - **Demo accounts come from the `SeedDemoData` migration**, not from app code — see
   "Demo data" below for the full roster and passwords.
 
