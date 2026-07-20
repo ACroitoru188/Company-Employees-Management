@@ -12,6 +12,7 @@ using CompanyEmployees.Web.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -53,10 +54,14 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    // Applies any pending migrations (creating the database if it does not exist yet).
+    // The demo accounts and their leave data arrive through the SeedDemoData migration,
+    // so a fresh clone only needs to run the app. Nothing is dropped: data entered
+    // through the UI survives restarts.
     using var scope = app.Services.CreateScope();
 
-    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
-    seeder.Seed();
+    var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
+    db.Database.Migrate();
 }
 
 app.UseMiddleware<GlobalExceptionHandler>();

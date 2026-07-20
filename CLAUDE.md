@@ -20,7 +20,7 @@ of a layered backend with EF Core 8 and SQL Server LocalDB.
 ```
 src/CompanyEmployees.Domain          # entities, enums, gateway INTERFACES, domain exceptions
 src/CompanyEmployees.Persistence     # CompanyEmployeesDbContext, IEntityTypeConfigurations,
-                                     # Migrations/, DatabaseSeeder, DesignTimeDbContextFactory
+                                     # Migrations/ (incl. SeedData/*.sql), DesignTimeDbContextFactory
 src/CompanyEmployees.Gateway         # repository IMPLEMENTATIONS (BaseRepository holds the DbContext)
 src/CompanyEmployees.Application     # business logic: Contexts/ (BaseContext, EmployeeContext,
                                      # ManagerContext, NotificationContext) + Hubs/NotificationHub
@@ -60,11 +60,17 @@ dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
 - Connection string: `ConnectionStrings:Default` in `Web/appsettings.Development.json`
   (LocalDB `CompanyEmployees`). `Persistence/DesignTimeDbContextFactory.cs` hardcodes its own copy
   for `dotnet ef` tooling.
-- **Dev startup drops and recreates the DB**: `DatabaseSeeder.Seed()` (called from `Program.cs`
-  in Development) runs `EnsureDeleted()` + `EnsureCreated()` on every start. Consequences:
-  schema always matches the model without running migrations, **nothing persists between runs**,
-  and migrations are never applied at runtime — keep adding them anyway so history stays truthful
-  for non-dev.
+- **Dev startup applies migrations**: `Program.cs` calls `db.Database.Migrate()` in Development,
+  creating the DB if absent and applying anything pending. **Data persists between runs** —
+  nothing is dropped, so records added through the UI survive a restart. Because the schema now
+  comes from migrations rather than `EnsureCreated()`, an entity change without a matching
+  migration will *not* show up in the DB: add the migration.
+  - The old `DatabaseSeeder` (EnsureDeleted + EnsureCreated + hardcoded demo users) was removed
+    on 2026-07-20 — demo data now arrives through the `SeedDemoData` migration (below).
+  - A database created by the *old* `EnsureCreated()` path has no `__EFMigrationsHistory` table,
+    so `database update` fails against it. Drop it once
+    (`dotnet dotnet-ef database drop --force --project src/CompanyEmployees.Persistence`), then
+    `database update`.
 - No test project. When one lands, wire up `dotnet test` and document it here.
 
 ## Domain model (`Domain/Entities`, `Domain/Enums`)
@@ -122,13 +128,39 @@ dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
   (`employee@siemens.com`, marked TODO) instead of reading the auth state, and no `/employee/*`
   page carries `[Authorize]`. `[Authorize(Roles=...)]` *does* have role claims available now
   (via `AppClaimsPrincipalFactory`), but pages don't use it yet.
-- Demo logins (seeded every dev startup, password **`Passw0rd!`**), reporting chain expressed
-  through `ManagerId`: `itadmin@siemens.com` (Admin) → `linemanager@siemens.com` (LineManager)
-  → `projectmanager@siemens.com` (ProjectManager) → `employee@siemens.com` +
-  `colleague@siemens.com` (Employees). The seeder also creates leave allocations
-  (Annual 21 / Sick 10 / Parental 10 / Unpaid 30) and demo requests — including an approved
-  leave for the PM so the manager shows up on their reports' team views — dated relative to
-  today so the demo never goes stale.
+- **Demo accounts come from the `SeedDemoData` migration**, not from app code — see
+  "Demo data" below for the full roster and passwords.
+
+## Demo data (the `SeedDemoData` migration)
+
+All demo accounts and their leave data live in
+`Persistence/Migrations/SeedData/SeedDemoData.sql` — an **embedded resource** (registered in
+`CompanyEmployees.Persistence.csproj`) that the `20260720073720_SeedDemoData` migration executes.
+**No account is hardcoded in C#**: to add or change demo users, edit the `.sql` file (as a new
+migration — never edit an applied one) rather than any C# file. Teammates get the identical
+dataset by pulling and running the app (or `dotnet ef database update`).
+
+- **37 users / 7 departments / 148 allocations / 63 leave requests / 32 approvals.**
+- Seed rows use fixed GUID prefixes per table (`1111…` users, `2222…` departments, `3333…`
+  allocations, `4444…` requests, `5555…` approvals) so the migration's `Down()` can remove
+  exactly the seed data and leave anything created through the UI alone.
+- Dates are emitted as `DATEADD(day, N, CAST(SYSUTCDATETIME() AS date))`, so the demo is dated
+  relative to **when the migration runs** and never goes stale.
+- Password hashes are pre-computed PBKDF2 values baked into the SQL (Identity's
+  `PasswordHasher` format) — that is why the passwords below cannot be changed by editing a
+  string; a new hash must be generated.
+- **Passwords**: the 5 original accounts keep **`Passw0rd!`**; all 32 accounts added in the
+  2026-07-20 expansion use **`User123!`** (Identity's default policy requires upper + lower +
+  digit + non-alphanumeric, min 6 — a simple password like `user` is rejected).
+- Email convention: `admin.<first>@siemens.com`, `lm.<first>@siemens.com` (LineManagers),
+  `hr.<first>@siemens.com` (HR department staff), `first.last@siemens.com` (everyone else).
+- Org shape: 3 admins; five departments each led by a LineManager who reports to an admin —
+  **HR** (LM + 4 staff), **Engineering** and **Sales** (LM → ProjectManager → 4 employees),
+  **Support** and **Marketing** (LM → 5 employees, no PM layer) — plus the original
+  `itadmin` → `linemanager` → `projectmanager` → `employee`/`colleague` chain and the
+  `Design`/`Production` departments.
+- Requests span every `LeaveType` and every `LeaveStatus`; every Approved/Rejected one has a
+  matching `LeaveApproval` from the requester's manager.
 
 ## The live Employee UI (MudBlazor)
 

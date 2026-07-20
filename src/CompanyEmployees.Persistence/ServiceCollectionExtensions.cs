@@ -16,7 +16,6 @@ namespace CompanyEmployees.Persistence
             services.AddDbContext<CompanyEmployeesDbContext>(options =>
                 options.UseSqlServer(configuration.GetConnectionString("Default")));
 
-            services.AddTransient<DatabaseSeeder>();
             return services;
         }
     }

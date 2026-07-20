@@ -1,4 +1,3 @@
-using CompanyEmployees.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CompanyEmployees.Infrastructure
@@ -7,8 +6,6 @@ namespace CompanyEmployees.Infrastructure
     {
         public static IServiceCollection AddInfrastructureLayer(this IServiceCollection services)
         {
-            services.AddTransient<DatabaseSeeder>();
-
             return services;
         }
     }
