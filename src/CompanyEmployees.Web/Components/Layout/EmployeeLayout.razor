@@ -41,14 +41,36 @@
                                 Icon="@Icons.Material.Filled.Business">Departments</MudNavLink>
                 }
             </MudNavMenu>
-            <div class="mt-auto pa-4 d-flex align-center gap-3" style="border-top:1px solid var(--mud-palette-lines-default);">
-                <MudAvatar Size="Size.Small" Color="Color.Primary">@_initials</MudAvatar>
-                <div>
-                    <MudText Typo="Typo.body2">@_name</MudText>
-                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                        @_role
-                    </MudText>
-                </div>
+            <div class="mt-auto" style="border-top:1px solid var(--mud-palette-lines-default);">
+                <MudMenu ActivationEvent="MouseEvent.LeftClick" AnchorOrigin="Origin.TopCenter"
+                         TransformOrigin="Origin.BottomCenter" FullWidth="true" Dense="true">
+                    @* Custom activator content gets no click handler from MudMenu —
+                       it has to toggle the menu through the MenuContext itself. *@
+                    <ActivatorContent Context="menu">
+                        <div class="pa-4 d-flex align-center gap-3" style="cursor:pointer;"
+                             @onclick="menu.ToggleAsync">
+                            <MudAvatar Size="Size.Small" Color="Color.Primary">@_initials</MudAvatar>
+                            <div>
+                                <MudText Typo="Typo.body2">@_name</MudText>
+                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                    @_role
+                                </MudText>
+                            </div>
+                        </div>
+                    </ActivatorContent>
+                    <ChildContent>
+                        <MudMenuItem Href="mailto:it-support@siemens.com"
+                                     Icon="@Icons.Material.Filled.SupportAgent">Contact IT department</MudMenuItem>
+                        <MudMenuItem Href="/forgot-password"
+                                     Icon="@Icons.Material.Filled.LockReset">Forgot password</MudMenuItem>
+                        <MudDivider />
+                        @* Full page load: the logout endpoint must clear the auth cookie itself. *@
+                        <MudMenuItem Href="/api/auth/logout" ForceLoad="true"
+                                     Icon="@Icons.Material.Filled.Logout" IconColor="Color.Error">
+                            <MudText Typo="Typo.body2" Color="Color.Error">Sign out</MudText>
+                        </MudMenuItem>
+                    </ChildContent>
+                </MudMenu>
             </div>
         </div>
     </MudDrawer>

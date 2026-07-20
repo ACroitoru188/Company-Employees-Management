@@ -102,6 +102,14 @@ app.MapPost("/api/auth/login", async (HttpContext context,
     }
 }).DisableAntiforgery();
 
+// Sign-out has to be a plain HTTP request too: an interactive circuit can't
+// touch the auth cookie (same reason the login form posts here).
+app.MapGet("/api/auth/logout", async (SignInManager<User> signInManager) =>
+{
+    await signInManager.SignOutAsync();
+    return Results.Redirect("/");
+});
+
 app.MapHub<NotificationHub>("/notificationHub");
 
 
