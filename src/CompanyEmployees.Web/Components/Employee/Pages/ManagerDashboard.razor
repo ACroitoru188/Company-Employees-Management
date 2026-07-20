@@ -1,5 +1,6 @@
 @* /manager/dashboard is already taken by the retro Components/Pages/Dashboard.razor
-   mockup, so this lives at /manager/team — which matches its "My Team" nav label. *@
+   mockup, so this lives at /manager/team — the route kept its old name, the nav
+   label is "Department" (distinct from /employee/team, which shows peers). *@
 @page "/manager/team"
 @layout EmployeeLayout
 @using System.Globalization
@@ -13,7 +14,7 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
-<PageTitle>My Team · Time Off Management</PageTitle>
+<PageTitle>Department · Time Off Management</PageTitle>
 
 @if (!_authorized || _data is null)
 {
@@ -21,7 +22,7 @@
 }
 else
 {
-    <MudText Typo="Typo.h5" Style="font-weight:600;">My Team</MudText>
+    <MudText Typo="Typo.h5" Style="font-weight:600;">Department</MudText>
     <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
         @_data.TeamSize direct @(_data.TeamSize == 1 ? "report" : "reports")
     </MudText>
@@ -116,7 +117,7 @@ else
         </MudTable>
     }
 
-    <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Team</MudText>
+    <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Members</MudText>
 
     @if (_data.Team.Count == 0)
     {

@@ -1,138 +1,123 @@
 @page "/hr/dashboard"
 @layout CompanyEmployees.Web.Components.Layout.EmployeeLayout
-@using System.Globalization
 @using CompanyEmployees.Application
 @using CompanyEmployees.Application.Contexts
 @using Microsoft.AspNetCore.Components.Authorization
 @inject EmployeeContext Employees
 @inject NavigationManager Nav
-<PageTitle>HR Dashboard</PageTitle>
+
+<PageTitle>HR Dashboard · Time Off Management</PageTitle>
 
 @if (_data is null)
 {
-    <p>Loading…</p>
+    <MudProgressCircular Indeterminate="true" />
 }
 else
 {
-<div class="hr-dashboard-container">
+    <MudText Typo="Typo.h5" Style="font-weight:600;">HR Dashboard</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+        Welcome, @_name
+    </MudText>
 
-    <!-- Header -->
-    <header class="hr-header">
-        <div class="hr-title">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="7" height="7"></rect>
-                <rect x="14" y="3" width="7" height="7"></rect>
-                <rect x="14" y="14" width="7" height="7"></rect>
-                <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
-            <h2>HR Dashboard</h2>
-        </div>
-        <div class="hr-user">Welcome, @_name</div>
-    </header>
+    <MudGrid Spacing="3" Class="mb-6">
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="1">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+                        ACTIVE EMPLOYEES
+                    </MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.ActiveEmployees</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="1">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+                        NEW (30 DAYS)
+                    </MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.NewEmployees</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="1">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+                        PENDING
+                    </MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.PendingRequests</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="1">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+                        ON LEAVE TODAY
+                    </MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.OnLeaveToday</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
 
-    <!-- Metrics Cards -->
-    <div class="metrics-grid">
-        <div class="metric-card">
-            <div class="metric-label">Active employees</div>
-            <div class="metric-value">@_data.ActiveEmployees</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">New employees (30 days)</div>
-            <div class="metric-value">@_data.NewEmployees</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Leave requests</div>
-            <div class="metric-value">
-                <span class="text-amber">@_data.PendingRequests</span>
-                <span class="metric-sub">pending</span>
-            </div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">On leave today</div>
-            <div class="metric-value">@_data.OnLeaveToday</div>
-        </div>
-    </div>
+    <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Requests to approve</MudText>
 
-    <!-- Panels -->
-    <div class="panels-grid">
-
-        <!-- Requests awaiting approval -->
-        <div class="hr-panel requests-panel">
-            <div class="panel-header">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-                Requests to approve
-            </div>
-            <div class="requests-list">
-                @if (_data.Pending.Count == 0)
-                {
-                    <div class="request-row">
-                        <div class="req-info">
-                            <div class="req-desc">No requests are waiting for approval.</div>
-                        </div>
-                    </div>
-                }
-                @foreach (var request in _data.Pending)
-                {
-                    <div class="request-row">
-                        <div class="req-info">
-                            <div class="req-name">@request.Name</div>
-                            <div class="req-desc">
-                                @request.Type · @request.Days @(request.Days == 1 ? "day" : "days") · @request.Department
-                            </div>
-                        </div>
-                        <div class="req-status status-pending">pending</div>
-                    </div>
-                }
-            </div>
-        </div>
-
-        <!-- Employees per department -->
-        <div class="hr-panel depts-panel">
-            <div class="panel-header">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="18" y="3" width="4" height="18"></rect>
-                    <rect x="10" y="8" width="4" height="13"></rect>
-                    <rect x="2" y="13" width="4" height="8"></rect>
-                </svg>
-                Employees per department
-            </div>
-            <div class="depts-list">
-                @foreach (var department in _data.Departments)
-                {
-                    <div class="dept-row">
-                        <div class="dept-info">
-                            <span>@department.Name</span>
-                            <span>@department.Count</span>
-                        </div>
-                        <div class="dept-bar-track">
-                            <div class="dept-bar-fill" style="width: @BarWidth(department.Count)"></div>
-                        </div>
-                    </div>
-                }
-            </div>
-        </div>
-    </div>
-
-    <!-- Alert Banner -->
-    @if (_data.StaleRequests > 0)
+    @* HR sees the whole company's pending queue read-only — approving is the
+       manager's job, on /manager/team. *@
+    @if (_data.Pending.Count == 0)
     {
-        <div class="hr-alert">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                <line x1="12" y1="9" x2="12" y2="13"></line>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-            <span>
-                @_data.StaleRequests @(_data.StaleRequests == 1 ? "request has" : "requests have")
-                been waiting for approval for more than 7 days
-            </span>
-        </div>
+        <MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
+            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                No requests are waiting for approval.
+            </MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudTable T="HrPendingRequest" Items="@_data.Pending" Hover="true" Elevation="1" Class="mb-6">
+            <HeaderContent>
+                <MudTh>Employee</MudTh>
+                <MudTh>Department</MudTh>
+                <MudTh>Type</MudTh>
+                <MudTh>Days</MudTh>
+                <MudTh>Waiting</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Employee">@context.Name</MudTd>
+                <MudTd DataLabel="Department">@context.Department</MudTd>
+                <MudTd DataLabel="Type">@context.Type</MudTd>
+                <MudTd DataLabel="Days">@context.Days @(context.Days == 1 ? "day" : "days")</MudTd>
+                <MudTd DataLabel="Waiting">
+                    @context.WaitingDays @(context.WaitingDays == 1 ? "day" : "days")
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
     }
 
-</div>
+    <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Employees per department</MudText>
+
+    <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+        @foreach (var department in _data.Departments)
+        {
+            <div class="mb-3">
+                <div class="d-flex justify-space-between">
+                    <MudText Typo="Typo.body2">@department.Name</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight:600;">@department.Count</MudText>
+                </div>
+                <MudProgressLinear Color="Color.Primary" Value="@BarWidth(department.Count)" Class="mt-1" />
+            </div>
+        }
+    </MudPaper>
+
+    @if (_data.StaleRequests > 0)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mt-6">
+            @_data.StaleRequests @(_data.StaleRequests == 1 ? "request has" : "requests have")
+            been waiting for approval for more than 7 days
+        </MudAlert>
+    }
 }
 
 @code {
@@ -161,7 +146,7 @@ else
     }
 
     // Bars are relative to the largest department, so the biggest one fills the track.
-    private string BarWidth(int count)
+    private double BarWidth(int count)
     {
         var largest = 0;
         foreach (var department in _data!.Departments)
@@ -171,9 +156,8 @@ else
         }
 
         if (largest == 0)
-            return "0%";
+            return 0;
 
-        var percent = count * 100.0 / largest;
-        return percent.ToString("0.##", CultureInfo.InvariantCulture) + "%";
+        return count * 100.0 / largest;
     }
 }

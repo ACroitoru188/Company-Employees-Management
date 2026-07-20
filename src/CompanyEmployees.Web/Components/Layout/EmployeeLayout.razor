@@ -43,7 +43,7 @@
                 @if (_role == "LineManager" || _role == "ProjectManager")
                 {
                     <MudNavLink Href="manager/team" Match="NavLinkMatch.All"
-                                Icon="@Icons.Material.Filled.SupervisorAccount">My Team</MudNavLink>
+                                Icon="@Icons.Material.Filled.SupervisorAccount">Department</MudNavLink>
                 }
                 @if (_role == "Admin")
                 {
@@ -63,7 +63,9 @@
                             <div>
                                 <MudText Typo="Typo.body2">@_name</MudText>
                                 <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                                    @_role
+                                    @* HR is a department, not a UserRole — its staff are
+                                       plain Employees, so show the department instead. *@
+                                    @(_department == "HR" ? "HR" : _role)
                                 </MudText>
                             </div>
                         </div>
