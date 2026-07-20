@@ -46,7 +46,7 @@ builder.Services.AddScoped<AuthenticationStateProvider, CompanyEmployees.Web.Sec
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/";
-    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.ExpireTimeSpan = TimeSpan.FromHours(5);
     options.SlidingExpiration = true;
 });
 
