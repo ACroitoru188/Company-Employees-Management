@@ -1,9 +1,21 @@
 @page "/hr/dashboard"
 @layout CompanyEmployees.Web.Components.Layout.EmployeeLayout
-<PageTitle>Dashboard HR</PageTitle>
+@using System.Globalization
+@using CompanyEmployees.Application
+@using CompanyEmployees.Application.Contexts
+@using Microsoft.AspNetCore.Components.Authorization
+@inject EmployeeContext Employees
+@inject NavigationManager Nav
+<PageTitle>HR Dashboard</PageTitle>
 
+@if (_data is null)
+{
+    <p>Loading…</p>
+}
+else
+{
 <div class="hr-dashboard-container">
-    
+
     <!-- Header -->
     <header class="hr-header">
         <div class="hr-title">
@@ -13,76 +25,71 @@
                 <rect x="14" y="14" width="7" height="7"></rect>
                 <rect x="3" y="14" width="7" height="7"></rect>
             </svg>
-            <h2>Dashboard HR</h2>
+            <h2>HR Dashboard</h2>
         </div>
-        <div class="hr-user">Bun venit, Maria</div>
+        <div class="hr-user">Welcome, @_name</div>
     </header>
 
     <!-- Metrics Cards -->
     <div class="metrics-grid">
         <div class="metric-card">
-            <div class="metric-label">Angajați activi</div>
-            <div class="metric-value">248</div>
+            <div class="metric-label">Active employees</div>
+            <div class="metric-value">@_data.ActiveEmployees</div>
         </div>
         <div class="metric-card">
-            <div class="metric-label">Angajați noi (30 zile)</div>
-            <div class="metric-value">7</div>
+            <div class="metric-label">New employees (30 days)</div>
+            <div class="metric-value">@_data.NewEmployees</div>
         </div>
         <div class="metric-card">
-            <div class="metric-label">Cereri concediu</div>
+            <div class="metric-label">Leave requests</div>
             <div class="metric-value">
-                <span class="text-amber">5</span> 
-                <span class="metric-sub">în așteptare</span>
+                <span class="text-amber">@_data.PendingRequests</span>
+                <span class="metric-sub">pending</span>
             </div>
         </div>
         <div class="metric-card">
-            <div class="metric-label">Contracte expiră</div>
-            <div class="metric-value text-red">3</div>
+            <div class="metric-label">On leave today</div>
+            <div class="metric-value">@_data.OnLeaveToday</div>
         </div>
     </div>
 
     <!-- Panels -->
     <div class="panels-grid">
-        
-        <!-- Cereri de aprobat -->
+
+        <!-- Requests awaiting approval -->
         <div class="hr-panel requests-panel">
             <div class="panel-header">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
                     <polyline points="12 6 12 12 16 14"></polyline>
                 </svg>
-                Cereri de aprobat
+                Requests to approve
             </div>
             <div class="requests-list">
-                
-                <div class="request-row">
-                    <div class="req-info">
-                        <div class="req-name">Andrei Pop</div>
-                        <div class="req-desc">Concediu · 3 zile</div>
+                @if (_data.Pending.Count == 0)
+                {
+                    <div class="request-row">
+                        <div class="req-info">
+                            <div class="req-desc">No requests are waiting for approval.</div>
+                        </div>
                     </div>
-                    <div class="req-status status-pending">pending</div>
-                </div>
-
-                <div class="request-row">
-                    <div class="req-info">
-                        <div class="req-name">Ioana Radu</div>
-                        <div class="req-desc">Medical · 1 zi</div>
+                }
+                @foreach (var request in _data.Pending)
+                {
+                    <div class="request-row">
+                        <div class="req-info">
+                            <div class="req-name">@request.Name</div>
+                            <div class="req-desc">
+                                @request.Type · @request.Days @(request.Days == 1 ? "day" : "days") · @request.Department
+                            </div>
+                        </div>
+                        <div class="req-status status-pending">pending</div>
                     </div>
-                    <div class="req-status status-pending">pending</div>
-                </div>
-
-                <div class="request-row">
-                    <div class="req-info">
-                        <div class="req-name">Vlad Ionescu</div>
-                        <div class="req-desc">Concediu · 5 zile</div>
-                    </div>
-                    <div class="req-status status-approved">aprobat manager</div>
-                </div>
-
+                }
             </div>
         </div>
 
-        <!-- Angajați pe departament -->
+        <!-- Employees per department -->
         <div class="hr-panel depts-panel">
             <div class="panel-header">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -90,70 +97,83 @@
                     <rect x="10" y="8" width="4" height="13"></rect>
                     <rect x="2" y="13" width="4" height="8"></rect>
                 </svg>
-                Angajați pe departament
+                Employees per department
             </div>
             <div class="depts-list">
-                
-                <div class="dept-row">
-                    <div class="dept-info">
-                        <span>Engineering</span>
-                        <span>96</span>
+                @foreach (var department in _data.Departments)
+                {
+                    <div class="dept-row">
+                        <div class="dept-info">
+                            <span>@department.Name</span>
+                            <span>@department.Count</span>
+                        </div>
+                        <div class="dept-bar-track">
+                            <div class="dept-bar-fill" style="width: @BarWidth(department.Count)"></div>
+                        </div>
                     </div>
-                    <div class="dept-bar-track">
-                        <!-- max value is 96, so 96/96 = 100% -->
-                        <div class="dept-bar-fill" style="width: 100%"></div>
-                    </div>
-                </div>
-
-                <div class="dept-row">
-                    <div class="dept-info">
-                        <span>Sales</span>
-                        <span>54</span>
-                    </div>
-                    <div class="dept-bar-track">
-                        <!-- 54/96 = 56.25% -->
-                        <div class="dept-bar-fill" style="width: 56.25%"></div>
-                    </div>
-                </div>
-
-                <div class="dept-row">
-                    <div class="dept-info">
-                        <span>HR</span>
-                        <span>12</span>
-                    </div>
-                    <div class="dept-bar-track">
-                        <!-- 12/96 = 12.5% -->
-                        <div class="dept-bar-fill" style="width: 12.5%"></div>
-                    </div>
-                </div>
-
-                <div class="dept-row">
-                    <div class="dept-info">
-                        <span>Marketing</span>
-                        <span>28</span>
-                    </div>
-                    <div class="dept-bar-track">
-                        <!-- 28/96 = 29.16% -->
-                        <div class="dept-bar-fill" style="width: 29.16%"></div>
-                    </div>
-                </div>
-
+                }
             </div>
         </div>
     </div>
 
     <!-- Alert Banner -->
-    <div class="hr-alert">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-            <line x1="12" y1="9" x2="12" y2="13"></line>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg>
-        <span>2 angajați nu au evaluare de performanță completată pentru trimestrul curent</span>
-    </div>
+    @if (_data.StaleRequests > 0)
+    {
+        <div class="hr-alert">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span>
+                @_data.StaleRequests @(_data.StaleRequests == 1 ? "request has" : "requests have")
+                been waiting for approval for more than 7 days
+            </span>
+        </div>
+    }
 
 </div>
+}
 
 @code {
-    // Fără logică momentan
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private string _name = "";
+    private HrDashboardResult? _data;
+
+    // Same gate as AdminDepartments: HR is a department, so this reads the
+    // Department claim rather than the role one. Non-HR users get sent back.
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateTask is null)
+            return;
+
+        var user = (await AuthStateTask).User;
+        if (user.FindFirst("Department")?.Value != "HR")
+        {
+            Nav.NavigateTo("/employee/dashboard");
+            return;
+        }
+
+        _name = user.FindFirst("FullName")?.Value ?? "";
+        _data = await Employees.GetHrDashboardAsync();
+    }
+
+    // Bars are relative to the largest department, so the biggest one fills the track.
+    private string BarWidth(int count)
+    {
+        var largest = 0;
+        foreach (var department in _data!.Departments)
+        {
+            if (department.Count > largest)
+                largest = department.Count;
+        }
+
+        if (largest == 0)
+            return "0%";
+
+        var percent = count * 100.0 / largest;
+        return percent.ToString("0.##", CultureInfo.InvariantCulture) + "%";
+    }
 }

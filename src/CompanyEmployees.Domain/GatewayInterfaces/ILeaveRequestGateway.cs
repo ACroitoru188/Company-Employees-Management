@@ -17,6 +17,10 @@ public interface ILeaveRequestGateway
     // so the same query serves every level of the hierarchy: PM, LM, Admin.
     Task<List<LeaveRequest>> GetPendingRequestsByManagerAsync(Guid managerId);
 
+    // Every pending request in the company, regardless of manager — the HR
+    // dashboard reports org-wide, not per hierarchy branch.
+    Task<List<LeaveRequest>> GetAllPendingRequestsAsync();
+
     Task<LeaveRequest?> GetRequestByIdAsync(Guid requestId);
 
     // Persists the request's status change and the approval row atomically.

@@ -35,6 +35,11 @@
                             Icon="@Icons.Material.Filled.Groups">Team</MudNavLink>
                 <MudNavLink Href="employee/my-requests" Match="NavLinkMatch.All"
                             Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
+                @if (_department == "HR")
+                {
+                    <MudNavLink Href="hr/dashboard" Match="NavLinkMatch.All"
+                                Icon="@Icons.Material.Filled.Badge">HR Dashboard</MudNavLink>
+                }
                 @if (_role == "Admin")
                 {
                     <MudNavLink Href="admin/departments" Match="NavLinkMatch.All"
@@ -73,6 +78,7 @@
     private string _name = "";
     private string _initials = "";
     private string _role = "";
+    private string _department = "";
 
     // User info comes from the auth cookie's claims, never from the database:
     // the layout shares the page's scoped DbContext, and a second query in
@@ -85,6 +91,7 @@
         var user = (await AuthStateTask).User;
         _name = user.FindFirst("FullName")?.Value ?? "";
         _role = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
+        _department = user.FindFirst("Department")?.Value ?? "";
         _initials = string.Concat(
             _name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
     }
