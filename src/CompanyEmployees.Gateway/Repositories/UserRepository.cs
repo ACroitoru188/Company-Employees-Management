@@ -35,6 +35,17 @@ namespace CompanyEmployees.Gateway.Repositories
                 .ToListAsync();
         }
 
+        public async Task<List<User>> GetDirectReportsAsync(Guid managerId)
+        {
+            // Inactive users are soft-deleted, so they must not count towards a team.
+            return await _context.Users
+                .Include(u => u.Department)
+                .Where(u => u.ManagerId == managerId && u.Status == UserStatus.Active)
+                .OrderBy(u => u.Name)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
         public async Task CreateUserAsync(User user)
         {
             await _context.Users.AddAsync(user);

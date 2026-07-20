@@ -51,8 +51,10 @@ namespace CompanyEmployees.Gateway.Repositories
 
         public async Task<List<LeaveRequest>> GetPendingRequestsByManagerAsync(Guid managerId)
         {
+            // Department is included so the manager list can show where each requester sits.
             return await _context.LeaveRequests
                 .Include(r => r.User)
+                    .ThenInclude(u => u.Department)
                 .Where(r => r.User.ManagerId == managerId && r.Status == LeaveStatus.Pending)
                 .OrderBy(r => r.StartDate)
                 .ToListAsync();

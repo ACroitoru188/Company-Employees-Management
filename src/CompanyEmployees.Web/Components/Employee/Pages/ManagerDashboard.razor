@@ -1,0 +1,206 @@
+@* /manager/dashboard is already taken by the retro Components/Pages/Dashboard.razor
+   mockup, so this lives at /manager/team — the route kept its old name, the nav
+   label is "Department" (distinct from /employee/team, which shows peers). *@
+@page "/manager/team"
+@layout EmployeeLayout
+@using System.Globalization
+@using System.Security.Claims
+@using CompanyEmployees.Application
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@inject EmployeeContext Employees
+@inject ManagerContext Manager
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Department · Time Off Management</PageTitle>
+
+@if (!_authorized || _data is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudText Typo="Typo.h5" Style="font-weight:600;">Department</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+        @_data.TeamSize direct @(_data.TeamSize == 1 ? "report" : "reports")
+    </MudText>
+
+    <MudGrid Spacing="3" Class="mb-6">
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="1">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+                        TEAM SIZE
+                    </MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.TeamSize</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="1">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+                        PENDING
+                    </MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.PendingRequests</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="1">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+                        ON LEAVE TODAY
+                    </MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.OnLeaveToday</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="1">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+                        WAITING &gt; 7 DAYS
+                    </MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.StaleRequests</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Requests to approve</MudText>
+
+    @if (_data.Pending.Count == 0)
+    {
+        <MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
+            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                No requests are waiting for your approval.
+            </MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudTable T="ManagerPendingRequest" Items="@_data.Pending" Hover="true" Elevation="1" Class="mb-6">
+            <HeaderContent>
+                <MudTh>Employee</MudTh>
+                <MudTh>Department</MudTh>
+                <MudTh>Type</MudTh>
+                <MudTh>Period</MudTh>
+                <MudTh>Waiting</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Employee">@context.Name</MudTd>
+                <MudTd DataLabel="Department">@context.Department</MudTd>
+                <MudTd DataLabel="Type">@context.Type</MudTd>
+                <MudTd DataLabel="Period">
+                    <MudText Typo="Typo.body2">
+                        @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
+                        @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                    </MudText>
+                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                        @context.Days @(context.Days == 1 ? "day" : "days")
+                    </MudText>
+                </MudTd>
+                <MudTd DataLabel="Waiting">
+                    @context.WaitingDays @(context.WaitingDays == 1 ? "day" : "days")
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                                   OnClick="@(() => DecideAsync(context.RequestId, true))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error"
+                                   OnClick="@(() => DecideAsync(context.RequestId, false))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+
+    <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Members</MudText>
+
+    @if (_data.Team.Count == 0)
+    {
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                Nobody reports to you yet.
+            </MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudTable T="ManagerTeamMember" Items="@_data.Team" Hover="true" Elevation="1">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Role</MudTh>
+                <MudTh>Department</MudTh>
+                <MudTh>Status</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Role">@context.Role</MudTd>
+                <MudTd DataLabel="Department">@context.Department</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(context.OnLeaveToday ? Color.Warning : Color.Default)">
+                        @(context.OnLeaveToday ? "On leave" : "Available")
+                    </MudChip>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private bool _authorized;
+    private Guid _managerId;
+    private ManagerDashboardResult? _data;
+
+    // The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
+    // so anyone who isn't a manager is redirected without a database query.
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateTask is null)
+            return;
+
+        var user = (await AuthStateTask).User;
+        var role = user.FindFirst(ClaimTypes.Role)?.Value;
+        if (role != UserRole.LineManager.ToString() && role != UserRole.ProjectManager.ToString())
+        {
+            Nav.NavigateTo("/employee/dashboard");
+            return;
+        }
+
+        // The claims carry FullName/Role/Department but not the user id, so the Guid
+        // still needs one lookup by the sign-in email (UserName == Email everywhere).
+        var me = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
+        _managerId = me.Id;
+
+        _authorized = true;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _data = await Manager.GetManagerDashboardAsync(_managerId);
+    }
+
+    private async Task DecideAsync(Guid requestId, bool approve)
+    {
+        try
+        {
+            await Manager.DecideRequestAsync(_managerId, requestId, approve);
+            Snackbar.Add(approve ? "Request approved." : "Request declined.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            // Already-decided (e.g. a second tab) and not-your-report surface here.
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+
+        await LoadAsync();
+    }
+}
