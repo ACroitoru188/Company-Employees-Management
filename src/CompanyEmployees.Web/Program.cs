@@ -1,6 +1,7 @@
 using Azure.Identity;
 using CompanyEmployees.Application;
 using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Gateway;
 using CompanyEmployees.Infrastructure;
 using CompanyEmployees.Infrastructure.ExceptionHandling;
@@ -95,14 +96,24 @@ app.MapPost("/api/auth/login", async (HttpContext context,
 
     if(result.Succeeded)
     {
-        // HR staff start on their own dashboard; everyone else on the employee one.
-        // HR is a department, not a UserRole, so this checks the department name.
-        var department = await userManager.Users
+        // Managers start on their team dashboard; other HR staff on the HR one;
+        // everyone else on the employee dashboard. HR is a department while manager
+        // is a UserRole, which is why both are needed. Role wins, so an HR line
+        // manager lands on her team and reaches HR via the drawer link.
+        var account = await userManager.Users
             .Where(u => u.NormalizedUserName == email.ToUpperInvariant())
-            .Select(u => u.Department != null ? u.Department.Name : null)
+            .Select(u => new
+            {
+                Department = u.Department != null ? u.Department.Name : null,
+                u.Role
+            })
             .FirstOrDefaultAsync();
 
-        if (department == "HR")
+        if (account != null &&
+            (account.Role == UserRole.LineManager || account.Role == UserRole.ProjectManager))
+            return Results.Redirect("/manager/team");
+
+        if (account?.Department == "HR")
             return Results.Redirect("/hr/dashboard");
 
         return Results.Redirect("/employee/dashboard");
