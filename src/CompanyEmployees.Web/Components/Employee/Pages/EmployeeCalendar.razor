@@ -29,48 +29,183 @@
     </MudAlert>
 }
 
-<MudPaper Elevation="1" Class="pa-4">
-    <div class="cal-toolbar">
-        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="@(() => ChangeMonth(-1))" />
-        <MudText Typo="Typo.h6" Class="cal-title">
-            @_visibleMonth.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
-        </MudText>
-        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="@(() => ChangeMonth(1))" />
-        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="GoToday">Today</MudButton>
+<div class="cal-card">
+    <div class="cal-head">
+        <div class="cal-head-left">
+            <button class="cal-nav" @onclick="() => Navigate(-1)" aria-label="Previous">‹</button>
+            <span class="cal-label">@HeaderLabel</span>
+            <button class="cal-nav" @onclick="() => Navigate(1)" aria-label="Next">›</button>
+            <button class="cal-today" @onclick="GoToday">TODAY</button>
+        </div>
+        <div class="cal-seg" role="tablist">
+            @foreach (var view in Enum.GetValues<CalView>())
+            {
+                var v = view;
+                <button class="cal-seg-btn @(_view == v ? "active" : "")" @onclick="() => SetView(v)">@v</button>
+            }
+        </div>
     </div>
 
-    <div class="cal-grid cal-header">
-        @foreach (var name in new[] { "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN" })
-        {
-            <div class="cal-dow">@name</div>
-        }
-    </div>
-
-    <div class="cal-grid">
-        @foreach (var day in _days)
-        {
-            var inMonth = day.Month == _visibleMonth.Month;
-            var isPast = day < _today;
-            var selected = IsSelected(day);
-            <div class="cal-cell @(inMonth ? "" : "cal-other") @(isPast ? "cal-past" : "") @(day == _today ? "cal-today" : "")"
-                 style="@(selected && _selectedType is { } t ? $"background:{LeaveTypePalette.HighlightHex(t)};" : "")"
-                 @onclick="() => OnDayClick(day)">
-                <span class="cal-daynum">@day.Day</span>
-                @if (_teamByDay.TryGetValue(day, out var absences))
+    @if (_view == CalView.Month)
+    {
+        <div class="cal-body">
+            <div class="cal-grid cal-header">
+                @foreach (var name in new[] { "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN" })
                 {
-                    @foreach (var absence in absences)
-                    {
-                        <MudTooltip Text="@($"{absence.MemberName} · {LeaveTypePalette.Label(absence.Type)}")">
-                            <span class="cal-chip" style="background:@LeaveTypePalette.Hex(absence.Type);">
-                                @ShortName(absence.MemberName)
-                            </span>
-                        </MudTooltip>
-                    }
+                    <div class="cal-dow">@name</div>
                 }
             </div>
+
+            <div class="cal-grid">
+                @foreach (var day in _days)
+                {
+                    var inMonth = day.Month == VisibleMonth.Month;
+                    var isPast = day < _today;
+                    var selected = IsSelected(day);
+                    <div class="cal-cell @(inMonth ? "" : "cal-other") @(isPast ? "cal-past" : "") @(day == _today ? "cal-today-cell" : "")"
+                         style="@(selected && _selectedType is { } t ? $"background:{LeaveTypePalette.HighlightHex(t)};" : "")"
+                         @onclick="() => OnDayClick(day)">
+                        <span class="cal-daynum">@day.Day</span>
+                        @if (_teamByDay.TryGetValue(day, out var absences))
+                        {
+                            var visible = absences.Where(a => PassesFilter(a.Type)).ToList();
+                            @foreach (var absence in visible.Take(3))
+                            {
+                                <MudTooltip Text="@($"{absence.MemberName} · {LeaveTypePalette.Label(absence.Type)}")">
+                                    <span class="cal-chip" style="background:@LeaveTypePalette.Hex(absence.Type);">
+                                        @ShortName(absence.MemberName)
+                                    </span>
+                                </MudTooltip>
+                            }
+                            @if (visible.Count > 3)
+                            {
+                                <span class="cal-more">+@(visible.Count - 3) more</span>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else if (_view == CalView.Week)
+    {
+        <div class="wv">
+            @for (var i = 0; i < 7; i++)
+            {
+                var day = WeekStart.AddDays(i);
+                var isToday = day == _today;
+                <div class="wv-col">
+                    <div class="wv-head">
+                        <span class="wv-dow">@(day.ToString("ddd", CultureInfo.InvariantCulture).ToUpperInvariant())</span>
+                        <span class="wv-num @(isToday ? "wv-num-today" : "")">@day.Day</span>
+                    </div>
+                    <div class="wv-cell @(isToday ? "wv-cell-today" : "")">
+                        @foreach (var item in FilteredRanges.Where(r => r.StartDate <= day && r.EndDate >= day))
+                        {
+                            <div class="wv-card" style="background:@LeaveTypePalette.Hex(item.Type);">
+                                <div class="wv-name">@item.MemberName</div>
+                                <div class="wv-sub">@LeaveTypePalette.Label(item.Type) · @item.Department</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (_view == CalView.Grid)
+    {
+        var daysInMonth = DateTime.DaysInMonth(VisibleMonth.Year, VisibleMonth.Month);
+        var rows = GridRows();
+        <div class="gv" style="grid-template-columns:210px 92px repeat(@daysInMonth, minmax(0, 1fr));">
+            <div class="gv-hcell gv-fixed">EMPLOYEE</div>
+            <div class="gv-hcell gv-fixed gv-sep">TYPE</div>
+            @for (var d = 1; d <= daysInMonth; d++)
+            {
+                var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
+                <div class="gv-hday @(IsWeekend(date) ? "gv-hwend" : "") @(date == _today ? "gv-htoday" : "")">
+                    <span class="gv-hdow">@(date.ToString("ddd", CultureInfo.InvariantCulture)[..2].ToUpperInvariant())</span>
+                    <span class="gv-hnum">@d</span>
+                </div>
+            }
+            @foreach (var row in rows)
+            {
+                <div class="gv-cell gv-emp">
+                    <span class="gv-avatar" style="background:@AvatarColor(row.Name);">@row.Initials</span>
+                    <span class="gv-emp-text">
+                        <span class="gv-emp-name">@row.Name</span>
+                        <span class="gv-emp-sub">@row.Department@(row.Team is null ? "" : $" · {row.Team}")</span>
+                    </span>
+                </div>
+                <div class="gv-cell gv-sep gv-type">
+                    <span class="gv-pill" style="color:@LeaveTypePalette.Hex(row.Type); background:@(LeaveTypePalette.Hex(row.Type) + "1F");">
+                        @(LeaveTypePalette.Label(row.Type).Split(' ')[0])
+                    </span>
+                </div>
+                @for (var d = 1; d <= daysInMonth; d++)
+                {
+                    var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
+                    var seg = row.Items.FirstOrDefault(r => r.StartDate <= date && r.EndDate >= date);
+                    <div class="gv-cell gv-day @(IsWeekend(date) ? "gv-wend" : "") @(date == _today ? "gv-today" : "")">
+                        @if (seg is not null)
+                        {
+                            <div class="gv-bar @(date == seg.StartDate ? "gv-bar-s" : "") @(date == seg.EndDate ? "gv-bar-e" : "")"
+                                 style="background:@LeaveTypePalette.Hex(seg.Type);"></div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+        @if (rows.Count == 0)
+        {
+            <div class="cal-empty">No approved team leave this month.</div>
         }
-    </div>
-</MudPaper>
+        <div class="gv-legend">
+            @foreach (var leaveType in Enum.GetValues<LeaveType>())
+            {
+                <span class="gv-legend-item">
+                    <span class="gv-swatch" style="background:@LeaveTypePalette.Hex(leaveType);"></span>@(LeaveTypePalette.Label(leaveType).Split(' ')[0])
+                </span>
+            }
+            <span class="gv-legend-item"><span class="gv-square gv-square-wend"></span>Weekend</span>
+            <span class="gv-legend-item"><span class="gv-square gv-square-today"></span>Today</span>
+        </div>
+    }
+    else
+    {
+        var rows = FilteredRanges.OrderBy(r => r.StartDate).ToList();
+        <div class="lv">
+            <div class="lv-hcell">EMPLOYEE</div>
+            <div class="lv-hcell">DEPARTMENT</div>
+            <div class="lv-hcell">TEAM</div>
+            <div class="lv-hcell">LEAVE TYPE</div>
+            <div class="lv-hcell">PERIOD</div>
+            <div class="lv-hcell">DAYS</div>
+            @foreach (var item in rows)
+            {
+                <div class="lv-cell lv-emp">
+                    <span class="gv-avatar" style="background:@AvatarColor(item.MemberName);">@item.Initials</span>
+                    <span class="lv-name">@item.MemberName</span>
+                </div>
+                <div class="lv-cell">@item.Department</div>
+                <div class="lv-cell">@(item.Team ?? "—")</div>
+                <div class="lv-cell">
+                    <span class="gv-pill" style="color:@LeaveTypePalette.Hex(item.Type); background:@(LeaveTypePalette.Hex(item.Type) + "1F");">
+                        @(LeaveTypePalette.Label(item.Type).Split(' ')[0])
+                    </span>
+                </div>
+                <div class="lv-cell">
+                    @item.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
+                    @item.EndDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                </div>
+                <div class="lv-cell">@WorkingDays(item.StartDate, item.EndDate)</div>
+            }
+        </div>
+        @if (rows.Count == 0)
+        {
+            <div class="cal-empty">No approved team leave this month.</div>
+        }
+    }
+</div>
 
 @if (_range is { } range && _selectedType is { } type)
 {
@@ -89,15 +224,29 @@
 }
 
 @code {
+    private enum CalView { Month, Week, Grid, List }
+
+    private static readonly string[] AvatarPalette =
+    [
+        "#1e88e5", "#8e24aa", "#fb8c00", "#43a047", "#e53935",
+        "#00897b", "#5e35b1", "#f4511e", "#3949ab", "#00acc1"
+    ];
+
     private IReadOnlyList<LeaveBalance> _balances = [];
     private Dictionary<DateOnly, List<TeamAbsence>> _teamByDay = [];
     private List<DateOnly> _days = [];
+    private IReadOnlyList<TeamTimeOff> _ranges = [];
 
     private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Today);
-    private DateOnly _visibleMonth;
+    private CalView _view = CalView.Month;
+
+    // Cursor date: Month/Grid/List show its month, Week shows its Mon–Sun week.
+    private DateOnly _anchor;
+    private DateOnly VisibleMonth => new(_anchor.Year, _anchor.Month, 1);
+    private DateOnly WeekStart => _anchor.AddDays(-(((int)_anchor.DayOfWeek + 6) % 7));
 
     private LeaveType? _selectedType;
-    private DateOnly? _anchor;
+    private DateOnly? _anchorDay;
     private (DateOnly Start, DateOnly End)? _range;
     private string? _reason;
 
@@ -107,52 +256,137 @@
     {
         _userName = (await TimeOff.GetCurrentUserAsync()).Name;
         _balances = await TimeOff.GetMyBalancesAsync();
-        _visibleMonth = new DateOnly(_today.Year, _today.Month, 1);
-        await LoadMonthAsync();
+        _anchor = _today;
+        await LoadAsync();
     }
 
-    private async Task LoadMonthAsync()
+    private async Task LoadAsync()
     {
-        _teamByDay = (await TimeOff.GetTeamScheduleForMonthAsync(_visibleMonth))
-            .GroupBy(a => a.Date)
-            .ToDictionary(g => g.Key, g => g.ToList());
+        if (_view == CalView.Month)
+        {
+            _teamByDay = (await TimeOff.GetTeamScheduleForMonthAsync(VisibleMonth))
+                .GroupBy(a => a.Date)
+                .ToDictionary(g => g.Key, g => g.ToList());
 
-        var gridStart = _visibleMonth.AddDays(-(((int)_visibleMonth.DayOfWeek + 6) % 7));
-        _days = Enumerable.Range(0, 42).Select(gridStart.AddDays).ToList();
+            var gridStart = VisibleMonth.AddDays(-(((int)VisibleMonth.DayOfWeek + 6) % 7));
+            _days = Enumerable.Range(0, 42).Select(gridStart.AddDays).ToList();
+        }
+        else
+        {
+            var (from, to) = _view == CalView.Week
+                ? (WeekStart, WeekStart.AddDays(6))
+                : (VisibleMonth, VisibleMonth.AddMonths(1).AddDays(-1));
+            _ranges = await TimeOff.GetTeamTimeOffForRangeAsync(from, to);
+        }
     }
 
-    private async Task ChangeMonth(int delta)
+    private async Task Navigate(int delta)
     {
-        _visibleMonth = _visibleMonth.AddMonths(delta);
-        await LoadMonthAsync();
+        _anchor = _view == CalView.Week
+            ? _anchor.AddDays(7 * delta)
+            : VisibleMonth.AddMonths(delta);
+        await LoadAsync();
     }
 
     private async Task GoToday()
     {
-        _visibleMonth = new DateOnly(_today.Year, _today.Month, 1);
-        await LoadMonthAsync();
+        _anchor = _today;
+        await LoadAsync();
     }
 
-    private void SelectType(LeaveType type) => _selectedType = type;
+    private async Task SetView(CalView view)
+    {
+        if (_view == view)
+            return;
+        _view = view;
+        await LoadAsync();
+    }
+
+    private string HeaderLabel => _view == CalView.Week
+        ? WeekLabel()
+        : VisibleMonth.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    private string WeekLabel()
+    {
+        var start = WeekStart;
+        var end = start.AddDays(6);
+        var inv = CultureInfo.InvariantCulture;
+        if (start.Year != end.Year)
+            return $"{start.ToString("MMM d, yyyy", inv)} – {end.ToString("MMM d, yyyy", inv)}";
+        if (start.Month != end.Month)
+            return $"{start.ToString("MMM d", inv)} – {end.ToString("MMM d", inv)}, {end.Year}";
+        return $"{start.ToString("MMM d", inv)} – {end.Day}, {end.Year}";
+    }
+
+    // The selected type chip doubles as a content filter; no selection shows everything.
+    private bool PassesFilter(LeaveType type) => _selectedType is null || _selectedType == type;
+
+    private IEnumerable<TeamTimeOff> FilteredRanges => _ranges.Where(r => PassesFilter(r.Type));
+
+    private record GridRow(string Name, string Initials, string Department, string? Team, LeaveType Type, List<TeamTimeOff> Items);
+
+    private List<GridRow> GridRows() =>
+        FilteredRanges
+            .GroupBy(r => r.MemberName)
+            .Select(g =>
+            {
+                var first = g.OrderBy(r => r.StartDate).First();
+                return new GridRow(g.Key, first.Initials, first.Department, first.Team, first.Type, g.ToList());
+            })
+            .OrderBy(r => r.Name)
+            .ToList();
+
+    private static bool IsWeekend(DateOnly day) =>
+        day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+
+    private static int WorkingDays(DateOnly start, DateOnly end)
+    {
+        var count = 0;
+        for (var day = start; day <= end; day = day.AddDays(1))
+            if (!IsWeekend(day))
+                count++;
+        return count;
+    }
+
+    private static string AvatarColor(string name)
+    {
+        var hash = 0;
+        foreach (var ch in name)
+            hash = (hash * 31 + ch) & 0x7fffffff;
+        return AvatarPalette[hash % AvatarPalette.Length];
+    }
+
+    private void SelectType(LeaveType type)
+    {
+        if (_selectedType == type)
+        {
+            _selectedType = null;
+            CancelSelection();
+        }
+        else
+        {
+            _selectedType = type;
+        }
+    }
 
     private bool IsSelected(DateOnly day) =>
         _range is { } r && day >= r.Start && day <= r.End;
 
     private void OnDayClick(DateOnly day)
     {
-        if (_selectedType is null || day < _today || day.Month != _visibleMonth.Month)
+        if (_selectedType is null || day < _today || day.Month != VisibleMonth.Month)
             return;
 
         if (IsSelected(day))
         {
             _range = null;
-            _anchor = null;
+            _anchorDay = null;
             return;
         }
 
-        if (_anchor is not { } anchor || _range is { } existing && existing.Start != existing.End)
+        if (_anchorDay is not { } anchor || _range is { } existing && existing.Start != existing.End)
         {
-            _anchor = day;
+            _anchorDay = day;
             _range = (day, day);
             return;
         }
@@ -163,7 +397,7 @@
     private void CancelSelection()
     {
         _range = null;
-        _anchor = null;
+        _anchorDay = null;
         _reason = null;
     }
 

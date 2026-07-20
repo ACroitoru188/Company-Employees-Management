@@ -30,6 +30,7 @@ namespace CompanyEmployees.Gateway.Repositories
         public async Task<List<User>> GetAllUsersAsync()
         {
             return await _context.Users
+                .Include(u => u.Department)
                 .AsNoTracking()
                 .ToListAsync();
         }

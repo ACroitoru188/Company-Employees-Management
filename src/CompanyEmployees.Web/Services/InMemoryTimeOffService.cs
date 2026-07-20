@@ -31,12 +31,12 @@ public class InMemoryTimeOffService : ITimeOffService
         // Dates are relative to the current month so the demo data never goes stale.
         _team =
         [
-            Member("Wei Zhang", "Engineering", LeaveType.Annual, month.AddDays(12), month.AddDays(16)),
-            Member("Priya Nair", "Design", LeaveType.Sick, month.AddDays(8), month.AddDays(9)),
-            Member("Julia Novak", "Design", LeaveType.Annual, month.AddDays(19), month.AddDays(23)),
-            Member("Lukas Becker", "Engineering", LeaveType.Parental, month.AddDays(26), month.AddMonths(1).AddDays(-1)),
-            Member("Marco Rossi", "Engineering", LeaveType.Annual, month.AddMonths(1).AddDays(2), month.AddMonths(1).AddDays(6)),
-            Member("Elena Petrova", "Marketing", LeaveType.Unpaid, month.AddDays(14), month.AddDays(15))
+            Member("Wei Zhang", "Engineering", "Platform", LeaveType.Annual, month.AddDays(12), month.AddDays(16)),
+            Member("Priya Nair", "Design", "Product", LeaveType.Sick, month.AddDays(8), month.AddDays(9)),
+            Member("Julia Novak", "Design", "Brand", LeaveType.Annual, month.AddDays(19), month.AddDays(23)),
+            Member("Lukas Becker", "Engineering", "Platform", LeaveType.Parental, month.AddDays(26), month.AddMonths(1).AddDays(-1)),
+            Member("Marco Rossi", "Engineering", "Web", LeaveType.Annual, month.AddMonths(1).AddDays(2), month.AddMonths(1).AddDays(6)),
+            Member("Elena Petrova", "Marketing", "Growth", LeaveType.Unpaid, month.AddDays(14), month.AddDays(15))
         ];
 
         _myRequests =
@@ -127,6 +127,17 @@ public class InMemoryTimeOffService : ITimeOffService
         return Task.FromResult(result);
     }
 
+    public Task<IReadOnlyList<TeamTimeOff>> GetTeamTimeOffForRangeAsync(DateOnly from, DateOnly to)
+    {
+        IReadOnlyList<TeamTimeOff> result = _team
+            .SelectMany(m => m.Requests,
+                (m, r) => new TeamTimeOff(m.Name, m.Initials, m.Department, r.Type, r.StartDate, r.EndDate, m.Team))
+            .Where(t => t.StartDate <= to && t.EndDate >= from)
+            .OrderBy(t => t.StartDate)
+            .ToList();
+        return Task.FromResult(result);
+    }
+
     public Task<IReadOnlyList<TeamRosterEntry>> GetTeamRosterAsync()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
@@ -162,11 +173,12 @@ public class InMemoryTimeOffService : ITimeOffService
         return Task.FromResult(request);
     }
 
-    private static TeamMember Member(string name, string department, LeaveType type, DateOnly start, DateOnly end) =>
+    private static TeamMember Member(string name, string department, string team, LeaveType type, DateOnly start, DateOnly end) =>
         new()
         {
             Name = name,
             Department = department,
+            Team = team,
             Requests =
             [
                 new TimeOffRequest

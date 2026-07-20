@@ -8,8 +8,8 @@ namespace CompanyEmployees.Web.Services;
 /// </summary>
 public record TeamAbsence(string MemberName, string Initials, string Department, LeaveType Type, DateOnly Date);
 
-/// <summary>One teammate's whole leave period (start–end), for the dashboard list.</summary>
-public record TeamTimeOff(string MemberName, string Initials, string Department, LeaveType Type, DateOnly StartDate, DateOnly EndDate)
+/// <summary>One teammate's whole leave period (start–end), for the dashboard list and calendar views.</summary>
+public record TeamTimeOff(string MemberName, string Initials, string Department, LeaveType Type, DateOnly StartDate, DateOnly EndDate, string? Team = null)
 {
     public int Days => EndDate.DayNumber - StartDate.DayNumber + 1;
 }
@@ -30,6 +30,8 @@ public interface ITimeOffService
     Task<IReadOnlyList<TimeOffRequest>> GetMyRequestsAsync();
     Task<IReadOnlyList<TeamAbsence>> GetTeamScheduleForMonthAsync(DateOnly monthStart);
     Task<IReadOnlyList<TeamTimeOff>> GetTeamTimeOffAsync();
+    /// <summary>Teammates' leave periods overlapping [from, to], for the calendar's week/grid/list views.</summary>
+    Task<IReadOnlyList<TeamTimeOff>> GetTeamTimeOffForRangeAsync(DateOnly from, DateOnly to);
     Task<IReadOnlyList<TeamRosterEntry>> GetTeamRosterAsync();
     Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason);
 }

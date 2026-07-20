@@ -103,7 +103,7 @@ public class DbTimeOffService : ITimeOffService
             return requests
                 .SelectMany(r => DaysInRange(Max(r.StartDate, monthStart), Min(r.EndDate, monthEnd))
                     .Select(day => new TeamAbsence(
-                        r.User.Name, Initials(r.User.Name), r.User.Role.ToString(), MapType(r.Type), day)))
+                        r.User.Name, Initials(r.User.Name), DepartmentName(r.User), MapType(r.Type), day)))
                 .ToList();
         }
         finally
@@ -123,8 +123,29 @@ public class DbTimeOffService : ITimeOffService
 
             return requests
                 .Select(r => new TeamTimeOff(
-                    r.User.Name, Initials(r.User.Name), r.User.Role.ToString(),
-                    MapType(r.Type), r.StartDate, r.EndDate))
+                    r.User.Name, Initials(r.User.Name), DepartmentName(r.User),
+                    MapType(r.Type), r.StartDate, r.EndDate, r.User.Role.ToString()))
+                .OrderBy(t => t.StartDate)
+                .ToList();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<TeamTimeOff>> GetTeamTimeOffForRangeAsync(DateOnly from, DateOnly to)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            var requests = await _employee.GetTeamRequestsAsync(user.Id, from, to);
+
+            return requests
+                .Select(r => new TeamTimeOff(
+                    r.User.Name, Initials(r.User.Name), DepartmentName(r.User),
+                    MapType(r.Type), r.StartDate, r.EndDate, r.User.Role.ToString()))
                 .OrderBy(t => t.StartDate)
                 .ToList();
         }
@@ -164,12 +185,12 @@ public class DbTimeOffService : ITimeOffService
                 if (leave == null)
                 {
                     roster.Add(new TeamRosterEntry(member.Name, Initials(member.Name),
-                        member.Role.ToString(), isManager, null, null, null));
+                        RoleAndDepartment(member), isManager, null, null, null));
                 }
                 else
                 {
                     roster.Add(new TeamRosterEntry(member.Name, Initials(member.Name),
-                        member.Role.ToString(), isManager, MapType(leave.Type), leave.StartDate, leave.EndDate));
+                        RoleAndDepartment(member), isManager, MapType(leave.Type), leave.StartDate, leave.EndDate));
                 }
             }
             return roster;
@@ -247,6 +268,12 @@ public class DbTimeOffService : ITimeOffService
 
     private static string Initials(string name) => string.Concat(
         name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
+
+    // Users without a department (admins, the PM) show a dash rather than an empty label.
+    private static string DepartmentName(User user) => user.Department?.Name ?? "—";
+
+    private static string RoleAndDepartment(User user) =>
+        user.Department == null ? user.Role.ToString() : $"{user.Role} · {user.Department.Name}";
 
     private static IEnumerable<DateOnly> DaysInRange(DateOnly start, DateOnly end)
     {

@@ -1,14 +1,112 @@
-.cal-toolbar {
+/* ---- Calendar card & header row ---- */
+
+.cal-card {
+    background: var(--mud-palette-surface, #fff);
+    border-radius: 8px;
+    box-shadow: var(--mud-elevation-1);
+    overflow: hidden;
+}
+
+.cal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 18px 22px;
+}
+
+.cal-head-left {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
 }
 
-.cal-title {
+.cal-nav {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #3c4043;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+}
+
+.cal-nav:hover {
+    background: #f1f3f4;
+}
+
+.cal-label {
     min-width: 170px;
     text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    color: #202124;
 }
+
+.cal-today {
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    background: #fff;
+    color: #3c4043;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    margin-left: 6px;
+}
+
+.cal-today:hover {
+    background: #f8f9fa;
+}
+
+/* Segmented Month | Week | Grid | List switcher */
+.cal-seg {
+    display: flex;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.cal-seg-btn {
+    border: none;
+    border-left: 1px solid #dadce0;
+    background: #fff;
+    color: #3c4043;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 18px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.cal-seg-btn:first-child {
+    border-left: none;
+}
+
+.cal-seg-btn.active {
+    background: var(--mud-palette-primary, #1e88e5);
+    color: #fff;
+}
+
+.cal-body {
+    padding: 4px 22px 22px;
+}
+
+.cal-empty {
+    padding: 24px 22px;
+    font-size: 13px;
+    color: #80868b;
+}
+
+/* ---- Month view (unchanged look) ---- */
 
 .cal-grid {
     display: grid;
@@ -60,7 +158,7 @@
     pointer-events: none;
 }
 
-.cal-today .cal-daynum {
+.cal-today-cell .cal-daynum {
     color: var(--mud-palette-primary);
 }
 
@@ -77,8 +175,329 @@
     text-overflow: ellipsis;
 }
 
+.cal-more {
+    font-size: 10.5px;
+    color: #80868b;
+}
+
 .cal-submitbar {
     position: sticky;
     bottom: 16px;
     z-index: 10;
+}
+
+/* ---- Week view ---- */
+
+.wv {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    padding: 4px 22px 22px;
+}
+
+.wv-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 0;
+}
+
+.wv-dow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #80868b;
+}
+
+.wv-num {
+    font-size: 13px;
+    font-weight: 700;
+    color: #3c4043;
+}
+
+.wv-num-today {
+    color: var(--mud-palette-primary, #1e88e5);
+}
+
+.wv-cell {
+    border: 1px solid #e8eaed;
+    border-radius: 2px;
+    min-height: 300px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.wv-cell-today {
+    background: rgba(30, 136, 229, 0.04);
+}
+
+.wv-card {
+    color: #fff;
+    border-radius: 4px;
+    padding: 5px 8px;
+    min-width: 0;
+}
+
+.wv-name {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wv-sub {
+    font-size: 10px;
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---- Grid (Excel) view ---- */
+
+.gv {
+    display: grid;
+    /* grid-template-columns set inline: 210px + 92px + one column per day */
+}
+
+.gv-hcell {
+    height: 44px;
+    background: #fbfcfd;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #80868b;
+    border-bottom: 1px solid #e8eaed;
+}
+
+/* Stronger border separating the fixed columns from the day columns */
+.gv-sep {
+    border-right: 2px solid #dde1e6;
+}
+
+.gv-hday {
+    height: 44px;
+    background: #fbfcfd;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    border-bottom: 1px solid #e8eaed;
+    min-width: 0;
+}
+
+.gv-hdow {
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #9aa0a6;
+}
+
+.gv-hnum {
+    font-size: 12px;
+    font-weight: 700;
+    color: #3c4043;
+}
+
+.gv-hwend {
+    background: #f5f6f8;
+}
+
+.gv-hwend .gv-hnum {
+    color: #9aa0a6;
+}
+
+.gv-htoday {
+    background: #e3f2fd;
+}
+
+.gv-htoday .gv-hnum {
+    color: var(--mud-palette-primary, #1e88e5);
+}
+
+.gv-cell {
+    height: 44px;
+    border-bottom: 1px solid #eef0f3;
+    min-width: 0;
+}
+
+.gv-emp {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+}
+
+.gv-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.gv-emp-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.gv-emp-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #202124;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gv-emp-sub {
+    font-size: 11px;
+    color: #9aa0a6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gv-type {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+}
+
+.gv-pill {
+    font-size: 10.5px;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 3px 10px;
+    white-space: nowrap;
+}
+
+.gv-day {
+    border-right: 1px solid #eef0f3;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.gv-wend {
+    background: #f7f8fa;
+}
+
+.gv-today {
+    background: rgba(30, 136, 229, 0.05);
+}
+
+/* Leave bar segment: overlaps the 1px day gridline so a multi-day range
+   reads as one continuous bar; rounded only at the true range ends. */
+.gv-bar {
+    height: 16px;
+    flex: 1 1 auto;
+    margin-right: -1px;
+    position: relative;
+    z-index: 1;
+}
+
+.gv-bar-s {
+    border-radius: 8px 0 0 8px;
+}
+
+.gv-bar-e {
+    border-radius: 0 8px 8px 0;
+}
+
+.gv-bar-s.gv-bar-e {
+    border-radius: 8px;
+}
+
+.gv-legend {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 18px;
+    padding: 14px 22px;
+    border-top: 1px solid #e8eaed;
+    font-size: 12px;
+    color: #5f6368;
+}
+
+.gv-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.gv-swatch {
+    width: 18px;
+    height: 8px;
+    border-radius: 4px;
+}
+
+.gv-square {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid #e8eaed;
+}
+
+.gv-square-wend {
+    background: #f5f6f8;
+}
+
+.gv-square-today {
+    background: #e3f2fd;
+}
+
+/* ---- List view ---- */
+
+.lv {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1.1fr 1.4fr 0.7fr;
+    font-size: 13px;
+    color: #3c4043;
+}
+
+.lv-hcell {
+    background: #fbfcfd;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #80868b;
+    padding: 12px 16px;
+    border-bottom: 1px solid #eef0f3;
+}
+
+.lv-cell {
+    padding: 10px 16px;
+    border-bottom: 1px solid #eef0f3;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.lv-emp {
+    gap: 10px;
+}
+
+.lv-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #202124;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
