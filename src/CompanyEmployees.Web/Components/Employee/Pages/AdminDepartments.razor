@@ -18,8 +18,18 @@
 else
 {
     <MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Departments</MudText>
+    <div class="mb-4">
+        <MudTextField @bind-Value="_searchDepartment"
+                      Placeholder="Search department..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      IconSize="Size.Small"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Immediate="true"></MudTextField>
+    </div>
 
-    <MudTable T="Department" Items="@_departments" Hover="true" Elevation="1" Class="mb-6">
+    <MudTable T="Department" Items="@FilteredDepartments" Hover="true" Elevation="1" Class="mb-6">
         <HeaderContent>
             <MudTh>Name</MudTh>
             <MudTh>Manager</MudTh>
@@ -67,8 +77,18 @@ else
     </MudPaper>
 
     <MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Users</MudText>
+        <div class="mb-4">
+            <MudTextField @bind-Value="_searchUser"
+                          Placeholder="Search user..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Small"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Immediate="true"></MudTextField>
+        </div>
 
-    <MudTable T="User" Items="@_users" Hover="true" Elevation="1">
+        <MudTable T="User" Items="@FilteredUsers" Hover="true" Elevation="1">
         <HeaderContent>
             <MudTh>Name</MudTh>
             <MudTh>Role</MudTh>
@@ -102,6 +122,20 @@ else
 
     private string _newName = "";
     private Guid? _newManagerId;
+
+    private string _searchDepartment = "";
+
+    private IEnumerable<Department> FilteredDepartments =>
+        string.IsNullOrWhiteSpace(_searchDepartment)
+            ? _departments
+            : _departments.Where(d => d.Name.Contains(_searchDepartment, StringComparison.OrdinalIgnoreCase));
+
+    private string _searchUser = "";
+
+    private IEnumerable<User> FilteredUsers =>
+        string.IsNullOrWhiteSpace(_searchUser)
+            ? _users
+            : _users.Where(u => u.Name.Contains(_searchUser, StringComparison.OrdinalIgnoreCase));
 
     // The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
     // so non-admins are redirected without a database query.
