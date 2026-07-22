@@ -10,13 +10,11 @@
 
 <div class="login-wrap">
     <MudPaper Elevation="3" Class="pa-8 login-card">
-        <div class="d-flex align-baseline gap-3 mb-6">
-            <MudText Typo="Typo.h5" Style="font-weight:700; letter-spacing:.06em; color:var(--mud-palette-primary);">
+        <div class="d-flex align-baseline justify-center gap-3 mb-6">
+            <MudText Typo="Typo.h4" Style="font-weight:800; letter-spacing:.06em; color:var(--mud-palette-primary);">
                 SIEMENS
             </MudText>
-            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-                Time Off Management
-            </MudText>
+
         </div>
 
         <MudText Typo="Typo.h6" Style="font-weight:600;">Sign in to your workspace</MudText>
@@ -52,7 +50,7 @@
 
             <div class="d-flex justify-space-between align-center gap-4 my-4 flex-wrap">
                 <MudCheckBox T="bool" @bind-Value="_keepSignedIn" Label="Keep me signed in" Dense="true" />
-                <MudLink Href="/forgot-password" Typo="Typo.body2" Class="ml-auto">Forgot password?</MudLink>
+                <MudLink Href="/forgot-password" Typo="Typo.body2" Class="ml-auto" Style="margin-top:6px;">Forgot password?</MudLink>
             </div>
 
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
@@ -64,7 +62,7 @@
     </MudPaper>
 
     <MudText Typo="Typo.caption" Class="mt-4" Style="color:var(--mud-palette-text-secondary);">
-        © 2026 Siemens AG · Privacy · Terms · Help
+        © 2026 Siemens · Privacy · Terms · Help
     </MudText>
 </div>
 
