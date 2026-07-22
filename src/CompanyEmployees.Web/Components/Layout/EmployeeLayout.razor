@@ -37,11 +37,17 @@
                             Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
                 @if (_department == "HR")
                 {
+                    <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">
+                        HR
+                    </MudText>
                     <MudNavLink Href="hr/dashboard" Match="NavLinkMatch.All"
                                 Icon="@Icons.Material.Filled.Badge">HR Dashboard</MudNavLink>
                 }
                 @if (_role == "Admin")
                 {
+                    <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">
+                        IT ADMIN
+                    </MudText>
                     <MudNavLink Href="admin/departments" Match="NavLinkMatch.All"
                                 Icon="@Icons.Material.Filled.Business">Departments</MudNavLink>
                 }
