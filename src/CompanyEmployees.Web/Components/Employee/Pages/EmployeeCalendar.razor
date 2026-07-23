@@ -1,8 +1,11 @@
 @page "/employee/calendar"
 @layout EmployeeLayout
 @using System.Globalization
+@using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
 @inject ITimeOffService TimeOff
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>Calendar · Time Off Management</PageTitle>
 
@@ -224,6 +227,9 @@
 }
 
 @code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
     private enum CalView { Month, Week, Grid, List }
 
     private static readonly string[] AvatarPalette =
@@ -254,6 +260,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+            return;
+
         _userName = (await TimeOff.GetCurrentUserAsync()).Name;
         _balances = await TimeOff.GetMyBalancesAsync();
         _anchor = _today;

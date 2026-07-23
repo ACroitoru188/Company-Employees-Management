@@ -102,9 +102,9 @@ dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
   **plus** the active users sharing the same `ManagerId` (excluding the user).
   `EmployeeContext.GetTeamMembersAsync` / `GetTeamRequestsAsync` are the single source of that
   definition — calendar, dashboard "Team time off" and the Team page all route through them;
-  change team visibility there only. The Web view-models' `Department`/`RoleLabel` fields still
-  display `Role.ToString()`, not the real department — wiring `user.Department?.Name` into
-  `DbTimeOffService` is a pending follow-up.
+  change team visibility there only. The Web view-models' `Department`/`RoleLabel` fields now
+  combine role and department via `DbTimeOffService.GetCurrentUserAsync`'s
+  `RoleAndDepartment(user)` helper, rather than the bare `Role.ToString()`.
 - Domain defines its own `InvalidOperationException` in `Domain/Exceptions` —
   `EmployeeContext` uses a `using` alias to pick it over System's; keep that in mind when
   catching.
@@ -130,9 +130,17 @@ dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
   its `GetDomainUserAsync()`, so Dashboard/Calendar/Team/My Requests all follow whoever is logged
   in. (Ported from `refactorizare-departamente-1` on 2026-07-20; it previously hardcoded
   `employee@siemens.com`, which showed every user Demo Employee's team and requests.)
-- **Gaps to know about**: no `/employee/*` page carries `[Authorize]`.
-  `[Authorize(Roles=...)]` *does* have role claims available now (via
-  `AppClaimsPrincipalFactory`), but pages don't use it yet.
+- **Auth gating goes through `PageGuard`, not `[Authorize]`**: `Components/Routes.razor` uses
+  a plain `<Router>`/`<RouteView>`, not `AuthorizeRouteView`, so `[Authorize]` would do nothing
+  anyway. Every gated page instead calls `PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav,
+  RendererInfo.IsInteractive)` first in `OnInitializedAsync`: it no-ops while still
+  prerendering (`isInteractive` false) to avoid a `NavigateTo` throwing `NavigationException`
+  into the root `<ErrorBoundary>` as a raw error screen, then redirects unauthenticated users
+  to `/?returnUrl=…` once interactive. `/employee/*` pages need nothing more; `/manager/team`,
+  `/hr/dashboard` and `/admin/departments` layer their own role/department claim check on top
+  of it. `Web/Security/HomeRouteResolver` still maps `(UserRole? role, string? department)` →
+  home route for the post-login redirect; `POST /api/auth/login` and `Login.razor` both now
+  honor a survived `returnUrl` first.
 - **Demo accounts come from the `SeedDemoData` migration**, not from app code — see
   "Demo data" below for the full roster and passwords.
 

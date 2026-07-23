@@ -1,7 +1,10 @@
 @page "/employee/team"
 @layout EmployeeLayout
 @using System.Globalization
+@using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
 @inject ITimeOffService TimeOff
+@inject NavigationManager Nav
 
 <PageTitle>Team · Time Off Management</PageTitle>
 
@@ -67,11 +70,17 @@
 </MudCard>
 
 @code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
     private IReadOnlyList<TeamRosterEntry> _team = [];
     private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Today);
 
     protected override async Task OnInitializedAsync()
     {
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+            return;
+
         _team = await TimeOff.GetTeamRosterAsync();
     }
 }

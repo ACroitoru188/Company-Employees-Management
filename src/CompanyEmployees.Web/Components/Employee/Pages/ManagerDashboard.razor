@@ -9,6 +9,7 @@
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
 @inject EmployeeContext Employees
 @inject ManagerContext Manager
 @inject NavigationManager Nav
@@ -163,10 +164,10 @@ else
     // so anyone who isn't a manager is redirected without a database query.
     protected override async Task OnInitializedAsync()
     {
-        if (AuthStateTask is null)
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
             return;
 
-        var user = (await AuthStateTask).User;
+        var user = (await AuthStateTask!).User;
         var role = user.FindFirst(ClaimTypes.Role)?.Value;
         if (role != UserRole.LineManager.ToString() && role != UserRole.ProjectManager.ToString())
         {

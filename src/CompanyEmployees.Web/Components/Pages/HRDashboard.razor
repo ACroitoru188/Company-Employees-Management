@@ -3,6 +3,7 @@
 @using CompanyEmployees.Application
 @using CompanyEmployees.Application.Contexts
 @using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
 @inject EmployeeContext Employees
 @inject NavigationManager Nav
 
@@ -131,10 +132,10 @@ else
     // Department claim rather than the role one. Non-HR users get sent back.
     protected override async Task OnInitializedAsync()
     {
-        if (AuthStateTask is null)
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
             return;
 
-        var user = (await AuthStateTask).User;
+        var user = (await AuthStateTask!).User;
         if (user.FindFirst("Department")?.Value != "HR")
         {
             Nav.NavigateTo("/employee/dashboard");

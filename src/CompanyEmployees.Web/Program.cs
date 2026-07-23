@@ -1,7 +1,6 @@
 using Azure.Identity;
 using CompanyEmployees.Application;
 using CompanyEmployees.Domain.Entities;
-using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Gateway;
 using CompanyEmployees.Infrastructure;
 using CompanyEmployees.Infrastructure.ExceptionHandling;
@@ -85,6 +84,7 @@ app.MapRazorComponents<App>()
 app.MapPost("/api/auth/login", async (HttpContext context,
     [Microsoft.AspNetCore.Mvc.FromForm] string email,
     [Microsoft.AspNetCore.Mvc.FromForm] string password,
+    [Microsoft.AspNetCore.Mvc.FromForm] string? returnUrl,
     SignInManager<User> signInManager,
     UserManager<User> userManager) =>
 {
@@ -96,10 +96,6 @@ app.MapPost("/api/auth/login", async (HttpContext context,
 
     if(result.Succeeded)
     {
-        // Managers start on their team dashboard; other HR staff on the HR one;
-        // everyone else on the employee dashboard. HR is a department while manager
-        // is a UserRole, which is why both are needed. Role wins, so an HR line
-        // manager lands on her team and reaches HR via the drawer link.
         var account = await userManager.Users
             .Where(u => u.NormalizedUserName == email.ToUpperInvariant())
             .Select(u => new
@@ -109,14 +105,10 @@ app.MapPost("/api/auth/login", async (HttpContext context,
             })
             .FirstOrDefaultAsync();
 
-        if (account != null &&
-            (account.Role == UserRole.LineManager || account.Role == UserRole.ProjectManager))
-            return Results.Redirect("/manager/team");
+        if (returnUrl is not null && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//"))
+            return Results.Redirect(returnUrl);
 
-        if (account?.Department == "HR")
-            return Results.Redirect("/hr/dashboard");
-
-        return Results.Redirect("/employee/dashboard");
+        return Results.Redirect(HomeRouteResolver.Resolve(account?.Role, account?.Department));
     }
     else
     {

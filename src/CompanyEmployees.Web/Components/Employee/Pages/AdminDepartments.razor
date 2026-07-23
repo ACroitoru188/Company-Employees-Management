@@ -5,6 +5,7 @@
 @using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
 @inject EmployeeContext Employees
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
@@ -107,10 +108,10 @@ else
     // so non-admins are redirected without a database query.
     protected override async Task OnInitializedAsync()
     {
-        if (AuthStateTask is null)
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
             return;
 
-        var user = (await AuthStateTask).User;
+        var user = (await AuthStateTask!).User;
         var role = user.FindFirst(ClaimTypes.Role)?.Value;
         if (role != UserRole.Admin.ToString())
         {

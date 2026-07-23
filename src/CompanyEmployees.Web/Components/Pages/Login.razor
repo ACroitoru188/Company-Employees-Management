@@ -1,5 +1,8 @@
 @page "/"
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using CompanyEmployees.Web.Security
+@using CompanyEmployees.Domain.Enums
 @layout AuthLayout
 @rendermode InteractiveServer
 @inject NavigationManager Nav
@@ -33,6 +36,7 @@
             <AntiforgeryToken />
             <input type="hidden" name="email" value="@_email" />
             <input type="hidden" name="password" value="@_password" />
+            <input type="hidden" name="returnUrl" value="@ReturnUrl" />
         </form>
 
         <MudForm @ref="_form">
@@ -80,6 +84,9 @@
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
     [SupplyParameterFromQuery(Name = "error")]
     public string? QueryError { get; set; }
 
@@ -90,7 +97,12 @@
             var authState = await AuthStateTask;
             if (authState.User.Identity?.IsAuthenticated == true)
             {
-                Nav.NavigateTo("/employee/dashboard");
+                var roleClaim = authState.User.FindFirst(ClaimTypes.Role)?.Value;
+                UserRole? role = Enum.TryParse<UserRole>(roleClaim, out var parsedRole) ? parsedRole : null;
+                var department = authState.User.FindFirst("Department")?.Value;
+                Nav.NavigateTo(!string.IsNullOrEmpty(ReturnUrl) && ReturnUrl.StartsWith('/') && !ReturnUrl.StartsWith("//")
+                    ? ReturnUrl
+                    : HomeRouteResolver.Resolve(role, department));
                 return;
             }
         }

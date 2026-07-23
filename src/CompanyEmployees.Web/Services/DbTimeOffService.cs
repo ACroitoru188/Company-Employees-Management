@@ -42,8 +42,7 @@ public class DbTimeOffService : ITimeOffService
         try
         {
             var user = await GetDomainUserAsync();
-            // The domain has no Department yet; show the role in its place.
-            return new TeamMember { Name = user.Name, Department = user.Role.ToString() };
+            return new TeamMember { Name = user.Name, Department = RoleAndDepartment(user) };
         }
         finally
         {

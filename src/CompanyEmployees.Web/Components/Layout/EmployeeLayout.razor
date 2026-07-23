@@ -1,5 +1,6 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
 @inherits LayoutComponentBase
 
 <CompanyEmployees.Web.Components.Employee.EmployeeProviders />
@@ -35,7 +36,7 @@
                             Icon="@Icons.Material.Filled.Groups">Team</MudNavLink>
                 <MudNavLink Href="employee/my-requests" Match="NavLinkMatch.All"
                             Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
-                @if (_department == "HR")
+                @if (_department == HomeRouteResolver.HrDepartmentName)
                 {
                     <MudNavLink Href="hr/dashboard" Match="NavLinkMatch.All"
                                 Icon="@Icons.Material.Filled.Badge">HR Dashboard</MudNavLink>
@@ -65,7 +66,7 @@
                                 <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
                                     @* HR is a department, not a UserRole — its staff are
                                        plain Employees, so show the department instead. *@
-                                    @(_department == "HR" ? "HR" : _role)
+                                    @(_department == HomeRouteResolver.HrDepartmentName ? "HR" : _role)
                                 </MudText>
                             </div>
                         </div>
