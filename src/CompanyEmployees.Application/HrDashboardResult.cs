@@ -23,6 +23,12 @@ namespace CompanyEmployees.Application
         public string Type { get; set; } = "";
         public int Days { get; set; }
         public int WaitingDays { get; set; }
+
+        public string Role { get; set; } = "";
+        public DateOnly StartDate { get; set; }
+        public DateOnly EndDate { get; set; }
+        public string? Reason { get; set; }
+        public DateTime SubmittedAt { get; set; }
     }
 
     public class HrDepartmentCount

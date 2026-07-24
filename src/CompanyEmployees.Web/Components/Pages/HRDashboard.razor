@@ -84,16 +84,65 @@ else
 							</div>
 						</div>
 					}
-					@foreach (var request in FilteredRequests)
+					@{
+						var requestList = FilteredRequests.ToList();
+					}
+					@for (int i = 0; i < requestList.Count; i++)
 					{
-						<div class="request-row">
-							<div class="req-info">
-								<div class="req-name">@request.Name</div>
-								<div class="req-desc">
-									@request.Type · @request.Days @(request.Days == 1 ? "day" : "days") · @request.Department
+						var request = requestList[i];
+						var isLast = i == requestList.Count - 1;
+						<div class="request-item" style="border-bottom: @(isLast ? "none" : "1px solid #eee");">
+							<div class="request-row" style="cursor: pointer; border-bottom: none; padding-bottom: @(_selectedRequest == request ? "0.5rem" : "1rem");" @onclick="() => ToggleRequest(request)">
+								<div class="req-info">
+									<div class="req-name">@request.Name</div>
+									<div class="req-desc">
+										@request.Type &middot; @request.Days @(request.Days == 1 ? "day" : "days") &middot; @request.Department
+									</div>
 								</div>
+								<div class="req-status status-pending">pending</div>
 							</div>
-							<div class="req-status status-pending">pending</div>
+							
+							@if (_selectedRequest == request)
+							{
+								<div class="request-details-panel mt-2 mb-4 p-4 rounded" style="background-color: #ffffff; border: 1px solid #e0e0e0;">
+									@{
+										var nameParts = request.Name.Split(' ', 2);
+										var firstName = nameParts.Length > 0 ? nameParts[0] : "";
+										var lastName = nameParts.Length > 1 ? nameParts[1] : "";
+										var role = request.Role == "LineManager" ? "Manager" : request.Role;
+									}
+
+									<div class="d-flex justify-space-between mb-4">
+										<div>
+											<MudText Typo="Typo.h6"><b>Name:</b> @firstName</MudText>
+											<MudText Typo="Typo.h6" Class="mt-1"><b>Surname:</b> @lastName</MudText>
+											<MudText Typo="Typo.h6" Class="mt-1"><b>Department:</b> @request.Department</MudText>
+											<MudText Typo="Typo.h6" Class="mt-1"><b>Role:</b> @role</MudText>
+										</div>
+										<div class="d-flex align-center justify-center rounded border border-solid border-dark" style="width: 120px; height: 150px; background-color: var(--mud-palette-background-grey); border-width: 2px;">
+											<MudIcon Icon="@Icons.Material.Filled.Person" Style="font-size: 5rem; color: var(--mud-palette-text-secondary);" />
+										</div>
+									</div>
+
+									<MudDivider Class="my-4 border-solid border-dark" Style="border-width: 2px;" />
+
+									<MudText Typo="Typo.h6" Class="mb-3"><b>Leave type:</b> @request.Type</MudText>
+
+									<MudText Typo="Typo.h6" Class="mb-3"><b>Reason:</b> @(string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Equals(request.Type, StringComparison.OrdinalIgnoreCase) || request.Reason.Equals(request.Type + " leave", StringComparison.OrdinalIgnoreCase) ? "No reason specified" : request.Reason)</MudText>
+									
+									<MudText Typo="Typo.h6" Class="mb-3">
+										<b>Period:</b> @request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy") (@request.Days @(request.Days == 1 ? "day" : "days"))
+									</MudText>
+									
+									<MudText Typo="Typo.h6" Class="mb-3"><b>Submitted at:</b> @request.SubmittedAt.ToString("dd.MM.yyyy - HH:mm")</MudText>
+									
+									<div class="d-flex justify-end mt-4">
+										<MudButton Variant="Variant.Filled" OnClick="() => ToggleRequest(request)" Class="mr-2">CLOSE</MudButton>
+										<MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="RejectRequest" Class="mr-2">REJECT</MudButton>
+										<MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="ApproveRequest">APPROVE</MudButton>
+									</div>
+								</div>
+							}
 						</div>
 					}
 				</div>
@@ -143,9 +192,36 @@ else
 		}
 
 	</div>
+
 }
 
 @code {
+	private HrPendingRequest? _selectedRequest;
+
+	private void ToggleRequest(HrPendingRequest request)
+	{
+		if (_selectedRequest == request)
+		{
+			_selectedRequest = null;
+		}
+		else
+		{
+			_selectedRequest = request;
+		}
+	}
+
+	private void ApproveRequest()
+	{
+		// Aici vei pune logica backend de aprobare pe viitor
+		_selectedRequest = null;
+	}
+
+	private void RejectRequest()
+	{
+		// Aici vei pune logica backend de respingere pe viitor
+		_selectedRequest = null;
+	}
+
 	[CascadingParameter]
 	private Task<AuthenticationState>? AuthStateTask { get; set; }
 
