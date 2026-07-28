@@ -3,6 +3,7 @@ using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Domain.Exceptions;
 using CompanyEmployees.Domain.GatewayInterfaces;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 // The domain defines its own InvalidOperationException; the alias picks it over System's.
 using InvalidOperationException = CompanyEmployees.Domain.Exceptions.InvalidOperationException;
 
@@ -13,16 +14,19 @@ namespace CompanyEmployees.Application.Contexts
         private readonly ILeaveRequestGateway _leaveRequestGateway;
         private readonly IUserGateway _userGateway;
         private readonly IDepartmentGateway _departmentGateway;
+        private readonly NotificationContext _notifications;
 
         public EmployeeContext(
             ILogger<EmployeeContext> logger,
             ILeaveRequestGateway leaveRequestGateway,
             IUserGateway userGateway,
-            IDepartmentGateway departmentGateway) : base(logger)
+            IDepartmentGateway departmentGateway,
+            NotificationContext notifications) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
             _departmentGateway = departmentGateway;
+            _notifications = notifications;
         }
 
         public async Task<User> GetEmployeeByEmailAsync(string email)
@@ -178,6 +182,49 @@ namespace CompanyEmployees.Application.Contexts
             }
 
             return result;
+        }
+
+        public async Task<LeaveRequest> HrDecideRequestAsync(Guid approverId, Guid requestId, bool approve)
+        {
+            var request = await _leaveRequestGateway.GetRequestByIdAsync(requestId);
+            if (request == null)
+                throw new EntityNotFoundException($"No leave request with id {requestId}.");
+            if (request.Status != LeaveStatus.Pending)
+                throw new InvalidOperationException("This request has already been decided.");
+
+            request.Status = approve ? LeaveStatus.Approved : LeaveStatus.Rejected;
+
+            var approval = new LeaveApproval
+            {
+                LeaveRequestId = request.Id,
+                ApproverId = approverId,
+                Step = 1,
+                Status = request.Status,
+                ReviewedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _leaveRequestGateway.SaveDecisionAsync(request, approval);
+            
+            try
+            {
+                var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                             + " – " +
+                             request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+                await _notifications.SendNotificationAsync(
+                    request.UserId,
+                    $"Your {request.Type} leave request for {period} was {(approve ? "approved" : "declined")}.",
+                    "/employee/my-requests");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Decision on {RequestId} saved but the notification failed.", requestId);
+            }
+
+            _logger.LogInformation("HR {ApproverId} {Decision} leave request {RequestId}.",
+                approverId, approve ? "approved" : "rejected", requestId);
+            
+            return request;
         }
 
         // --- administrare departamente (folosit de pagina admin crud) -----------------
