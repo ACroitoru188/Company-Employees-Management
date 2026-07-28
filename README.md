@@ -1,9 +1,17 @@
-# Company-Employees-Management
+# Company Employees Management
 
-A company employees management app built with Blazor and .NET/C#, developed as an internship project by a team of 4.
+Team of 3, developing a portal platform for managing employees — a leave (time-off) management app.
 
-Pentru baza de date:
+## Stack
 
-* first run: dotnet dotnet-ef databasedrop --force --project src/CompanyEmployees.src
+Blazor Web App (.NET 9, Interactive Server) + MudBlazor, EF Core 8, SQL Server LocalDB, ASP.NET Core Identity, SignalR.
 
-* dotnet ef database update
+## Run
+
+```sh
+dotnet tool restore
+dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
+dotnet run --project src/CompanyEmployees.Web
+```
+
+App runs at http://localhost:5269. Demo accounts and passwords are in `CLAUDE.md`.
