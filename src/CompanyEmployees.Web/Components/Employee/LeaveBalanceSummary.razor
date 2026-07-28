@@ -1,4 +1,6 @@
 @using System.Globalization
+@using CompanyEmployees.Web.Services
+@inject ThemeState ThemeState
 
 <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
     <div>
@@ -28,7 +30,7 @@
                     </div>
                     <MudProgressLinear Value="@(100.0 * balance.Remaining / balance.DaysTotal)"
                                        Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mb-2"
-                                       Style="@($"--mud-palette-primary:{LeaveTypePalette.Hex(balance.Type)};")" />
+                                       Style="@($"--mud-palette-primary:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
                     <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
                         @balance.DaysUsed used this year
                     </MudText>

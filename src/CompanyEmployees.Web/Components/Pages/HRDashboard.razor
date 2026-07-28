@@ -112,7 +112,7 @@ else
 					{
 						var request = requestList[i];
 						var isLast = i == requestList.Count - 1;
-						<div class="request-item" style="border-bottom: @(isLast ? "none" : "1px solid #eee");">
+						<div class="request-item" style="border-bottom: @(isLast ? "none" : "1px solid var(--mud-palette-lines-default)");">
 							<div class="request-row" style="cursor: pointer; border-bottom: none; padding-bottom: @(_selectedRequest == request ? "0.5rem" : "1rem");" @onclick="() => ToggleRequest(request)">
 								<div class="req-info">
 									<div class="req-name">@request.Name</div>
@@ -126,7 +126,7 @@ else
 							
 							@if (_selectedRequest == request)
 							{
-								<div class="request-details-panel mt-2 mb-4 p-4 rounded" style="background-color: #ffffff; border: 1px solid #e0e0e0;">
+								<div class="request-details-panel mt-2 mb-4 p-4 rounded" style="background-color: var(--mud-palette-background-grey); border: 1px solid var(--mud-palette-lines-default);">
 									@{
 										var nameParts = request.Name.Split(' ', 2);
 										var firstName = nameParts.Length > 0 ? nameParts[0] : "";

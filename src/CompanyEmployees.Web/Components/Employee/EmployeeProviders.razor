@@ -3,8 +3,11 @@
    placed there never register with the circuit's scoped services (popovers,
    dialogs and snackbars would crash the circuit). Include this at the top of
    every employee page. *@
+@using CompanyEmployees.Web.Services
+@inject ThemeState ThemeState
+@implements IDisposable
 
-<MudThemeProvider Theme="Theme" />
+<MudThemeProvider Theme="Theme" IsDarkMode="ThemeState.IsDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -17,6 +20,21 @@
         {
             Primary = Colors.Blue.Darken1,
             AppbarBackground = Colors.Blue.Darken1
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = Colors.Blue.Darken1,
+            AppbarBackground = Colors.Blue.Darken1
         }
     };
+
+    protected override void OnInitialized() => ThemeState.OnChange += StateHasChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await ThemeState.InitializeAsync();
+    }
+
+    public void Dispose() => ThemeState.OnChange -= StateHasChanged;
 }

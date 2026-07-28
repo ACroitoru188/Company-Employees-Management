@@ -3,9 +3,11 @@
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
 @inject ITimeOffService TimeOff
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject ThemeState ThemeState
 
 <PageTitle>Calendar · Time Off Management</PageTitle>
 
@@ -146,7 +148,7 @@
                     </span>
                 </div>
                 <div class="gv-cell gv-sep gv-type">
-                    <span class="gv-pill" style="color:@LeaveTypePalette.Hex(row.Type); background:@(LeaveTypePalette.Hex(row.Type) + "1F");">
+                    <span class="gv-pill" style="color:@LeaveTypePalette.Hex(row.Type, ThemeState.IsDarkMode); background:@(LeaveTypePalette.Hex(row.Type, ThemeState.IsDarkMode) + "1F");">
                         @(LeaveTypePalette.Label(row.Type).Split(' ')[0])
                     </span>
                 </div>
@@ -198,7 +200,7 @@
                 <div class="lv-cell">@item.Department</div>
                 <div class="lv-cell">@(item.Team ?? "—")</div>
                 <div class="lv-cell">
-                    <span class="gv-pill" style="color:@LeaveTypePalette.Hex(item.Type); background:@(LeaveTypePalette.Hex(item.Type) + "1F");">
+                    <span class="gv-pill" style="color:@LeaveTypePalette.Hex(item.Type, ThemeState.IsDarkMode); background:@(LeaveTypePalette.Hex(item.Type, ThemeState.IsDarkMode) + "1F");">
                         @(LeaveTypePalette.Label(item.Type).Split(' ')[0])
                     </span>
                 </div>

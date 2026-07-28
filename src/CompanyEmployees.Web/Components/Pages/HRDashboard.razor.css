@@ -1,21 +1,21 @@
 /* Root container variables and general styling */
 .hr-dashboard-container {
     --bg-color: transparent;
-    --card-bg: #ffffff;
-    --border-color: #e5e7eb;
-    --text-main: #1f2937;
-    --text-sec: #6b7280;
-    
+    --card-bg: var(--mud-palette-surface);
+    --border-color: var(--mud-palette-lines-default);
+    --text-main: var(--mud-palette-text-primary);
+    --text-sec: var(--mud-palette-text-secondary);
+
     --amber-text: #d97706;
     --amber-bg: #fef3c7;
-    
+
     --red-text: #dc2626;
-    
+
     --green-text: #16a34a;
     --green-bg: #dcfce7;
-    
-    --blue-fill: #2563eb;
-    --blue-track: #f3f4f6;
+
+    --blue-fill: var(--mud-palette-primary);
+    --blue-track: var(--mud-palette-lines-default);
 
     background-color: var(--bg-color);
     color: var(--text-main);

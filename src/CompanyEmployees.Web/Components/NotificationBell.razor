@@ -19,7 +19,7 @@
              style="width: 300px; padding: 12px; max-height: 400px; overflow-y: auto; background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: absolute; right: 0; top: 100%; z-index: 9999;">
 
             <div class="d-flex justify-space-between align-center mb-2">
-                <strong style="font-size: 14px;">Notifications</strong>
+                <strong style="font-size: 14px; color: gray;">Notifications</strong>
                 @if(_notifications.Any())
                 {
                     <button class="pm-item"
@@ -41,7 +41,7 @@
                 foreach (var notification in _notifications)
                 {
                     <div style="padding: 8px 0; border-bottom: 1px solid #eee;">
-                        <div style="font-size: 13px; margin-bottom: 4px;">@notification.Message</div>
+                        <div style="font-size: 13px; margin-bottom: 4px; color: gray;">@notification.Message</div>
                         <div style="font-size: 11px; color: gray;">@notification.CreatedAt.ToString("g")</div>
                     </div>
                 }
