@@ -155,9 +155,12 @@ namespace CompanyEmployees.Application.Contexts
 
                 result.Pending.Add(new HrPendingRequest
                 {
+                    RequestId = request.Id,
                     Name = request.User.Name,
                     Department = request.User.Department == null ? "—" : request.User.Department.Name,
                     Type = request.Type.ToString(),
+                    StartDate = request.StartDate,
+                    EndDate = request.EndDate,
                     Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
                     WaitingDays = waiting
                 });
@@ -258,6 +261,39 @@ namespace CompanyEmployees.Application.Contexts
             _logger.LogInformation("User {UserId} submitted a {Type} leave request {Start}–{End}.",
                 userId, type, start, end);
             return request;
+        }
+
+        public async Task UpdateRequestDatesAsync(Guid requestId, DateOnly newStart, DateOnly newEnd)
+        {
+            var request = await _leaveRequestGateway.GetRequestByIdAsync(requestId);
+            if (request == null)
+                throw new EntityNotFoundException($"No leave request with id {requestId}.");
+            if (request.Status != LeaveStatus.Pending)
+                throw new InvalidOperationException("Only pending requests can be edited.");
+            if (newEnd < newStart)
+                throw new InvalidOperationException("End date must not be before start date.");
+
+            var existing = await _leaveRequestGateway.GetRequestsByUserAsync(request.UserId);
+            var overlaps = existing.Any(r =>
+                r.Id != requestId
+                && (r.Status == LeaveStatus.Pending || r.Status == LeaveStatus.Approved)
+                && r.StartDate <= newEnd
+                && r.EndDate >= newStart);
+            if (overlaps)
+                throw new InvalidOperationException("This user already has a request in that period.");
+
+            var requestedDays = CountDays(newStart, newEnd);
+            var balances = await GetMyBalancesAsync(request.UserId, newStart.Year);
+            var balance = balances.FirstOrDefault(b => b.Type == request.Type);
+            if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
+                throw new InvalidOperationException("Not enough days left for this leave type.");
+
+            request.StartDate = newStart;
+            request.EndDate = newEnd;
+            await _leaveRequestGateway.UpdateRequestDatesAsync(request);
+
+            _logger.LogInformation("Leave request {RequestId} dates updated to {Start}–{End}.",
+                requestId, newStart, newEnd);
         }
 
         private static int CountDays(DateOnly start, DateOnly end) =>

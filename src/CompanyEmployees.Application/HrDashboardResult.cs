@@ -18,9 +18,12 @@ namespace CompanyEmployees.Application
 
     public class HrPendingRequest
     {
+        public Guid RequestId { get; set; }
         public string Name { get; set; } = "";
         public string Department { get; set; } = "";
         public string Type { get; set; } = "";
+        public DateOnly StartDate { get; set; }
+        public DateOnly EndDate { get; set; }
         public int Days { get; set; }
         public int WaitingDays { get; set; }
     }

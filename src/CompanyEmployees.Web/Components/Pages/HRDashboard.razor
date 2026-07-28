@@ -1,11 +1,13 @@
 @page "/hr/dashboard"
 @layout CompanyEmployees.Web.Components.Layout.EmployeeLayout
+@using System.Globalization
 @using CompanyEmployees.Application
 @using CompanyEmployees.Application.Contexts
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
 @inject EmployeeContext Employees
 @inject NavigationManager Nav
+@inject IDialogService DialogService
 
 <PageTitle>HR Dashboard · Time Off Management</PageTitle>
 
@@ -65,8 +67,8 @@ else
 
     <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Requests to approve</MudText>
 
-    @* HR sees the whole company's pending queue read-only — approving is the
-       manager's job, on /manager/team. *@
+    @* HR sees the whole company's pending queue — approving is the manager's job on
+       /manager/team, but HR can correct a pending request's dates from here. *@
     @if (_data.Pending.Count == 0)
     {
         <MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
@@ -82,16 +84,26 @@ else
                 <MudTh>Employee</MudTh>
                 <MudTh>Department</MudTh>
                 <MudTh>Type</MudTh>
+                <MudTh>Period</MudTh>
                 <MudTh>Days</MudTh>
                 <MudTh>Waiting</MudTh>
+                <MudTh></MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Employee">@context.Name</MudTd>
                 <MudTd DataLabel="Department">@context.Department</MudTd>
                 <MudTd DataLabel="Type">@context.Type</MudTd>
+                <MudTd DataLabel="Period">
+                    @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
+                    @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                </MudTd>
                 <MudTd DataLabel="Days">@context.Days @(context.Days == 1 ? "day" : "days")</MudTd>
                 <MudTd DataLabel="Waiting">
                     @context.WaitingDays @(context.WaitingDays == 1 ? "day" : "days")
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => EditDates(context))" />
                 </MudTd>
             </RowTemplate>
         </MudTable>
@@ -144,6 +156,18 @@ else
 
         _name = user.FindFirst("FullName")?.Value ?? "";
         _data = await Employees.GetHrDashboardAsync();
+    }
+
+    private async Task EditDates(HrPendingRequest request)
+    {
+        var parameters = new DialogParameters<EditLeaveDatesDialog>
+        {
+            { d => d.Request, request }
+        };
+        var dialog = await DialogService.ShowAsync<EditLeaveDatesDialog>("Edit leave period", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            _data = await Employees.GetHrDashboardAsync();
     }
 
     // Bars are relative to the largest department, so the biggest one fills the track.

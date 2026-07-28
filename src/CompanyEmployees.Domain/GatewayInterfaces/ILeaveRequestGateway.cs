@@ -25,4 +25,6 @@ public interface ILeaveRequestGateway
 
     // Persists the request's status change and the approval row atomically.
     Task SaveDecisionAsync(LeaveRequest request, LeaveApproval approval);
+
+    Task UpdateRequestDatesAsync(LeaveRequest request);
 }
