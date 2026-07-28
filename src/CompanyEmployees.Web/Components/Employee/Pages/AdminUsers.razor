@@ -1,0 +1,125 @@
+@page "/admin/users"
+@layout EmployeeLayout
+@using System.Security.Claims
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
+@inject EmployeeContext Employees
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Users · Admin</PageTitle>
+
+@if (!_authorized)
+{
+	<MudProgressCircular Indeterminate="true" />
+}
+else
+{
+	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Users</MudText>
+
+	<MudDataGrid T="User" Items="@_users" QuickFilter="@_quickFilter"
+				 Filterable="true" SortMode="SortMode.Multiple"
+				 FilterMode="DataGridFilterMode.ColumnFilterRow"
+				 Hover="true" Dense="true" Elevation="1">
+		<ToolBarContent>
+			<MudTextField @bind-Value="_quickSearch" Placeholder="Search users..."
+						  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+						  IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
+						  Immediate="true" />
+			<MudSpacer />
+		</ToolBarContent>
+		<Columns>
+			<PropertyColumn Property="@(u => u.Name)" Title="Name" />
+			<PropertyColumn Property="@(u => u.Email)" Title="Email" />
+			<PropertyColumn Property="@(u => u.Role)" Title="Role" />
+			<PropertyColumn Property="@(u => u.Status)" Title="Status" />
+			<TemplateColumn T="User" Title="Department" Sortable="true"
+							 SortBy="@(u => GetDepartmentName(u.DepartmentId))" Filterable="false">
+				<CellTemplate>
+					<MudAutocomplete T="Guid?" Value="context.Item.DepartmentId"
+									 ValueChanged="@(v => OnUserDepartmentChangedAsync(context.Item, v))"
+									 SearchFunc="@SearchDepartments"
+									 ToStringFunc="@GetDepartmentName"
+									 ResetValueOnEmptyText="true"
+									 CoerceText="true" Dense="true" />
+				</CellTemplate>
+			</TemplateColumn>
+		</Columns>
+		<PagerContent>
+			<MudDataGridPager T="User" />
+		</PagerContent>
+	</MudDataGrid>
+}
+
+@code {
+	[CascadingParameter]
+	private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+	private bool _authorized;
+	private List<User> _users = [];
+	private List<Department> _departments = [];
+	private string _quickSearch = "";
+
+	private Func<User, bool> _quickFilter => u =>
+	{
+		if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
+		return u.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+			|| (u.Email ?? "").Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+			|| u.Role.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+			|| GetDepartmentName(u.DepartmentId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase);
+	};
+
+	// The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
+	// so non-admins are redirected without a database query.
+	protected override async Task OnInitializedAsync()
+	{
+		if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+			return;
+
+		var user = (await AuthStateTask!).User;
+		var role = user.FindFirst(ClaimTypes.Role)?.Value;
+		if (role != UserRole.Admin.ToString())
+		{
+			Nav.NavigateTo("/employee/dashboard");
+			return;
+		}
+
+		_authorized = true;
+		await LoadAsync();
+	}
+
+	private async Task LoadAsync()
+	{
+		_users = await Employees.GetAllUsersAsync();
+		_departments = await Employees.GetDepartmentsAsync();
+	}
+
+	private async Task OnUserDepartmentChangedAsync(User user, Guid? departmentId)
+	{
+		await Employees.AssignUserToDepartmentAsync(user.Id, departmentId);
+		Snackbar.Add($"{user.Name} moved.", Severity.Success);
+		await LoadAsync();
+	}
+
+	private string GetDepartmentName(Guid? id) =>
+		id == null ? "None" : _departments.FirstOrDefault(d => d.Id == id)?.Name ?? "";
+
+	private Task<IEnumerable<Guid?>> SearchDepartments(string value, CancellationToken token)
+	{
+		var allIds = _departments.Select(d => (Guid?)d.Id).Prepend(null);
+
+		// Daca textul e gol, SAU e "None", SAU textul este fix numele departamentului deja selectat, afisam toata lista
+		if (string.IsNullOrEmpty(value) || value.Equals("None", StringComparison.InvariantCultureIgnoreCase) || _departments.Any(d => d.Name.Equals(value, StringComparison.InvariantCultureIgnoreCase)))
+		{
+			return Task.FromResult(allIds);
+		}
+
+		var matches = _departments
+			.Where(d => d.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase))
+			.Select(d => (Guid?)d.Id);
+		return Task.FromResult(matches);
+	}
+}

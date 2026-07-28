@@ -180,10 +180,21 @@
     color: #80868b;
 }
 
-.cal-submitbar {
-    position: sticky;
-    bottom: 16px;
-    z-index: 10;
+/* .cal-submitbar is MudPaper's own root element (a child component), which css isolation
+   scoping never reaches — ::deep is required to target it from this component's stylesheet. */
+::deep .cal-submitbar {
+    position: fixed;
+    left: var(--mud-drawer-width-left, 240px);
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    border-radius: 0;
+}
+
+/* ponytail: static height guess covers the bar at its normal (non-wrapped) height;
+   bump this if the bar wraps to multiple lines on narrow viewports */
+.cal-page-with-footer {
+    padding-bottom: 110px;
 }
 
 /* ---- Week view ---- */

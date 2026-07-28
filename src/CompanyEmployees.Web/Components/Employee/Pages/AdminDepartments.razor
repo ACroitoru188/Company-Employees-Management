@@ -19,44 +19,49 @@
 else
 {
 	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Departments</MudText>
-	<div class="mb-4">
-		<MudTextField @bind-Value="_searchDepartment"
-					  Placeholder="Search department..."
-					  Adornment="Adornment.Start"
-					  AdornmentIcon="@Icons.Material.Filled.Search"
-					  IconSize="Size.Small"
-					  Variant="Variant.Outlined"
-					  Margin="Margin.Dense"
-					  Immediate="true"></MudTextField>
-	</div>
 
-	<MudTable T="Department" Items="@FilteredDepartments" Hover="true" Elevation="1" Class="mb-6">
-		<HeaderContent>
-			<MudTh>Name</MudTh>
-			<MudTh>Manager</MudTh>
-			<MudTh>Members</MudTh>
-			<MudTh></MudTh>
-		</HeaderContent>
-		<RowTemplate>
-			<MudTd DataLabel="Name">
-				<MudTextField @bind-Value="context.Name" Immediate="false"
-							  OnBlur="@(() => SaveDepartmentAsync(context))" />
-			</MudTd>
-			<MudTd DataLabel="Manager">
-				<MudAutocomplete T="Guid?" Value="context.ManagerId"
-								 ValueChanged="@(v => OnManagerChangedAsync(context, v))"
-								 SearchFunc="@SearchManagers"
-								 ToStringFunc="@GetManagerName"
-								 ResetValueOnEmptyText="true"
-								 CoerceText="true" />
-			</MudTd>
-			<MudTd DataLabel="Members">@context.Members.Count</MudTd>
-			<MudTd>
-				<MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
-							   OnClick="@(() => DeleteDepartmentAsync(context))" />
-			</MudTd>
-		</RowTemplate>
-	</MudTable>
+	<MudDataGrid T="Department" Items="@_departments" QuickFilter="@_quickFilter"
+				 Filterable="true" SortMode="SortMode.Multiple"
+				 FilterMode="DataGridFilterMode.ColumnFilterRow"
+				 Hover="true" Dense="true" Elevation="1" Class="mb-6">
+		<ToolBarContent>
+			<MudTextField @bind-Value="_quickSearch" Placeholder="Search department..."
+						  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+						  IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
+						  Immediate="true" />
+			<MudSpacer />
+		</ToolBarContent>
+		<Columns>
+			<TemplateColumn T="Department" Title="Name" Sortable="true"
+							SortBy="@(d => d.Name)" Filterable="false">
+				<CellTemplate>
+					<MudTextField @bind-Value="context.Item.Name" Immediate="false"
+								  OnBlur="@(() => SaveDepartmentAsync(context.Item))" />
+				</CellTemplate>
+			</TemplateColumn>
+			<TemplateColumn T="Department" Title="Manager" Sortable="true"
+							SortBy="@(d => GetManagerName(d.ManagerId))" Filterable="false">
+				<CellTemplate>
+					<MudAutocomplete T="Guid?" Value="context.Item.ManagerId"
+									 ValueChanged="@(v => OnManagerChangedAsync(context.Item, v))"
+									 SearchFunc="@SearchManagers"
+									 ToStringFunc="@GetManagerName"
+									 ResetValueOnEmptyText="true"
+									 CoerceText="true" />
+				</CellTemplate>
+			</TemplateColumn>
+			<PropertyColumn Property="@(d => d.Members.Count)" Title="Members" />
+			<TemplateColumn T="Department" Sortable="false" Filterable="false">
+				<CellTemplate>
+					<MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+								   OnClick="@(() => DeleteDepartmentAsync(context.Item))" />
+				</CellTemplate>
+			</TemplateColumn>
+		</Columns>
+		<PagerContent>
+			<MudDataGridPager T="Department" />
+		</PagerContent>
+	</MudDataGrid>
 
 	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
 		<MudText Typo="Typo.subtitle2" Class="mb-2">New department</MudText>
@@ -72,38 +77,6 @@ else
 			</MudButton>
 		</div>
 	</MudPaper>
-
-	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Users</MudText>
-	<div class="mb-4">
-		<MudTextField @bind-Value="_searchUser"
-					  Placeholder="Search user..."
-					  Adornment="Adornment.Start"
-					  AdornmentIcon="@Icons.Material.Filled.Search"
-					  IconSize="Size.Small"
-					  Variant="Variant.Outlined"
-					  Margin="Margin.Dense"
-					  Immediate="true"></MudTextField>
-	</div>
-
-	<MudTable T="User" Items="@FilteredUsers" Hover="true" Elevation="1">
-		<HeaderContent>
-			<MudTh>Name</MudTh>
-			<MudTh>Role</MudTh>
-			<MudTh>Department</MudTh>
-		</HeaderContent>
-		<RowTemplate>
-			<MudTd DataLabel="Name">@context.Name</MudTd>
-			<MudTd DataLabel="Role">@context.Role</MudTd>
-			<MudTd DataLabel="Department">
-				<MudAutocomplete T="Guid?" Value="context.DepartmentId"
-								 ValueChanged="@(v => OnUserDepartmentChangedAsync(context, v))"
-								 SearchFunc="@SearchDepartments"
-								 ToStringFunc="@GetDepartmentName"
-								 ResetValueOnEmptyText="true"
-								 CoerceText="true" />
-			</MudTd>
-		</RowTemplate>
-	</MudTable>
 }
 
 @code {
@@ -118,19 +91,14 @@ else
 	private string _newName = "";
 	private Guid? _newManagerId;
 
-	private string _searchDepartment = "";
+	private string _quickSearch = "";
 
-	private IEnumerable<Department> FilteredDepartments =>
-		string.IsNullOrWhiteSpace(_searchDepartment)
-			? _departments
-			: _departments.Where(d => d.Name.Contains(_searchDepartment, StringComparison.OrdinalIgnoreCase));
-
-	private string _searchUser = "";
-
-	private IEnumerable<User> FilteredUsers =>
-		string.IsNullOrWhiteSpace(_searchUser)
-			? _users
-			: _users.Where(u => u.Name.Contains(_searchUser, StringComparison.OrdinalIgnoreCase));
+	private Func<Department, bool> _quickFilter => d =>
+	{
+		if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
+		return d.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+			|| GetManagerName(d.ManagerId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase);
+	};
 
 	// The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
 	// so non-admins are redirected without a database query.
@@ -191,14 +159,7 @@ else
 		await LoadAsync();
 	}
 
-	private async Task OnUserDepartmentChangedAsync(User user, Guid? departmentId)
-	{
-		await Employees.AssignUserToDepartmentAsync(user.Id, departmentId);
-		Snackbar.Add($"{user.Name} moved.", Severity.Success);
-		await LoadAsync();
-	}
-
-	private string GetManagerName(Guid? id) => 
+	private string GetManagerName(Guid? id) =>
 		id == null ? "None" : _lineManagers.FirstOrDefault(m => m.Id == id)?.Name ?? "";
 
 	private Task<IEnumerable<Guid?>> SearchManagers(string value, CancellationToken token)
@@ -214,25 +175,6 @@ else
 		var matches = _lineManagers
 			.Where(m => m.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase))
 			.Select(m => (Guid?)m.Id);
-		return Task.FromResult(matches);
-	}
-
-	private string GetDepartmentName(Guid? id) => 
-		id == null ? "None" : _departments.FirstOrDefault(d => d.Id == id)?.Name ?? "";
-
-	private Task<IEnumerable<Guid?>> SearchDepartments(string value, CancellationToken token)
-	{
-		var allIds = _departments.Select(d => (Guid?)d.Id).Prepend(null);
-		
-		// Daca textul e gol, SAU e "None", SAU textul este fix numele departamentului deja selectat, afisam toata lista
-		if (string.IsNullOrEmpty(value) || value.Equals("None", StringComparison.InvariantCultureIgnoreCase) || _departments.Any(d => d.Name.Equals(value, StringComparison.InvariantCultureIgnoreCase)))
-		{
-			return Task.FromResult(allIds);
-		}
-		
-		var matches = _departments
-			.Where(d => d.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase))
-			.Select(d => (Guid?)d.Id);
 		return Task.FromResult(matches);
 	}
 }

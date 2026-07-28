@@ -56,6 +56,8 @@
                     </MudText>
                     <MudNavLink Href="admin/departments" Match="NavLinkMatch.All"
                                 Icon="@Icons.Material.Filled.Business">Departments</MudNavLink>
+                    <MudNavLink Href="admin/users" Match="NavLinkMatch.All"
+                                Icon="@Icons.Material.Filled.People">Users</MudNavLink>
                 }
             </MudNavMenu>
             <div class="mt-auto" style="border-top:1px solid var(--mud-palette-lines-default);">
@@ -87,8 +89,6 @@
                         <MudDivider />
                         <MudMenuItem Href="mailto:it-support@siemens.com"
                                      Icon="@Icons.Material.Filled.SupportAgent">Contact IT department</MudMenuItem>
-                        <MudMenuItem Href="/forgot-password"
-                                     Icon="@Icons.Material.Filled.LockReset">Forgot password</MudMenuItem>
                         <MudDivider />
                         @* Full page load: the logout endpoint must clear the auth cookie itself. *@
                         <MudMenuItem Href="/api/auth/logout" ForceLoad="true"

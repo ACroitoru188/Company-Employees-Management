@@ -11,6 +11,8 @@
 
 <PageTitle>Calendar · Time Off Management</PageTitle>
 
+<div class="@(ShowSubmitBar ? "cal-page-with-footer" : "")">
+
 <LeaveBalanceSummary UserName="@_userName" Balances="@_balances" />
 
 <div class="d-flex align-center flex-wrap gap-2 mt-6 mb-2">
@@ -218,9 +220,13 @@
     }
 </div>
 
-@if (_range is { } range && _selectedType is { } type)
+@* The submit bar must stay nested inside this wrapping div (not a sibling after it):
+   its ::deep CSS rule compiles to "[scope] .cal-submitbar", which only matches
+   descendants of a scoped element — position:fixed still pins it to the viewport
+   regardless of DOM nesting, so this doesn't change where it renders. *@
+@if (ShowSubmitBar && _range is { } range && _selectedType is { } type)
 {
-    <MudPaper Elevation="4" Class="pa-4 mt-4 d-flex align-center flex-wrap gap-4 cal-submitbar">
+    <MudPaper Elevation="4" Class="pa-4 d-flex align-center flex-wrap gap-4 cal-submitbar">
         <MudText Typo="Typo.subtitle1" Style="font-weight:600;">
             @LeaveTypePalette.Label(type) ·
             @range.Start.ToString("MMM d", CultureInfo.InvariantCulture) –
@@ -233,6 +239,8 @@
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Submit request</MudButton>
     </MudPaper>
 }
+
+</div>
 
 @code {
     [CascadingParameter]
@@ -263,6 +271,8 @@
     private DateOnly? _anchorDay;
     private (DateOnly Start, DateOnly End)? _range;
     private string? _reason;
+
+    private bool ShowSubmitBar => _range is not null && _selectedType is not null;
 
     private string _userName = "";
 
