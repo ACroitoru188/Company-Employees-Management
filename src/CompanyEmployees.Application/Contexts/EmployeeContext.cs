@@ -159,7 +159,12 @@ namespace CompanyEmployees.Application.Contexts
                     Department = request.User.Department == null ? "—" : request.User.Department.Name,
                     Type = request.Type.ToString(),
                     Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
-                    WaitingDays = waiting
+                    WaitingDays = waiting,
+                    Role = request.User.Role.ToString(),
+                    StartDate = request.StartDate,
+                    EndDate = request.EndDate,
+                    Reason = request.Reason,
+                    SubmittedAt = request.CreatedAt
                 });
             }
 

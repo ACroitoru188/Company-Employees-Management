@@ -97,12 +97,15 @@
             {
                 var day = WeekStart.AddDays(i);
                 var isToday = day == _today;
+                var selected = IsSelected(day);
                 <div class="wv-col">
                     <div class="wv-head">
                         <span class="wv-dow">@(day.ToString("ddd", CultureInfo.InvariantCulture).ToUpperInvariant())</span>
                         <span class="wv-num @(isToday ? "wv-num-today" : "")">@day.Day</span>
                     </div>
-                    <div class="wv-cell @(isToday ? "wv-cell-today" : "")">
+                    <div class="wv-cell @(isToday ? "wv-cell-today" : "")"
+                         style="@(selected && _selectedType is { } t ? $"background:{LeaveTypePalette.HighlightHex(t)};" : "")"
+                         @onclick="() => OnDayClick(day)">
                         @foreach (var item in FilteredRanges.Where(r => r.StartDate <= day && r.EndDate >= day))
                         {
                             <div class="wv-card" style="background:@LeaveTypePalette.Hex(item.Type);">
@@ -125,7 +128,10 @@
             @for (var d = 1; d <= daysInMonth; d++)
             {
                 var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
-                <div class="gv-hday @(IsWeekend(date) ? "gv-hwend" : "") @(date == _today ? "gv-htoday" : "")">
+                var selected = IsSelected(date);
+                <div class="gv-hday @(IsWeekend(date) ? "gv-hwend" : "") @(date == _today ? "gv-htoday" : "")"
+                     style="@(selected && _selectedType is { } t ? $"background:{LeaveTypePalette.HighlightHex(t)};" : "")"
+                     @onclick="() => OnDayClick(date)">
                     <span class="gv-hdow">@(date.ToString("ddd", CultureInfo.InvariantCulture)[..2].ToUpperInvariant())</span>
                     <span class="gv-hnum">@d</span>
                 </div>
@@ -383,7 +389,9 @@
 
     private void OnDayClick(DateOnly day)
     {
-        if (_selectedType is null || day < _today || day.Month != VisibleMonth.Month)
+        if (_selectedType is null || day < _today)
+            return;
+        if (_view == CalView.Month && day.Month != VisibleMonth.Month)
             return;
 
         if (IsSelected(day))

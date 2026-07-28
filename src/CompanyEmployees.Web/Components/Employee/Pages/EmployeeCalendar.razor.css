@@ -229,6 +229,7 @@
     flex-direction: column;
     gap: 5px;
     min-width: 0;
+    cursor: pointer;
 }
 
 .wv-cell-today {
@@ -293,6 +294,7 @@
     gap: 1px;
     border-bottom: 1px solid #e8eaed;
     min-width: 0;
+    cursor: pointer;
 }
 
 .gv-hdow {

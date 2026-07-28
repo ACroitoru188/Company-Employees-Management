@@ -14,159 +14,225 @@
 
 @if (!_authorized)
 {
-    <MudProgressCircular Indeterminate="true" />
+	<MudProgressCircular Indeterminate="true" />
 }
 else
 {
-    <MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Departments</MudText>
+	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Departments</MudText>
+	<div class="mb-4">
+		<MudTextField @bind-Value="_searchDepartment"
+					  Placeholder="Search department..."
+					  Adornment="Adornment.Start"
+					  AdornmentIcon="@Icons.Material.Filled.Search"
+					  IconSize="Size.Small"
+					  Variant="Variant.Outlined"
+					  Margin="Margin.Dense"
+					  Immediate="true"></MudTextField>
+	</div>
 
-    <MudTable T="Department" Items="@_departments" Hover="true" Elevation="1" Class="mb-6">
-        <HeaderContent>
-            <MudTh>Name</MudTh>
-            <MudTh>Manager</MudTh>
-            <MudTh>Members</MudTh>
-            <MudTh></MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Name">
-                <MudTextField @bind-Value="context.Name" Immediate="false"
-                              OnBlur="@(() => SaveDepartmentAsync(context))" />
-            </MudTd>
-            <MudTd DataLabel="Manager">
-                <MudSelect T="Guid?" Value="context.ManagerId"
-                           ValueChanged="@(v => OnManagerChangedAsync(context, v))">
-                    <MudSelectItem T="Guid?" Value="@((Guid?)null)">None</MudSelectItem>
-                    @foreach (var lm in _lineManagers)
-                    {
-                        <MudSelectItem T="Guid?" Value="@((Guid?)lm.Id)">@lm.Name</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudTd>
-            <MudTd DataLabel="Members">@context.Members.Count</MudTd>
-            <MudTd>
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
-                               OnClick="@(() => DeleteDepartmentAsync(context))" />
-            </MudTd>
-        </RowTemplate>
-    </MudTable>
+	<MudTable T="Department" Items="@FilteredDepartments" Hover="true" Elevation="1" Class="mb-6">
+		<HeaderContent>
+			<MudTh>Name</MudTh>
+			<MudTh>Manager</MudTh>
+			<MudTh>Members</MudTh>
+			<MudTh></MudTh>
+		</HeaderContent>
+		<RowTemplate>
+			<MudTd DataLabel="Name">
+				<MudTextField @bind-Value="context.Name" Immediate="false"
+							  OnBlur="@(() => SaveDepartmentAsync(context))" />
+			</MudTd>
+			<MudTd DataLabel="Manager">
+				<MudAutocomplete T="Guid?" Value="context.ManagerId"
+								 ValueChanged="@(v => OnManagerChangedAsync(context, v))"
+								 SearchFunc="@SearchManagers"
+								 ToStringFunc="@GetManagerName"
+								 ResetValueOnEmptyText="true"
+								 CoerceText="true" />
+			</MudTd>
+			<MudTd DataLabel="Members">@context.Members.Count</MudTd>
+			<MudTd>
+				<MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+							   OnClick="@(() => DeleteDepartmentAsync(context))" />
+			</MudTd>
+		</RowTemplate>
+	</MudTable>
 
-    <MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
-        <MudText Typo="Typo.subtitle2" Class="mb-2">New department</MudText>
-        <div class="d-flex align-center gap-3">
-            <MudTextField T="string" @bind-Value="_newName" Label="Name" />
-            <MudSelect T="Guid?" @bind-Value="_newManagerId" Label="Manager" Style="min-width:200px;">
-                <MudSelectItem T="Guid?" Value="@((Guid?)null)">None</MudSelectItem>
-                @foreach (var lm in _lineManagers)
-                {
-                    <MudSelectItem T="Guid?" Value="@((Guid?)lm.Id)">@lm.Name</MudSelectItem>
-                }
-            </MudSelect>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateDepartmentAsync">
-                Add
-            </MudButton>
-        </div>
-    </MudPaper>
+	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
+		<MudText Typo="Typo.subtitle2" Class="mb-2">New department</MudText>
+		<div class="d-flex align-center gap-3">
+			<MudTextField T="string" @bind-Value="_newName" Label="Name" />
+			<MudAutocomplete T="Guid?" @bind-Value="_newManagerId" Label="Manager" Style="min-width:200px;"
+							 SearchFunc="@SearchManagers"
+							 ToStringFunc="@GetManagerName"
+							 ResetValueOnEmptyText="true"
+							 CoerceText="true" />
+			<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateDepartmentAsync">
+				Add
+			</MudButton>
+		</div>
+	</MudPaper>
 
-    <MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Users</MudText>
+	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Users</MudText>
+	<div class="mb-4">
+		<MudTextField @bind-Value="_searchUser"
+					  Placeholder="Search user..."
+					  Adornment="Adornment.Start"
+					  AdornmentIcon="@Icons.Material.Filled.Search"
+					  IconSize="Size.Small"
+					  Variant="Variant.Outlined"
+					  Margin="Margin.Dense"
+					  Immediate="true"></MudTextField>
+	</div>
 
-    <MudTable T="User" Items="@_users" Hover="true" Elevation="1">
-        <HeaderContent>
-            <MudTh>Name</MudTh>
-            <MudTh>Role</MudTh>
-            <MudTh>Department</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Role">@context.Role</MudTd>
-            <MudTd DataLabel="Department">
-                <MudSelect T="Guid?" Value="context.DepartmentId"
-                           ValueChanged="@(v => OnUserDepartmentChangedAsync(context, v))">
-                    <MudSelectItem T="Guid?" Value="@((Guid?)null)">None</MudSelectItem>
-                    @foreach (var d in _departments)
-                    {
-                        <MudSelectItem T="Guid?" Value="@((Guid?)d.Id)">@d.Name</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudTd>
-        </RowTemplate>
-    </MudTable>
+	<MudTable T="User" Items="@FilteredUsers" Hover="true" Elevation="1">
+		<HeaderContent>
+			<MudTh>Name</MudTh>
+			<MudTh>Role</MudTh>
+			<MudTh>Department</MudTh>
+		</HeaderContent>
+		<RowTemplate>
+			<MudTd DataLabel="Name">@context.Name</MudTd>
+			<MudTd DataLabel="Role">@context.Role</MudTd>
+			<MudTd DataLabel="Department">
+				<MudAutocomplete T="Guid?" Value="context.DepartmentId"
+								 ValueChanged="@(v => OnUserDepartmentChangedAsync(context, v))"
+								 SearchFunc="@SearchDepartments"
+								 ToStringFunc="@GetDepartmentName"
+								 ResetValueOnEmptyText="true"
+								 CoerceText="true" />
+			</MudTd>
+		</RowTemplate>
+	</MudTable>
 }
 
 @code {
-    [CascadingParameter]
-    private Task<AuthenticationState>? AuthStateTask { get; set; }
+	[CascadingParameter]
+	private Task<AuthenticationState>? AuthStateTask { get; set; }
 
-    private bool _authorized;
-    private List<Department> _departments = [];
-    private List<User> _users = [];
-    private IEnumerable<User> _lineManagers => _users.Where(u => u.Role == UserRole.LineManager);
+	private bool _authorized;
+	private List<Department> _departments = [];
+	private List<User> _users = [];
+	private IEnumerable<User> _lineManagers => _users.Where(u => u.Role == UserRole.LineManager);
 
-    private string _newName = "";
-    private Guid? _newManagerId;
+	private string _newName = "";
+	private Guid? _newManagerId;
 
-    // The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
-    // so non-admins are redirected without a database query.
-    protected override async Task OnInitializedAsync()
-    {
-        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
-            return;
+	private string _searchDepartment = "";
 
-        var user = (await AuthStateTask!).User;
-        var role = user.FindFirst(ClaimTypes.Role)?.Value;
-        if (role != UserRole.Admin.ToString())
-        {
-            Nav.NavigateTo("/employee/dashboard");
-            return;
-        }
+	private IEnumerable<Department> FilteredDepartments =>
+		string.IsNullOrWhiteSpace(_searchDepartment)
+			? _departments
+			: _departments.Where(d => d.Name.Contains(_searchDepartment, StringComparison.OrdinalIgnoreCase));
 
-        _authorized = true;
-        await LoadAsync();
-    }
+	private string _searchUser = "";
 
-    private async Task LoadAsync()
-    {
-        _departments = await Employees.GetDepartmentsAsync();
-        _users = await Employees.GetAllUsersAsync();
-    }
+	private IEnumerable<User> FilteredUsers =>
+		string.IsNullOrWhiteSpace(_searchUser)
+			? _users
+			: _users.Where(u => u.Name.Contains(_searchUser, StringComparison.OrdinalIgnoreCase));
 
-    private async Task SaveDepartmentAsync(Department dept)
-    {
-        await Employees.UpdateDepartmentAsync(dept.Id, dept.Name, dept.ManagerId);
-        Snackbar.Add("Department updated.", Severity.Success);
-        await LoadAsync();
-    }
+	// The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
+	// so non-admins are redirected without a database query.
+	protected override async Task OnInitializedAsync()
+	{
+		if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+			return;
 
-    private async Task OnManagerChangedAsync(Department dept, Guid? managerId)
-    {
-        dept.ManagerId = managerId;
-        await SaveDepartmentAsync(dept);
-    }
+		var user = (await AuthStateTask!).User;
+		var role = user.FindFirst(ClaimTypes.Role)?.Value;
+		if (role != UserRole.Admin.ToString())
+		{
+			Nav.NavigateTo("/employee/dashboard");
+			return;
+		}
 
-    private async Task CreateDepartmentAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_newName))
-        {
-            Snackbar.Add("Name is required.", Severity.Warning);
-            return;
-        }
-        await Employees.CreateDepartmentAsync(_newName, _newManagerId);
-        Snackbar.Add("Department created.", Severity.Success);
-        _newName = "";
-        _newManagerId = null;
-        await LoadAsync();
-    }
+		_authorized = true;
+		await LoadAsync();
+	}
 
-    private async Task DeleteDepartmentAsync(Department dept)
-    {
-        await Employees.DeleteDepartmentAsync(dept.Id);
-        Snackbar.Add("Department deleted.", Severity.Success);
-        await LoadAsync();
-    }
+	private async Task LoadAsync()
+	{
+		_departments = await Employees.GetDepartmentsAsync();
+		_users = await Employees.GetAllUsersAsync();
+	}
 
-    private async Task OnUserDepartmentChangedAsync(User user, Guid? departmentId)
-    {
-        await Employees.AssignUserToDepartmentAsync(user.Id, departmentId);
-        Snackbar.Add($"{user.Name} moved.", Severity.Success);
-        await LoadAsync();
-    }
+	private async Task SaveDepartmentAsync(Department dept)
+	{
+		await Employees.UpdateDepartmentAsync(dept.Id, dept.Name, dept.ManagerId);
+		Snackbar.Add("Department updated.", Severity.Success);
+		await LoadAsync();
+	}
+
+	private async Task OnManagerChangedAsync(Department dept, Guid? managerId)
+	{
+		dept.ManagerId = managerId;
+		await SaveDepartmentAsync(dept);
+	}
+
+	private async Task CreateDepartmentAsync()
+	{
+		if (string.IsNullOrWhiteSpace(_newName))
+		{
+			Snackbar.Add("Name is required.", Severity.Warning);
+			return;
+		}
+		await Employees.CreateDepartmentAsync(_newName, _newManagerId);
+		Snackbar.Add("Department created.", Severity.Success);
+		_newName = "";
+		_newManagerId = null;
+		await LoadAsync();
+	}
+
+	private async Task DeleteDepartmentAsync(Department dept)
+	{
+		await Employees.DeleteDepartmentAsync(dept.Id);
+		Snackbar.Add("Department deleted.", Severity.Success);
+		await LoadAsync();
+	}
+
+	private async Task OnUserDepartmentChangedAsync(User user, Guid? departmentId)
+	{
+		await Employees.AssignUserToDepartmentAsync(user.Id, departmentId);
+		Snackbar.Add($"{user.Name} moved.", Severity.Success);
+		await LoadAsync();
+	}
+
+	private string GetManagerName(Guid? id) => 
+		id == null ? "None" : _lineManagers.FirstOrDefault(m => m.Id == id)?.Name ?? "";
+
+	private Task<IEnumerable<Guid?>> SearchManagers(string value, CancellationToken token)
+	{
+		var allIds = _lineManagers.Select(m => (Guid?)m.Id).Prepend(null);
+		
+		// Daca textul e gol, SAU e "None", SAU textul este fix numele deja selectat, afisam toata lista
+		if (string.IsNullOrEmpty(value) || value.Equals("None", StringComparison.InvariantCultureIgnoreCase) || _lineManagers.Any(m => m.Name.Equals(value, StringComparison.InvariantCultureIgnoreCase)))
+		{
+			return Task.FromResult(allIds);
+		}
+		
+		var matches = _lineManagers
+			.Where(m => m.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase))
+			.Select(m => (Guid?)m.Id);
+		return Task.FromResult(matches);
+	}
+
+	private string GetDepartmentName(Guid? id) => 
+		id == null ? "None" : _departments.FirstOrDefault(d => d.Id == id)?.Name ?? "";
+
+	private Task<IEnumerable<Guid?>> SearchDepartments(string value, CancellationToken token)
+	{
+		var allIds = _departments.Select(d => (Guid?)d.Id).Prepend(null);
+		
+		// Daca textul e gol, SAU e "None", SAU textul este fix numele departamentului deja selectat, afisam toata lista
+		if (string.IsNullOrEmpty(value) || value.Equals("None", StringComparison.InvariantCultureIgnoreCase) || _departments.Any(d => d.Name.Equals(value, StringComparison.InvariantCultureIgnoreCase)))
+		{
+			return Task.FromResult(allIds);
+		}
+		
+		var matches = _departments
+			.Where(d => d.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase))
+			.Select(d => (Guid?)d.Id);
+		return Task.FromResult(matches);
+	}
 }

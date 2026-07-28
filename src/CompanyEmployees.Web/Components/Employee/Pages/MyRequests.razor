@@ -21,10 +21,7 @@
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Type">
-            <MudChip T="string" Size="Size.Small"
-                     Style="@($"background:{LeaveTypePalette.Hex(context.Type)}; color:white;")">
-                @LeaveTypePalette.Label(context.Type)
-            </MudChip>
+            @LeaveTypePalette.Label(context.Type)
         </MudTd>
         <MudTd DataLabel="Dates">
             @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
