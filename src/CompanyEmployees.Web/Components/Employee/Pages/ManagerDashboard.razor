@@ -130,25 +130,35 @@ else
     }
     else
     {
-        <MudTable T="ManagerTeamMember" Items="@_data.Team" Hover="true" Elevation="1">
-            <HeaderContent>
-                <MudTh>Name</MudTh>
-                <MudTh>Role</MudTh>
-                <MudTh>Department</MudTh>
-                <MudTh>Status</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="Name">@context.Name</MudTd>
-                <MudTd DataLabel="Role">@context.Role</MudTd>
-                <MudTd DataLabel="Department">@context.Department</MudTd>
-                <MudTd DataLabel="Status">
-                    <MudChip T="string" Size="Size.Small"
-                             Color="@(context.OnLeaveToday ? Color.Warning : Color.Default)">
-                        @(context.OnLeaveToday ? "On leave" : "Available")
-                    </MudChip>
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
+        <MudDataGrid T="ManagerTeamMember" Items="@_data.Team" QuickFilter="@_quickFilter"
+                     Filterable="true" SortMode="SortMode.Multiple"
+                     FilterMode="DataGridFilterMode.ColumnFilterRow"
+                     Hover="true" Dense="true" Elevation="1">
+            <ToolBarContent>
+                <MudTextField @bind-Value="_quickSearch" Placeholder="Search members..."
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                              IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Immediate="true" />
+                <MudSpacer />
+            </ToolBarContent>
+            <Columns>
+                <PropertyColumn Property="@(m => m.Name)" Title="Name" />
+                <PropertyColumn Property="@(m => m.Role)" Title="Role" />
+                <PropertyColumn Property="@(m => m.Department)" Title="Department" />
+                <TemplateColumn T="ManagerTeamMember" Title="Status" Sortable="true"
+                                SortBy="@(m => m.OnLeaveToday)" Filterable="false">
+                    <CellTemplate>
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(context.Item.OnLeaveToday ? Color.Warning : Color.Default)">
+                            @(context.Item.OnLeaveToday ? "On leave" : "Available")
+                        </MudChip>
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <PagerContent>
+                <MudDataGridPager T="ManagerTeamMember" />
+            </PagerContent>
+        </MudDataGrid>
     }
 }
 
@@ -159,6 +169,15 @@ else
     private bool _authorized;
     private Guid _managerId;
     private ManagerDashboardResult? _data;
+    private string _quickSearch = "";
+
+    private Func<ManagerTeamMember, bool> _quickFilter => m =>
+    {
+        if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
+        return m.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+            || m.Role.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+            || m.Department.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase);
+    };
 
     // The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
     // so anyone who isn't a manager is redirected without a database query.
