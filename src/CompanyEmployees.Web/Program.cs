@@ -1,4 +1,5 @@
 using Azure.Identity;
+using Blazored.LocalStorage;
 using CompanyEmployees.Application;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Gateway;
@@ -20,6 +21,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddMudServices();
+builder.Services.AddBlazoredLocalStorage();
+builder.Services.AddScoped<ThemeState>();
 builder.Services.AddControllers();
 builder.Services.AddSignalR(options =>
 {

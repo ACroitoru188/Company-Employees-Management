@@ -62,7 +62,9 @@ body {
     text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -.01em; color: var(--text); }
+h1:not([class*="mud-"]), h2:not([class*="mud-"]), h3:not([class*="mud-"]), h4:not([class*="mud-"]) {
+    margin: 0; font-weight: 600; letter-spacing: -.01em; color: var(--text);
+}
 a { color: var(--accent); text-decoration: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 

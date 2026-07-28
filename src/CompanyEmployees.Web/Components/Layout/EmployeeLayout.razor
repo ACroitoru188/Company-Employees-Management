@@ -1,12 +1,15 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
 @inherits LayoutComponentBase
+@inject ThemeState ThemeState
+@implements IDisposable
 
 <CompanyEmployees.Web.Components.Employee.EmployeeProviders />
 
 <MudLayout>
-    <MudAppBar Elevation="1">
+    <MudAppBar Elevation="1" Style="color:#fff;">
         <MudText Typo="Typo.h6" Style="font-weight:700; letter-spacing:.06em;">SIEMENS</MudText>
         <MudText Typo="Typo.body2" Class="ml-3" Style="opacity:.85;">Time Off Management</MudText>
         <MudSpacer />
@@ -75,6 +78,13 @@
                         </div>
                     </ActivatorContent>
                     <ChildContent>
+                        <div class="px-4 py-2 d-flex align-center justify-space-between gap-3" @onclick:stopPropagation="true">
+                            <MudText Typo="Typo.body2">Dark mode</MudText>
+                            <MudSwitch T="bool" Value="ThemeState.IsDarkMode"
+                                       ValueChanged="@(async (bool _) => await ThemeState.ToggleAsync())"
+                                       Color="Color.Primary" />
+                        </div>
+                        <MudDivider />
                         <MudMenuItem Href="mailto:it-support@siemens.com"
                                      Icon="@Icons.Material.Filled.SupportAgent">Contact IT department</MudMenuItem>
                         <MudMenuItem Href="/forgot-password"
@@ -118,6 +128,8 @@
     // flight on the same context throws. Claims are already in memory.
     protected override async Task OnInitializedAsync()
     {
+        ThemeState.OnChange += StateHasChanged;
+
         if (AuthStateTask is null)
             return;
 
@@ -128,4 +140,6 @@
         _initials = string.Concat(
             _name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
     }
+
+    public void Dispose() => ThemeState.OnChange -= StateHasChanged;
 }
