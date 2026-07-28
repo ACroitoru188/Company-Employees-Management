@@ -88,5 +88,11 @@ namespace CompanyEmployees.Gateway.Repositories
             _context.LeaveApprovals.Add(approval);
             await _context.SaveChangesAsync();
         }
+
+        public async Task UpdateRequestDatesAsync(LeaveRequest request)
+        {
+            // "request" is already tracked (it came from GetRequestByIdAsync).
+            await _context.SaveChangesAsync();
+        }
     }
 }

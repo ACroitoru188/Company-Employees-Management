@@ -1,0 +1,55 @@
+@using CompanyEmployees.Application
+@using CompanyEmployees.Application.Contexts
+@inject EmployeeContext Employees
+
+<MudDialog>
+    <DialogContent>
+        <MudDatePicker Label="Start date" @bind-Date="_start" />
+        <MudDatePicker Label="End date" @bind-Date="_end" Class="mt-3" />
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public HrPendingRequest Request { get; set; } = default!;
+
+    private DateTime? _start;
+    private DateTime? _end;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        _start = Request.StartDate.ToDateTime(TimeOnly.MinValue);
+        _end = Request.EndDate.ToDateTime(TimeOnly.MinValue);
+    }
+
+    private async Task Save()
+    {
+        if (_start is null || _end is null)
+        {
+            _error = "Both dates are required.";
+            return;
+        }
+
+        try
+        {
+            await Employees.UpdateRequestDatesAsync(
+                Request.RequestId,
+                DateOnly.FromDateTime(_start.Value),
+                DateOnly.FromDateTime(_end.Value));
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (CompanyEmployees.Domain.Exceptions.InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

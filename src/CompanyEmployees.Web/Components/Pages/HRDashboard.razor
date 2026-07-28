@@ -7,6 +7,7 @@
 @using CompanyEmployees.Web.Security
 @inject EmployeeContext Employees
 @inject NavigationManager Nav
+@inject IDialogService DialogService
 
 <PageTitle>HR Dashboard · Time Off Management</PageTitle>
 
@@ -99,6 +100,7 @@ else
 									<div class="req-name">@request.Name</div>
 									<div class="req-desc">
 										@request.Type &middot; @request.Days @(request.Days == 1 ? "day" : "days") &middot; @request.Department
+										&middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)–@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
 									</div>
 								</div>
 								<div class="req-status status-pending">pending</div>
@@ -140,6 +142,7 @@ else
 									
 									<div class="d-flex justify-end mt-4">
 										<MudButton Variant="Variant.Filled" OnClick="() => ToggleRequest(request)" Class="mr-2">CLOSE</MudButton>
+										<MudButton Variant="Variant.Filled" OnClick="() => EditDates(request)" Class="mr-2">EDIT DATES</MudButton>
 										<MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="RejectRequest" Class="mr-2">REJECT</MudButton>
 										<MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="ApproveRequest">APPROVE</MudButton>
 									</div>
@@ -230,6 +233,18 @@ else
 	private string _name = "";
 	private HrDashboardResult? _data;
 	private string SearchTerm { get; set; } = "";
+
+	private async Task EditDates(HrPendingRequest request)
+	{
+		var parameters = new DialogParameters<EditLeaveDatesDialog>
+		{
+			{ d => d.Request, request }
+		};
+		var dialog = await DialogService.ShowAsync<EditLeaveDatesDialog>("Edit leave period", parameters);
+		var result = await dialog.Result;
+		if (result is { Canceled: false })
+			_data = await Employees.GetHrDashboardAsync();
+	}
 
 	private IEnumerable<HrPendingRequest> FilteredRequests => string.IsNullOrWhiteSpace(SearchTerm)
 		? _data!.Pending
