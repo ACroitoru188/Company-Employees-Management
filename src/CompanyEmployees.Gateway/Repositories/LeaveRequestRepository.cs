@@ -1,3 +1,4 @@
+using CompanyEmployees.Domain;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Domain.GatewayInterfaces;
@@ -52,31 +53,52 @@ namespace CompanyEmployees.Gateway.Repositories
         public async Task<List<LeaveRequest>> GetPendingRequestsByManagerAsync(Guid managerId)
         {
             // Department is included so the manager list can show where each requester sits.
+            // Excludes requests this manager has already decided (a Step=ManagerApprovalStep
+            // row exists) — those are just waiting on HR now, not on this manager anymore.
             return await _context.LeaveRequests
                 .Include(r => r.User)
                     .ThenInclude(u => u.Department)
-                .Where(r => r.User.ManagerId == managerId && r.Status == LeaveStatus.Pending)
+                .Where(r => r.User.ManagerId == managerId
+                            && r.Status == LeaveStatus.Pending
+                            && !r.Approvals.Any(a => a.Step == LeaveApproval.ManagerApprovalStep))
                 .OrderBy(r => r.StartDate)
                 .ToListAsync();
         }
 
         public async Task<List<LeaveRequest>> GetAllPendingRequestsAsync()
         {
-            // Department is included so the HR list can show where each requester sits.
-            return await _context.LeaveRequests
+            // Department/Manager are included so LeaveApprovalPolicy can be evaluated per
+            // requester (some requesters — HR staff — don't need HR review at all). Approvals
+            // excludes requests HR has already decided (a Step=HrApprovalStep row exists) —
+            // those are just waiting on the manager now, not on HR anymore.
+            var candidates = await _context.LeaveRequests
                 .Include(r => r.User)
                     .ThenInclude(u => u.Department)
-                .Where(r => r.Status == LeaveStatus.Pending)
+                .Include(r => r.User)
+                    .ThenInclude(u => u.Manager)
+                .Where(r => r.Status == LeaveStatus.Pending
+                            && !r.Approvals.Any(a => a.Step == LeaveApproval.HrApprovalStep))
                 .OrderBy(r => r.StartDate)
                 .AsNoTracking()
                 .ToListAsync();
+
+            // NeedsHrApproval depends on the requester's role/department/manager triangle,
+            // which isn't a single-column filter EF can translate — evaluated client-side.
+            return candidates
+                .Where(r => LeaveApprovalPolicy.DetermineRequirement(r.User).NeedsHrApproval)
+                .ToList();
         }
 
         public async Task<LeaveRequest?> GetRequestByIdAsync(Guid requestId)
         {
-            // User is included because the decision flow needs the requester's ManagerId.
+            // Manager/Department are included so LeaveApprovalPolicy can be evaluated;
+            // Approvals so IsFullyApproved can see whichever side has already decided.
             return await _context.LeaveRequests
                 .Include(r => r.User)
+                    .ThenInclude(u => u.Manager)
+                .Include(r => r.User)
+                    .ThenInclude(u => u.Department)
+                .Include(r => r.Approvals)
                 .FirstOrDefaultAsync(r => r.Id == requestId);
         }
 

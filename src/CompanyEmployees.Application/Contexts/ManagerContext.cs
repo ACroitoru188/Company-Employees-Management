@@ -1,3 +1,4 @@
+using CompanyEmployees.Domain;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Domain.Exceptions;
@@ -115,38 +116,52 @@ namespace CompanyEmployees.Application.Contexts
             if (request.User.ManagerId != managerId)
                 throw new UnauthorizedException("You are not this employee's manager.");
 
-            request.Status = approve ? LeaveStatus.Approved : LeaveStatus.Rejected;
+            if (request.Approvals.Any(a => a.Step == LeaveApproval.ManagerApprovalStep))
+                throw new InvalidOperationException("You have already decided this request.");
+
+            var requirement = LeaveApprovalPolicy.DetermineRequirement(request.User);
 
             var approval = new LeaveApproval
             {
                 LeaveRequestId = request.Id,
                 ApproverId = managerId,
-                Step = 1,
-                Status = request.Status,
+                Step = LeaveApproval.ManagerApprovalStep,
+                Status = approve ? LeaveStatus.Approved : LeaveStatus.Rejected,
                 ReviewedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
             };
+            request.Approvals.Add(approval);
+
+            // A reject is final immediately — no reason to make HR review a doomed request.
+            // An approve only finalizes once every required approver (HR, if this request
+            // needs it) has also approved; otherwise the request stays Pending.
+            var isFinal = !approve || LeaveApprovalPolicy.IsFullyApproved(request, requirement);
+            if (isFinal)
+                request.Status = approve ? LeaveStatus.Approved : LeaveStatus.Rejected;
 
             await _leaveRequestGateway.SaveDecisionAsync(request, approval);
 
-            // The decision is already committed; a notification failure must not undo it.
-            try
+            if (isFinal)
             {
-                var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
-                             + " – " +
-                             request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-                await _notifications.SendNotificationAsync(
-                    request.UserId,
-                    $"Your {request.Type} leave request for {period} was {(approve ? "approved" : "declined")}.",
-                    "/employee/my-requests");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Decision on {RequestId} saved but the notification failed.", requestId);
+                // The decision is already committed; a notification failure must not undo it.
+                try
+                {
+                    var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                                 + " – " +
+                                 request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+                    await _notifications.SendNotificationAsync(
+                        request.UserId,
+                        $"Your {request.Type} leave request for {period} was {(request.Status == LeaveStatus.Approved ? "approved" : "declined")}.",
+                        "/employee/my-requests");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Decision on {RequestId} saved but the notification failed.", requestId);
+                }
             }
 
-            _logger.LogInformation("Manager {ManagerId} {Decision} leave request {RequestId}.",
-                managerId, approve ? "approved" : "rejected", requestId);
+            _logger.LogInformation("Manager {ManagerId} {Decision} leave request {RequestId}{Final}.",
+                managerId, approve ? "approved" : "rejected", requestId, isFinal ? "" : " (still awaiting HR)");
             return request;
         }
     }

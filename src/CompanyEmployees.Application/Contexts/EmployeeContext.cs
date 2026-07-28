@@ -1,3 +1,4 @@
+using CompanyEmployees.Domain;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Domain.Exceptions;
@@ -192,38 +193,55 @@ namespace CompanyEmployees.Application.Contexts
             if (request.Status != LeaveStatus.Pending)
                 throw new InvalidOperationException("This request has already been decided.");
 
-            request.Status = approve ? LeaveStatus.Approved : LeaveStatus.Rejected;
+            var requirement = LeaveApprovalPolicy.DetermineRequirement(request.User);
+            // The HR dashboard's list already excludes these, but the UI can't be trusted
+            // to enforce it — e.g. HR staff's own requests route to their manager only.
+            if (!requirement.NeedsHrApproval)
+                throw new UnauthorizedException("This request does not require HR approval.");
+            if (request.Approvals.Any(a => a.Step == LeaveApproval.HrApprovalStep))
+                throw new InvalidOperationException("HR has already decided this request.");
 
             var approval = new LeaveApproval
             {
                 LeaveRequestId = request.Id,
                 ApproverId = approverId,
-                Step = 1,
-                Status = request.Status,
+                Step = LeaveApproval.HrApprovalStep,
+                Status = approve ? LeaveStatus.Approved : LeaveStatus.Rejected,
                 ReviewedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
             };
+            request.Approvals.Add(approval);
+
+            // A reject is final immediately — no reason to make the manager review a
+            // doomed request. An approve only finalizes once every required approver
+            // (the manager, if this request needs one) has also approved.
+            var isFinal = !approve || LeaveApprovalPolicy.IsFullyApproved(request, requirement);
+            if (isFinal)
+                request.Status = approve ? LeaveStatus.Approved : LeaveStatus.Rejected;
 
             await _leaveRequestGateway.SaveDecisionAsync(request, approval);
-            
-            try
+
+            if (isFinal)
             {
-                var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
-                             + " – " +
-                             request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-                await _notifications.SendNotificationAsync(
-                    request.UserId,
-                    $"Your {request.Type} leave request for {period} was {(approve ? "approved" : "declined")}.",
-                    "/employee/my-requests");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Decision on {RequestId} saved but the notification failed.", requestId);
+                try
+                {
+                    var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                                 + " – " +
+                                 request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+                    await _notifications.SendNotificationAsync(
+                        request.UserId,
+                        $"Your {request.Type} leave request for {period} was {(request.Status == LeaveStatus.Approved ? "approved" : "declined")}.",
+                        "/employee/my-requests");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Decision on {RequestId} saved but the notification failed.", requestId);
+                }
             }
 
-            _logger.LogInformation("HR {ApproverId} {Decision} leave request {RequestId}.",
-                approverId, approve ? "approved" : "rejected", requestId);
-            
+            _logger.LogInformation("HR {ApproverId} {Decision} leave request {RequestId}{Final}.",
+                approverId, approve ? "approved" : "rejected", requestId, isFinal ? "" : " (still awaiting manager)");
+
             return request;
         }
 
@@ -282,6 +300,10 @@ namespace CompanyEmployees.Application.Contexts
             if (start < today)
                 throw new InvalidOperationException("Leave cannot start in the past.");
 
+            var requester = await _userGateway.GetUserByIdAsync(userId);
+            if (requester == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
             var existing = await _leaveRequestGateway.GetRequestsByUserAsync(userId);
             var overlaps = existing.Any(r =>
                 (r.Status == LeaveStatus.Pending || r.Status == LeaveStatus.Approved)
@@ -296,6 +318,10 @@ namespace CompanyEmployees.Application.Contexts
             if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
                 throw new InvalidOperationException("Not enough days left for this leave type.");
 
+            // Admins sit outside the approval workflow entirely (no approve/reject UI
+            // exists for them as either requester's manager or reviewer) — auto-approved.
+            var requirement = LeaveApprovalPolicy.DetermineRequirement(requester);
+
             var request = new LeaveRequest
             {
                 UserId = userId,
@@ -303,13 +329,13 @@ namespace CompanyEmployees.Application.Contexts
                 StartDate = start,
                 EndDate = end,
                 Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
-                Status = LeaveStatus.Pending,
+                Status = requirement.AutoApproved ? LeaveStatus.Approved : LeaveStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };
             await _leaveRequestGateway.CreateRequestAsync(request);
 
-            _logger.LogInformation("User {UserId} submitted a {Type} leave request {Start}–{End}.",
-                userId, type, start, end);
+            _logger.LogInformation("User {UserId} submitted a {Type} leave request {Start}–{End}{AutoApproved}.",
+                userId, type, start, end, requirement.AutoApproved ? " (auto-approved)" : "");
             return request;
         }
 

@@ -52,6 +52,18 @@
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 
+/* Always reserve the vertical scrollbar's width, even on pages short enough not to
+   need one. Without this, MudContainer's max-width:1280px + centered margins (see
+   MudBlazor.min.css .mud-container) shift left/right depending on whether THIS page's
+   content happens to be tall enough to trigger a scrollbar — e.g. the Calendar page's
+   month grid vs. the shorter Dashboard page, which otherwise renders visibly further
+   right since it never grows a scrollbar. scrollbar-gutter is the modern property;
+   overflow-y is the fallback for browsers that don't support it yet. */
+html {
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+}
+
 body {
     font-family: var(--font);
     background: var(--bg);

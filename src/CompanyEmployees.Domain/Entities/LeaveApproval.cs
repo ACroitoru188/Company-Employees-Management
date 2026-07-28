@@ -4,6 +4,11 @@ namespace CompanyEmployees.Domain.Entities;
 
 public class LeaveApproval
 {
+    // Which required approver a row represents, per LeaveApprovalPolicy — a request can
+    // carry one of each when both are required (see LeaveApprovalPolicy.IsFullyApproved).
+    public const int ManagerApprovalStep = 1;
+    public const int HrApprovalStep = 2;
+
     public Guid Id { get; set; }
     public Guid LeaveRequestId { get; set; }
     public LeaveRequest LeaveRequest { get; set; }
