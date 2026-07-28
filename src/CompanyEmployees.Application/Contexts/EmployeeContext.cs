@@ -221,22 +221,30 @@ namespace CompanyEmployees.Application.Contexts
 
             await _leaveRequestGateway.SaveDecisionAsync(request, approval);
 
-            if (isFinal)
+            try
             {
-                try
+                var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                             + " – " +
+                             request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+                
+                string notificationMessage;
+                if (isFinal)
                 {
-                    var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
-                                 + " – " +
-                                 request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-                    await _notifications.SendNotificationAsync(
-                        request.UserId,
-                        $"Your {request.Type} leave request for {period} was {(request.Status == LeaveStatus.Approved ? "approved" : "declined")}.",
-                        "/employee/my-requests");
+                    notificationMessage = $"Your {request.Type} leave request for {period} was {(request.Status == LeaveStatus.Approved ? "approved" : "declined")}.";
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.LogWarning(ex, "Decision on {RequestId} saved but the notification failed.", requestId);
+                    notificationMessage = $"Your {request.Type} leave request for {period} was approved by HR and is now awaiting Manager approval.";
                 }
+
+                await _notifications.SendNotificationAsync(
+                    request.UserId,
+                    notificationMessage,
+                    "/employee/my-requests");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Decision on {RequestId} saved but the notification failed.", requestId);
             }
 
             _logger.LogInformation("HR {ApproverId} {Decision} leave request {RequestId}{Final}.",
