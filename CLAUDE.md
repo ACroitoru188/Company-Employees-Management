@@ -76,9 +76,11 @@ dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
 ## Domain model (`Domain/Entities`, `Domain/Enums`)
 
 - **`User : IdentityUser<Guid>`** — `Name`, `UserRole Role` (plain **enum column**:
-  Guest/Employee/ProjectManager/LineManager/Admin — *not* Identity roles), `UserStatus Status`,
-  `Guid? ManagerId` + `Manager`/`DirectReports` (self-reference, `DeleteBehavior.NoAction`),
-  `CreatedAt`/`UpdatedAt`.
+  Guest=0/Employee=1/LineManager=3/Admin=4 — *not* Identity roles; **2 is an intentional gap**,
+  `ProjectManager` was removed and folded into `LineManager` on 2026-07-28 — the app never
+  treated the two differently anywhere, so don't reintroduce the distinction or reuse value 2),
+  `UserStatus Status`, `Guid? ManagerId` + `Manager`/`DirectReports` (self-reference,
+  `DeleteBehavior.NoAction`), `CreatedAt`/`UpdatedAt`.
 - **`LeaveRequest`** — `UserId`, `DateOnly StartDate/EndDate`, `Reason`, `LeaveStatus`,
   `LeaveType`, `Approvals`.
 - **`LeaveAllocation`** — per user/type/year day quota.
@@ -145,7 +147,7 @@ dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
 - **Demo accounts come from migrations**, not from app code — see "Demo data" below for the
   full roster and passwords.
 
-## Demo data (`SeedDemoData` + `ResetAccountsAndLeaveData` migrations)
+## Demo data (`SeedDemoData` + `ResetAccountsAndLeaveData` + `RemoveProjectManagerRole` migrations)
 
 All demo accounts and their leave data live in `Persistence/Migrations/SeedData/*.sql` —
 **embedded resources** (registered in `CompanyEmployees.Persistence.csproj`) run by their
@@ -153,7 +155,7 @@ matching migration. **No account is hardcoded in C#**: to add or change demo use
 `.sql` file (as a new migration — never edit an applied one) rather than any C# file. Teammates
 get the identical dataset by pulling and running the app (or `dotnet ef database update`).
 
-Two migrations layer on top of each other — read both, in order, to know what's actually in the
+Three migrations layer on top of each other — read them in order to know what's actually in the
 DB:
 
 1. **`20260720073720_SeedDemoData`** — original 37 users / 7 departments / 148 allocations / 63
@@ -168,9 +170,16 @@ DB:
    the 5 active departments, each reporting to that department's LineManager. No leave requests
    or approvals are seeded by this migration — the table starts empty; only what teammates
    create through the UI exists after this.
+3. **`20260728162532_RemoveProjectManagerRole`** (2026-07-28, same day) — no seed SQL, just
+   `UPDATE [AspNetUsers] SET [Role] = 3 WHERE [Role] = 2`: the 2 remaining `ProjectManager`
+   accounts (Diana Marinescu/Engineering, Alexandru Stoica/Sales — the 3rd, the original
+   `projectmanager@siemens.com`, was already deleted by migration 2) become `LineManager`. They
+   keep their existing 4-person teams and keep reporting to their department's actual
+   LineManager; nothing about the reporting graph changes, only the role label.
 
-Net effect on a freshly-migrated DB: **100 users, all on password `User123!`**, `Design`
-department now empty (its only members were 3 of the deleted 5), and **zero pre-seeded leave
+Net effect on a freshly-migrated DB: **100 users, all on password `User123!`**, every manager
+role is `LineManager` (`ProjectManager` no longer exists as a concept), `Design` department now
+empty (its only members were 3 of the deleted original 5), and **zero pre-seeded leave
 requests/approvals** — that data is now purely whatever's been created through the UI since
 2026-07-28, so don't assume any fixed count; query `LeaveRequests`/`LeaveApprovals` or check the
 HR Dashboard's live counters if you need current numbers.
@@ -204,7 +213,7 @@ Pages in `Web/Components/Employee/Pages/` — `EmployeeDashboard` (`/employee/da
   ("Missing <MudPopoverProvider />").
 - `Components/Layout/EmployeeLayout.razor` (MudAppBar + "WORKSPACE" drawer nav: Dashboard /
   Calendar / Team / My Requests + user footer, plus role/department-conditional sections — "HR"
-  for HR-department users, "Department" for LineManager/ProjectManager, "IT ADMIN" for Admin).
+  for HR-department users, "Department" for LineManager, "IT ADMIN" for Admin).
   It reads the user's name/role from the auth cookie's claims, never the DB — the layout shares
   the page's scoped DbContext and a second in-flight query on it throws.
 - **MudBlazor 9.x** (`9.7.0` pinned in `CompanyEmployees.Web.csproj`); `AddMudServices()` in

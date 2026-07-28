@@ -10,7 +10,7 @@ public static class HomeRouteResolver
 
     public static string Resolve(UserRole? role, string? department)
     {
-        if (role == UserRole.LineManager || role == UserRole.ProjectManager)
+        if (role == UserRole.LineManager)
             return "/manager/team";
 
         if (department == HrDepartmentName)

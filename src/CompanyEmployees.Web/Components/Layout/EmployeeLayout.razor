@@ -44,7 +44,7 @@
                     <MudNavLink Href="hr/dashboard" Match="NavLinkMatch.All"
                                 Icon="@Icons.Material.Filled.Badge">HR Dashboard</MudNavLink>
                 }
-                @if (_role == "LineManager" || _role == "ProjectManager")
+                @if (_role == "LineManager")
                 {
                     <MudNavLink Href="manager/team" Match="NavLinkMatch.All"
                                 Icon="@Icons.Material.Filled.SupervisorAccount">Department</MudNavLink>
