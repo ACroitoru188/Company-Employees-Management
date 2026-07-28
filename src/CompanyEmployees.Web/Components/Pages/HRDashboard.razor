@@ -227,6 +227,7 @@ else
 
 @code {
 	private HrPendingRequest? _selectedRequest;
+	private Guid _myId;
 
 	private void ToggleRequest(HrPendingRequest request)
 	{
@@ -240,16 +241,24 @@ else
 		}
 	}
 
-	private void ApproveRequest()
+	private async Task ApproveRequest()
 	{
-		// Aici vei pune logica backend de aprobare pe viitor
-		_selectedRequest = null;
+		if (_selectedRequest != null)
+		{
+			await Employees.HrDecideRequestAsync(_myId, _selectedRequest.RequestId, true);
+			_selectedRequest = null;
+			_data = await Employees.GetHrDashboardAsync();
+		}
 	}
 
-	private void RejectRequest()
+	private async Task RejectRequest()
 	{
-		// Aici vei pune logica backend de respingere pe viitor
-		_selectedRequest = null;
+		if (_selectedRequest != null)
+		{
+			await Employees.HrDecideRequestAsync(_myId, _selectedRequest.RequestId, false);
+			_selectedRequest = null;
+			_data = await Employees.GetHrDashboardAsync();
+		}
 	}
 
 	[CascadingParameter]
@@ -290,6 +299,8 @@ else
 		}
 
 		_name = user.FindFirst("FullName")?.Value ?? "";
+		var me = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
+		_myId = me.Id;
 		_data = await Employees.GetHrDashboardAsync();
 	}
 
