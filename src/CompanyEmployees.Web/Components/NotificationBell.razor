@@ -76,13 +76,14 @@
 
         _hubConnection.On<Notification>("ReceiveNotification", (newNotification) =>
         {
-            _notifications.Add(newNotification);
+            _notifications.Insert(0, newNotification);
             InvokeAsync(StateHasChanged);
         });
 
-        try 
+        try
         {
             await _hubConnection.StartAsync();
+            await _hubConnection.InvokeAsync("Register", _currentUserId.ToString());
         }
         catch (Exception ex)
         {

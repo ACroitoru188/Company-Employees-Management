@@ -31,7 +31,7 @@ namespace CompanyEmployees.Application.Contexts
 
             await _gateway.CreateNotificationAsync(notification);
 
-            await _hubContext.Clients.User(userId.ToString())
+            await _hubContext.Clients.Group(userId.ToString())
                 .SendAsync("ReceiveNotification", notification);
             return notification;
         }

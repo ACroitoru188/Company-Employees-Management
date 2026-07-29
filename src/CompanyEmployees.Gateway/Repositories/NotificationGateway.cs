@@ -29,6 +29,7 @@ namespace CompanyEmployees.Gateway.Repositories
             {
                 return await _context.Notifications
                     .Where(n => n.UserId == userId && !n.IsRead)
+                    .OrderByDescending(n => n.CreatedAt)
                     .ToListAsync();
             }
             catch
