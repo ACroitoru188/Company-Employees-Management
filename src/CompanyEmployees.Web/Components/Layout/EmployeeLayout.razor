@@ -36,6 +36,8 @@
                             Icon="@Icons.Material.Filled.Groups">Team</MudNavLink>
                 <MudNavLink Href="employee/my-requests" Match="NavLinkMatch.All"
                             Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
+                <MudNavLink Href="employee/org-chart" Match="NavLinkMatch.All"
+                            Icon="@Icons.Material.Filled.AccountTree">Org Chart</MudNavLink>
                 @if (_department == HomeRouteResolver.HrDepartmentName)
                 {
                     <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">

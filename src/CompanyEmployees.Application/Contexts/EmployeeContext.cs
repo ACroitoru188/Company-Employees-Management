@@ -382,5 +382,118 @@ namespace CompanyEmployees.Application.Contexts
 
         private static int CountDays(DateOnly start, DateOnly end) =>
             end.DayNumber - start.DayNumber + 1;
+
+        public async Task<OrgChartNode?> GetCompanyOrgChartAsync(Guid currentUserId, bool isAdmin)
+        {
+            var allUsers = await _userGateway.GetAllUsersAsync();
+            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
+
+            var nodeMap = new Dictionary<Guid, OrgChartNode>();
+            foreach (var u in activeUsers)
+            {
+                var initials = string.Concat(u.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
+                if (initials.Length > 2) initials = initials.Substring(0, 2);
+
+                nodeMap[u.Id] = new OrgChartNode
+                {
+                    UserId = u.Id,
+                    Name = u.Name,
+                    Role = u.Role.ToString(),
+                    Department = u.Department?.Name ?? string.Empty,
+                    Initials = initials
+                };
+            }
+
+            // Cycle detection using upward traversal
+            foreach (var user in activeUsers)
+            {
+                var visited = new HashSet<Guid>();
+                var currentId = user.Id;
+                while (currentId != Guid.Empty)
+                {
+                    if (!visited.Add(currentId))
+                    {
+                        _logger.LogError("Cycle detected in org chart involving user {UserId}", currentId);
+                        throw new InvalidOperationException("Hierarchy cycle detected in database.");
+                    }
+                    var current = activeUsers.FirstOrDefault(u => u.Id == currentId);
+                    if (current?.ManagerId == null)
+                        break;
+                    currentId = current.ManagerId.Value;
+                }
+            }
+
+            // Build tree
+            OrgChartNode? root = null;
+            var childrenMap = new Dictionary<Guid, List<OrgChartNode>>();
+
+            foreach (var user in activeUsers)
+            {
+                var node = nodeMap[user.Id];
+                if (user.ManagerId == null)
+                {
+                    if (root == null)
+                        root = node;
+                }
+                else
+                {
+                    if (!childrenMap.ContainsKey(user.ManagerId.Value))
+                        childrenMap[user.ManagerId.Value] = new List<OrgChartNode>();
+                    childrenMap[user.ManagerId.Value].Add(node);
+                }
+            }
+
+            // Recursive function to attach children
+            void AttachChildren(OrgChartNode parent)
+            {
+                if (childrenMap.TryGetValue(parent.UserId, out var children))
+                {
+                    parent.Subordinates = children.OrderBy(c => c.Name).ToList();
+                    foreach (var child in parent.Subordinates)
+                    {
+                        AttachChildren(child);
+                    }
+                }
+            }
+
+            if (root != null)
+            {
+                AttachChildren(root);
+                
+                // Determine focus
+                if (!isAdmin)
+                {
+                    var currentUser = activeUsers.FirstOrDefault(u => u.Id == currentUserId);
+                    if (currentUser != null)
+                    {
+                        // Mark current user's department as focus
+                        MarkFocus(root, currentUser.Department?.Name);
+                    }
+                }
+                else
+                {
+                    MarkFocus(root, null); // Admins see everything focused (or nothing faded)
+                }
+            }
+
+            return root;
+        }
+
+        private void MarkFocus(OrgChartNode node, string? targetDepartment)
+        {
+            if (targetDepartment == null) 
+            {
+                node.IsFocusNode = true;
+            }
+            else
+            {
+                node.IsFocusNode = node.Department == targetDepartment;
+            }
+            
+            foreach (var child in node.Subordinates)
+            {
+                MarkFocus(child, targetDepartment);
+            }
+        }
     }
 }

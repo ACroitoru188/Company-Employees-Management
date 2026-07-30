@@ -1,0 +1,101 @@
+@page "/employee/org-chart"
+@layout CompanyEmployees.Web.Components.Layout.EmployeeLayout
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Application
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
+@inject EmployeeContext EmployeeCtx
+@inject NavigationManager Nav
+
+<PageTitle>Organization Chart · Time Off Management</PageTitle>
+
+<MudText Typo="Typo.h5" Style="font-weight:600;">Organization Chart</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+    Explore the company structure. Drag to pan, scroll to zoom.
+</MudText>
+
+<MudCard Elevation="1" Class="org-card">
+    <MudCardContent Class="org-container" id="orgContainer" @onwheel="OnWheel" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp" @onmouseleave="OnMouseUp">
+        @if (_root == null)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        }
+        else
+        {
+            <div class="org-zoom-wrapper" style="transform: scale(@_scale) translate(@(_translateX)px, @(_translateY)px);">
+                <div class="org-tree">
+                    <ul>
+                        <OrgChartNodeComponent Node="_root" />
+                    </ul>
+                </div>
+            </div>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private OrgChartNode? _root;
+    
+    // Zoom and pan state
+    private double _scale = 1.0;
+    private double _translateX = 0;
+    private double _translateY = 0;
+    
+    private bool _isDragging = false;
+    private double _startX = 0;
+    private double _startY = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, true))
+            return;
+
+        var authState = await AuthStateTask!;
+        var userIdString = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = authState.User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (Guid.TryParse(userIdString, out var userId))
+        {
+            bool isAdmin = role == "Admin";
+            _root = await EmployeeCtx.GetCompanyOrgChartAsync(userId, isAdmin);
+        }
+    }
+
+    private void OnWheel(WheelEventArgs e)
+    {
+        // Simple zoom logic
+        if (e.DeltaY < 0)
+        {
+            _scale = Math.Min(3.0, _scale + 0.1);
+        }
+        else if (e.DeltaY > 0)
+        {
+            _scale = Math.Max(0.3, _scale - 0.1);
+        }
+    }
+
+    private void OnMouseDown(MouseEventArgs e)
+    {
+        _isDragging = true;
+        _startX = e.ClientX - _translateX;
+        _startY = e.ClientY - _translateY;
+    }
+
+    private void OnMouseMove(MouseEventArgs e)
+    {
+        if (_isDragging)
+        {
+            _translateX = e.ClientX - _startX;
+            _translateY = e.ClientY - _startY;
+        }
+    }
+
+    private void OnMouseUp(MouseEventArgs e)
+    {
+        _isDragging = false;
+    }
+}
