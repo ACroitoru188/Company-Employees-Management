@@ -2,15 +2,11 @@
 @using MudBlazor
 
 <li>
-    <div class="org-node @(Node.IsFocusNode ? "org-node-focus" : "org-node-unfocus")">
-        <MudAvatar Size="Size.Medium" Color="Color.Primary" Class="mb-2">@Node.Initials</MudAvatar>
-        <MudText Typo="Typo.body2" Style="font-weight: 600; line-height: 1.2;">@Node.Name</MudText>
-        <MudText Typo="Typo.caption" Style="display: block; margin-top: 4px;">@Node.Role</MudText>
-        @if (!string.IsNullOrEmpty(Node.Department))
-        {
-            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary); display: block;">@Node.Department</MudText>
-        }
-    </div>
+    <MudTooltip Text="@($"{Node.Name} - {Node.Role}")" Placement="Placement.Top">
+        <div class="org-node @(Node.IsFocusNode ? "org-node-focus" : "org-node-unfocus")">
+            <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">@Node.Initials</MudText>
+        </div>
+    </MudTooltip>
     @if (Node.Subordinates.Any())
     {
         <ul>

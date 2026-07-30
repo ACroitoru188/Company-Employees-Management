@@ -94,28 +94,35 @@
 
 /* Node styles */
 ::deep .org-node {
-    border: 1px solid var(--mud-palette-lines-default);
-    padding: 15px;
-    border-radius: 8px;
+    border: 2px solid var(--mud-palette-lines-default);
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
     background-color: var(--mud-palette-surface);
-    display: inline-block;
-    min-width: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
     box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
     transition: all 0.3s ease;
+    cursor: pointer;
 }
 
 ::deep .org-node:hover {
-    box-shadow: 0px 4px 8px rgba(0,0,0,0.1);
+    box-shadow: 0px 4px 8px rgba(0,0,0,0.15);
     transform: translateY(-2px);
+    border-color: var(--mud-palette-primary);
 }
 
 ::deep .org-node-unfocus {
-    opacity: 0.6;
+    opacity: 0.5;
     background-color: var(--mud-palette-background-grey);
 }
 
 ::deep .org-node-focus {
     opacity: 1;
     border-color: var(--mud-palette-primary);
-    box-shadow: 0px 0px 10px rgba(var(--mud-palette-primary-rgb), 0.2);
+    background-color: var(--mud-palette-primary-hover);
+    color: var(--mud-palette-primary);
+    box-shadow: 0px 0px 10px rgba(var(--mud-palette-primary-rgb), 0.3);
 }
