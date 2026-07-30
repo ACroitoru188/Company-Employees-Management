@@ -15,8 +15,8 @@
     Explore the company structure. Drag to pan, scroll to zoom.
 </MudText>
 
-<MudCard Elevation="1" Class="org-card">
-    <MudCardContent Class="pa-0 org-container" id="orgContainer" @onwheel="OnWheel" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp" @onmouseleave="OnMouseUp">
+<MudCard Elevation="1" Style="height: 75vh; overflow: hidden; position: relative; cursor: grab;" class="org-card">
+    <MudCardContent Class="pa-0" Style="height: 100%; width: 100%; position: relative; background-color: var(--mud-palette-background-grey); overflow: hidden;" id="orgContainer" @onwheel="OnWheel" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp" @onmouseleave="OnMouseUp">
         @if (_root == null)
         {
             <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
@@ -24,11 +24,11 @@
         else
         {
             <svg width="100%" height="100%">
-                <g transform="translate(@(_translateX), @(_translateY)) scale(@_scale)">
+                <g transform="@($"translate({_translateX.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {_translateY.ToString(System.Globalization.CultureInfo.InvariantCulture)}) scale({_scale.ToString(System.Globalization.CultureInfo.InvariantCulture)})")">
                     @* Lines Layer *@
                     @foreach (var edge in _edges)
                     {
-                        <line x1="@edge.Source.X" y1="@edge.Source.Y" x2="@edge.Target.X" y2="@edge.Target.Y" 
+                        <line x1="@edge.Source.X" y1="@(edge.Source.Y + 25)" x2="@edge.Target.X" y2="@(edge.Target.Y - 25)" 
                               class="@(edge.Target.IsFocusNode && edge.Source.IsFocusNode ? "org-line-focus" : "org-line")" />
                     }
 
@@ -38,9 +38,24 @@
                         <g transform="translate(@node.X, @node.Y)">
                             <!-- We render a MudTooltip inside a foreignObject, or just standard SVG title for tooltip -->
                             <title>@($"{node.Name} - {node.Role}")</title>
-                            <circle r="25" class="@(node.IsFocusNode ? "org-node-circle-focus" : "org-node-circle")" />
-                            <text class="@(node.IsFocusNode ? "org-text-focus" : "org-text")" dominant-baseline="central" text-anchor="middle">@node.Initials</text>
+                            <title>@($"{node.Name} - {node.Role}")</title>
+                            <circle r="25" class="@(node.IsFocusNode ? "org-node-circle-focus" : "org-node-circle")" 
+                                    @onmouseenter="() => OnNodeMouseEnter(node)" @onmouseleave="OnNodeMouseLeave" />
+                            <text class="@(node.IsFocusNode ? "org-text-focus" : "org-text")" dominant-baseline="central" text-anchor="middle"
+                                  style="pointer-events: none;">@node.Initials</text>
                         </g>
+                    }
+
+                    @* Hover Info Panel (Rendered last to ensure it's on top/foreground) *@
+                    @if (_hoveredNode != null)
+                    {
+                        <foreignObject x="@(_hoveredNode.X + 35)" y="@(_hoveredNode.Y - 40)" width="220" height="120" style="pointer-events: none;">
+                            <div class="org-info-panel">
+                                <div style="font-weight: bold; margin-bottom: 4px; font-size: 14px; color: var(--mud-palette-text-primary);">@_hoveredNode.Name</div>
+                                <div style="font-size: 12px; color: var(--mud-palette-text-secondary); margin-bottom: 2px;">@_hoveredNode.Role</div>
+                                <div style="font-size: 12px; color: var(--mud-palette-primary);">@_hoveredNode.Department</div>
+                            </div>
+                        </foreignObject>
                     }
                 </g>
             </svg>
@@ -61,9 +76,12 @@
     private double _translateX = 0;
     private double _translateY = 0;
     
+    private OrgChartNode? _hoveredNode = null;
+    
     private bool _isDragging = false;
     private double _startX = 0;
     private double _startY = 0;
+    private bool _hasDragged = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -102,20 +120,29 @@
 
     private void OnWheel(WheelEventArgs e)
     {
-        // Simple zoom logic centered on cursor - for a quick fix we just scale the group
-        if (e.DeltaY < 0)
-        {
-            _scale = Math.Min(3.0, _scale + 0.1);
-        }
-        else if (e.DeltaY > 0)
-        {
-            _scale = Math.Max(0.3, _scale - 0.1);
-        }
+        double zoomFactor = e.DeltaY < 0 ? 1.1 : 0.9;
+        double newScale = _scale * zoomFactor;
+        
+        // Clamp scale to prevent graph from disappearing
+        if (newScale < 0.1) newScale = 0.1;
+        if (newScale > 5.0) newScale = 5.0;
+
+        // Approximate center of screen for stable zooming
+        double centerX = 600; 
+        double centerY = 300; 
+
+        double graphX = (centerX - _translateX) / _scale;
+        double graphY = (centerY - _translateY) / _scale;
+
+        _translateX = centerX - graphX * newScale;
+        _translateY = centerY - graphY * newScale;
+        _scale = newScale;
     }
 
     private void OnMouseDown(MouseEventArgs e)
     {
         _isDragging = true;
+        _hasDragged = false;
         _startX = e.ClientX - _translateX;
         _startY = e.ClientY - _translateY;
     }
@@ -124,6 +151,7 @@
     {
         if (_isDragging)
         {
+            _hasDragged = true;
             _translateX = e.ClientX - _startX;
             _translateY = e.ClientY - _startY;
         }
@@ -132,5 +160,16 @@
     private void OnMouseUp(MouseEventArgs e)
     {
         _isDragging = false;
+    }
+
+    private void OnNodeMouseEnter(OrgChartNode node)
+    {
+        if (_isDragging) return; // Prevent hover popups while panning the canvas
+        _hoveredNode = node;
+    }
+
+    private void OnNodeMouseLeave()
+    {
+        _hoveredNode = null;
     }
 }

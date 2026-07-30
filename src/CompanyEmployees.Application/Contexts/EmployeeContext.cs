@@ -424,16 +424,24 @@ namespace CompanyEmployees.Application.Contexts
             }
 
             // Build tree
-            OrgChartNode? root = null;
             var childrenMap = new Dictionary<Guid, List<OrgChartNode>>();
+            var root = new OrgChartNode
+            {
+                UserId = Guid.Empty,
+                Name = "Company",
+                Role = "Headquarters",
+                Department = "All Departments",
+                Initials = "HQ"
+            };
 
             foreach (var user in activeUsers)
             {
                 var node = nodeMap[user.Id];
                 if (user.ManagerId == null)
                 {
-                    if (root == null)
-                        root = node;
+                    if (!childrenMap.ContainsKey(Guid.Empty))
+                        childrenMap[Guid.Empty] = new List<OrgChartNode>();
+                    childrenMap[Guid.Empty].Add(node);
                 }
                 else
                 {
@@ -477,7 +485,7 @@ namespace CompanyEmployees.Application.Contexts
 
                 // Math Layout Passes
                 CalculateSubtreeWidths(root);
-                CalculateNodeCoordinates(root, 0, root.SubtreeWidth / 2, 0);
+                CalculateNodeCoordinates(root, 0, root.SubtreeWidth / 2, 0, 50.0);
             }
 
             return root;
@@ -501,12 +509,15 @@ namespace CompanyEmployees.Application.Contexts
             node.SubtreeWidth = Math.Max(80.0, totalWidth);
         }
 
-        private void CalculateNodeCoordinates(OrgChartNode node, int depth, double x, int siblingIndex)
+        private void CalculateNodeCoordinates(OrgChartNode node, int depth, double x, int siblingIndex, double currentY)
         {
             node.Depth = depth;
             node.X = x;
-            // Vertical spacing 120px. Stagger siblings to save space (odd indices are 40px lower)
-            node.Y = depth * 120.0 + ((siblingIndex % 2 == 1) ? 40.0 : 0.0);
+            
+            // Stagger siblings to save space (odd indices are 40px lower)
+            // The stagger is added to the current accumulated Y, so the whole subtree shifts down.
+            double stagger = (siblingIndex % 2 == 1) ? 40.0 : 0.0;
+            node.Y = currentY + stagger;
 
             if (node.Subordinates.Count > 0)
             {
@@ -515,7 +526,8 @@ namespace CompanyEmployees.Application.Contexts
                 {
                     var child = node.Subordinates[i];
                     double childCenter = currentX + (child.SubtreeWidth / 2.0);
-                    CalculateNodeCoordinates(child, depth + 1, childCenter, i);
+                    // Next level base Y is node.Y + 120
+                    CalculateNodeCoordinates(child, depth + 1, childCenter, i, node.Y + 120.0);
                     currentX += child.SubtreeWidth;
                 }
             }
