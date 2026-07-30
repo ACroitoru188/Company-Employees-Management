@@ -132,15 +132,20 @@
     border: 1px solid var(--mud-palette-lines-default);
     border-radius: 4px;
     padding: 4px 6px;
-    cursor: pointer;
+    cursor: default;
     display: flex;
     flex-direction: column;
     gap: 2px;
     overflow: hidden;
 }
 
-.cal-cell:hover {
+.cal-cell.cal-selectable {
+    cursor: pointer;
+}
+
+.cal-cell.cal-selectable:hover {
     border-color: var(--mud-palette-primary);
+    box-shadow: inset 0 0 0 1px var(--mud-palette-primary);
 }
 
 .cal-daynum {
@@ -149,13 +154,25 @@
 }
 
 .cal-other {
-    opacity: 0.35;
-    pointer-events: none;
+    background: color-mix(in srgb, var(--mud-palette-surface) 88%, var(--mud-palette-background));
+    border-style: dashed;
+}
+
+.cal-other .cal-daynum {
+    color: var(--mud-palette-text-secondary);
+}
+
+.cal-other.cal-selectable:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 4%, var(--mud-palette-surface));
+}
+
+.cal-other.cal-selected {
+    border-style: solid;
 }
 
 .cal-past {
     opacity: 0.45;
-    pointer-events: none;
+    cursor: not-allowed;
 }
 
 .cal-today-cell .cal-daynum {
@@ -240,7 +257,30 @@
     flex-direction: column;
     gap: 5px;
     min-width: 0;
+    cursor: default;
+}
+
+.wv-cell-selectable {
     cursor: pointer;
+}
+
+.wv-cell-selectable:hover {
+    border-color: var(--mud-palette-primary);
+    box-shadow: inset 0 0 0 1px var(--mud-palette-primary);
+}
+
+.wv-head-past {
+    opacity: 0.55;
+}
+
+.wv-cell-past {
+    background: color-mix(in srgb, var(--mud-palette-surface) 82%, var(--mud-palette-background));
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.wv-cell-selected {
+    opacity: 1;
 }
 
 .wv-cell-today {

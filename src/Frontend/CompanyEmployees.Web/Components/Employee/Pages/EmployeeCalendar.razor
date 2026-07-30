@@ -69,9 +69,13 @@
                     var inMonth = day.Month == VisibleMonth.Month;
                     var isPast = day < _today;
                     var selected = IsSelected(day);
-                    <div class="cal-cell @(inMonth ? "" : "cal-other") @(isPast ? "cal-past" : "") @(day == _today ? "cal-today-cell" : "")"
+                    var canSelect = CanSelectDay(day);
+                    <div class="cal-cell @(inMonth ? "" : "cal-other") @(isPast ? "cal-past" : "") @(selected ? "cal-selected" : "") @(canSelect ? "cal-selectable" : "cal-disabled") @(day == _today ? "cal-today-cell" : "")"
                          style="@(selected && _selectedType is { } t ? $"background:{LeaveTypePalette.HighlightHex(t)};" : "")"
-                         @onclick="() => OnDayClick(day)">
+                         data-date="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
+                         aria-disabled="@(!canSelect)"
+                         title="@UnavailableDateHint(day)"
+                         @onclick="DayClickCallback(day)">
                         <span class="cal-daynum">@day.Day</span>
                         @if (_teamByDay.TryGetValue(day, out var absences))
                         {
@@ -101,15 +105,20 @@
             {
                 var day = WeekStart.AddDays(i);
                 var isToday = day == _today;
+                var isPast = day < _today;
                 var selected = IsSelected(day);
+                var canSelect = CanSelectDay(day);
                 <div class="wv-col">
-                    <div class="wv-head">
+                    <div class="wv-head @(isPast ? "wv-head-past" : "")">
                         <span class="wv-dow">@(day.ToString("ddd", CultureInfo.InvariantCulture).ToUpperInvariant())</span>
                         <span class="wv-num @(isToday ? "wv-num-today" : "")">@day.Day</span>
                     </div>
-                    <div class="wv-cell @(isToday ? "wv-cell-today" : "")"
+                    <div class="wv-cell @(isToday ? "wv-cell-today" : "") @(isPast ? "wv-cell-past" : "") @(selected ? "wv-cell-selected" : "") @(canSelect ? "wv-cell-selectable" : "wv-cell-disabled")"
                          style="@(selected && _selectedType is { } t ? $"background:{LeaveTypePalette.HighlightHex(t)};" : "")"
-                         @onclick="() => OnDayClick(day)">
+                         data-date="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
+                         aria-disabled="@(!canSelect)"
+                         title="@UnavailableDateHint(day)"
+                         @onclick="DayClickCallback(day)">
                         @foreach (var item in FilteredRanges.Where(r => r.StartDate <= day && r.EndDate >= day))
                         {
                             <div class="wv-card" style="background:@LeaveTypePalette.Hex(item.Type);">
@@ -399,11 +408,24 @@
     private bool IsSelected(DateOnly day) =>
         _range is { } r && day >= r.Start && day <= r.End;
 
+    private bool CanSelectDay(DateOnly day) =>
+        _selectedType is not null && day >= _today;
+
+    private EventCallback<MouseEventArgs> DayClickCallback(DateOnly day) =>
+        CanSelectDay(day)
+            ? EventCallback.Factory.Create<MouseEventArgs>(this, () => OnDayClick(day))
+            : default;
+
+    private string? UnavailableDateHint(DateOnly day)
+    {
+        if (day < _today)
+            return "Past dates cannot be selected.";
+        return _selectedType is null ? "Select a leave type first." : null;
+    }
+
     private void OnDayClick(DateOnly day)
     {
-        if (_selectedType is null || day < _today)
-            return;
-        if (_view == CalView.Month && day.Month != VisibleMonth.Month)
+        if (!CanSelectDay(day))
             return;
 
         if (IsSelected(day))
