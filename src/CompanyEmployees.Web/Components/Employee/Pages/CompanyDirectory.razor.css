@@ -16,113 +16,59 @@
     overflow: hidden;
     position: relative;
     background-color: var(--mud-palette-background-grey);
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
-.org-zoom-wrapper {
-    transform-origin: center center;
-    transition: transform 0.1s ease-out; /* Smooth zooming, but dragging might feel slightly delayed if transition applies to translate. Usually, we separate them, but this is a simple implementation */
-    will-change: transform;
+/* SVG Line Styles */
+::deep .org-line {
+    stroke: var(--mud-palette-lines-default);
+    stroke-width: 2px;
+    opacity: 0.5;
 }
 
-/* 
- * CSS Flexbox Org Chart Lines
- * Based on classic CSS tree generation.
- */
-
-::deep .org-tree ul {
-    padding-top: 20px; 
-    position: relative;
-    transition: all 0.5s;
-    display: flex;
-    justify-content: center;
-    padding-left: 0;
-    list-style-type: none;
+::deep .org-line-focus {
+    stroke: var(--mud-palette-primary);
+    stroke-width: 3px;
+    opacity: 1;
 }
 
-::deep .org-tree li {
-    float: left; text-align: center;
-    list-style-type: none;
-    position: relative;
-    padding: 20px 10px 0 10px;
-    transition: all 0.5s;
-}
-
-/* We will use ::before and ::after to draw the connectors */
-::deep .org-tree li::before, ::deep .org-tree li::after{
-    content: '';
-    position: absolute; top: 0; right: 50%;
-    border-top: 2px solid var(--mud-palette-lines-default);
-    width: 50%; height: 20px;
-}
-::deep .org-tree li::after{
-    right: auto; left: 50%;
-    border-left: 2px solid var(--mud-palette-lines-default);
-}
-
-/* We need to remove left-right connectors from elements without any siblings */
-::deep .org-tree li:only-child::after, ::deep .org-tree li:only-child::before {
-    display: none;
-}
-
-/* Remove space from the top of single children */
-::deep .org-tree li:only-child{ padding-top: 0;}
-
-/* Remove left connector from first child and right connector from last child */
-::deep .org-tree li:first-child::before, ::deep .org-tree li:last-child::after{
-    border: 0 none;
-}
-/* Adding back the vertical connector to the last nodes */
-::deep .org-tree li:last-child::before{
-    border-right: 2px solid var(--mud-palette-lines-default);
-    border-radius: 0 5px 0 0;
-}
-::deep .org-tree li:first-child::after{
-    border-radius: 5px 0 0 0;
-}
-
-/* Time to add downward connectors from parents */
-::deep .org-tree ul ul::before{
-    content: '';
-    position: absolute; top: 0; left: 50%;
-    border-left: 2px solid var(--mud-palette-lines-default);
-    width: 0; height: 20px;
-    transform: translateX(-1px);
-}
-
-/* Node styles */
-::deep .org-node {
-    border: 2px solid var(--mud-palette-lines-default);
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background-color: var(--mud-palette-surface);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto;
-    box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
+/* SVG Node Styles */
+::deep .org-node-circle {
+    fill: var(--mud-palette-surface);
+    stroke: var(--mud-palette-lines-default);
+    stroke-width: 2px;
+    opacity: 0.5;
     transition: all 0.3s ease;
+}
+
+::deep .org-node-circle-focus {
+    fill: var(--mud-palette-primary-hover);
+    stroke: var(--mud-palette-primary);
+    stroke-width: 3px;
+    opacity: 1;
+    transition: all 0.3s ease;
+    filter: drop-shadow(0px 0px 8px rgba(var(--mud-palette-primary-rgb), 0.4));
+}
+
+::deep .org-node-circle:hover, ::deep .org-node-circle-focus:hover {
+    stroke-width: 4px;
     cursor: pointer;
 }
 
-::deep .org-node:hover {
-    box-shadow: 0px 4px 8px rgba(0,0,0,0.15);
-    transform: translateY(-2px);
-    border-color: var(--mud-palette-primary);
+/* SVG Text Styles */
+::deep .org-text {
+    font-family: 'Roboto', 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    fill: var(--mud-palette-text-secondary);
+    opacity: 0.6;
+    pointer-events: none; /* text doesn't interfere with hover */
 }
 
-::deep .org-node-unfocus {
-    opacity: 0.5;
-    background-color: var(--mud-palette-background-grey);
-}
-
-::deep .org-node-focus {
+::deep .org-text-focus {
+    font-family: 'Roboto', 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    fill: var(--mud-palette-primary);
     opacity: 1;
-    border-color: var(--mud-palette-primary);
-    background-color: var(--mud-palette-primary-hover);
-    color: var(--mud-palette-primary);
-    box-shadow: 0px 0px 10px rgba(var(--mud-palette-primary-rgb), 0.3);
+    pointer-events: none;
 }

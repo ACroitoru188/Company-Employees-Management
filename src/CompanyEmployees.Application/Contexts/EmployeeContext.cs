@@ -474,9 +474,51 @@ namespace CompanyEmployees.Application.Contexts
                 {
                     MarkFocus(root, null); // Admins see everything focused (or nothing faded)
                 }
+
+                // Math Layout Passes
+                CalculateSubtreeWidths(root);
+                CalculateNodeCoordinates(root, 0, root.SubtreeWidth / 2, 0);
             }
 
             return root;
+        }
+
+        private void CalculateSubtreeWidths(OrgChartNode node)
+        {
+            if (node.Subordinates.Count == 0)
+            {
+                node.SubtreeWidth = 80.0; // Base width for a single node
+                return;
+            }
+
+            double totalWidth = 0;
+            foreach (var child in node.Subordinates)
+            {
+                CalculateSubtreeWidths(child);
+                totalWidth += child.SubtreeWidth;
+            }
+
+            node.SubtreeWidth = Math.Max(80.0, totalWidth);
+        }
+
+        private void CalculateNodeCoordinates(OrgChartNode node, int depth, double x, int siblingIndex)
+        {
+            node.Depth = depth;
+            node.X = x;
+            // Vertical spacing 120px. Stagger siblings to save space (odd indices are 40px lower)
+            node.Y = depth * 120.0 + ((siblingIndex % 2 == 1) ? 40.0 : 0.0);
+
+            if (node.Subordinates.Count > 0)
+            {
+                double currentX = x - (node.SubtreeWidth / 2.0);
+                for (int i = 0; i < node.Subordinates.Count; i++)
+                {
+                    var child = node.Subordinates[i];
+                    double childCenter = currentX + (child.SubtreeWidth / 2.0);
+                    CalculateNodeCoordinates(child, depth + 1, childCenter, i);
+                    currentX += child.SubtreeWidth;
+                }
+            }
         }
 
         private void MarkFocus(OrgChartNode node, string? targetDepartment)

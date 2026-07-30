@@ -23,13 +23,27 @@
         }
         else
         {
-            <div class="org-zoom-wrapper" style="transform: scale(@_scale) translate(@(_translateX)px, @(_translateY)px);">
-                <div class="org-tree">
-                    <ul>
-                        <OrgChartNodeComponent Node="_root" />
-                    </ul>
-                </div>
-            </div>
+            <svg width="100%" height="100%">
+                <g transform="translate(@(_translateX), @(_translateY)) scale(@_scale)">
+                    @* Lines Layer *@
+                    @foreach (var edge in _edges)
+                    {
+                        <line x1="@edge.Source.X" y1="@edge.Source.Y" x2="@edge.Target.X" y2="@edge.Target.Y" 
+                              class="@(edge.Target.IsFocusNode && edge.Source.IsFocusNode ? "org-line-focus" : "org-line")" />
+                    }
+
+                    @* Nodes Layer *@
+                    @foreach (var node in _nodes)
+                    {
+                        <g transform="translate(@node.X, @node.Y)">
+                            <!-- We render a MudTooltip inside a foreignObject, or just standard SVG title for tooltip -->
+                            <title>@($"{node.Name} - {node.Role}")</title>
+                            <circle r="25" class="@(node.IsFocusNode ? "org-node-circle-focus" : "org-node-circle")" />
+                            <text class="@(node.IsFocusNode ? "org-text-focus" : "org-text")" dominant-baseline="central" text-anchor="middle">@node.Initials</text>
+                        </g>
+                    }
+                </g>
+            </svg>
         }
     </MudCardContent>
 </MudCard>
@@ -39,6 +53,8 @@
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
     private OrgChartNode? _root;
+    private List<OrgChartNode> _nodes = new();
+    private List<(OrgChartNode Source, OrgChartNode Target)> _edges = new();
     
     // Zoom and pan state
     private double _scale = 1.0;
@@ -62,12 +78,31 @@
         {
             bool isAdmin = role == "Admin";
             _root = await EmployeeCtx.GetCompanyOrgChartAsync(userId, isAdmin);
+
+            if (_root != null)
+            {
+                FlattenTree(_root);
+                
+                // Center the root
+                _translateX = 400 - _root.X; // Default offset so root is roughly centered
+                _translateY = 50;
+            }
+        }
+    }
+
+    private void FlattenTree(OrgChartNode node)
+    {
+        _nodes.Add(node);
+        foreach (var child in node.Subordinates)
+        {
+            _edges.Add((node, child));
+            FlattenTree(child);
         }
     }
 
     private void OnWheel(WheelEventArgs e)
     {
-        // Simple zoom logic
+        // Simple zoom logic centered on cursor - for a quick fix we just scale the group
         if (e.DeltaY < 0)
         {
             _scale = Math.Min(3.0, _scale + 0.1);

@@ -14,6 +14,12 @@ namespace CompanyEmployees.Application
         // Visual properties
         public bool IsFocusNode { get; set; } // If true, this node or its branch is the user's focus
 
-        public List<OrgChartNode> Subordinates { get; set; } = new();
+        // Mathematical Layout Properties
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double SubtreeWidth { get; set; }
+        public int Depth { get; set; }
+
+        public List<OrgChartNode> Subordinates { get; set; } = new List<OrgChartNode>();
     }
 }
