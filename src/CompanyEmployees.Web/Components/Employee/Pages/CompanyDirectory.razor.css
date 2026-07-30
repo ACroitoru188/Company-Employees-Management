@@ -1,5 +1,4 @@
 .org-card {
-    height: 70vh;
     overflow: hidden;
     position: relative;
     user-select: none;
@@ -12,7 +11,7 @@
 
 .org-container {
     width: 100%;
-    height: 100%;
+    height: 75vh;
     overflow: hidden;
     position: relative;
     background-color: var(--mud-palette-background-grey);
