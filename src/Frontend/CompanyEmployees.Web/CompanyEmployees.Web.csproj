@@ -23,11 +23,11 @@
   </Target>
 
   <ItemGroup>
-    <ProjectReference Include="..\CompanyEmployees.Domain\CompanyEmployees.Domain.csproj" />
-    <ProjectReference Include="..\CompanyEmployees.Persistence\CompanyEmployees.Persistence.csproj" />
-    <ProjectReference Include="..\CompanyEmployees.Gateway\CompanyEmployees.Gateway.csproj" />
-    <ProjectReference Include="..\CompanyEmployees.Application\CompanyEmployees.Application.csproj" />
-    <ProjectReference Include="..\CompanyEmployees.Infrastructure\CompanyEmployees.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Backend\CompanyEmployees.Domain\CompanyEmployees.Domain.csproj" />
+    <ProjectReference Include="..\..\Backend\CompanyEmployees.Persistence\CompanyEmployees.Persistence.csproj" />
+    <ProjectReference Include="..\..\Backend\CompanyEmployees.Gateway\CompanyEmployees.Gateway.csproj" />
+    <ProjectReference Include="..\..\Backend\CompanyEmployees.Application\CompanyEmployees.Application.csproj" />
+    <ProjectReference Include="..\..\Backend\CompanyEmployees.Infrastructure\CompanyEmployees.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

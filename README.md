@@ -10,8 +10,8 @@ Blazor Web App (.NET 9, Interactive Server) + MudBlazor, EF Core 8, SQL Server L
 
 ```sh
 dotnet tool restore
-dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
-dotnet run --project src/CompanyEmployees.Web
+dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persistence
+dotnet run --project src/Frontend/CompanyEmployees.Web
 ```
 
 App runs at http://localhost:5269. Demo accounts and passwords are in `CLAUDE.md`.
