@@ -1,0 +1,40 @@
+@using System.Globalization
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body1" Class="mb-3">
+            Are you sure you want to terminate the contract for <strong>@EmployeeName</strong>?
+        </MudText>
+
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
+            This action will mark the contract as <strong>Terminated</strong> and cannot be undone.
+        </MudAlert>
+
+        <MudTextField T="string"
+                      Label="Termination Reason (Optional)"
+                      @bind-Value="_reason"
+                      Variant="Variant.Outlined"
+                      Lines="3"
+                      Margin="Margin.Dense"
+                      Placeholder="Provide reason or context for termination..." />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Submit">
+            Terminate Contract
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string EmployeeName { get; set; } = "";
+
+    private string _reason = "";
+
+    private void Submit()
+    {
+        MudDialog.Close(DialogResult.Ok(_reason));
+    }
+}

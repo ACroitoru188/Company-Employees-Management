@@ -15,6 +15,7 @@ namespace CompanyEmployees.Application.Contexts
         private readonly ILeaveRequestGateway _leaveRequestGateway;
         private readonly IUserGateway _userGateway;
         private readonly IDepartmentGateway _departmentGateway;
+        private readonly IContractGateway _contractGateway;
         private readonly NotificationContext _notifications;
 
         public EmployeeContext(
@@ -22,11 +23,13 @@ namespace CompanyEmployees.Application.Contexts
             ILeaveRequestGateway leaveRequestGateway,
             IUserGateway userGateway,
             IDepartmentGateway departmentGateway,
+            IContractGateway contractGateway,
             NotificationContext notifications) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
             _departmentGateway = departmentGateway;
+            _contractGateway = contractGateway;
             _notifications = notifications;
         }
 
@@ -547,6 +550,52 @@ namespace CompanyEmployees.Application.Contexts
             foreach (var child in node.Subordinates)
             {
                 MarkFocus(child, targetDepartment);
+            }
+        }
+
+        public async Task<Contract?> GetActiveContractForUserAsync(Guid userId)
+        {
+            return await _contractGateway.GetActiveContractByUserIdAsync(userId);
+        }
+
+        public async Task SaveUserContractAsync(
+            Guid userId,
+            ContractType type,
+            ContractStatus status,
+            DateOnly startDate,
+            DateOnly? endDate,
+            string? notes)
+        {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            var active = await _contractGateway.GetActiveContractByUserIdAsync(userId);
+            if (active != null)
+            {
+                active.Type = type;
+                active.Status = status;
+                active.StartDate = startDate;
+                active.EndDate = type == ContractType.Indeterminate ? null : endDate;
+                active.Notes = notes;
+                active.UpdatedAt = DateTime.UtcNow;
+                await _contractGateway.UpdateAsync(active);
+            }
+            else
+            {
+                var newContract = new Contract
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Type = type,
+                    Status = status,
+                    StartDate = startDate,
+                    EndDate = type == ContractType.Indeterminate ? null : endDate,
+                    Notes = notes,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _contractGateway.CreateAsync(newContract);
             }
         }
     }

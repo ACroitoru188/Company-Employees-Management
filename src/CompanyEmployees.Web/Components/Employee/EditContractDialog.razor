@@ -1,0 +1,107 @@
+@using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Domain.Enums
+@using System.Globalization
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body1" Class="mb-3">
+            Manage contract details for <strong>@UserName</strong>
+        </MudText>
+
+        <MudSelect T="ContractType" Label="Contract Type" @bind-Value="_type"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+            <MudSelectItem Value="ContractType.Determinate">Determinate (Perioadă Determinată)</MudSelectItem>
+            <MudSelectItem Value="ContractType.Indeterminate">Indeterminate (Perioadă Nedeterminată)</MudSelectItem>
+        </MudSelect>
+
+        <MudSelect T="ContractStatus" Label="Contract Status" @bind-Value="_status"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+            <MudSelectItem Value="ContractStatus.Active">Active</MudSelectItem>
+            <MudSelectItem Value="ContractStatus.Terminated">Terminated</MudSelectItem>
+            <MudSelectItem Value="ContractStatus.Expired">Expired</MudSelectItem>
+        </MudSelect>
+
+        <div class="d-flex gap-3 mb-3">
+            <MudDatePicker Label="Start Date"
+                           @bind-Date="_startDate"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Class="flex-grow-1" />
+            @if (_type == ContractType.Determinate)
+            {
+                <MudDatePicker Label="End Date"
+                               @bind-Date="_endDate"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Class="flex-grow-1" />
+            }
+        </div>
+
+        <MudTextField T="string"
+                      Label="Notes / Details"
+                      @bind-Value="_notes"
+                      Variant="Variant.Outlined"
+                      Lines="2"
+                      Margin="Margin.Dense"
+                      Placeholder="Contract reference, remarks..." />
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudText Color="Color.Error" Typo="Typo.caption" Class="mt-2">@_errorMessage</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">
+            Save Contract
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string UserName { get; set; } = "";
+    [Parameter] public Contract? ExistingContract { get; set; }
+
+    private ContractType _type = ContractType.Indeterminate;
+    private ContractStatus _status = ContractStatus.Active;
+    private DateTime? _startDate = DateTime.Today;
+    private DateTime? _endDate = DateTime.Today.AddYears(1);
+    private string _notes = "";
+    private string _errorMessage = "";
+
+    public record ContractEditResult(ContractType Type, ContractStatus Status, DateOnly StartDate, DateOnly? EndDate, string? Notes);
+
+    protected override void OnInitialized()
+    {
+        if (ExistingContract != null)
+        {
+            _type = ExistingContract.Type;
+            _status = ExistingContract.Status;
+            _startDate = ExistingContract.StartDate.ToDateTime(TimeOnly.MinValue);
+            _endDate = ExistingContract.EndDate?.ToDateTime(TimeOnly.MinValue);
+            _notes = ExistingContract.Notes ?? "";
+        }
+    }
+
+    private void Submit()
+    {
+        if (!_startDate.HasValue)
+        {
+            _errorMessage = "Start date is required.";
+            return;
+        }
+
+        if (_type == ContractType.Determinate && (!_endDate.HasValue || _endDate < _startDate))
+        {
+            _errorMessage = "Determinate contracts require an end date that is after the start date.";
+            return;
+        }
+
+        var start = DateOnly.FromDateTime(_startDate.Value);
+        var end = _type == ContractType.Determinate && _endDate.HasValue ? DateOnly.FromDateTime(_endDate.Value) : (DateOnly?)null;
+
+        MudDialog.Close(DialogResult.Ok(new ContractEditResult(_type, _status, start, end, string.IsNullOrWhiteSpace(_notes) ? null : _notes)));
+    }
+}

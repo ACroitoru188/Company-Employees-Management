@@ -1,3 +1,6 @@
+using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Domain.Enums;
+
 namespace CompanyEmployees.Application
 {
     // Everything the manager dashboard shows, gathered in one call so the page
@@ -16,6 +19,8 @@ namespace CompanyEmployees.Application
 
         public List<ManagerPendingRequest> Pending { get; set; } = new();
         public List<ManagerTeamMember> Team { get; set; } = new();
+        public List<ManagerDelegation> ActiveDelegationsGiven { get; set; } = new();
+        public List<ManagerDelegation> ActiveDelegationsReceived { get; set; } = new();
     }
 
     public class ManagerPendingRequest
@@ -31,6 +36,9 @@ namespace CompanyEmployees.Application
         public DateOnly EndDate { get; set; }
         public int Days { get; set; }
         public int WaitingDays { get; set; }
+
+        public bool IsDelegated { get; set; }
+        public string? DelegatedFromManagerName { get; set; }
     }
 
     public class ManagerTeamMember
@@ -40,5 +48,12 @@ namespace CompanyEmployees.Application
         public string Role { get; set; } = "";
         public string Department { get; set; } = "";
         public bool OnLeaveToday { get; set; }
+
+        // Contract details
+        public Guid? ContractId { get; set; }
+        public ContractType? ContractType { get; set; }
+        public ContractStatus? ContractStatus { get; set; }
+        public DateOnly? ContractStartDate { get; set; }
+        public DateOnly? ContractEndDate { get; set; }
     }
 }

@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.GatewayInterfaces;
+using CompanyEmployees.Domain.GatewayInterfaces;
 using CompanyEmployees.Gateway.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,6 +11,8 @@ namespace CompanyEmployees.Gateway
             services.AddScoped<IUserGateway, UserRepository>();
             services.AddScoped<ILeaveRequestGateway, LeaveRequestRepository>();
             services.AddScoped<IDepartmentGateway, DepartmentRepository>();
+            services.AddScoped<IContractGateway, ContractRepository>();
+            services.AddScoped<IManagerDelegationGateway, ManagerDelegationRepository>();
             return services;
         }
     }

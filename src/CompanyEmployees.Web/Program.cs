@@ -2,6 +2,7 @@ using Azure.Identity;
 using Blazored.LocalStorage;
 using CompanyEmployees.Application;
 using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Gateway;
 using CompanyEmployees.Infrastructure;
 using CompanyEmployees.Infrastructure.ExceptionHandling;
@@ -65,6 +66,7 @@ if (app.Environment.IsDevelopment())
 
     var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
     db.Database.Migrate();
+    SeedContracts(db);
 }
 
 app.UseMiddleware<GlobalExceptionHandler>();
@@ -129,6 +131,56 @@ app.MapGet("/api/auth/logout", async (SignInManager<User> signInManager) =>
 
 app.MapHub<NotificationHub>("/notificationHub");
 
-
-
 app.Run();
+
+static void SeedContracts(CompanyEmployeesDbContext db)
+{
+    var users = db.Users.Include(u => u.Contracts).ToList();
+    if (users.Count == 0) return;
+
+    var random = new Random(12345);
+    bool modified = false;
+
+    foreach (var user in users)
+    {
+        if (user.Contracts == null || user.Contracts.Count == 0)
+        {
+            // ~40% Determinate, ~60% Indeterminate
+            var isDeterminate = random.Next(100) < 40;
+
+            // Start date between 1 and 4 years ago (e.g. 2022 to 2025)
+            var startDaysAgo = random.Next(200, 1400);
+            var startDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-startDaysAgo));
+            DateOnly? endDate = null;
+
+            if (isDeterminate)
+            {
+                // End date between 3 months and 18 months in the future
+                var endDaysFuture = random.Next(90, 550);
+                endDate = DateOnly.FromDateTime(DateTime.Today.AddDays(endDaysFuture));
+            }
+
+            var contract = new Contract
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Type = isDeterminate ? ContractType.Determinate : ContractType.Indeterminate,
+                Status = ContractStatus.Active,
+                StartDate = startDate,
+                EndDate = endDate,
+                Notes = isDeterminate ? "Contract individual pe perioadă determinată" : "Contract individual pe perioadă nedeterminată",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            db.Contracts.Add(contract);
+            modified = true;
+        }
+    }
+
+    if (modified)
+    {
+        db.SaveChanges();
+    }
+}
+

@@ -1,5 +1,6 @@
 @page "/admin/users"
 @layout EmployeeLayout
+@using System.Globalization
 @using System.Security.Claims
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Domain.Entities
@@ -9,6 +10,7 @@
 @inject EmployeeContext Employees
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Users · Admin</PageTitle>
 
@@ -18,14 +20,14 @@
 }
 else
 {
-	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Users</MudText>
+	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Users & Contracts</MudText>
 
 	<MudDataGrid T="User" Items="@_users" QuickFilter="@_quickFilter"
 				 Filterable="true" SortMode="SortMode.Multiple"
 				 FilterMode="DataGridFilterMode.ColumnFilterRow"
 				 Hover="true" Dense="true" Elevation="1">
 		<ToolBarContent>
-			<MudTextField @bind-Value="_quickSearch" Placeholder="Search users..."
+			<MudTextField @bind-Value="_quickSearch" Placeholder="Search users or contracts..."
 						  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
 						  IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
 						  Immediate="true" />
@@ -35,7 +37,51 @@ else
 			<PropertyColumn Property="@(u => u.Name)" Title="Name" />
 			<PropertyColumn Property="@(u => u.Email)" Title="Email" />
 			<PropertyColumn Property="@(u => u.Role)" Title="Role" />
-			<PropertyColumn Property="@(u => u.Status)" Title="Status" />
+			<TemplateColumn T="User" Title="Contract Type" Sortable="true"
+							SortBy="@(u => GetActiveContract(u)?.Type.ToString() ?? "None")" Filterable="false">
+				<CellTemplate>
+					@{
+						var contract = GetActiveContract(context.Item);
+					}
+					@if (contract == null)
+					{
+						<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">No Contract</MudChip>
+					}
+					else if (contract.Type == ContractType.Determinate)
+					{
+						<MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Determinate</MudChip>
+					}
+					else
+					{
+						<MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">Indeterminate</MudChip>
+					}
+				</CellTemplate>
+			</TemplateColumn>
+			<TemplateColumn T="User" Title="Contract Period & Status" Sortable="true"
+							SortBy="@(u => GetActiveContract(u)?.Status.ToString() ?? "")" Filterable="false">
+				<CellTemplate>
+					@{
+						var contract = GetActiveContract(context.Item);
+					}
+					@if (contract != null)
+					{
+						<div class="d-flex flex-column">
+							<div class="d-flex align-center gap-1">
+								<MudChip T="string" Size="Size.Small" Color="@GetStatusColor(contract.Status)" Variant="Variant.Text" Class="pa-0 ma-0">
+									@contract.Status
+								</MudChip>
+								<MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+									@contract.StartDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) – @(contract.EndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
+								</MudText>
+							</div>
+						</div>
+					}
+					else
+					{
+						<MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">—</MudText>
+					}
+				</CellTemplate>
+			</TemplateColumn>
 			<TemplateColumn T="User" Title="Department" Sortable="true"
 							 SortBy="@(u => GetDepartmentName(u.DepartmentId))" Filterable="false">
 				<CellTemplate>
@@ -45,6 +91,14 @@ else
 									 ToStringFunc="@GetDepartmentName"
 									 ResetValueOnEmptyText="true"
 									 CoerceText="true" Dense="true" />
+				</CellTemplate>
+			</TemplateColumn>
+			<TemplateColumn T="User" Title="Actions" Filterable="false" Sortable="false">
+				<CellTemplate>
+					<MudTooltip Text="Manage Contract">
+						<MudIconButton Icon="@Icons.Material.Filled.Assignment" Size="Size.Small" Color="Color.Primary"
+									   OnClick="@(() => OpenEditContractDialog(context.Item))" />
+					</MudTooltip>
 				</CellTemplate>
 			</TemplateColumn>
 		</Columns>
@@ -66,14 +120,15 @@ else
 	private Func<User, bool> _quickFilter => u =>
 	{
 		if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
+		var contract = GetActiveContract(u);
 		return u.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
 			|| (u.Email ?? "").Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
 			|| u.Role.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-			|| GetDepartmentName(u.DepartmentId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase);
+			|| GetDepartmentName(u.DepartmentId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+			|| (contract != null && contract.Type.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase))
+			|| (contract != null && contract.Status.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase));
 	};
 
-	// The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
-	// so non-admins are redirected without a database query.
 	protected override async Task OnInitializedAsync()
 	{
 		if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
@@ -97,6 +152,41 @@ else
 		_departments = await Employees.GetDepartmentsAsync();
 	}
 
+	private Contract? GetActiveContract(User user)
+	{
+		return user.Contracts?
+			.OrderByDescending(c => c.CreatedAt)
+			.FirstOrDefault();
+	}
+
+	private Color GetStatusColor(ContractStatus status) => status switch
+	{
+		ContractStatus.Active => Color.Success,
+		ContractStatus.Terminated => Color.Error,
+		ContractStatus.Expired => Color.Dark,
+		_ => Color.Default
+	};
+
+	private async Task OpenEditContractDialog(User user)
+	{
+		var contract = GetActiveContract(user);
+		var parameters = new DialogParameters<EditContractDialog>
+		{
+			{ x => x.UserName, user.Name },
+			{ x => x.ExistingContract, contract }
+		};
+
+		var dialog = await DialogService.ShowAsync<EditContractDialog>("Manage Contract", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+		var result = await dialog.Result;
+
+		if (result != null && !result.Canceled && result.Data is EditContractDialog.ContractEditResult res)
+		{
+			await Employees.SaveUserContractAsync(user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes);
+			Snackbar.Add($"Contract updated for {user.Name}.", Severity.Success);
+			await LoadAsync();
+		}
+	}
+
 	private async Task OnUserDepartmentChangedAsync(User user, Guid? departmentId)
 	{
 		await Employees.AssignUserToDepartmentAsync(user.Id, departmentId);
@@ -111,7 +201,6 @@ else
 	{
 		var allIds = _departments.Select(d => (Guid?)d.Id).Prepend(null);
 
-		// Daca textul e gol, SAU e "None", SAU textul este fix numele departamentului deja selectat, afisam toata lista
 		if (string.IsNullOrEmpty(value) || value.Equals("None", StringComparison.InvariantCultureIgnoreCase) || _departments.Any(d => d.Name.Equals(value, StringComparison.InvariantCultureIgnoreCase)))
 		{
 			return Task.FromResult(allIds);
