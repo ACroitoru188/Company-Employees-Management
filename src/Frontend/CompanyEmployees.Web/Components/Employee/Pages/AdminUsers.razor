@@ -6,7 +6,9 @@
 @using CompanyEmployees.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
+@inject EmployeeAccountService Accounts
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
@@ -19,6 +21,61 @@
 else
 {
 	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Users</MudText>
+
+	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
+		<MudText Typo="Typo.subtitle1" Style="font-weight:600;" Class="mb-1">
+			Create employee account
+		</MudText>
+		<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+			Enter the employee's name, real email address, and department. Their Siemens login and employee ID are generated automatically.
+		</MudText>
+
+		<div class="d-flex align-end gap-3 flex-wrap">
+			<MudTextField T="string" @bind-Value="_newEmployeeName"
+						  Label="Full name" Variant="Variant.Outlined"
+						  Style="min-width:260px;" Disabled="@_creating" />
+			<MudTextField T="string" @bind-Value="_newEmployeeInvitationEmail"
+						  Label="Real email address" Variant="Variant.Outlined"
+						  InputType="InputType.Email" Style="min-width:300px;"
+						  Disabled="@_creating" />
+			<MudSelect T="Guid?" @bind-Value="_newEmployeeDepartmentId"
+					   Label="Department" Variant="Variant.Outlined"
+					   Style="min-width:220px;" Disabled="@_creating">
+				@foreach (var department in _departments.OrderBy(d => d.Name))
+				{
+					<MudSelectItem T="Guid?" Value="@((Guid?)department.Id)">
+						@department.Name
+					</MudSelectItem>
+				}
+			</MudSelect>
+			<MudButton Variant="Variant.Filled" Color="Color.Primary"
+					   StartIcon="@Icons.Material.Filled.PersonAdd"
+					   OnClick="CreateEmployeeAsync" Disabled="@_creating">
+				@(_creating ? "Creating..." : "Create account")
+			</MudButton>
+		</div>
+
+		@if (_createdAccount != null)
+		{
+			<MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mt-4">
+				<MudText Typo="Typo.subtitle2" Style="font-weight:600;">Account created</MudText>
+				<MudText Typo="Typo.body2">Name: @_createdAccount.Name</MudText>
+				<MudText Typo="Typo.body2">Department: @_createdAccount.Department</MudText>
+				<MudText Typo="Typo.body2">Siemens login: @_createdAccount.Email</MudText>
+				<MudText Typo="Typo.body2">Invitation email: @_createdAccount.InvitationEmail</MudText>
+				<MudText Typo="Typo.body2">Employee ID: @_createdAccount.EmployeeId</MudText>
+				@if (_createdAccount.EmailDelivered)
+				{
+					<MudText Typo="Typo.body2">A password setup email was sent to the employee.</MudText>
+				}
+				else
+				{
+					<MudText Typo="Typo.body2">SMTP is not configured. Use this development-only setup link:</MudText>
+					<MudLink Href="@_createdAccount.DevelopmentSetupLink">Set password</MudLink>
+				}
+			</MudAlert>
+		}
+	</MudPaper>
 
 	<MudDataGrid T="User" Items="@_users" QuickFilter="@_quickFilter"
 				 Filterable="true" SortMode="SortMode.Multiple"
@@ -34,6 +91,7 @@ else
 		<Columns>
 			<PropertyColumn Property="@(u => u.Name)" Title="Name" />
 			<PropertyColumn Property="@(u => u.Email)" Title="Email" />
+			<PropertyColumn Property="@(u => u.Id)" Title="Employee ID" />
 			<PropertyColumn Property="@(u => u.Role)" Title="Role" />
 			<PropertyColumn Property="@(u => u.Status)" Title="Status" />
 			<TemplateColumn T="User" Title="Department" Sortable="true"
@@ -62,6 +120,11 @@ else
 	private List<User> _users = [];
 	private List<Department> _departments = [];
 	private string _quickSearch = "";
+	private string _newEmployeeName = "";
+	private string _newEmployeeInvitationEmail = "";
+	private Guid? _newEmployeeDepartmentId;
+	private bool _creating;
+	private EmployeeAccountResult? _createdAccount;
 
 	private Func<User, bool> _quickFilter => u =>
 	{
@@ -102,6 +165,57 @@ else
 		await Employees.AssignUserToDepartmentAsync(user.Id, departmentId);
 		Snackbar.Add($"{user.Name} moved.", Severity.Success);
 		await LoadAsync();
+	}
+
+	private async Task CreateEmployeeAsync()
+	{
+		if (string.IsNullOrWhiteSpace(_newEmployeeName))
+		{
+			Snackbar.Add("Employee name is required.", Severity.Warning);
+			return;
+		}
+
+		if (string.IsNullOrWhiteSpace(_newEmployeeInvitationEmail))
+		{
+			Snackbar.Add("Employee email is required.", Severity.Warning);
+			return;
+		}
+
+		if (_newEmployeeDepartmentId == null)
+		{
+			Snackbar.Add("Select a department.", Severity.Warning);
+			return;
+		}
+
+		_creating = true;
+		_createdAccount = null;
+
+		try
+		{
+			_createdAccount = await Accounts.CreateAsync(
+				_newEmployeeName,
+				_newEmployeeInvitationEmail,
+				_newEmployeeDepartmentId.Value,
+				Nav.BaseUri);
+
+			_newEmployeeName = "";
+			_newEmployeeInvitationEmail = "";
+			_newEmployeeDepartmentId = null;
+			await LoadAsync();
+			Snackbar.Add(
+				_createdAccount.EmailDelivered
+					? "Employee account created and setup email sent."
+					: "Employee account created; SMTP is not configured.",
+				_createdAccount.EmailDelivered ? Severity.Success : Severity.Warning);
+		}
+		catch (Exception exception)
+		{
+			Snackbar.Add(exception.Message, Severity.Error);
+		}
+		finally
+		{
+			_creating = false;
+		}
 	}
 
 	private string GetDepartmentName(Guid? id) =>

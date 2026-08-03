@@ -23,6 +23,9 @@ builder.Services.AddRazorComponents()
 builder.Services.AddMudServices();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<ThemeState>();
+builder.Services.AddScoped<EmployeeAccountService>();
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
+builder.Services.AddSingleton<IAccountEmailSender, SmtpAccountEmailSender>();
 builder.Services.AddControllers();
 builder.Services.AddSignalR(options =>
 {
@@ -41,7 +44,13 @@ builder.Services.AddInfrastructureLayer();
 builder.Services.AddIdentity<User, IdentityRole<Guid>>()
     .AddEntityFrameworkStores<CompanyEmployeesDbContext>()
     .AddSignInManager()
-    .AddClaimsPrincipalFactory<AppClaimsPrincipalFactory>();
+    .AddClaimsPrincipalFactory<AppClaimsPrincipalFactory>()
+    .AddDefaultTokenProviders();
+
+builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
+{
+    options.TokenLifespan = TimeSpan.FromHours(24);
+});
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, CompanyEmployees.Web.Security.IdentityRevalidatingAuthenticationStateProvider>();
