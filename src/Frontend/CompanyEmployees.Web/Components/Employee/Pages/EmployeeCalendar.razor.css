@@ -170,6 +170,27 @@
     border-style: solid;
 }
 
+.cal-weekend {
+    background: color-mix(in srgb, var(--mud-palette-background) 72%, #9aa0a6);
+    color: var(--mud-palette-text-secondary);
+    cursor: not-allowed;
+    opacity: 0.68;
+}
+
+.cal-weekend.cal-selected {
+    opacity: 0.82;
+}
+
+.cal-range-endpoint .cal-daynum,
+.cal-range-endpoint.cal-today-cell .cal-daynum {
+    color: #fff;
+    font-weight: 800;
+}
+
+.cal-range-endpoint {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
 .cal-past {
     opacity: 0.45;
     cursor: not-allowed;
@@ -273,6 +294,20 @@
     opacity: 0.55;
 }
 
+.wv-head-weekend {
+    opacity: 0.58;
+}
+
+.wv-cell-weekend {
+    background: color-mix(in srgb, var(--mud-palette-background) 72%, #9aa0a6);
+    cursor: not-allowed;
+    opacity: 0.68;
+}
+
+.wv-cell-weekend.wv-cell-selected {
+    opacity: 0.82;
+}
+
 .wv-cell-past {
     background: color-mix(in srgb, var(--mud-palette-surface) 82%, var(--mud-palette-background));
     opacity: 0.65;
@@ -283,8 +318,18 @@
     opacity: 1;
 }
 
+.wv-range-endpoint {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
 .wv-cell-today {
     background: rgba(30, 136, 229, 0.04);
+}
+
+.gv-range-endpoint .gv-hdow,
+.gv-range-endpoint .gv-hnum,
+.gv-range-endpoint.gv-htoday .gv-hnum {
+    color: #fff;
 }
 
 .wv-card {
@@ -367,6 +412,15 @@
 
 .gv-hwend .gv-hnum {
     color: #9aa0a6;
+}
+
+.gv-hdisabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+.gv-hdisabled.gv-range-selected {
+    opacity: 0.82;
 }
 
 .gv-htoday {
