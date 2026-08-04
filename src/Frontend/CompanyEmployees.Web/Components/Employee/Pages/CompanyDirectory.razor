@@ -44,6 +44,15 @@
                                     @onclick="() => OnNodeClick(node)" />
                             <text class="@(node.IsFocusNode ? "org-text-focus" : "org-text")" dominant-baseline="central" text-anchor="middle"
                                   style="pointer-events: none;">@node.Initials</text>
+
+                            @if (node.HasChildren)
+                            {
+                                <g class="org-expand-btn" transform="translate(0, 25)"
+                                   @onclick="() => ToggleNodeExpand(node)" @onclick:stopPropagation="true">
+                                    <circle r="9" class="expand-btn-bg" />
+                                    <text class="expand-btn-icon" text-anchor="middle" dominant-baseline="central">@(node.IsExpanded ? "−" : "+")</text>
+                                </g>
+                            }
                         </g>
                     }
 
@@ -175,10 +184,12 @@
 
             if (_root != null)
             {
+                _nodes.Clear();
+                _edges.Clear();
                 FlattenTree(_root);
                 
                 // Center the root
-                _translateX = 400 - _root.X; // Default offset so root is roughly centered
+                _translateX = 450 - _root.X; // Default offset so root is roughly centered
                 _translateY = 50;
             }
         }
@@ -187,11 +198,31 @@
     private void FlattenTree(OrgChartNode node)
     {
         _nodes.Add(node);
-        foreach (var child in node.Subordinates)
+        if (node.IsExpanded)
         {
-            _edges.Add((node, child));
-            FlattenTree(child);
+            foreach (var child in node.Subordinates)
+            {
+                _edges.Add((node, child));
+                FlattenTree(child);
+            }
         }
+    }
+
+    private void ToggleNodeExpand(OrgChartNode node)
+    {
+        node.IsExpanded = !node.IsExpanded;
+        RecalculateLayout();
+    }
+
+    private void RecalculateLayout()
+    {
+        if (_root == null) return;
+        EmployeeContext.CalculateSubtreeWidths(_root);
+        EmployeeContext.CalculateNodeCoordinates(_root, 0, _root.SubtreeWidth / 2.0, 0, 50.0);
+        _nodes.Clear();
+        _edges.Clear();
+        FlattenTree(_root);
+        StateHasChanged();
     }
 
     private void OnWheel(WheelEventArgs e)

@@ -9,7 +9,7 @@ has been fixed yet.
 
 ## What the system does today
 
-`src/CompanyEmployees.Domain/LeaveApprovalPolicy.cs` decides who must approve a given
+`src/Backend/CompanyEmployees.Domain/LeaveApprovalPolicy.cs` decides who must approve a given
 user's leave request, based on `User.Role`, `User.Department`, and `User.Manager?.Role`
 (one level up only — see Issue 1):
 

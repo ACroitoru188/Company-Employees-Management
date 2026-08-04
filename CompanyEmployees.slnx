@@ -1,10 +1,12 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/CompanyEmployees.Application/CompanyEmployees.Application.csproj" Id="e5cd2230-551e-4169-be72-dd17afa905a2" />
-    <Project Path="src/CompanyEmployees.Domain/CompanyEmployees.Domain.csproj" Id="ad814f76-22d6-48b2-a428-865aaec0d833" />
-    <Project Path="src/CompanyEmployees.Gateway/CompanyEmployees.Gateway.csproj" Id="3db5c2af-ed09-4a01-996d-12e5bcbaae80" />
-    <Project Path="src/CompanyEmployees.Infrastructure/CompanyEmployees.Infrastructure.csproj" Id="63a71a7d-0821-4127-ab9b-4a36729d60eb" />
-    <Project Path="src/CompanyEmployees.Persistence/CompanyEmployees.Persistence.csproj" Id="5ef5785b-4eea-4b7c-8e04-ec0d87bf6662" />
-    <Project Path="src/CompanyEmployees.Web/CompanyEmployees.Web.csproj" />
+  <Folder Name="/src/Backend/">
+    <Project Path="src/Backend/CompanyEmployees.Application/CompanyEmployees.Application.csproj" Id="e5cd2230-551e-4169-be72-dd17afa905a2" />
+    <Project Path="src/Backend/CompanyEmployees.Domain/CompanyEmployees.Domain.csproj" Id="ad814f76-22d6-48b2-a428-865aaec0d833" />
+    <Project Path="src/Backend/CompanyEmployees.Gateway/CompanyEmployees.Gateway.csproj" Id="3db5c2af-ed09-4a01-996d-12e5bcbaae80" />
+    <Project Path="src/Backend/CompanyEmployees.Infrastructure/CompanyEmployees.Infrastructure.csproj" Id="63a71a7d-0821-4127-ab9b-4a36729d60eb" />
+    <Project Path="src/Backend/CompanyEmployees.Persistence/CompanyEmployees.Persistence.csproj" Id="5ef5785b-4eea-4b7c-8e04-ec0d87bf6662" />
+  </Folder>
+  <Folder Name="/src/Frontend/">
+    <Project Path="src/Frontend/CompanyEmployees.Web/CompanyEmployees.Web.csproj" />
   </Folder>
 </Solution>

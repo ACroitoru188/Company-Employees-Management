@@ -69,9 +69,14 @@
                     var inMonth = day.Month == VisibleMonth.Month;
                     var isPast = day < _today;
                     var selected = IsSelected(day);
-                    <div class="cal-cell @(inMonth ? "" : "cal-other") @(isPast ? "cal-past" : "") @(day == _today ? "cal-today-cell" : "")"
-                         style="@(selected && _selectedType is { } t ? $"background:{LeaveTypePalette.HighlightHex(t)};" : "")"
-                         @onclick="() => OnDayClick(day)">
+                    var isEndpoint = IsRangeEndpoint(day);
+                    var canSelect = CanSelectDay(day);
+                    <div class="cal-cell @(inMonth ? "" : "cal-other") @(IsWeekend(day) ? "cal-weekend" : "") @(isPast ? "cal-past" : "") @(selected ? "cal-selected" : "") @(isEndpoint ? "cal-range-endpoint" : "") @(canSelect ? "cal-selectable" : "cal-disabled") @(day == _today ? "cal-today-cell" : "")"
+                         style="@SelectionStyle(day)"
+                         data-date="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
+                         aria-disabled="@(!canSelect)"
+                         title="@UnavailableDateHint(day)"
+                         @onclick="DayClickCallback(day)">
                         <span class="cal-daynum">@day.Day</span>
                         @if (_teamByDay.TryGetValue(day, out var absences))
                         {
@@ -101,15 +106,22 @@
             {
                 var day = WeekStart.AddDays(i);
                 var isToday = day == _today;
+                var isPast = day < _today;
+                var isWeekend = IsWeekend(day);
                 var selected = IsSelected(day);
+                var isEndpoint = IsRangeEndpoint(day);
+                var canSelect = CanSelectDay(day);
                 <div class="wv-col">
-                    <div class="wv-head">
+                    <div class="wv-head @(isPast ? "wv-head-past" : "") @(isWeekend ? "wv-head-weekend" : "")">
                         <span class="wv-dow">@(day.ToString("ddd", CultureInfo.InvariantCulture).ToUpperInvariant())</span>
                         <span class="wv-num @(isToday ? "wv-num-today" : "")">@day.Day</span>
                     </div>
-                    <div class="wv-cell @(isToday ? "wv-cell-today" : "")"
-                         style="@(selected && _selectedType is { } t ? $"background:{LeaveTypePalette.HighlightHex(t)};" : "")"
-                         @onclick="() => OnDayClick(day)">
+                    <div class="wv-cell @(isToday ? "wv-cell-today" : "") @(isWeekend ? "wv-cell-weekend" : "") @(isPast ? "wv-cell-past" : "") @(selected ? "wv-cell-selected" : "") @(isEndpoint ? "wv-range-endpoint" : "") @(canSelect ? "wv-cell-selectable" : "wv-cell-disabled")"
+                         style="@SelectionStyle(day)"
+                         data-date="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
+                         aria-disabled="@(!canSelect)"
+                         title="@UnavailableDateHint(day)"
+                         @onclick="DayClickCallback(day)">
                         @foreach (var item in FilteredRanges.Where(r => r.StartDate <= day && r.EndDate >= day))
                         {
                             <div class="wv-card" style="background:@LeaveTypePalette.Hex(item.Type);">
@@ -133,8 +145,11 @@
             {
                 var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
                 var selected = IsSelected(date);
-                <div class="gv-hday @(IsWeekend(date) ? "gv-hwend" : "") @(date == _today ? "gv-htoday" : "")"
-                     style="@(selected && _selectedType is { } t ? $"background:{LeaveTypePalette.HighlightHex(t)};" : "")"
+                var isEndpoint = IsRangeEndpoint(date);
+                <div class="gv-hday @(IsWeekend(date) ? "gv-hwend gv-hdisabled" : "") @(date == _today ? "gv-htoday" : "") @(selected ? "gv-range-selected" : "") @(isEndpoint ? "gv-range-endpoint" : "")"
+                     style="@SelectionStyle(date)"
+                     aria-disabled="@(!CanSelectDay(date))"
+                     title="@UnavailableDateHint(date)"
                      @onclick="() => OnDayClick(date)">
                     <span class="gv-hdow">@(date.ToString("ddd", CultureInfo.InvariantCulture)[..2].ToUpperInvariant())</span>
                     <span class="gv-hnum">@d</span>
@@ -399,11 +414,40 @@
     private bool IsSelected(DateOnly day) =>
         _range is { } r && day >= r.Start && day <= r.End;
 
+    private bool IsRangeEndpoint(DateOnly day) =>
+        _range is { } r && (day == r.Start || day == r.End);
+
+    private string SelectionStyle(DateOnly day)
+    {
+        if (!IsSelected(day) || _selectedType is not { } type)
+            return "";
+
+        var color = LeaveTypePalette.Hex(type, ThemeState.IsDarkMode);
+        return IsRangeEndpoint(day)
+            ? $"background:{color}; color:#fff; border-color:{color};"
+            : $"background:{LeaveTypePalette.HighlightHex(type, ThemeState.IsDarkMode)}; border-color:{color}66;";
+    }
+
+    private bool CanSelectDay(DateOnly day) =>
+        _selectedType is not null && day >= _today && !IsWeekend(day);
+
+    private EventCallback<MouseEventArgs> DayClickCallback(DateOnly day) =>
+        CanSelectDay(day)
+            ? EventCallback.Factory.Create<MouseEventArgs>(this, () => OnDayClick(day))
+            : default;
+
+    private string? UnavailableDateHint(DateOnly day)
+    {
+        if (day < _today)
+            return "Past dates cannot be selected.";
+        if (IsWeekend(day))
+            return "Weekends are already non-working days.";
+        return _selectedType is null ? "Select a leave type first." : null;
+    }
+
     private void OnDayClick(DateOnly day)
     {
-        if (_selectedType is null || day < _today)
-            return;
-        if (_view == CalView.Month && day.Month != VisibleMonth.Month)
+        if (!CanSelectDay(day))
             return;
 
         if (IsSelected(day))
@@ -450,7 +494,7 @@
     }
 
     private static int RangeDays((DateOnly Start, DateOnly End) range) =>
-        range.End.DayNumber - range.Start.DayNumber + 1;
+        WorkingDays(range.Start, range.End);
 
     private string TypeChipStyle(LeaveType type, bool isSelected)
     {

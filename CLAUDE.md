@@ -18,14 +18,14 @@ of a layered backend with EF Core 8 and SQL Server LocalDB.
 ## Solution layout (`CompanyEmployees.slnx`, 6 projects, all net9.0)
 
 ```
-src/CompanyEmployees.Domain          # entities, enums, gateway INTERFACES, domain exceptions
-src/CompanyEmployees.Persistence     # CompanyEmployeesDbContext, IEntityTypeConfigurations,
-                                     # Migrations/ (incl. SeedData/*.sql), DesignTimeDbContextFactory
-src/CompanyEmployees.Gateway         # repository IMPLEMENTATIONS (BaseRepository holds the DbContext)
-src/CompanyEmployees.Application     # business logic: Contexts/ (BaseContext, EmployeeContext,
-                                     # ManagerContext, NotificationContext) + Hubs/NotificationHub
-src/CompanyEmployees.Infrastructure  # cross-cutting: GlobalExceptionHandler, ResponseHandling
-src/CompanyEmployees.Web             # Blazor Server + MudBlazor + minimal-API login
+src/Backend/CompanyEmployees.Domain          # entities, enums, gateway INTERFACES, domain exceptions
+src/Backend/CompanyEmployees.Persistence     # CompanyEmployeesDbContext, IEntityTypeConfigurations,
+                                             # Migrations/ (incl. SeedData/*.sql), DesignTimeDbContextFactory
+src/Backend/CompanyEmployees.Gateway         # repository IMPLEMENTATIONS (BaseRepository holds the DbContext)
+src/Backend/CompanyEmployees.Application     # business logic: Contexts/ (BaseContext, EmployeeContext,
+                                             # ManagerContext, NotificationContext) + Hubs/NotificationHub
+src/Backend/CompanyEmployees.Infrastructure  # cross-cutting: GlobalExceptionHandler, ResponseHandling
+src/Frontend/CompanyEmployees.Web            # Blazor Server + MudBlazor + minimal-API login
 ```
 
 **Data flow (follow it, don't bypass it):**
@@ -46,10 +46,10 @@ after a fresh clone run `dotnet tool restore` once.
 
 ```sh
 dotnet build                                             # build the solution
-dotnet run --project src/CompanyEmployees.Web            # run, http://localhost:5269
-dotnet watch --project src/CompanyEmployees.Web          # hot reload
-dotnet dotnet-ef migrations add <Name> --project src/CompanyEmployees.Persistence
-dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
+dotnet run --project src/Frontend/CompanyEmployees.Web   # run, http://localhost:5269
+dotnet watch --project src/Frontend/CompanyEmployees.Web # hot reload
+dotnet dotnet-ef migrations add <Name> --project src/Backend/CompanyEmployees.Persistence
+dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persistence
 ```
 
 - Ports (`launchSettings.json`): `http` → http://localhost:5269; `https` → https://localhost:7248.
@@ -69,7 +69,7 @@ dotnet dotnet-ef database update --project src/CompanyEmployees.Persistence
     on 2026-07-20 — demo data now arrives through the `SeedDemoData` migration (below).
   - A database created by the *old* `EnsureCreated()` path has no `__EFMigrationsHistory` table,
     so `database update` fails against it. Drop it once
-    (`dotnet dotnet-ef database drop --force --project src/CompanyEmployees.Persistence`), then
+    (`dotnet dotnet-ef database drop --force --project src/Backend/CompanyEmployees.Persistence`), then
     `database update`.
 - No test project. When one lands, wire up `dotnet test` and document it here.
 
