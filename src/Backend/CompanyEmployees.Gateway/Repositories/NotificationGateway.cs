@@ -45,19 +45,14 @@ namespace CompanyEmployees.Gateway.Repositories
         public Task<int> GetUnreadCountAsync(Guid userId) =>
             _context.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead);
 
-        public async Task MarkAsReadAsync(Guid notificationId)
-        {
-            var notification = await _context.Notifications.FindAsync(notificationId);
-            if (notification != null)
-            {
-                notification.IsRead = true;
-                await _context.SaveChangesAsync();
-            }
-        }
+        // Both writes go through ExecuteUpdate: one statement, and no entity to load first.
+        // It bypasses the change tracker, so anything already tracked here stays stale.
+        public Task MarkAsReadAsync(Guid userId, Guid notificationId) =>
+            _context.Notifications
+                .Where(n => n.Id == notificationId && n.UserId == userId && !n.IsRead)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(n => n.IsRead, true));
 
         public Task MarkAllAsReadAsync(Guid userId) =>
-            // One UPDATE statement instead of loading every row and saving them back:
-            // ExecuteUpdate writes straight to the database, bypassing the change tracker.
             _context.Notifications
                 .Where(n => n.UserId == userId && !n.IsRead)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(n => n.IsRead, true));

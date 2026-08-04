@@ -1,6 +1,6 @@
 @using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
 @using Microsoft.AspNetCore.Components.Authorization
-@using System.Globalization
 @using System.Security.Claims
 @using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Application.Contexts
@@ -9,6 +9,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject INotificationDispatcher Dispatcher
 @inject NavigationManager Nav
+@inject ILogger<NotificationBell> Logger
 @implements IDisposable
 
 <MudMenu ActivationEvent="MouseEvent.LeftClick"
@@ -51,34 +52,14 @@
                 <div style="max-height:380px; overflow-y:auto;">
                     @foreach (var notification in _notifications)
                     {
-                        var item = notification;
-                        <MudMenuItem OnClick="@(() => OpenAsync(item))">
-                            <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
-                                @* Fixed-width slot so read and unread rows stay aligned. *@
-                                <div style="width:8px; flex:0 0 8px; margin-top:.5rem;">
-                                    @if (!item.IsRead)
-                                    {
-                                        <MudIcon Icon="@Icons.Material.Filled.Circle"
-                                                 Style="font-size:.5rem; color:var(--mud-palette-primary);" />
-                                    }
-                                </div>
-                                <MudStack Spacing="0">
-                                    <MudText Typo="Typo.body2"
-                                             Style="@(item.IsRead ? "white-space:normal;" : "white-space:normal; font-weight:600;")">
-                                        @item.Message
-                                    </MudText>
-                                    <MudText Typo="Typo.caption"
-                                             Style="color:var(--mud-palette-text-secondary);">
-                                        @FormatWhen(item.CreatedAt)
-                                    </MudText>
-                                </MudStack>
-                            </MudStack>
+                        <MudMenuItem OnClick="@(() => OpenAsync(notification))">
+                            <NotificationRow Notification="@notification" RelativeTime="true" />
                         </MudMenuItem>
                     }
                 </div>
 
-                @* The only way into the history page — it is deliberately absent from the
-                   drawer nav, so this entry has to carry it. *@
+                @* The history page is deliberately absent from the drawer nav, so this is
+                   the only way in. *@
                 <MudDivider />
                 <MudMenuItem Href="/employee/notifications">
                     <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Primary">
@@ -91,7 +72,6 @@
 </MudMenu>
 
 @code {
-    // How many the dropdown holds. The full list lives on the history page.
     private const int VisibleCount = 8;
 
     private Guid _currentUserId;
@@ -104,82 +84,87 @@
         var authState = await AuthState.GetAuthenticationStateAsync();
         var userIdString = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        // Without a user there is nothing to show and nothing to listen for.
         if (!Guid.TryParse(userIdString, out _currentUserId))
             return;
 
+        // Subscribe before the first read: anything saved in between would otherwise reach
+        // neither, and stay invisible until reload.
+        _subscription = Dispatcher.Subscribe(_currentUserId, OnNotificationChangeAsync);
+
         await ReloadAsync();
-
-        _subscription = Dispatcher.Subscribe(_currentUserId, notification =>
-        {
-            _notifications.Insert(0, notification);
-            if (_notifications.Count > VisibleCount)
-                _notifications.RemoveAt(_notifications.Count - 1);
-
-            _unreadCount++;
-            return InvokeAsync(StateHasChanged);
-        });
     }
 
-    // The layout shares its scoped DbContext with the page, and a second query on it
-    // throws — hence a scope of our own for every database call here.
+    // The dispatcher calls this from the thread that saved the change, not this circuit —
+    // so every field the render reads is touched inside InvokeAsync.
+    private Task OnNotificationChangeAsync(NotificationChange change) =>
+        InvokeAsync(async () =>
+        {
+            if (change.Created is null)
+            {
+                await ReloadAsync();
+            }
+            else
+            {
+                _notifications.Insert(0, change.Created);
+                if (_notifications.Count > VisibleCount)
+                    _notifications.RemoveAt(_notifications.Count - 1);
+
+                _unreadCount++;
+            }
+
+            StateHasChanged();
+        });
+
+    // Own scope for every query: this component shares the layout's scoped DbContext with
+    // the page, and a second query in flight on it throws.
     private async Task ReloadAsync()
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
 
-        _notifications = await context.GetRecentAsync(_currentUserId, VisibleCount);
-        _unreadCount = await context.GetUnreadCountAsync(_currentUserId);
+            _notifications = await context.GetRecentAsync(_currentUserId, VisibleCount);
+            _unreadCount = await context.GetUnreadCountAsync(_currentUserId);
+        }
+        catch (Exception ex)
+        {
+            // This lives in the layout, so an escaping exception replaces every page under
+            // it with the error screen. An empty bell is the better failure mode.
+            Logger.LogWarning(ex, "Could not load notifications for user {UserId}.", _currentUserId);
+            _notifications = new List<Notification>();
+            _unreadCount = 0;
+        }
     }
 
-    // Opening a notification is what marks it read. Closing the panel no longer touches
-    // anything: MudMenu owns the click-outside behaviour, so a stray click can't wipe
-    // the unread list the way the hand-rolled backdrop did.
+    // Clicking a notification is the only thing that marks it read — MudMenu owns closing,
+    // so a stray click outside can no longer clear the list.
     private async Task OpenAsync(Notification notification)
     {
         if (!notification.IsRead)
-        {
-            await using (var scope = ScopeFactory.CreateAsyncScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
-                await context.MarkAsReadAsync(notification.Id);
-            }
-
-            // The list is read with AsNoTracking, so this only updates what is on screen.
-            notification.IsRead = true;
-            _unreadCount = Math.Max(0, _unreadCount - 1);
-        }
+            await RunAsync(context => context.MarkAsReadAsync(_currentUserId, notification.Id));
 
         if (!string.IsNullOrWhiteSpace(notification.ActionUrl))
             Nav.NavigateTo(notification.ActionUrl);
     }
 
-    private async Task MarkAllAsReadAsync()
+    private Task MarkAllAsReadAsync() =>
+        RunAsync(context => context.MarkAllAsReadAsync(_currentUserId));
+
+    // Both writes publish a read-state change that comes back through
+    // OnNotificationChangeAsync, so there is no local count here to drift from the database.
+    private async Task RunAsync(Func<NotificationContext, Task> action)
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
-        await context.MarkAllAsReadAsync(_currentUserId);
-
-        foreach (var notification in _notifications)
-            notification.IsRead = true;
-
-        _unreadCount = 0;
-    }
-
-    private static string FormatWhen(DateTime createdAtUtc)
-    {
-        var elapsed = DateTime.UtcNow - createdAtUtc;
-
-        if (elapsed < TimeSpan.FromMinutes(1))
-            return "just now";
-        if (elapsed < TimeSpan.FromHours(1))
-            return $"{(int)elapsed.TotalMinutes}m ago";
-        if (elapsed < TimeSpan.FromDays(1))
-            return $"{(int)elapsed.TotalHours}h ago";
-        if (elapsed < TimeSpan.FromDays(7))
-            return $"{(int)elapsed.TotalDays}d ago";
-
-        return createdAtUtc.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
+            await action(context);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not update notifications for user {UserId}.", _currentUserId);
+        }
     }
 
     public void Dispose() => _subscription?.Dispose();

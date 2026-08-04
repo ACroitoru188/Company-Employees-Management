@@ -28,29 +28,34 @@ namespace CompanyEmployees.Application.Contexts
             };
 
             await _gateway.CreateNotificationAsync(notification);
-            await _dispatcher.PublishAsync(userId, notification);
+            await _dispatcher.PublishCreatedAsync(userId, notification);
             return notification;
         }
 
-        // The bell shows a short history; the count comes separately so the badge
-        // stays accurate even when the list is trimmed to the newest few.
         public Task<List<Notification>> GetRecentAsync(Guid userId, int take = 8) =>
             _gateway.GetRecentAsync(userId, take);
 
         public Task<int> GetUnreadCountAsync(Guid userId) =>
             _gateway.GetUnreadCountAsync(userId);
 
-        // Paged history for /employee/notifications.
         public Task<List<Notification>> GetHistoryPageAsync(Guid userId, int skip, int take) =>
             _gateway.GetPageAsync(userId, skip, take);
 
         public Task<int> GetHistoryCountAsync(Guid userId) =>
             _gateway.CountAsync(userId);
 
-        public Task MarkAsReadAsync(Guid notificationId) =>
-            _gateway.MarkAsReadAsync(notificationId);
+        // Both publish so the bell re-reads: it lives in the layout and survives navigation,
+        // so nothing else would tell it the history page marked something read.
+        public async Task MarkAsReadAsync(Guid userId, Guid notificationId)
+        {
+            await _gateway.MarkAsReadAsync(userId, notificationId);
+            await _dispatcher.PublishReadStateChangedAsync(userId);
+        }
 
-        public Task MarkAllAsReadAsync(Guid userId) =>
-            _gateway.MarkAllAsReadAsync(userId);
+        public async Task MarkAllAsReadAsync(Guid userId)
+        {
+            await _gateway.MarkAllAsReadAsync(userId);
+            await _dispatcher.PublishReadStateChangedAsync(userId);
+        }
     }
 }

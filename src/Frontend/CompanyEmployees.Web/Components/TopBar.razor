@@ -6,7 +6,8 @@
         <button class="seg-btn @(IsManager ? "on" : "")" @onclick="OnSetManager">Line manager</button>
     </div>
     
-    <NotificationBell/>
+    @* No bell here: this bar belongs to the retro Dashboard mock-up. The live one is in
+       EmployeeLayout, whose layout supplies the MudBlazor providers it needs. *@
 
     <RetroButton Variant="RetroButton.ButtonVariant.Primary" OnClick="OnOpenRequest">Request time off</RetroButton>
     <div class="profile-wrap">

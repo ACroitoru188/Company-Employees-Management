@@ -5,20 +5,20 @@ namespace CompanyEmployees.Domain.GatewayInterfaces
     public interface INotificationGateway
     {
         Task<Notification> CreateNotificationAsync(Notification notification);
-        Task MarkAsReadAsync(Guid notificationId);
 
-        // Read and unread alike, newest first — the bell shows history, not just a to-do
-        // list, so an already-seen notification has to stay visible.
-        Task<List<Notification>> GetRecentAsync(Guid userId, int take);
-
-        // Same ordering, but windowed: the history page can't load a year of rows at once.
-        Task<List<Notification>> GetPageAsync(Guid userId, int skip, int take);
-        Task<int> CountAsync(Guid userId);
-
-        // The badge only needs a number. Counting in SQL avoids materializing rows the
-        // UI never renders.
-        Task<int> GetUnreadCountAsync(Guid userId);
+        // Scoped to the owner: an id alone must not be enough to flip someone else's row.
+        // A foreign id is a no-op, not an error.
+        Task MarkAsReadAsync(Guid userId, Guid notificationId);
 
         Task MarkAllAsReadAsync(Guid userId);
+
+        // Read and unread alike — the bell is a history, not a to-do list.
+        Task<List<Notification>> GetRecentAsync(Guid userId, int take);
+
+        Task<List<Notification>> GetPageAsync(Guid userId, int skip, int take);
+
+        Task<int> CountAsync(Guid userId);
+
+        Task<int> GetUnreadCountAsync(Guid userId);
     }
 }

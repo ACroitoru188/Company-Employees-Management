@@ -202,7 +202,8 @@ HR Dashboard's live counters if you need current numbers.
 
 Pages in `Web/Components/Employee/Pages/` — `EmployeeDashboard` (`/employee/dashboard`),
 `EmployeeCalendar` (`/employee/calendar`), `EmployeeTeam` (`/employee/team`), `MyRequests`
-(`/employee/my-requests`); all `@layout EmployeeLayout`.
+(`/employee/my-requests`), `NotificationsHistory` (`/employee/notifications`); all
+`@layout EmployeeLayout`.
 
 - **Render mode is global**: `App.razor` wraps `<Routes @rendermode="InteractiveServer" />`, so
   layouts render interactively too. That is why `EmployeeProviders`
@@ -242,14 +243,36 @@ Pages in `Web/Components/Employee/Pages/` — `EmployeeDashboard` (`/employee/da
   toolbar search), not the plain `MudTable` used elsewhere.
 - Date formatting: always `CultureInfo.InvariantCulture` (server culture may not be English).
 
-## Notifications (SignalR)
+## Notifications (in-process dispatcher)
 
-- `Application/Hubs/NotificationHub` is mapped at `/notificationHub` in `Program.cs`
-  (`AddSignalR` + `MapHub`). `NotificationContext` (Application) persists notifications via
-  `INotificationGateway`/`NotificationGateway` and pushes `"ReceiveNotification"` to the user.
-- `Web/Components/NotificationBell.razor` (in the `EmployeeLayout` AppBar) opens its own
-  `HubConnection` to the hub, shows unread items and marks them read. It resolves the user id
-  from the auth state and uses `IServiceScopeFactory` to query outside the layout's scope.
+- **No SignalR hub any more** (removed 2026-08-04). `Application/Hubs/NotificationHub` was
+  mapped at `/notificationHub` with no `[Authorize]` and a `Register(string userId)` that
+  trusted its argument, so any client could subscribe to another user's notifications. In
+  Blazor Server the bell already runs on the server, so the hub was a loopback: the server
+  connected to itself to deliver something it was holding. Don't re-add `MapHub`.
+  (`AddSignalR` in `Program.cs` **stays** — its `HubOptions` also configure the Blazor
+  circuit, and removing it drops `MaximumReceiveMessageSize` to the 32 KB default.)
+- `Application/Notifications/INotificationDispatcher` (**singleton**) replaces it: an
+  in-process fan-out keyed by user id. `NotificationContext` publishes; components
+  `Subscribe` and dispose the returned handle. Both publish paths hand off **without
+  awaiting** the subscribers — a handler ends in a Blazor render, and an approval must not
+  wait on the recipient's browser. A delivery that throws is logged and its subscription
+  dropped.
+- Subscribers receive a `NotificationChange`: `Created` holds the new row, or is null when
+  only read state moved (`MarkAsRead`/`MarkAllAsRead` publish this), which subscribers
+  answer by re-reading. That is what keeps the bell's badge in step when the history page
+  marks something read — the bell sits in the layout and survives that navigation.
+- `Web/Components/NotificationBell.razor` (in the `EmployeeLayout` AppBar) shows the newest
+  8, read and unread, and `Components/Employee/Pages/NotificationsHistory.razor`
+  (`/employee/notifications`) the paged full list. `Components/NotificationRow.razor` is the
+  shared row. The history page is reachable **only** from the bell's "See all" entry —
+  deliberately not in the drawer nav.
+- The bell resolves the user id from the auth state and uses `IServiceScopeFactory`: it
+  shares the layout's scoped `DbContext` otherwise, and a second in-flight query throws.
+  Its handler does every state mutation **inside `InvokeAsync`** — the dispatcher calls it
+  from the publisher's thread, so touching the list outside the circuit races the renderer.
+- `NotificationContext.MarkAsReadAsync(userId, notificationId)` is scoped to the owner; an
+  id alone must not be enough to flip someone else's row.
 - `ManagerContext.DecideRequestAsync` is the manager approval flow (approve/decline a pending
   request + notification to the requester); `EmployeeContext.HrDecideRequestAsync` (added
   2026-07-28) is the equivalent for HR's review from `/hr/dashboard` — same shape (status

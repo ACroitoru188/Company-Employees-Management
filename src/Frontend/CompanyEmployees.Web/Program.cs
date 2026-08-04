@@ -27,9 +27,8 @@ builder.Services.AddScoped<EmployeeAccountService>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IAccountEmailSender, SmtpAccountEmailSender>();
 builder.Services.AddControllers();
-// Keep this even though the app maps no hub of its own: HubOptions configured here apply
-// to the Blazor Server circuit too, and dropping it would cut the limit back to the 32 KB
-// default. Notifications no longer travel over SignalR — see Application/Notifications.
+// Keep this even though the app maps no hub: these HubOptions also configure the Blazor
+// circuit, and removing it drops the limit to the 32 KB default.
 builder.Services.AddSignalR(options =>
 {
     options.MaximumReceiveMessageSize = 1024 * 1024; // 1 MB

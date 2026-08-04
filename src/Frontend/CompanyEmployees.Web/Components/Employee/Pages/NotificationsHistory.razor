@@ -1,13 +1,14 @@
 @page "/employee/notifications"
 @layout EmployeeLayout
-@using System.Globalization
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Logging
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Web.Security
 @inject NotificationContext Notifications
 @inject NavigationManager Nav
+@inject ILogger<NotificationsHistory> Logger
 
 <PageTitle>Notifications · Time Off Management</PageTitle>
 
@@ -25,6 +26,12 @@
 {
     <MudProgressCircular Indeterminate="true" />
 }
+else if (_failed)
+{
+    <MudAlert Severity="Severity.Error">
+        Your notifications could not be loaded. Please refresh the page.
+    </MudAlert>
+}
 else if (_total == 0)
 {
     <MudPaper Class="pa-8 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
@@ -41,32 +48,8 @@ else
         <MudList T="Notification">
             @foreach (var notification in _notifications)
             {
-                var item = notification;
-                <MudListItem T="Notification" OnClick="@(() => OpenAsync(item))">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
-                        @* Fixed-width slot so read and unread rows stay aligned. *@
-                        <div style="width:8px; flex:0 0 8px;">
-                            @if (!item.IsRead)
-                            {
-                                <MudIcon Icon="@Icons.Material.Filled.Circle"
-                                         Style="font-size:.5rem; color:var(--mud-palette-primary);" />
-                            }
-                        </div>
-                        <MudStack Spacing="0" Class="flex-grow-1">
-                            <MudText Typo="Typo.body2"
-                                     Style="@(item.IsRead ? "" : "font-weight:600;")">
-                                @item.Message
-                            </MudText>
-                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                                @item.CreatedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
-                            </MudText>
-                        </MudStack>
-                        @if (!string.IsNullOrWhiteSpace(item.ActionUrl))
-                        {
-                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
-                                     Style="color:var(--mud-palette-text-disabled);" />
-                        }
-                    </MudStack>
+                <MudListItem T="Notification" OnClick="@(() => OpenAsync(notification))">
+                    <NotificationRow Notification="@notification" ShowNavigationHint="true" />
                 </MudListItem>
                 <MudDivider />
             }
@@ -95,6 +78,7 @@ else
     private int _unreadCount;
     private int _page = 1;
     private bool _loading = true;
+    private bool _failed;
 
     private int PageCount => (_total + PageSize - 1) / PageSize;
 
@@ -105,40 +89,71 @@ else
 
         var user = (await AuthStateTask!).User;
         if (!Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out _currentUserId))
+        {
+            _failed = true;
+            _loading = false;
             return;
+        }
 
-        await LoadAsync();
-    }
-
-    // Sequential awaits on purpose: they share this page's scoped DbContext, and two
-    // queries in flight on the same context throw.
-    private async Task LoadAsync()
-    {
-        _loading = true;
-
-        _total = await Notifications.GetHistoryCountAsync(_currentUserId);
-        _unreadCount = await Notifications.GetUnreadCountAsync(_currentUserId);
-        _notifications = await Notifications.GetHistoryPageAsync(
-            _currentUserId, (_page - 1) * PageSize, PageSize);
-
+        await LoadCountsAsync();
+        await LoadPageAsync();
         _loading = false;
     }
 
-    private async Task OnPageChangedAsync(int page)
+    // Sequential awaits throughout: they share this page's scoped DbContext, and two
+    // queries in flight on the same context throw.
+    private async Task LoadCountsAsync()
+    {
+        try
+        {
+            _total = await Notifications.GetHistoryCountAsync(_currentUserId);
+            _unreadCount = await Notifications.GetUnreadCountAsync(_currentUserId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not count notifications for user {UserId}.", _currentUserId);
+            _failed = true;
+        }
+    }
+
+    private async Task LoadPageAsync()
+    {
+        try
+        {
+            _notifications = await Notifications.GetHistoryPageAsync(
+                _currentUserId, (_page - 1) * PageSize, PageSize);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load notifications for user {UserId}.", _currentUserId);
+            _failed = true;
+        }
+    }
+
+    // Only the slice is re-read: paging cannot change either count.
+    private Task OnPageChangedAsync(int page)
     {
         _page = page;
-        await LoadAsync();
+        return LoadPageAsync();
     }
 
     private async Task OpenAsync(Notification notification)
     {
         if (!notification.IsRead)
         {
-            await Notifications.MarkAsReadAsync(notification.Id);
+            try
+            {
+                await Notifications.MarkAsReadAsync(_currentUserId, notification.Id);
 
-            // Rows are read with AsNoTracking, so this only updates what is on screen.
-            notification.IsRead = true;
-            _unreadCount = Math.Max(0, _unreadCount - 1);
+                // Rows come back untracked, so this only updates the screen; the bell's
+                // badge refreshes through the dispatcher.
+                notification.IsRead = true;
+                _unreadCount = Math.Max(0, _unreadCount - 1);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not mark notification {NotificationId} read.", notification.Id);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(notification.ActionUrl))
@@ -147,11 +162,18 @@ else
 
     private async Task MarkAllAsReadAsync()
     {
-        await Notifications.MarkAllAsReadAsync(_currentUserId);
+        try
+        {
+            await Notifications.MarkAllAsReadAsync(_currentUserId);
 
-        foreach (var notification in _notifications)
-            notification.IsRead = true;
+            foreach (var notification in _notifications)
+                notification.IsRead = true;
 
-        _unreadCount = 0;
+            _unreadCount = 0;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not mark all notifications read for user {UserId}.", _currentUserId);
+        }
     }
 }
