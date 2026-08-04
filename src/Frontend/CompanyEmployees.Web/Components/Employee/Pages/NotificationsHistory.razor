@@ -1,0 +1,157 @@
+@page "/employee/notifications"
+@layout EmployeeLayout
+@using System.Globalization
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Web.Security
+@inject NotificationContext Notifications
+@inject NavigationManager Nav
+
+<PageTitle>Notifications · Time Off Management</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h5" Style="font-weight:600;">Notifications</MudText>
+    @if (_unreadCount > 0)
+    {
+        <MudButton Variant="Variant.Text" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.DoneAll"
+                   OnClick="MarkAllAsReadAsync">Mark all as read</MudButton>
+    }
+</div>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_total == 0)
+{
+    <MudPaper Class="pa-8 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" Size="Size.Large"
+                 Style="color:var(--mud-palette-text-disabled);" />
+        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+            You have no notifications yet.
+        </MudText>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Elevation="1">
+        <MudList T="Notification">
+            @foreach (var notification in _notifications)
+            {
+                var item = notification;
+                <MudListItem T="Notification" OnClick="@(() => OpenAsync(item))">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                        @* Fixed-width slot so read and unread rows stay aligned. *@
+                        <div style="width:8px; flex:0 0 8px;">
+                            @if (!item.IsRead)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Circle"
+                                         Style="font-size:.5rem; color:var(--mud-palette-primary);" />
+                            }
+                        </div>
+                        <MudStack Spacing="0" Class="flex-grow-1">
+                            <MudText Typo="Typo.body2"
+                                     Style="@(item.IsRead ? "" : "font-weight:600;")">
+                                @item.Message
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                @item.CreatedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
+                            </MudText>
+                        </MudStack>
+                        @if (!string.IsNullOrWhiteSpace(item.ActionUrl))
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
+                                     Style="color:var(--mud-palette-text-disabled);" />
+                        }
+                    </MudStack>
+                </MudListItem>
+                <MudDivider />
+            }
+        </MudList>
+    </MudPaper>
+
+    @if (PageCount > 1)
+    {
+        <div class="d-flex justify-center mt-4">
+            <MudPagination Count="@PageCount" Selected="@_page"
+                           SelectedChanged="OnPageChangedAsync"
+                           Color="Color.Primary" ShowFirstButton="true" ShowLastButton="true" />
+        </div>
+    }
+}
+
+@code {
+    private const int PageSize = 15;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private Guid _currentUserId;
+    private List<Notification> _notifications = new();
+    private int _total;
+    private int _unreadCount;
+    private int _page = 1;
+    private bool _loading = true;
+
+    private int PageCount => (_total + PageSize - 1) / PageSize;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+            return;
+
+        var user = (await AuthStateTask!).User;
+        if (!Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out _currentUserId))
+            return;
+
+        await LoadAsync();
+    }
+
+    // Sequential awaits on purpose: they share this page's scoped DbContext, and two
+    // queries in flight on the same context throw.
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        _total = await Notifications.GetHistoryCountAsync(_currentUserId);
+        _unreadCount = await Notifications.GetUnreadCountAsync(_currentUserId);
+        _notifications = await Notifications.GetHistoryPageAsync(
+            _currentUserId, (_page - 1) * PageSize, PageSize);
+
+        _loading = false;
+    }
+
+    private async Task OnPageChangedAsync(int page)
+    {
+        _page = page;
+        await LoadAsync();
+    }
+
+    private async Task OpenAsync(Notification notification)
+    {
+        if (!notification.IsRead)
+        {
+            await Notifications.MarkAsReadAsync(notification.Id);
+
+            // Rows are read with AsNoTracking, so this only updates what is on screen.
+            notification.IsRead = true;
+            _unreadCount = Math.Max(0, _unreadCount - 1);
+        }
+
+        if (!string.IsNullOrWhiteSpace(notification.ActionUrl))
+            Nav.NavigateTo(notification.ActionUrl);
+    }
+
+    private async Task MarkAllAsReadAsync()
+    {
+        await Notifications.MarkAllAsReadAsync(_currentUserId);
+
+        foreach (var notification in _notifications)
+            notification.IsRead = true;
+
+        _unreadCount = 0;
+    }
+}

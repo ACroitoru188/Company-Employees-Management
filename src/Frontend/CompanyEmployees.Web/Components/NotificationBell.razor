@@ -76,6 +76,15 @@
                         </MudMenuItem>
                     }
                 </div>
+
+                @* The only way into the history page — it is deliberately absent from the
+                   drawer nav, so this entry has to carry it. *@
+                <MudDivider />
+                <MudMenuItem Href="/employee/notifications">
+                    <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Primary">
+                        See all notifications
+                    </MudText>
+                </MudMenuItem>
             }
         </div>
     </ChildContent>
