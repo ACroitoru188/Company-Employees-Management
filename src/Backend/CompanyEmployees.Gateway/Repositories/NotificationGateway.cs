@@ -2,11 +2,6 @@ using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.GatewayInterfaces;
 using CompanyEmployees.Persistence;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace CompanyEmployees.Gateway.Repositories
 {
@@ -25,20 +20,39 @@ namespace CompanyEmployees.Gateway.Repositories
 
         public async Task<List<Notification>> GetUnreadNotificationsAsync(Guid userId)
         {
-            try
-            {
-                return await _context.Notifications
-                    .Where(n => n.UserId == userId && !n.IsRead)
-                    .OrderByDescending(n => n.CreatedAt)
-                    .ToListAsync();
-            }
-            catch
-            {
-                // Tabelul lipsește sau baza de date nu răspunde. 
-                // Returnăm o listă goală ca să nu "crape" tot ecranul.
-                return new List<Notification>();
-            }
+            return await _context.Notifications
+                .Where(n => n.UserId == userId && !n.IsRead)
+                .OrderByDescending(n => n.CreatedAt)
+                .AsNoTracking()
+                .ToListAsync();
         }
+
+        public async Task<List<Notification>> GetRecentAsync(Guid userId, int take)
+        {
+            return await _context.Notifications
+                .Where(n => n.UserId == userId)
+                .OrderByDescending(n => n.CreatedAt)
+                .Take(take)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
+        public async Task<List<Notification>> GetPageAsync(Guid userId, int skip, int take)
+        {
+            return await _context.Notifications
+                .Where(n => n.UserId == userId)
+                .OrderByDescending(n => n.CreatedAt)
+                .Skip(skip)
+                .Take(take)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
+        public Task<int> CountAsync(Guid userId) =>
+            _context.Notifications.CountAsync(n => n.UserId == userId);
+
+        public Task<int> GetUnreadCountAsync(Guid userId) =>
+            _context.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead);
 
         public async Task MarkAsReadAsync(Guid notificationId)
         {
@@ -49,5 +63,12 @@ namespace CompanyEmployees.Gateway.Repositories
                 await _context.SaveChangesAsync();
             }
         }
+
+        public Task MarkAllAsReadAsync(Guid userId) =>
+            // One UPDATE statement instead of loading every row and saving them back:
+            // ExecuteUpdate writes straight to the database, bypassing the change tracker.
+            _context.Notifications
+                .Where(n => n.UserId == userId && !n.IsRead)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(n => n.IsRead, true));
     }
 }
