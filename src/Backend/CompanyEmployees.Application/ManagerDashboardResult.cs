@@ -39,6 +39,10 @@ namespace CompanyEmployees.Application
 
         public bool IsDelegated { get; set; }
         public string? DelegatedFromManagerName { get; set; }
+
+        public string Role { get; set; } = "";
+        public string? Reason { get; set; }
+        public DateTime SubmittedAt { get; set; }
     }
 
     public class ManagerTeamMember

@@ -9,13 +9,59 @@
 @inject EmployeeContext EmployeeCtx
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Organization Chart · Time Off Management</PageTitle>
 
-<MudText Typo="Typo.h5" Style="font-weight:600;">Organization Chart</MudText>
-<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
-    Explore the company structure. Drag to pan, scroll to zoom. Hover or click an employee for details and actions.
-</MudText>
+<div class="d-flex justify-space-between align-center mb-3 flex-wrap gap-2">
+    <div>
+        <MudText Typo="Typo.h5" Style="font-weight:600;">Organization Chart</MudText>
+        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+            Explore the company structure. Drag to pan, scroll to zoom. Hover or click an employee for details and actions.
+        </MudText>
+    </div>
+    <div class="d-flex align-center gap-3">
+        <MudAutocomplete T="OrgChartNode"
+                         Value="_selectedSearchNode"
+                         ValueChanged="OnSearchNodeSelected"
+                         SearchFunc="SearchEmployees"
+                         ToStringFunc="@(node => node?.Name ?? "")"
+                         Placeholder="Search people..."
+                         Variant="Variant.Outlined"
+                         Margin="Margin.Dense"
+                         Adornment="Adornment.Start"
+                         AdornmentIcon="@Icons.Material.Filled.Search"
+                         AdornmentColor="Color.Primary"
+                         Clearable="true"
+                         Class="search-people-input"
+                         Style="min-width: 250px; max-width: 320px;"
+                         CoerceValue="true"
+                         MaxItems="10">
+            <ItemTemplate Context="node">
+                <div class="d-flex align-center gap-2 py-1">
+                    <MudAvatar Size="Size.Small" Color="Color.Primary" Style="font-size: 11px; font-weight: 700;">
+                        @node.Initials
+                    </MudAvatar>
+                    <div class="d-flex flex-column">
+                        <MudText Typo="Typo.body2" Style="font-weight: 600; line-height: 1.2;">@node.Name</MudText>
+                        <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary); font-size: 11px;">
+                            @node.Role @(!string.IsNullOrEmpty(node.Department) ? $"· {node.Department}" : "")
+                        </MudText>
+                    </div>
+                </div>
+            </ItemTemplate>
+        </MudAutocomplete>
+
+        <MudButton Variant="Variant.Outlined" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.CenterFocusStrong"
+                   OnClick="FocusOnSelf"
+                   Class="focus-btn"
+                   Style="border-radius: 8px; font-weight: 700; text-transform: none; padding: 6px 18px; border-width: 2px; height: 40px; white-space: nowrap;">
+            Focus
+        </MudButton>
+    </div>
+</div>
 
 <MudCard Elevation="1" Style="height: 75vh; overflow: hidden; position: relative; cursor: grab;" class="org-card">
     <MudCardContent Class="pa-0" Style="height: 100%; width: 100%; position: relative; background-color: var(--mud-palette-background-grey); overflow: hidden;" id="orgContainer" @onwheel="OnWheel" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp" @onmouseleave="OnMouseUp">
@@ -37,27 +83,32 @@
                     @* Nodes Layer *@
                     @foreach (var node in _nodes)
                     {
+                        bool isSelf = node.UserId == _currentUserId;
                         <g transform="translate(@node.X, @node.Y)">
-                            <circle r="25" class="@(node.IsFocusNode ? "org-node-circle-focus" : "org-node-circle")" 
+                            @if (isSelf)
+                            {
+                                <circle r="33" class="org-node-self-aura" />
+                            }
+
+                            <circle r="25" class="@(isSelf ? "org-node-circle-self" : (node.IsFocusNode ? "org-node-circle-focus" : "org-node-circle"))" 
                                     @onmouseenter="() => OnNodeMouseEnter(node)" 
                                     @onmouseleave="OnNodeMouseLeave"
                                     @onclick="() => OnNodeClick(node)" />
-                            <text class="@(node.IsFocusNode ? "org-text-focus" : "org-text")" dominant-baseline="central" text-anchor="middle"
-                                  style="pointer-events: none;">@node.Initials</text>
+                            @((MarkupString)$"<text x=\"0\" y=\"0\" class=\"{(isSelf ? "org-text-self" : (node.IsFocusNode ? "org-text-focus" : "org-text"))}\" dominant-baseline=\"central\" text-anchor=\"middle\" style=\"pointer-events: none;\">{node.Initials}</text>")
 
                             @if (node.HasChildren)
                             {
                                 <g class="org-expand-btn" transform="translate(0, 25)"
                                    @onclick="() => ToggleNodeExpand(node)" @onclick:stopPropagation="true">
                                     <circle r="9" class="expand-btn-bg" />
-                                    <text class="expand-btn-icon" text-anchor="middle" dominant-baseline="central">@(node.IsExpanded ? "−" : "+")</text>
+                                    @((MarkupString)$"<text x=\"0\" y=\"0\" class=\"expand-btn-icon\" text-anchor=\"middle\" dominant-baseline=\"central\">{(node.IsExpanded ? "−" : "+")}</text>")
                                 </g>
                             }
                         </g>
                     }
 
                     @* Hover / Focus Info Panel (Rendered last to ensure top z-order) *@
-                    @if (_hoveredNode != null)
+                    @if (_hoveredNode != null && _hoveredNode.UserId != _currentUserId)
                     {
                         <foreignObject x="@(_hoveredNode.X + 32)" y="@(_hoveredNode.Y - 60)" width="345" height="@(_isManagerOrHr ? "245" : "175")" style="pointer-events: auto;">
                             <div class="org-info-panel"
@@ -107,25 +158,43 @@
                                 @if (_isManagerOrHr)
                                 {
                                     <div class="org-info-actions">
-                                        @if (_hoveredNode.HasPendingRequest)
+                                        @if (!CanManageRequests(_hoveredNode))
                                         {
-                                            <button class="action-btn btn-request active" @onclick="@(() => OnViewRequestClicked(_hoveredNode))" title="View pending leave request">
-                                                <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
-                                                View Request
+                                            <button class="action-btn btn-locked disabled" disabled title="Leave requests can only be approved by Line Managers or HR">
+                                                🔒
                                             </button>
                                         }
                                         else
                                         {
-                                            <button class="action-btn btn-request disabled" @onclick="@(() => OnViewRequestClicked(_hoveredNode))" title="No pending leave requests">
-                                                <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
-                                                No Request
-                                            </button>
+                                            @if (_hoveredNode.HasPendingRequest)
+                                            {
+                                                <button class="action-btn btn-request active" @onclick="@(() => OnViewRequestClicked(_hoveredNode))" title="View pending leave request">
+                                                    <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+                                                    View Request
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="action-btn btn-request disabled" @onclick="@(() => OnViewRequestClicked(_hoveredNode))" title="No pending leave requests">
+                                                    <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+                                                    No Request
+                                                </button>
+                                            }
                                         }
 
-                                        <button class="action-btn btn-contract" @onclick="@(() => OnManageContractClicked(_hoveredNode))" title="Manage contract for this employee">
-                                            <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                                            Manage Contract
-                                        </button>
+                                        @if (!CanManageContract(_hoveredNode))
+                                        {
+                                            <button class="action-btn btn-locked disabled" disabled title="Contract management locked for superiors or unauthorized roles">
+                                                🔒
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="action-btn btn-contract" @onclick="@(() => OnManageContractClicked(_hoveredNode))" title="Manage contract for this employee">
+                                                <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                                                Manage Contract
+                                            </button>
+                                        }
                                     </div>
                                 }
                             </div>
@@ -157,11 +226,15 @@
     private bool _isManagerOrHr = false;
     private string _userRole = "";
     private string _userDepartment = "";
+    private Guid _currentUserId = Guid.Empty;
+    private HashSet<Guid> _subordinateIds = new();
     
     private bool _isDragging = false;
     private double _startX = 0;
     private double _startY = 0;
     private bool _hasDragged = false;
+
+    private OrgChartNode? _selectedSearchNode;
 
     protected override async Task OnInitializedAsync()
     {
@@ -179,6 +252,7 @@
 
         if (Guid.TryParse(userIdString, out var userId))
         {
+            _currentUserId = userId;
             bool isAdmin = _userRole == UserRole.Admin.ToString();
             _root = await EmployeeCtx.GetCompanyOrgChartAsync(userId, isAdmin);
 
@@ -187,12 +261,175 @@
                 _nodes.Clear();
                 _edges.Clear();
                 FlattenTree(_root);
+
+                _subordinateIds.Clear();
+                var selfNode = FindNodeInTree(_root, _currentUserId);
+                if (selfNode != null)
+                {
+                    CollectSubordinateIds(selfNode, _subordinateIds);
+                }
                 
-                // Center the root
-                _translateX = 450 - _root.X; // Default offset so root is roughly centered
+                // Initial rough center
+                _translateX = 450 - _root.X;
                 _translateY = 50;
             }
         }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _root != null)
+        {
+            await Task.Delay(50); // allow container to layout
+            await FocusOnSelf();
+        }
+    }
+
+    private Task<IEnumerable<OrgChartNode>> SearchEmployees(string value, CancellationToken token)
+    {
+        var searchable = GetSearchableNodes();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Task.FromResult<IEnumerable<OrgChartNode>>(searchable.Take(8));
+        }
+
+        var results = searchable
+            .Where(n => (!string.IsNullOrWhiteSpace(n.Name) && n.Name.Contains(value, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrWhiteSpace(n.Role) && n.Role.Contains(value, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrWhiteSpace(n.Department) && n.Department.Contains(value, StringComparison.OrdinalIgnoreCase)))
+            .Take(10);
+
+        return Task.FromResult<IEnumerable<OrgChartNode>>(results);
+    }
+
+    private List<OrgChartNode> GetSearchableNodes()
+    {
+        var list = new List<OrgChartNode>();
+        if (_root == null) return list;
+
+        bool isAdmin = _userRole == UserRole.Admin.ToString();
+        bool isManager = _userRole == UserRole.LineManager.ToString();
+
+        if (isAdmin)
+        {
+            CollectAllNodes(_root, list);
+        }
+        else if (isManager)
+        {
+            var selfNode = FindNodeInTree(_root, _currentUserId);
+            if (selfNode != null)
+            {
+                CollectAllNodes(selfNode, list);
+            }
+        }
+        else
+        {
+            var selfNode = FindNodeInTree(_root, _currentUserId);
+            if (selfNode != null)
+            {
+                list.Add(selfNode);
+            }
+        }
+
+        return list.Where(n => !string.IsNullOrWhiteSpace(n.Name) && n.Name != "Company HQ").ToList();
+    }
+
+    private void CollectAllNodes(OrgChartNode node, List<OrgChartNode> list)
+    {
+        list.Add(node);
+        foreach (var child in node.Subordinates)
+        {
+            CollectAllNodes(child, list);
+        }
+    }
+
+    private async Task OnSearchNodeSelected(OrgChartNode? node)
+    {
+        _selectedSearchNode = node;
+        if (node == null) return;
+
+        await FocusOnNode(node.UserId);
+    }
+
+    private async Task FocusOnSelf()
+    {
+        await FocusOnNode(_currentUserId);
+    }
+
+    private async Task FocusOnNode(Guid targetUserId)
+    {
+        if (_root == null) return;
+
+        // Recursively expand all ancestor nodes down to the target node
+        bool found = ExpandPathToNode(_root, targetUserId);
+        if (!found && targetUserId != _root.UserId)
+        {
+            Snackbar.Add("Employee is not within your accessible team structure.", Severity.Info);
+            return;
+        }
+
+        // Recalculate layout to position all newly revealed nodes
+        RecalculateLayout();
+
+        // Get newly positioned node from flattened list
+        var targetNode = _nodes.FirstOrDefault(n => n.UserId == targetUserId) ?? _root;
+
+        double containerWidth = 1100;
+        double containerHeight = 550;
+
+        try
+        {
+            var bounds = await JSRuntime.InvokeAsync<ElementBounds>("eval", "(() => { const el = document.getElementById('orgContainer'); return el ? { width: el.clientWidth, height: el.clientHeight } : { width: 1100, height: 550 }; })()");
+            if (bounds != null && bounds.Width > 0 && bounds.Height > 0)
+            {
+                containerWidth = bounds.Width;
+                containerHeight = bounds.Height;
+            }
+        }
+        catch
+        {
+            // Fallback
+        }
+
+        _scale = 1.0;
+        _translateX = (containerWidth / 2.0) - (targetNode.X * _scale);
+        _translateY = (containerHeight / 2.0) - (targetNode.Y * _scale);
+
+        if (targetNode.UserId != _currentUserId && targetNode.UserId != Guid.Empty)
+        {
+            _hoveredNode = targetNode;
+        }
+        else
+        {
+            _hoveredNode = null;
+        }
+
+        StateHasChanged();
+    }
+
+    private bool ExpandPathToNode(OrgChartNode current, Guid targetUserId)
+    {
+        if (current.UserId == targetUserId)
+        {
+            return true;
+        }
+
+        foreach (var child in current.Subordinates)
+        {
+            if (ExpandPathToNode(child, targetUserId))
+            {
+                current.IsExpanded = true;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private class ElementBounds
+    {
+        public double Width { get; set; }
+        public double Height { get; set; }
     }
 
     private void FlattenTree(OrgChartNode node)
@@ -222,7 +459,76 @@
         _nodes.Clear();
         _edges.Clear();
         FlattenTree(_root);
+
+        _subordinateIds.Clear();
+        var selfNode = FindNodeInTree(_root, _currentUserId);
+        if (selfNode != null)
+        {
+            CollectSubordinateIds(selfNode, _subordinateIds);
+        }
+
         StateHasChanged();
+    }
+
+    private OrgChartNode? FindNodeInTree(OrgChartNode current, Guid targetId)
+    {
+        if (current.UserId == targetId) return current;
+        foreach (var child in current.Subordinates)
+        {
+            var found = FindNodeInTree(child, targetId);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private void CollectSubordinateIds(OrgChartNode node, HashSet<Guid> result)
+    {
+        foreach (var child in node.Subordinates)
+        {
+            result.Add(child.UserId);
+            CollectSubordinateIds(child, result);
+        }
+    }
+
+    private bool CanManageRequests(OrgChartNode node)
+    {
+        if (node == null || node.UserId == Guid.Empty || node.UserId == _currentUserId) return false;
+        
+        // Admin cannot approve leave requests (only Line Managers for their subordinates or HR)
+        if (_userRole == UserRole.Admin.ToString())
+        {
+            return false;
+        }
+
+        if (_userRole == UserRole.LineManager.ToString())
+        {
+            return _subordinateIds.Contains(node.UserId);
+        }
+
+        if (_userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool CanManageContract(OrgChartNode node)
+    {
+        if (node == null || node.UserId == Guid.Empty || node.UserId == _currentUserId) return false;
+
+        // Admin and HR can manage contracts across the organization
+        if (_userRole == UserRole.Admin.ToString() || _userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (_userRole == UserRole.LineManager.ToString())
+        {
+            return _subordinateIds.Contains(node.UserId);
+        }
+
+        return false;
     }
 
     private void OnWheel(WheelEventArgs e)
@@ -271,7 +577,7 @@
 
     private void OnNodeMouseEnter(OrgChartNode node)
     {
-        if (_isDragging) return;
+        if (_isDragging || node.UserId == _currentUserId) return;
         _hoverCts?.Cancel();
         _hoveredNode = node;
     }
@@ -309,7 +615,7 @@
 
     private void OnNodeClick(OrgChartNode node)
     {
-        if (_hasDragged) return;
+        if (_hasDragged || node.UserId == _currentUserId) return;
         _hoveredNode = node;
     }
 

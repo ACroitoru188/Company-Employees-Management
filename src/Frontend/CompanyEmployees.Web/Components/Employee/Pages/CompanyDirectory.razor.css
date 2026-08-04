@@ -273,3 +273,74 @@
 ::deep .org-expand-btn:hover .expand-btn-icon {
     fill: #ffffff;
 }
+
+/* Self (Current User) Node Styles - Vibrant Red Theme */
+::deep .org-node-self-aura {
+    fill: none;
+    stroke: #e53935;
+    stroke-width: 2.5px;
+    opacity: 0.8;
+    animation: selfPulse 2.5s infinite ease-in-out;
+}
+
+@keyframes selfPulse {
+    0% { r: 29px; opacity: 0.9; stroke-width: 2.5px; }
+    50% { r: 36px; opacity: 0.2; stroke-width: 1.5px; }
+    100% { r: 29px; opacity: 0.9; stroke-width: 2.5px; }
+}
+
+::deep .org-node-circle-self {
+    fill: #e53935;
+    stroke: #ffffff;
+    stroke-width: 3.5px;
+    opacity: 1;
+    filter: drop-shadow(0px 0px 12px rgba(229, 57, 53, 0.8));
+    cursor: default;
+}
+
+::deep .org-text-self {
+    font-family: 'Roboto', 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    fill: #ffffff;
+    pointer-events: none;
+}
+
+::deep .search-people-input .mud-input-outlined-border {
+    border-radius: 8px !important;
+}
+
+/* Locked Action Buttons for Superiors / Restrict */
+::deep .action-btn.btn-locked {
+    background-color: var(--mud-palette-action-disabled-background);
+    color: var(--mud-palette-text-disabled);
+    border: 1px dashed var(--mud-palette-lines-default);
+    cursor: not-allowed;
+    opacity: 0.9;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 6px 12px;
+}
+
+/* Focus Button Styling */
+::deep .focus-btn {
+    border: 2px solid var(--mud-palette-primary) !important;
+    color: var(--mud-palette-primary) !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.5px !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+}
+
+::deep .focus-btn:hover {
+    background-color: var(--mud-palette-primary) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 14px rgba(33, 150, 243, 0.45) !important;
+    transform: translateY(-1px);
+}
+
+
+

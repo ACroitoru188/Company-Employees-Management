@@ -485,59 +485,108 @@ namespace CompanyEmployees.Application.Contexts
 
             if (root != null)
             {
-                AttachChildren(root);
-                
-                // Determine focus & initial expansion based on role
                 if (isAdmin)
                 {
+                    AttachChildren(root);
                     SetAllExpanded(root, true);
                     MarkFocus(root, null); // Admins see everything focused
                 }
                 else
                 {
                     var currentUser = activeUsers.FirstOrDefault(u => u.Id == currentUserId);
-                    var expandedIds = new HashSet<Guid> { Guid.Empty }; // Root HQ is always expanded
-
                     if (currentUser != null)
                     {
-                        // 1. Ancestor chain from current user up to root
-                        var curr = currentUser;
+                        // Determine team anchor:
+                        // - If currentUser has subordinates (Line Manager), the anchor is currentUser.
+                        // - If currentUser has no subordinates (simple employee), the anchor is their direct manager (so they see their full team).
+                        bool hasSubordinates = childrenMap.TryGetValue(currentUser.Id, out var directSubordinates) && directSubordinates.Count > 0;
+                        Guid teamAnchorId = (hasSubordinates || currentUser.ManagerId == null)
+                            ? currentUser.Id
+                            : currentUser.ManagerId.Value;
+
+                        var teamAnchorUser = activeUsers.FirstOrDefault(u => u.Id == teamAnchorId) ?? currentUser;
+
+                        // Build ancestor path from HQ (Guid.Empty) -> ... -> teamAnchorId
+                        var ancestorChain = new List<Guid>();
+                        var curr = teamAnchorUser;
                         while (curr != null)
                         {
-                            expandedIds.Add(curr.Id);
+                            ancestorChain.Insert(0, curr.Id);
                             if (curr.ManagerId == null) break;
                             curr = activeUsers.FirstOrDefault(u => u.Id == curr.ManagerId.Value);
                         }
 
-                        // 2. Subtree of current user (their team)
-                        void AddSubtree(Guid userId)
+                        // Attach only strict ancestors above teamAnchor and full subtree under teamAnchor
+                        void AttachScopedChildren(OrgChartNode parent)
                         {
-                            expandedIds.Add(userId);
-                            if (childrenMap.TryGetValue(userId, out var kids))
+                            if (childrenMap.TryGetValue(parent.UserId, out var children))
                             {
-                                foreach (var k in kids)
+                                int ancestorIdx = ancestorChain.IndexOf(parent.UserId);
+                                if (parent.UserId == Guid.Empty)
                                 {
-                                    AddSubtree(k.UserId);
+                                    // Parent is HQ: attach ONLY the top ancestor in the chain
+                                    var nextAncestorId = ancestorChain.FirstOrDefault();
+                                    var nextChild = children.FirstOrDefault(c => c.UserId == nextAncestorId);
+                                    if (nextChild != null)
+                                    {
+                                        parent.Subordinates = new List<OrgChartNode> { nextChild };
+                                        AttachScopedChildren(nextChild);
+                                    }
+                                }
+                                else if (ancestorIdx >= 0 && ancestorIdx < ancestorChain.Count - 1)
+                                {
+                                    // Parent is an ancestor strictly above teamAnchor
+                                    var nextAncestorId = ancestorChain[ancestorIdx + 1];
+                                    var nextChild = children.FirstOrDefault(c => c.UserId == nextAncestorId);
+                                    if (nextChild != null)
+                                    {
+                                        parent.Subordinates = new List<OrgChartNode> { nextChild };
+                                        AttachScopedChildren(nextChild);
+                                    }
+                                }
+                                else
+                                {
+                                    // Parent is teamAnchor or in teamAnchor's subtree: attach all children
+                                    parent.Subordinates = children.OrderBy(c => c.Name).ToList();
+                                    foreach (var child in parent.Subordinates)
+                                    {
+                                        AttachScopedChildren(child);
+                                    }
                                 }
                             }
                         }
-                        AddSubtree(currentUser.Id);
-                    }
 
-                    // Apply expansion
-                    void ApplyInitialExpansion(OrgChartNode node)
-                    {
-                        node.IsExpanded = expandedIds.Contains(node.UserId);
-                        foreach (var child in node.Subordinates)
+                        AttachScopedChildren(root);
+                        SetAllExpanded(root, true);
+
+                        var focusIds = new HashSet<Guid>(ancestorChain) { Guid.Empty, currentUser.Id };
+                        void MarkScopedFocus(OrgChartNode node)
                         {
-                            ApplyInitialExpansion(child);
-                        }
-                    }
-                    ApplyInitialExpansion(root);
+                            if (currentUser.Department != null && node.Department == currentUser.Department.Name)
+                            {
+                                node.IsFocusNode = true;
+                            }
+                            else if (focusIds.Contains(node.UserId))
+                            {
+                                node.IsFocusNode = true;
+                            }
+                            else
+                            {
+                                node.IsFocusNode = false;
+                            }
 
-                    if (currentUser != null)
+                            foreach (var child in node.Subordinates)
+                            {
+                                MarkScopedFocus(child);
+                            }
+                        }
+                        MarkScopedFocus(root);
+                    }
+                    else
                     {
-                        MarkFocus(root, currentUser.Department?.Name);
+                        AttachChildren(root);
+                        SetAllExpanded(root, true);
+                        MarkFocus(root, null);
                     }
                 }
 

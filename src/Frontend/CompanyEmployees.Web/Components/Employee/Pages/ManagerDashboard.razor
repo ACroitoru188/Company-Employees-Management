@@ -10,6 +10,7 @@
 @using CompanyEmployees.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Components.Pages
 @inject EmployeeContext Employees
 @inject ManagerContext Manager
 @inject NavigationManager Nav
@@ -129,62 +130,114 @@ else
         </MudCard>
     }
 
-    <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Requests to approve</MudText>
-
-    @if (_data.Pending.Count == 0)
-    {
-        <MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
-            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-                No requests are waiting for your approval.
-            </MudText>
-        </MudPaper>
-    }
-    else
-    {
-        <MudTable T="ManagerPendingRequest" Items="@_data.Pending" Hover="true" Elevation="1" Class="mb-6">
-            <HeaderContent>
-                <MudTh>Employee</MudTh>
-                <MudTh>Department</MudTh>
-                <MudTh>Type</MudTh>
-                <MudTh>Period</MudTh>
-                <MudTh>Waiting</MudTh>
-                <MudTh></MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="Employee">
-                    <div class="d-flex align-center gap-2">
-                        <span>@context.Name</span>
-                        @if (context.IsDelegated)
-                        {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
-                                Delegated from @context.DelegatedFromManagerName
-                            </MudChip>
-                        }
+    <!-- Requests awaiting approval -->
+    <div class="requests-panel">
+        <div class="panel-header">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            Requests to approve
+        </div>
+        <div class="px-4 py-2 border-bottom">
+            <MudTextField @bind-value="RequestsSearchTerm"
+                          PlaceHolder="Search by name..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Small"
+                          Margin="Margin.Dense"
+                          Variant="Variant.Outlined"
+                          Immediate="true"></MudTextField>
+        </div>
+        <div class="requests-list">
+            @if (!FilteredRequests.Any())
+            {
+                <div class="request-row">
+                    <div class="req-info">
+                        <div class="req-desc">No requests are waiting for approval.</div>
                     </div>
-                </MudTd>
-                <MudTd DataLabel="Department">@context.Department</MudTd>
-                <MudTd DataLabel="Type">@context.Type</MudTd>
-                <MudTd DataLabel="Period">
-                    <MudText Typo="Typo.body2">
-                        @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-                        @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-                    </MudText>
-                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                        @context.Days @(context.Days == 1 ? "day" : "days")
-                    </MudText>
-                </MudTd>
-                <MudTd DataLabel="Waiting">
-                    @context.WaitingDays @(context.WaitingDays == 1 ? "day" : "days")
-                </MudTd>
-                <MudTd>
-                    <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
-                                   OnClick="@(() => DecideAsync(context.RequestId, true))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error"
-                                   OnClick="@(() => DecideAsync(context.RequestId, false))" />
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
-    }
+                </div>
+            }
+            @{
+                var requestList = FilteredRequests.ToList();
+            }
+            @for (int i = 0; i < requestList.Count; i++)
+            {
+                var request = requestList[i];
+                var isLast = i == requestList.Count - 1;
+                <div class="request-item" style="border-bottom: @(isLast ? "none" : "1px solid var(--mud-palette-lines-default)");">
+                    <div class="request-row" style="cursor: pointer; border-bottom: none; padding-bottom: @(_selectedRequest == request ? "0.5rem" : "1rem");" @onclick="() => ToggleRequest(request)">
+                        <div class="req-info">
+                            <div class="req-name d-flex align-center gap-2">
+                                <span>@request.Name</span>
+                                @if (request.IsDelegated)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                        Delegated from @request.DelegatedFromManagerName
+                                    </MudChip>
+                                }
+                            </div>
+                            <div class="req-desc">
+                                @request.Type &middot; @request.Days @(request.Days == 1 ? "day" : "days") &middot; @request.Department
+                                &middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)–@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                            </div>
+                        </div>
+                        <div class="req-status status-pending">pending</div>
+                    </div>
+                    
+                    @if (_selectedRequest == request)
+                    {
+                        <div class="request-details-panel mt-2 mb-4 p-4 rounded" style="background-color: var(--mud-palette-background-grey); border: 1px solid var(--mud-palette-lines-default);">
+                            @{
+                                var nameParts = request.Name.Split(' ', 2);
+                                var firstName = nameParts.Length > 0 ? nameParts[0] : "";
+                                var lastName = nameParts.Length > 1 ? nameParts[1] : "";
+                                var role = request.Role == "LineManager" ? "Manager" : request.Role;
+                            }
+
+                            <div class="d-flex justify-space-between mb-4">
+                                <div>
+                                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Name</MudText>
+                                    <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-2">@firstName</MudText>
+                                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Surname</MudText>
+                                    <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-2">@lastName</MudText>
+                                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Department</MudText>
+                                    <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-2">@request.Department</MudText>
+                                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Role</MudText>
+                                    <MudText Typo="Typo.body1" Style="font-weight:500;">@role</MudText>
+                                </div>
+                                <div class="d-flex align-center justify-center rounded border border-solid border-dark" style="width: 120px; height: 150px; background-color: var(--mud-palette-background-grey); border-width: 2px;">
+                                    <MudIcon Icon="@Icons.Material.Filled.Person" Style="font-size: 5rem; color: var(--mud-palette-text-secondary);" />
+                                </div>
+                            </div>
+
+                            <MudDivider Class="my-4" />
+
+                            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Leave type</MudText>
+                            <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-3">@request.Type</MudText>
+
+                            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Reason</MudText>
+                            <MudText Typo="Typo.body1" Class="mb-3">@(string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Equals(request.Type, StringComparison.OrdinalIgnoreCase) || request.Reason.Equals(request.Type + " leave", StringComparison.OrdinalIgnoreCase) ? "No reason specified" : request.Reason)</MudText>
+
+                            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Period</MudText>
+                            <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-3">
+                                @request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy") (@request.Days @(request.Days == 1 ? "day" : "days"))
+                            </MudText>
+
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">Submitted @request.SubmittedAt.ToString("dd.MM.yyyy - HH:mm")</MudText>
+                            
+                            <div class="d-flex justify-end mt-4">
+                                <MudButton Variant="Variant.Filled" OnClick="() => ToggleRequest(request)" Class="mr-2">CLOSE</MudButton>
+                                <MudButton Variant="Variant.Filled" OnClick="() => EditDates(request)" Class="mr-2">EDIT DATES</MudButton>
+                                <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="() => DecideAsync(request.RequestId, false)" Class="mr-2">REJECT</MudButton>
+                                <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="() => DecideAsync(request.RequestId, true)">APPROVE</MudButton>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
 
     <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Members & Contracts</MudText>
 
@@ -301,6 +354,51 @@ else
     private Guid _managerId;
     private ManagerDashboardResult? _data;
     private string _quickSearch = "";
+    private ManagerPendingRequest? _selectedRequest;
+    private string RequestsSearchTerm { get; set; } = "";
+
+    private IEnumerable<ManagerPendingRequest> FilteredRequests => string.IsNullOrWhiteSpace(RequestsSearchTerm)
+        ? (_data?.Pending ?? Enumerable.Empty<ManagerPendingRequest>())
+        : (_data?.Pending ?? Enumerable.Empty<ManagerPendingRequest>()).Where(r => r.Name.Contains(RequestsSearchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private void ToggleRequest(ManagerPendingRequest request)
+    {
+        if (_selectedRequest == request)
+        {
+            _selectedRequest = null;
+        }
+        else
+        {
+            _selectedRequest = request;
+        }
+    }
+
+    private async Task EditDates(ManagerPendingRequest request)
+    {
+        var hrReq = new HrPendingRequest
+        {
+            RequestId = request.RequestId,
+            Name = request.Name,
+            Department = request.Department,
+            Type = request.Type,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            Days = request.Days,
+            WaitingDays = request.WaitingDays,
+            Role = request.Role,
+            Reason = request.Reason,
+            SubmittedAt = request.SubmittedAt
+        };
+
+        var parameters = new DialogParameters<EditLeaveDatesDialog>
+        {
+            { d => d.Request, hrReq }
+        };
+        var dialog = await DialogService.ShowAsync<EditLeaveDatesDialog>("Edit leave period", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+            await LoadAsync();
+    }
 
     private Func<ManagerTeamMember, bool> _quickFilter => m =>
     {
@@ -331,10 +429,16 @@ else
         if (!string.IsNullOrWhiteSpace(InitialSearch))
         {
             _quickSearch = InitialSearch;
+            RequestsSearchTerm = InitialSearch;
         }
 
         _authorized = true;
         await LoadAsync();
+
+        if (!string.IsNullOrWhiteSpace(InitialSearch) && _data != null)
+        {
+            _selectedRequest = _data.Pending.FirstOrDefault(p => p.Name.Contains(InitialSearch, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     private async Task LoadAsync()
@@ -356,6 +460,10 @@ else
         {
             await Manager.DecideRequestAsync(_managerId, requestId, approve);
             Snackbar.Add(approve ? "Request approved." : "Request declined.", Severity.Success);
+            if (_selectedRequest?.RequestId == requestId)
+            {
+                _selectedRequest = null;
+            }
         }
         catch (Exception ex)
         {

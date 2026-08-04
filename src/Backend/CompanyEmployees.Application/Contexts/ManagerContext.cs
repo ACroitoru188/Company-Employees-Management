@@ -112,7 +112,10 @@ namespace CompanyEmployees.Application.Contexts
                     EndDate = request.EndDate,
                     Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
                     WaitingDays = waiting,
-                    IsDelegated = false
+                    IsDelegated = false,
+                    Role = request.User.Role.ToString(),
+                    Reason = request.Reason,
+                    SubmittedAt = request.CreatedAt
                 });
             }
 
@@ -140,7 +143,10 @@ namespace CompanyEmployees.Application.Contexts
                         Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
                         WaitingDays = waiting,
                         IsDelegated = true,
-                        DelegatedFromManagerName = delegation.Manager?.Name ?? "Delegated Manager"
+                        DelegatedFromManagerName = delegation.Manager?.Name ?? "Delegated Manager",
+                        Role = request.User.Role.ToString(),
+                        Reason = request.Reason,
+                        SubmittedAt = request.CreatedAt
                     });
                 }
             }
