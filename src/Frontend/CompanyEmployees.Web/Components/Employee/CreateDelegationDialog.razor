@@ -1,0 +1,86 @@
+@using CompanyEmployees.Domain.Entities
+@using System.Globalization
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3" Style="color:var(--mud-palette-text-secondary);">
+            Temporarily delegate your manager approval rights and contract management duties to a colleague.
+        </MudText>
+
+        <MudSelect T="Guid?" Label="Delegate To (Colleague)" @bind-Value="_selectedDelegateId"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Class="mb-3">
+            @foreach (var user in AvailableUsers)
+            {
+                <MudSelectItem Value="@((Guid?)user.Id)">@user.Name (@user.Role - @(user.Department?.Name ?? "No dept"))</MudSelectItem>
+            }
+        </MudSelect>
+
+        <div class="d-flex gap-3 mb-3">
+            <MudDatePicker Label="Start Date"
+                           @bind-Date="_startDate"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Class="flex-grow-1" />
+            <MudDatePicker Label="End Date"
+                           @bind-Date="_endDate"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Class="flex-grow-1" />
+        </div>
+
+        <MudTextField T="string"
+                      Label="Reason (e.g. Annual Leave)"
+                      @bind-Value="_reason"
+                      Variant="Variant.Outlined"
+                      Lines="2"
+                      Margin="Margin.Dense"
+                      Placeholder="Explain why you are delegating..." />
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudText Color="Color.Error" Typo="Typo.caption" Class="mt-2">@_errorMessage</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!IsValid)">
+            Create Delegation
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public List<User> AvailableUsers { get; set; } = [];
+
+    private Guid? _selectedDelegateId;
+    private DateTime? _startDate = DateTime.Today;
+    private DateTime? _endDate = DateTime.Today.AddDays(7);
+    private string _reason = "";
+    private string _errorMessage = "";
+
+    public record DelegationResult(Guid DelegateId, DateOnly StartDate, DateOnly EndDate, string? Reason);
+
+    private bool IsValid => _selectedDelegateId.HasValue && _startDate.HasValue && _endDate.HasValue && _endDate >= _startDate;
+
+    private void Submit()
+    {
+        if (!_selectedDelegateId.HasValue)
+        {
+            _errorMessage = "Please choose a delegate.";
+            return;
+        }
+
+        if (!_startDate.HasValue || !_endDate.HasValue || _endDate < _startDate)
+        {
+            _errorMessage = "End date must be on or after start date.";
+            return;
+        }
+
+        var start = DateOnly.FromDateTime(_startDate.Value);
+        var end = DateOnly.FromDateTime(_endDate.Value);
+
+        MudDialog.Close(DialogResult.Ok(new DelegationResult(_selectedDelegateId.Value, start, end, string.IsNullOrWhiteSpace(_reason) ? null : _reason)));
+    }
+}

@@ -31,6 +31,7 @@ namespace CompanyEmployees.Gateway.Repositories
         {
             return await _context.Users
                 .Include(u => u.Department)
+                .Include(u => u.Contracts)
                 .AsNoTracking()
                 .ToListAsync();
         }

@@ -1,0 +1,85 @@
+@using System.Globalization
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body1" Class="mb-3">
+            Extend fixed-term contract for <strong>@EmployeeName</strong>.
+        </MudText>
+
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+            Current period: @CurrentStartDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) – @(CurrentEndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
+        </MudAlert>
+
+        <MudDatePicker Label="New End Date"
+                       Date="@_newEndDate"
+                       DateChanged="@OnDateChanged"
+                       MinDate="@_minDate"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Required="true" />
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudText Color="Color.Error" Typo="Typo.caption" Class="mt-1">@_errorMessage</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!IsValid)">
+            Extend Contract
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string EmployeeName { get; set; } = "";
+    [Parameter] public DateOnly CurrentStartDate { get; set; }
+    [Parameter] public DateOnly? CurrentEndDate { get; set; }
+
+    private DateTime? _newEndDate;
+    private DateTime? _minDate;
+    private string _errorMessage = "";
+
+    protected override void OnInitialized()
+    {
+        var min = CurrentEndDate?.ToDateTime(TimeOnly.MinValue).AddDays(1)
+                  ?? CurrentStartDate.ToDateTime(TimeOnly.MinValue).AddDays(1);
+        _minDate = min;
+        _newEndDate = min.AddMonths(6);
+    }
+
+    private void OnDateChanged(DateTime? date)
+    {
+        _newEndDate = date;
+        Validate();
+    }
+
+    private bool IsValid => _newEndDate.HasValue && (_minDate == null || _newEndDate >= _minDate);
+
+    private void Validate()
+    {
+        if (!_newEndDate.HasValue)
+        {
+            _errorMessage = "Please select a valid new end date.";
+        }
+        else if (_minDate.HasValue && _newEndDate < _minDate)
+        {
+            _errorMessage = "New end date must be strictly after the current end date.";
+        }
+        else
+        {
+            _errorMessage = "";
+        }
+    }
+
+    private void Submit()
+    {
+        Validate();
+        if (!IsValid) return;
+
+        var selectedDate = DateOnly.FromDateTime(_newEndDate!.Value);
+        MudDialog.Close(DialogResult.Ok(selectedDate));
+    }
+}

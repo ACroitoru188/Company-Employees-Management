@@ -14,74 +14,90 @@ namespace CompanyEmployees.Application.Contexts
     {
         private readonly ILeaveRequestGateway _leaveRequestGateway;
         private readonly IUserGateway _userGateway;
+        private readonly IContractGateway _contractGateway;
+        private readonly IManagerDelegationGateway _delegationGateway;
         private readonly NotificationContext _notifications;
 
         public ManagerContext(
             ILogger<ManagerContext> logger,
             ILeaveRequestGateway leaveRequestGateway,
             IUserGateway userGateway,
+            IContractGateway contractGateway,
+            IManagerDelegationGateway delegationGateway,
             NotificationContext notifications) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
+            _contractGateway = contractGateway;
+            _delegationGateway = delegationGateway;
             _notifications = notifications;
         }
 
-        public Task<List<LeaveRequest>> GetPendingRequestsForManagerAsync(Guid managerId)
+        public async Task<List<LeaveRequest>> GetPendingRequestsForManagerAsync(Guid managerId)
         {
-            return _leaveRequestGateway.GetPendingRequestsByManagerAsync(managerId);
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var directPending = await _leaveRequestGateway.GetPendingRequestsByManagerAsync(managerId);
+
+            // Also check for delegated managers
+            var delegatedManagerIds = await _delegationGateway.GetDelegatedManagerIdsAsync(managerId, today);
+            if (delegatedManagerIds.Count == 0)
+                return directPending;
+
+            var allRequests = new List<LeaveRequest>(directPending);
+            foreach (var delegatedManagerId in delegatedManagerIds)
+            {
+                var delegatedPending = await _leaveRequestGateway.GetPendingRequestsByManagerAsync(delegatedManagerId);
+                allRequests.AddRange(delegatedPending);
+            }
+
+            return allRequests.DistinctBy(r => r.Id).OrderBy(r => r.StartDate).ToList();
         }
 
-        // Scoped to the manager's own direct reports. This is deliberately not
-        // EmployeeContext.GetTeamMembersAsync, which answers "who shares my manager"
-        // (peers) rather than "who reports to me".
+        // Scoped to the manager's own direct reports and delegated requests.
         public async Task<ManagerDashboardResult> GetManagerDashboardAsync(Guid managerId)
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
             var result = new ManagerDashboardResult();
 
+            // Load active delegations
+            result.ActiveDelegationsGiven = await _delegationGateway.GetActiveDelegationsForManagerAsync(managerId, today);
+            result.ActiveDelegationsReceived = await _delegationGateway.GetActiveDelegationsForDelegateAsync(managerId, today);
+
             var reports = await _userGateway.GetDirectReportsAsync(managerId);
             result.TeamSize = reports.Count;
 
-            if (reports.Count == 0)
-                return result;
+            var reportIds = reports.Select(p => p.Id).ToList();
 
-            var reportIds = new List<Guid>();
-            foreach (var person in reports)
-            {
-                reportIds.Add(person.Id);
-            }
+            var onLeave = reportIds.Count > 0
+                ? await _leaveRequestGateway.GetApprovedRequestsForUsersAsync(reportIds, today, today)
+                : new List<LeaveRequest>();
 
-            var onLeave = await _leaveRequestGateway
-                .GetApprovedRequestsForUsersAsync(reportIds, today, today);
-
-            // Count people, not requests: two overlapping approved requests are still
-            // one person away.
-            var outToday = new HashSet<Guid>();
-            foreach (var request in onLeave)
-            {
-                outToday.Add(request.UserId);
-            }
+            var outToday = new HashSet<Guid>(onLeave.Select(r => r.UserId));
             result.OnLeaveToday = outToday.Count;
 
             foreach (var person in reports)
             {
+                var activeContract = await _contractGateway.GetActiveContractByUserIdAsync(person.Id);
+
                 result.Team.Add(new ManagerTeamMember
                 {
                     Id = person.Id,
                     Name = person.Name,
                     Role = person.Role.ToString(),
                     Department = person.Department == null ? "—" : person.Department.Name,
-                    OnLeaveToday = outToday.Contains(person.Id)
+                    OnLeaveToday = outToday.Contains(person.Id),
+                    ContractId = activeContract?.Id,
+                    ContractType = activeContract?.Type,
+                    ContractStatus = activeContract?.Status,
+                    ContractStartDate = activeContract?.StartDate,
+                    ContractEndDate = activeContract?.EndDate
                 });
             }
 
+            // Direct pending requests
             var pending = await _leaveRequestGateway.GetPendingRequestsByManagerAsync(managerId);
-            result.PendingRequests = pending.Count;
-
             foreach (var request in pending)
             {
-                // Same 7-day threshold as the HR dashboard, so the two agree.
                 var waiting = (DateTime.UtcNow - request.CreatedAt).Days;
                 if (waiting > 7)
                     result.StaleRequests++;
@@ -95,10 +111,41 @@ namespace CompanyEmployees.Application.Contexts
                     StartDate = request.StartDate,
                     EndDate = request.EndDate,
                     Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
-                    WaitingDays = waiting
+                    WaitingDays = waiting,
+                    IsDelegated = false
                 });
             }
 
+            // Delegated pending requests
+            foreach (var delegation in result.ActiveDelegationsReceived)
+            {
+                var delegatedPending = await _leaveRequestGateway.GetPendingRequestsByManagerAsync(delegation.ManagerId);
+                foreach (var request in delegatedPending)
+                {
+                    if (result.Pending.Any(p => p.RequestId == request.Id))
+                        continue;
+
+                    var waiting = (DateTime.UtcNow - request.CreatedAt).Days;
+                    if (waiting > 7)
+                        result.StaleRequests++;
+
+                    result.Pending.Add(new ManagerPendingRequest
+                    {
+                        RequestId = request.Id,
+                        Name = request.User.Name,
+                        Department = request.User.Department == null ? "—" : request.User.Department.Name,
+                        Type = request.Type.ToString(),
+                        StartDate = request.StartDate,
+                        EndDate = request.EndDate,
+                        Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
+                        WaitingDays = waiting,
+                        IsDelegated = true,
+                        DelegatedFromManagerName = delegation.Manager?.Name ?? "Delegated Manager"
+                    });
+                }
+            }
+
+            result.PendingRequests = result.Pending.Count;
             return result;
         }
 
@@ -111,10 +158,18 @@ namespace CompanyEmployees.Application.Contexts
             if (request.Status != LeaveStatus.Pending)
                 throw new InvalidOperationException("This request has already been decided.");
 
-            // [Authorize] on the page only proves the caller is *a* manager; being the
-            // requester's own manager must be enforced here, where the UI can't bypass it.
-            if (request.User.ManagerId != managerId)
-                throw new UnauthorizedException("You are not this employee's manager.");
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var isDirectManager = request.User.ManagerId == managerId;
+            var isAuthorizedDelegate = false;
+
+            if (!isDirectManager && request.User.ManagerId.HasValue)
+            {
+                var delegatedManagerIds = await _delegationGateway.GetDelegatedManagerIdsAsync(managerId, today);
+                isAuthorizedDelegate = delegatedManagerIds.Contains(request.User.ManagerId.Value);
+            }
+
+            if (!isDirectManager && !isAuthorizedDelegate)
+                throw new UnauthorizedException("You are not this employee's manager or active delegate.");
 
             if (request.Approvals.Any(a => a.Step == LeaveApproval.ManagerApprovalStep))
                 throw new InvalidOperationException("You have already decided this request.");
@@ -132,16 +187,12 @@ namespace CompanyEmployees.Application.Contexts
             };
             request.Approvals.Add(approval);
 
-            // A reject is final immediately — no reason to make HR review a doomed request.
-            // An approve only finalizes once every required approver (HR, if this request
-            // needs it) has also approved; otherwise the request stays Pending.
             var isFinal = !approve || LeaveApprovalPolicy.IsFullyApproved(request, requirement);
             if (isFinal)
                 request.Status = approve ? LeaveStatus.Approved : LeaveStatus.Rejected;
 
             await _leaveRequestGateway.SaveDecisionAsync(request, approval);
 
-            // The decision is already committed; a notification failure must not undo it.
             try
             {
                 var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
@@ -155,7 +206,7 @@ namespace CompanyEmployees.Application.Contexts
                 }
                 else
                 {
-                    notificationMessage = $"Your {request.Type} leave request for {period} was approved by your manager and is now awaiting HR approval.";
+                    notificationMessage = $"Your {request.Type} leave request for {period} was approved by {(isAuthorizedDelegate ? "acting delegate manager" : "your manager")} and is now awaiting HR approval.";
                 }
 
                 await _notifications.SendNotificationAsync(
@@ -168,9 +219,190 @@ namespace CompanyEmployees.Application.Contexts
                 _logger.LogWarning(ex, "Decision on {RequestId} saved but the notification failed.", requestId);
             }
 
-            _logger.LogInformation("Manager {ManagerId} {Decision} leave request {RequestId}{Final}.",
+            _logger.LogInformation("Manager/Delegate {ManagerId} {Decision} leave request {RequestId}{Final}.",
                 managerId, approve ? "approved" : "rejected", requestId, isFinal ? "" : " (still awaiting HR)");
             return request;
+        }
+
+        public async Task ExtendContractAsync(Guid managerId, Guid contractId, DateOnly newEndDate)
+        {
+            var contract = await _contractGateway.GetByIdAsync(contractId);
+            if (contract == null)
+                throw new EntityNotFoundException($"Contract with ID {contractId} not found.");
+
+            // Check authorization: direct manager or active delegate
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var isDirectManager = contract.User.ManagerId == managerId;
+            var isAuthorizedDelegate = false;
+
+            if (!isDirectManager && contract.User.ManagerId.HasValue)
+            {
+                var delegatedManagerIds = await _delegationGateway.GetDelegatedManagerIdsAsync(managerId, today);
+                isAuthorizedDelegate = delegatedManagerIds.Contains(contract.User.ManagerId.Value);
+            }
+
+            if (!isDirectManager && !isAuthorizedDelegate)
+                throw new UnauthorizedException("You are not authorized to manage this contract.");
+
+            if (contract.Type != ContractType.Determinate)
+                throw new InvalidOperationException("Only determinate (fixed-term) contracts can have their end date extended.");
+
+            if (contract.Status != ContractStatus.Active)
+                throw new InvalidOperationException("Only active contracts can be extended.");
+
+            if (newEndDate <= contract.StartDate)
+                throw new InvalidOperationException("New end date must be after the contract start date.");
+
+            if (contract.EndDate.HasValue && newEndDate <= contract.EndDate.Value)
+                throw new InvalidOperationException("New end date must be strictly after the current end date.");
+
+            var previousEnd = contract.EndDate?.ToString("yyyy-MM-dd") ?? "none";
+            contract.EndDate = newEndDate;
+            contract.UpdatedAt = DateTime.UtcNow;
+
+            await _contractGateway.UpdateAsync(contract);
+
+            try
+            {
+                await _notifications.SendNotificationAsync(
+                    contract.UserId,
+                    $"Your employment contract has been extended to {newEndDate:yyyy-MM-dd} by your line manager.",
+                    "/employee/profile");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Contract extension for {ContractId} succeeded but notification failed.", contractId);
+            }
+
+            _logger.LogInformation("Manager {ManagerId} extended contract {ContractId} (User {UserId}) from {PreviousEnd} to {NewEnd}.",
+                managerId, contractId, contract.UserId, previousEnd, newEndDate);
+        }
+
+        public async Task TerminateContractAsync(Guid managerId, Guid contractId, string? reason)
+        {
+            var contract = await _contractGateway.GetByIdAsync(contractId);
+            if (contract == null)
+                throw new EntityNotFoundException($"Contract with ID {contractId} not found.");
+
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var isDirectManager = contract.User.ManagerId == managerId;
+            var isAuthorizedDelegate = false;
+
+            if (!isDirectManager && contract.User.ManagerId.HasValue)
+            {
+                var delegatedManagerIds = await _delegationGateway.GetDelegatedManagerIdsAsync(managerId, today);
+                isAuthorizedDelegate = delegatedManagerIds.Contains(contract.User.ManagerId.Value);
+            }
+
+            if (!isDirectManager && !isAuthorizedDelegate)
+                throw new UnauthorizedException("You are not authorized to manage this contract.");
+
+            if (contract.Status == ContractStatus.Terminated)
+                throw new InvalidOperationException("Contract is already terminated.");
+
+            contract.Status = ContractStatus.Terminated;
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                contract.Notes = string.IsNullOrWhiteSpace(contract.Notes)
+                    ? $"[Terminated: {reason}]"
+                    : $"{contract.Notes} | [Terminated: {reason}]";
+            }
+            contract.UpdatedAt = DateTime.UtcNow;
+
+            await _contractGateway.UpdateAsync(contract);
+
+            try
+            {
+                await _notifications.SendNotificationAsync(
+                    contract.UserId,
+                    $"Your employment contract has been terminated by your line manager. Reason: {reason ?? "No reason specified"}.",
+                    "/employee/profile");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Contract termination for {ContractId} succeeded but notification failed.", contractId);
+            }
+
+            _logger.LogInformation("Manager {ManagerId} terminated contract {ContractId} (User {UserId}). Reason: {Reason}",
+                managerId, contractId, contract.UserId, reason);
+        }
+
+        public async Task<ManagerDelegation> CreateDelegationAsync(Guid managerId, Guid delegateId, DateOnly start, DateOnly end, string? reason)
+        {
+            if (managerId == delegateId)
+                throw new InvalidOperationException("You cannot delegate responsibilities to yourself.");
+
+            if (start > end)
+                throw new InvalidOperationException("End date cannot be earlier than start date.");
+
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            if (end < today)
+                throw new InvalidOperationException("Cannot create a delegation for a period that has already ended.");
+
+            var delegateUser = await _userGateway.GetUserByIdAsync(delegateId);
+            if (delegateUser == null || delegateUser.Status != UserStatus.Active)
+                throw new EntityNotFoundException("Selected delegate user was not found or is inactive.");
+
+            var delegation = new ManagerDelegation
+            {
+                Id = Guid.NewGuid(),
+                ManagerId = managerId,
+                DelegateId = delegateId,
+                StartDate = start,
+                EndDate = end,
+                Reason = reason,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _delegationGateway.CreateAsync(delegation);
+
+            try
+            {
+                var period = start.ToString("MMM d", CultureInfo.InvariantCulture)
+                             + " – " +
+                             end.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+
+                await _notifications.SendNotificationAsync(
+                    delegateId,
+                    $"You have been assigned as temporary Line Manager delegate for {period}.",
+                    "/manager/dashboard");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Delegation creation succeeded but notification failed.");
+            }
+
+            _logger.LogInformation("Manager {ManagerId} created delegation to {DelegateId} from {Start} to {End}.",
+                managerId, delegateId, start, end);
+
+            return delegation;
+        }
+
+        public async Task CancelDelegationAsync(Guid managerId, Guid delegationId)
+        {
+            var delegation = await _delegationGateway.GetByIdAsync(delegationId);
+            if (delegation == null)
+                throw new EntityNotFoundException($"Delegation with ID {delegationId} not found.");
+
+            if (delegation.ManagerId != managerId)
+                throw new UnauthorizedException("You are not authorized to cancel this delegation.");
+
+            delegation.IsActive = false;
+            await _delegationGateway.UpdateAsync(delegation);
+
+            _logger.LogInformation("Manager {ManagerId} cancelled delegation {DelegationId}.", managerId, delegationId);
+        }
+
+        public Task<List<ManagerDelegation>> GetMyDelegationsAsync(Guid managerId)
+        {
+            return _delegationGateway.GetAllDelegationsByManagerAsync(managerId);
+        }
+
+        public Task<List<ManagerDelegation>> GetActiveDelegationsAssignedToMeAsync(Guid delegateId)
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            return _delegationGateway.GetActiveDelegationsForDelegateAsync(delegateId, today);
         }
     }
 }

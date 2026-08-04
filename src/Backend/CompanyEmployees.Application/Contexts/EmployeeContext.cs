@@ -15,6 +15,7 @@ namespace CompanyEmployees.Application.Contexts
         private readonly ILeaveRequestGateway _leaveRequestGateway;
         private readonly IUserGateway _userGateway;
         private readonly IDepartmentGateway _departmentGateway;
+        private readonly IContractGateway _contractGateway;
         private readonly NotificationContext _notifications;
 
         public EmployeeContext(
@@ -22,11 +23,13 @@ namespace CompanyEmployees.Application.Contexts
             ILeaveRequestGateway leaveRequestGateway,
             IUserGateway userGateway,
             IDepartmentGateway departmentGateway,
+            IContractGateway contractGateway,
             NotificationContext notifications) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
             _departmentGateway = departmentGateway;
+            _contractGateway = contractGateway;
             _notifications = notifications;
         }
 
@@ -382,5 +385,234 @@ namespace CompanyEmployees.Application.Contexts
 
         private static int CountDays(DateOnly start, DateOnly end) =>
             end.DayNumber - start.DayNumber + 1;
+
+        public async Task<OrgChartNode?> GetCompanyOrgChartAsync(Guid currentUserId, bool isAdmin)
+        {
+            var allUsers = await _userGateway.GetAllUsersAsync();
+            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
+            var allPendingRequests = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
+
+            var nodeMap = new Dictionary<Guid, OrgChartNode>();
+            foreach (var u in activeUsers)
+            {
+                var initials = string.Concat(u.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
+                if (initials.Length > 2) initials = initials.Substring(0, 2);
+
+                var activeContract = u.Contracts?.FirstOrDefault(c => c.Status == ContractStatus.Active);
+                var pendingReq = allPendingRequests.FirstOrDefault(r => r.UserId == u.Id);
+
+                nodeMap[u.Id] = new OrgChartNode
+                {
+                    UserId = u.Id,
+                    Name = u.Name,
+                    Email = u.Email ?? string.Empty,
+                    Role = u.Role.ToString(),
+                    Department = u.Department?.Name ?? string.Empty,
+                    Initials = initials,
+                    ManagerId = u.ManagerId,
+                    HasPendingRequest = pendingReq != null,
+                    PendingRequestId = pendingReq?.Id,
+                    PendingRequestType = pendingReq?.Type.ToString(),
+                    PendingRequestDates = pendingReq != null ? $"{pendingReq.StartDate:MMM d} – {pendingReq.EndDate:MMM d, yyyy}" : null,
+                    HasContract = activeContract != null,
+                    ContractId = activeContract?.Id,
+                    ContractType = activeContract?.Type,
+                    ContractStatus = activeContract?.Status,
+                    ContractStartDate = activeContract?.StartDate,
+                    ContractEndDate = activeContract?.EndDate
+                };
+            }
+
+            // Cycle detection using upward traversal
+            foreach (var user in activeUsers)
+            {
+                var visited = new HashSet<Guid>();
+                var currentId = user.Id;
+                while (currentId != Guid.Empty)
+                {
+                    if (!visited.Add(currentId))
+                    {
+                        _logger.LogError("Cycle detected in org chart involving user {UserId}", currentId);
+                        throw new InvalidOperationException("Hierarchy cycle detected in database.");
+                    }
+                    var current = activeUsers.FirstOrDefault(u => u.Id == currentId);
+                    if (current?.ManagerId == null)
+                        break;
+                    currentId = current.ManagerId.Value;
+                }
+            }
+
+            // Build tree
+            var childrenMap = new Dictionary<Guid, List<OrgChartNode>>();
+            var root = new OrgChartNode
+            {
+                UserId = Guid.Empty,
+                Name = "Company",
+                Role = "Headquarters",
+                Department = "All Departments",
+                Initials = "HQ"
+            };
+
+            foreach (var user in activeUsers)
+            {
+                var node = nodeMap[user.Id];
+                if (user.ManagerId == null)
+                {
+                    if (!childrenMap.ContainsKey(Guid.Empty))
+                        childrenMap[Guid.Empty] = new List<OrgChartNode>();
+                    childrenMap[Guid.Empty].Add(node);
+                }
+                else
+                {
+                    if (!childrenMap.ContainsKey(user.ManagerId.Value))
+                        childrenMap[user.ManagerId.Value] = new List<OrgChartNode>();
+                    childrenMap[user.ManagerId.Value].Add(node);
+                }
+            }
+
+            // Recursive function to attach children
+            void AttachChildren(OrgChartNode parent)
+            {
+                if (childrenMap.TryGetValue(parent.UserId, out var children))
+                {
+                    parent.Subordinates = children.OrderBy(c => c.Name).ToList();
+                    foreach (var child in parent.Subordinates)
+                    {
+                        AttachChildren(child);
+                    }
+                }
+            }
+
+            if (root != null)
+            {
+                AttachChildren(root);
+                
+                // Determine focus
+                if (!isAdmin)
+                {
+                    var currentUser = activeUsers.FirstOrDefault(u => u.Id == currentUserId);
+                    if (currentUser != null)
+                    {
+                        // Mark current user's department as focus
+                        MarkFocus(root, currentUser.Department?.Name);
+                    }
+                }
+                else
+                {
+                    MarkFocus(root, null); // Admins see everything focused (or nothing faded)
+                }
+
+                // Math Layout Passes
+                CalculateSubtreeWidths(root);
+                CalculateNodeCoordinates(root, 0, root.SubtreeWidth / 2, 0, 50.0);
+            }
+
+            return root;
+        }
+
+        private void CalculateSubtreeWidths(OrgChartNode node)
+        {
+            if (node.Subordinates.Count == 0)
+            {
+                node.SubtreeWidth = 80.0; // Base width for a single node
+                return;
+            }
+
+            double totalWidth = 0;
+            foreach (var child in node.Subordinates)
+            {
+                CalculateSubtreeWidths(child);
+                totalWidth += child.SubtreeWidth;
+            }
+
+            node.SubtreeWidth = Math.Max(80.0, totalWidth);
+        }
+
+        private void CalculateNodeCoordinates(OrgChartNode node, int depth, double x, int siblingIndex, double currentY)
+        {
+            node.Depth = depth;
+            node.X = x;
+            
+            // Stagger siblings to save space (odd indices are 40px lower)
+            // The stagger is added to the current accumulated Y, so the whole subtree shifts down.
+            double stagger = (siblingIndex % 2 == 1) ? 40.0 : 0.0;
+            node.Y = currentY + stagger;
+
+            if (node.Subordinates.Count > 0)
+            {
+                double currentX = x - (node.SubtreeWidth / 2.0);
+                for (int i = 0; i < node.Subordinates.Count; i++)
+                {
+                    var child = node.Subordinates[i];
+                    double childCenter = currentX + (child.SubtreeWidth / 2.0);
+                    // Next level base Y is node.Y + 120
+                    CalculateNodeCoordinates(child, depth + 1, childCenter, i, node.Y + 120.0);
+                    currentX += child.SubtreeWidth;
+                }
+            }
+        }
+
+        private void MarkFocus(OrgChartNode node, string? targetDepartment)
+        {
+            if (targetDepartment == null) 
+            {
+                node.IsFocusNode = true;
+            }
+            else
+            {
+                node.IsFocusNode = node.Department == targetDepartment;
+            }
+            
+            foreach (var child in node.Subordinates)
+            {
+                MarkFocus(child, targetDepartment);
+            }
+        }
+
+        public async Task<Contract?> GetActiveContractForUserAsync(Guid userId)
+        {
+            return await _contractGateway.GetActiveContractByUserIdAsync(userId);
+        }
+
+        public async Task SaveUserContractAsync(
+            Guid userId,
+            ContractType type,
+            ContractStatus status,
+            DateOnly startDate,
+            DateOnly? endDate,
+            string? notes)
+        {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            var active = await _contractGateway.GetActiveContractByUserIdAsync(userId);
+            if (active != null)
+            {
+                active.Type = type;
+                active.Status = status;
+                active.StartDate = startDate;
+                active.EndDate = type == ContractType.Indeterminate ? null : endDate;
+                active.Notes = notes;
+                active.UpdatedAt = DateTime.UtcNow;
+                await _contractGateway.UpdateAsync(active);
+            }
+            else
+            {
+                var newContract = new Contract
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Type = type,
+                    Status = status,
+                    StartDate = startDate,
+                    EndDate = type == ContractType.Indeterminate ? null : endDate,
+                    Notes = notes,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _contractGateway.CreateAsync(newContract);
+            }
+        }
     }
 }

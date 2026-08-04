@@ -259,6 +259,9 @@ else
 	[CascadingParameter]
 	private Task<AuthenticationState>? AuthStateTask { get; set; }
 
+	[SupplyParameterFromQuery(Name = "search")]
+	public string? InitialSearch { get; set; }
+
 	private string _name = "";
 	private HrDashboardResult? _data;
 	private string SearchTerm { get; set; } = "";
@@ -291,6 +294,11 @@ else
 		{
 			Nav.NavigateTo("/employee/dashboard");
 			return;
+		}
+
+		if (!string.IsNullOrWhiteSpace(InitialSearch))
+		{
+			SearchTerm = InitialSearch;
 		}
 
 		_name = user.FindFirst("FullName")?.Value ?? "";

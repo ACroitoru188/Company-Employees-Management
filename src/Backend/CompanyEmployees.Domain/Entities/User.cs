@@ -16,6 +16,7 @@ public class User : IdentityUser<Guid>
     public Guid? ManagerId { get; set; }
     public User? Manager { get; set; }
     public ICollection<User> DirectReports { get; set; } = new List<User>(); //< cine ii raporteaza managerului
+    public ICollection<Contract> Contracts { get; set; } = new List<Contract>();
 
     //departamentul din care face parte (echipa)
     public Guid? DepartmentId { get; set; }

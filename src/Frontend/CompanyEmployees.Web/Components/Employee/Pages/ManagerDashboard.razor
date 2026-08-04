@@ -7,6 +7,7 @@
 @using System.Security.Claims
 @using CompanyEmployees.Application
 @using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
@@ -14,8 +15,9 @@
 @inject ManagerContext Manager
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
-<PageTitle>Department · Time Off Management</PageTitle>
+<PageTitle>Department · Time Off & Contracts</PageTitle>
 
 @if (!_authorized || _data is null)
 {
@@ -23,10 +25,33 @@
 }
 else
 {
-    <MudText Typo="Typo.h5" Style="font-weight:600;">Department</MudText>
-    <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
-        @_data.TeamSize direct @(_data.TeamSize == 1 ? "report" : "reports")
-    </MudText>
+    @if (_data.ActiveDelegationsReceived.Count > 0)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Elevation="1" Class="mb-4">
+            <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                <div>
+                    <strong>Delegated Manager Notice:</strong> You are currently acting as an active delegate for:
+                    @string.Join(", ", _data.ActiveDelegationsReceived.Select(d => $"{d.Manager?.Name ?? "Manager"} (until {d.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)})"))
+                </div>
+                <MudChip T="string" Size="Size.Small" Color="Color.Surface">Delegation Active</MudChip>
+            </div>
+        </MudAlert>
+    }
+
+    <div class="d-flex align-center justify-space-between flex-wrap gap-3 mb-4">
+        <div>
+            <MudText Typo="Typo.h5" Style="font-weight:600;">Department</MudText>
+            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                @_data.TeamSize direct @(_data.TeamSize == 1 ? "report" : "reports")
+            </MudText>
+        </div>
+        <div class="d-flex gap-2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.SwapHoriz"
+                       OnClick="OpenCreateDelegationDialog">
+                Delegate Responsibilities
+            </MudButton>
+        </div>
+    </div>
 
     <MudGrid Spacing="3" Class="mb-6">
         <MudItem xs="12" sm="6" md="3">
@@ -71,6 +96,40 @@ else
         </MudItem>
     </MudGrid>
 
+    @if (_data.ActiveDelegationsGiven.Count > 0)
+    {
+        <MudCard Elevation="1" Class="mb-6">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.subtitle1" Style="font-weight:600;">Active Outgoing Delegations</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Class="pt-0">
+                <MudTable T="ManagerDelegation" Items="@_data.ActiveDelegationsGiven" Hover="true" Elevation="0" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Delegate</MudTh>
+                        <MudTh>Period</MudTh>
+                        <MudTh>Reason</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Delegate">@(context.Delegate?.Name ?? "Colleague")</MudTd>
+                        <MudTd DataLabel="Period">
+                            @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) – @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                        </MudTd>
+                        <MudTd DataLabel="Reason">@(string.IsNullOrWhiteSpace(context.Reason) ? "—" : context.Reason)</MudTd>
+                        <MudTd Style="text-align:right;">
+                            <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined"
+                                       OnClick="@(() => CancelDelegationAsync(context.Id))">
+                                Cancel Delegation
+                            </MudButton>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudCardContent>
+        </MudCard>
+    }
+
     <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Requests to approve</MudText>
 
     @if (_data.Pending.Count == 0)
@@ -93,7 +152,17 @@ else
                 <MudTh></MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="Employee">@context.Name</MudTd>
+                <MudTd DataLabel="Employee">
+                    <div class="d-flex align-center gap-2">
+                        <span>@context.Name</span>
+                        @if (context.IsDelegated)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                Delegated from @context.DelegatedFromManagerName
+                            </MudChip>
+                        }
+                    </div>
+                </MudTd>
                 <MudTd DataLabel="Department">@context.Department</MudTd>
                 <MudTd DataLabel="Type">@context.Type</MudTd>
                 <MudTd DataLabel="Period">
@@ -118,7 +187,7 @@ else
         </MudTable>
     }
 
-    <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Members</MudText>
+    <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Members & Contracts</MudText>
 
     @if (_data.Team.Count == 0)
     {
@@ -145,13 +214,73 @@ else
                 <PropertyColumn Property="@(m => m.Name)" Title="Name" />
                 <PropertyColumn Property="@(m => m.Role)" Title="Role" />
                 <PropertyColumn Property="@(m => m.Department)" Title="Department" />
-                <TemplateColumn T="ManagerTeamMember" Title="Status" Sortable="true"
+                <TemplateColumn T="ManagerTeamMember" Title="Contract Type" Sortable="true"
+                                SortBy="@(m => m.ContractType?.ToString() ?? "None")" Filterable="false">
+                    <CellTemplate>
+                        @if (context.Item.ContractType == null)
+                        {
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">None</MudChip>
+                        }
+                        else if (context.Item.ContractType == ContractType.Determinate)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Determinate</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">Indeterminate</MudChip>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="ManagerTeamMember" Title="Contract Period & Status" Sortable="true"
+                                SortBy="@(m => m.ContractStatus?.ToString() ?? "")" Filterable="false">
+                    <CellTemplate>
+                        @if (context.Item.ContractId.HasValue)
+                        {
+                            <div class="d-flex flex-column">
+                                <div class="d-flex align-center gap-1">
+                                    <MudChip T="string" Size="Size.Small" Color="@GetContractStatusColor(context.Item.ContractStatus)" Variant="Variant.Text" Class="pa-0 ma-0">
+                                        @context.Item.ContractStatus
+                                    </MudChip>
+                                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                        @(context.Item.ContractStartDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "—") – 
+                                        @(context.Item.ContractEndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
+                                    </MudText>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">—</MudText>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="ManagerTeamMember" Title="Leave Status" Sortable="true"
                                 SortBy="@(m => m.OnLeaveToday)" Filterable="false">
                     <CellTemplate>
                         <MudChip T="string" Size="Size.Small"
                                  Color="@(context.Item.OnLeaveToday ? Color.Warning : Color.Default)">
                             @(context.Item.OnLeaveToday ? "On leave" : "Available")
                         </MudChip>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="ManagerTeamMember" Title="Contract Actions" Filterable="false" Sortable="false">
+                    <CellTemplate>
+                        <div class="d-flex align-center gap-1">
+                            @if (context.Item.ContractId.HasValue && context.Item.ContractType == ContractType.Determinate && context.Item.ContractStatus == ContractStatus.Active)
+                            {
+                                <MudTooltip Text="Extend Fixed-Term Contract">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Update" Size="Size.Small" Color="Color.Primary"
+                                                   OnClick="@(() => OpenExtendContractDialog(context.Item))" />
+                                </MudTooltip>
+                            }
+                            @if (context.Item.ContractId.HasValue && context.Item.ContractStatus == ContractStatus.Active)
+                            {
+                                <MudTooltip Text="Terminate Contract">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" Color="Color.Error"
+                                                   OnClick="@(() => OpenTerminateContractDialog(context.Item))" />
+                                </MudTooltip>
+                            }
+                        </div>
                     </CellTemplate>
                 </TemplateColumn>
             </Columns>
@@ -166,6 +295,9 @@ else
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
+    [SupplyParameterFromQuery(Name = "search")]
+    public string? InitialSearch { get; set; }
+
     private bool _authorized;
     private Guid _managerId;
     private ManagerDashboardResult? _data;
@@ -176,11 +308,11 @@ else
         if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
         return m.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
             || m.Role.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-            || m.Department.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase);
+            || m.Department.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+            || (m.ContractType != null && m.ContractType.ToString()!.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase))
+            || (m.ContractStatus != null && m.ContractStatus.ToString()!.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase));
     };
 
-    // The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
-    // so anyone who isn't a manager is redirected without a database query.
     protected override async Task OnInitializedAsync()
     {
         if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
@@ -194,10 +326,13 @@ else
             return;
         }
 
-        // The claims carry FullName/Role/Department but not the user id, so the Guid
-        // still needs one lookup by the sign-in email (UserName == Email everywhere).
         var me = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
         _managerId = me.Id;
+
+        if (!string.IsNullOrWhiteSpace(InitialSearch))
+        {
+            _quickSearch = InitialSearch;
+        }
 
         _authorized = true;
         await LoadAsync();
@@ -208,6 +343,14 @@ else
         _data = await Manager.GetManagerDashboardAsync(_managerId);
     }
 
+    private Color GetContractStatusColor(ContractStatus? status) => status switch
+    {
+        ContractStatus.Active => Color.Success,
+        ContractStatus.Terminated => Color.Error,
+        ContractStatus.Expired => Color.Dark,
+        _ => Color.Default
+    };
+
     private async Task DecideAsync(Guid requestId, bool approve)
     {
         try
@@ -217,10 +360,108 @@ else
         }
         catch (Exception ex)
         {
-            // Already-decided (e.g. a second tab) and not-your-report surface here.
             Snackbar.Add(ex.Message, Severity.Error);
         }
 
         await LoadAsync();
+    }
+
+    private async Task OpenExtendContractDialog(ManagerTeamMember member)
+    {
+        if (!member.ContractId.HasValue) return;
+
+        var parameters = new DialogParameters<ExtendContractDialog>
+        {
+            { x => x.EmployeeName, member.Name },
+            { x => x.CurrentStartDate, member.ContractStartDate ?? DateOnly.FromDateTime(DateTime.Today) },
+            { x => x.CurrentEndDate, member.ContractEndDate }
+        };
+
+        var dialog = await DialogService.ShowAsync<ExtendContractDialog>("Extend Contract", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is DateOnly newEndDate)
+        {
+            try
+            {
+                await Manager.ExtendContractAsync(_managerId, member.ContractId.Value, newEndDate);
+                Snackbar.Add($"Contract extended for {member.Name} until {newEndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}.", Severity.Success);
+                await LoadAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenTerminateContractDialog(ManagerTeamMember member)
+    {
+        if (!member.ContractId.HasValue) return;
+
+        var parameters = new DialogParameters<TerminateContractDialog>
+        {
+            { x => x.EmployeeName, member.Name }
+        };
+
+        var dialog = await DialogService.ShowAsync<TerminateContractDialog>("Terminate Contract", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            var reason = result.Data as string;
+            try
+            {
+                await Manager.TerminateContractAsync(_managerId, member.ContractId.Value, reason);
+                Snackbar.Add($"Contract terminated for {member.Name}.", Severity.Warning);
+                await LoadAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenCreateDelegationDialog()
+    {
+        var allUsers = await Employees.GetAllUsersAsync();
+        var candidateDelegates = allUsers.Where(u => u.Id != _managerId).ToList();
+
+        var parameters = new DialogParameters<CreateDelegationDialog>
+        {
+            { x => x.AvailableUsers, candidateDelegates }
+        };
+
+        var dialog = await DialogService.ShowAsync<CreateDelegationDialog>("Delegate Manager Responsibilities", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is CreateDelegationDialog.DelegationResult res)
+        {
+            try
+            {
+                await Manager.CreateDelegationAsync(_managerId, res.DelegateId, res.StartDate, res.EndDate, res.Reason);
+                Snackbar.Add("Delegation created successfully.", Severity.Success);
+                await LoadAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private async Task CancelDelegationAsync(Guid delegationId)
+    {
+        try
+        {
+            await Manager.CancelDelegationAsync(_managerId, delegationId);
+            Snackbar.Add("Delegation cancelled.", Severity.Info);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
     }
 }
