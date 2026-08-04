@@ -42,7 +42,8 @@
                           Variant="Variant.Outlined" InputType="InputType.Email"
                           Required="true" RequiredError="Email is required"
                           Validation="@(new Func<string, string?>(ValidateEmail))"
-                          Placeholder="yourname@siemens.com" Class="mb-4" />
+                          Placeholder="yourname@siemens.com" Class="mb-4"
+                          OnKeyDown="HandleKeyDown" />
             <MudTextField T="string" @bind-Value="_password" Label="Password"
                           Variant="Variant.Outlined"
                           InputType="@(_showPassword ? InputType.Text : InputType.Password)"
@@ -50,7 +51,8 @@
                           Adornment="Adornment.End"
                           AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
                           OnAdornmentClick="@(() => _showPassword = !_showPassword)"
-                          AdornmentAriaLabel="Show password" />
+                          AdornmentAriaLabel="Show password"
+                          OnKeyDown="HandleKeyDown" />
 
             <div class="d-flex justify-space-between align-center gap-4 my-4 flex-wrap">
                 <MudCheckBox T="bool" @bind-Value="_keepSignedIn" Label="Keep me signed in" Dense="true" />
@@ -113,6 +115,14 @@
 
     private static string? ValidateEmail(string value) =>
         string.IsNullOrWhiteSpace(value) || value.Contains('@') ? null : "Enter a valid email address";
+
+    private Task HandleKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            return SignIn();
+
+        return Task.CompletedTask;
+    }
 
     private async Task SignIn()
     {
