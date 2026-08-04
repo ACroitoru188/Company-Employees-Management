@@ -1,6 +1,0 @@
-.dot { width: 8px; height: 8px; border-radius: 2.5px; flex: none; display: inline-block; border: 1px solid var(--color-ink); }
-.dot-accent { background: var(--color-teal); }
-.dot-amber  { background: var(--color-amber); }
-.dot-purple { background: var(--color-purple); }
-.dot-gray   { background: var(--color-gray); }
-.dot-green  { background: var(--color-green); }

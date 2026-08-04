@@ -281,13 +281,17 @@ Pages in `Web/Components/Employee/Pages/` — `EmployeeDashboard` (`/employee/da
 
 ## Other UI in the tree (know before styling)
 
-Four design systems coexist; only the MudBlazor one above is on the live path from login.
+Three design systems coexist; only the MudBlazor one above is on the live path from login.
 
-1. **Retro/vintage-desktop Dashboard** — `Components/Pages/Dashboard.razor` (`/dashboard`,
-   direct URL only, orphaned from the login flow) composed from ~20 components under
-   `Components/*.razor` (`Sidebar`, `TopBar`, `Card`, `RetroButton`, `ManagerOverview`,
-   `TeamCalendarView`, …). UI mockup with in-memory state only, not backed by `ITimeOffService`.
-   - **CSS Isolation** (this trips people up project-wide, not just here): each `Foo.razor` has
+> The **retro/vintage-desktop Dashboard** (`Components/Pages/Dashboard.razor` at
+> `/manager/dashboard`, plus its ~21 components — `Sidebar`, `TopBar`, `Card`, `RetroButton`,
+> `ManagerOverview`, `TeamCalendarView`, … — and `LeaveTone.cs`) was **deleted on
+> 2026-08-04**. It was an in-memory mockup on a route nothing linked to, and its component
+> graph was closed: nothing outside it referenced any of the 22 files. The real manager view
+> is `/manager/team` (`ManagerDashboard.razor`, MudBlazor). `git show 9c3d804` and earlier
+> still has it if anything needs recovering.
+
+1. **CSS Isolation** (not a design system, but it trips people up project-wide): each `Foo.razor` has
      a co-located `Foo.razor.css`. A rule only applies to markup *authored directly* in that
      component's own markup — RenderFragment content (e.g. `Card`'s `ChildContent`) is scoped to
      the *passing* component, and **a child component's own rendered root is never reachable at
@@ -303,9 +307,9 @@ Four design systems coexist; only the MudBlazor one above is on the live path fr
      warning); check `obj/**/scopedcss/**/*.bundle.scp.css` for the expected `[b-xxxxxxxx]` scope
      if a rule doesn't apply, or query `document.styleSheets` in devtools to see which rules
      actually matched.
-   - Design tokens in `wwwroot/css/tokens.css` (`--color-*`, `--space-*`, `--font-mono`, …) —
-     consume `var(--color-teal)` etc., never hardcoded hex. Flat and static by design: no
-     gradients, shadows, or animations.
+   - `wwwroot/css/tokens.css` (`--color-*`, `--space-*`, `--font-mono`, …) outlived the retro
+     dashboard it was built for: `MainLayout.razor.css` and `NavMenu.razor.css` still consume
+     it. Anything else styling those two should use `var(--color-teal)` etc., never hex.
 2. **HR dashboard** — `Components/Pages/HRDashboard.razor` (`/hr/dashboard`, own `.razor.css`).
    Linked from the drawer nav's "HR" section for users in the HR department (`EmployeeLayout`
    checks the `Department` claim); reachable by direct URL for everyone else, but the page

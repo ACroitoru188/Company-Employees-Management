@@ -1,9 +1,0 @@
-.pill {
-    display: inline-flex; align-items: center; font-family: var(--font-mono);
-    font-size: 11.5px; font-weight: 600; padding: 3px 9px;
-    border: var(--border-width-sm) solid var(--color-ink); border-radius: 5px;
-    letter-spacing: .01em; white-space: nowrap;
-}
-.pill-green { background: var(--color-green-tint); color: var(--color-green); }
-.pill-red   { background: var(--color-red-tint);   color: var(--color-red); }
-.pill-amber { background: var(--color-amber-tint); color: var(--color-amber); }

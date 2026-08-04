@@ -1,7 +1,0 @@
-.rows { display: flex; flex-direction: column; }
-::deep .row { display: flex; align-items: center; gap: var(--space-3); padding: 12px 2px; }
-::deep .row + .row { border-top: var(--border-width-sm) solid var(--color-cream-2); }
-::deep .row-main { flex: 1; min-width: 0; }
-::deep .row-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-::deep .row-sub { font-size: 12.5px; color: var(--color-muted); margin-top: 1px; }
-::deep .row-side { font-size: 12.5px; font-weight: 600; color: var(--color-ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
