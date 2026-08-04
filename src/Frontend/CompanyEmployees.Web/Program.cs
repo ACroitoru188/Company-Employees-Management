@@ -8,7 +8,6 @@ using CompanyEmployees.Infrastructure;
 using CompanyEmployees.Infrastructure.ExceptionHandling;
 using CompanyEmployees.Persistence;
 using CompanyEmployees.Web.Components;
-using CompanyEmployees.Application.Hubs;
 using CompanyEmployees.Web.Security;
 using CompanyEmployees.Web.Services;
 using Microsoft.AspNetCore.Builder;
@@ -28,6 +27,9 @@ builder.Services.AddScoped<EmployeeAccountService>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IAccountEmailSender, SmtpAccountEmailSender>();
 builder.Services.AddControllers();
+// Keep this even though the app maps no hub of its own: HubOptions configured here apply
+// to the Blazor Server circuit too, and dropping it would cut the limit back to the 32 KB
+// default. Notifications no longer travel over SignalR — see Application/Notifications.
 builder.Services.AddSignalR(options =>
 {
     options.MaximumReceiveMessageSize = 1024 * 1024; // 1 MB
@@ -138,7 +140,6 @@ app.MapGet("/api/auth/logout", async (SignInManager<User> signInManager) =>
     return Results.Redirect("/");
 });
 
-app.MapHub<NotificationHub>("/notificationHub");
 
 app.Run();
 

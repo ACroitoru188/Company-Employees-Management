@@ -1,11 +1,12 @@
 @using Microsoft.Extensions.DependencyInjection
 @using Microsoft.AspNetCore.Components.Authorization
-@using Microsoft.AspNetCore.SignalR.Client
 @using System.Security.Claims
 @using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Application.Notifications
 @inject IServiceScopeFactory ScopeFactory
 @inject AuthenticationStateProvider AuthState
-@inject NavigationManager NavManager
+@inject INotificationDispatcher Dispatcher
+@implements IDisposable
 
 <div class="profile-wrap">
     <MudBadge Content="@_notifications.Count" Color="Color.Error" Overlap="true" Visible="@_notifications.Any()">
@@ -53,7 +54,7 @@
 @code {
     private Guid _currentUserId;
     private List<Notification> _notifications = new();
-    private HubConnection? _hubConnection;
+    private IDisposable? _subscription;
 	private bool _notificationsOpen;
 
     protected override async Task OnInitializedAsync()
@@ -61,35 +62,26 @@
         var authState = await AuthState.GetAuthenticationStateAsync();
         var userIdString = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        if (Guid.TryParse(userIdString, out var id))
-        {
-            _currentUserId = id;
-        }
+        // Without a user there is nothing to show and nothing to listen for. Falling
+        // through with Guid.Empty used to query the database for a user that never exists.
+        if (!Guid.TryParse(userIdString, out _currentUserId))
+            return;
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<CompanyEmployees.Application.Contexts.NotificationContext>();
         _notifications = await context.GetMyUnreadNotificationsAsync(_currentUserId);
 
-        _hubConnection = new HubConnectionBuilder()
-        .WithUrl(NavManager.ToAbsoluteUri("/notificationHub"))
-        .Build();
-
-        _hubConnection.On<Notification>("ReceiveNotification", (newNotification) =>
+        // The dispatcher calls this straight from the code that saved the notification —
+        // same process, no hop over the network. InvokeAsync marshals back onto the
+        // circuit's synchronization context before touching component state.
+        _subscription = Dispatcher.Subscribe(_currentUserId, notification =>
         {
-            _notifications.Insert(0, newNotification);
-            InvokeAsync(StateHasChanged);
+            _notifications.Insert(0, notification);
+            return InvokeAsync(StateHasChanged);
         });
-
-        try
-        {
-            await _hubConnection.StartAsync();
-            await _hubConnection.InvokeAsync("Register", _currentUserId.ToString());
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("SignalR Connection Failed: " + ex.Message);
-        }
     }
+
+    public void Dispose() => _subscription?.Dispose();
 
     private async Task CloseNotifications()
     {

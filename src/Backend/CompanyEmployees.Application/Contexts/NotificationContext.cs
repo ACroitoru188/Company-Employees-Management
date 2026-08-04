@@ -1,20 +1,18 @@
-﻿using CompanyEmployees.Application.Hubs;
+﻿using CompanyEmployees.Application.Notifications;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.GatewayInterfaces;
-using Microsoft.AspNetCore.SignalR;
 
 namespace CompanyEmployees.Application.Contexts
 {
     public class NotificationContext
     {
         private readonly INotificationGateway _gateway;
+        private readonly INotificationDispatcher _dispatcher;
 
-        private readonly IHubContext<NotificationHub> _hubContext;
-
-        public NotificationContext(INotificationGateway gateway, IHubContext<NotificationHub> hubContext)
+        public NotificationContext(INotificationGateway gateway, INotificationDispatcher dispatcher)
         {
             _gateway = gateway;
-            _hubContext = hubContext;
+            _dispatcher = dispatcher;
         }
 
         public async Task<Notification> SendNotificationAsync(Guid userId, string message, string? actionUrl = null)
@@ -30,9 +28,7 @@ namespace CompanyEmployees.Application.Contexts
             };
 
             await _gateway.CreateNotificationAsync(notification);
-
-            await _hubContext.Clients.Group(userId.ToString())
-                .SendAsync("ReceiveNotification", notification);
+            await _dispatcher.PublishAsync(userId, notification);
             return notification;
         }
 
