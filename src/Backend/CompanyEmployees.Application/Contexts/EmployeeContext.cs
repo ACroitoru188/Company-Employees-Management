@@ -487,19 +487,58 @@ namespace CompanyEmployees.Application.Contexts
             {
                 AttachChildren(root);
                 
-                // Determine focus
-                if (!isAdmin)
+                // Determine focus & initial expansion based on role
+                if (isAdmin)
                 {
-                    var currentUser = activeUsers.FirstOrDefault(u => u.Id == currentUserId);
-                    if (currentUser != null)
-                    {
-                        // Mark current user's department as focus
-                        MarkFocus(root, currentUser.Department?.Name);
-                    }
+                    SetAllExpanded(root, true);
+                    MarkFocus(root, null); // Admins see everything focused
                 }
                 else
                 {
-                    MarkFocus(root, null); // Admins see everything focused (or nothing faded)
+                    var currentUser = activeUsers.FirstOrDefault(u => u.Id == currentUserId);
+                    var expandedIds = new HashSet<Guid> { Guid.Empty }; // Root HQ is always expanded
+
+                    if (currentUser != null)
+                    {
+                        // 1. Ancestor chain from current user up to root
+                        var curr = currentUser;
+                        while (curr != null)
+                        {
+                            expandedIds.Add(curr.Id);
+                            if (curr.ManagerId == null) break;
+                            curr = activeUsers.FirstOrDefault(u => u.Id == curr.ManagerId.Value);
+                        }
+
+                        // 2. Subtree of current user (their team)
+                        void AddSubtree(Guid userId)
+                        {
+                            expandedIds.Add(userId);
+                            if (childrenMap.TryGetValue(userId, out var kids))
+                            {
+                                foreach (var k in kids)
+                                {
+                                    AddSubtree(k.UserId);
+                                }
+                            }
+                        }
+                        AddSubtree(currentUser.Id);
+                    }
+
+                    // Apply expansion
+                    void ApplyInitialExpansion(OrgChartNode node)
+                    {
+                        node.IsExpanded = expandedIds.Contains(node.UserId);
+                        foreach (var child in node.Subordinates)
+                        {
+                            ApplyInitialExpansion(child);
+                        }
+                    }
+                    ApplyInitialExpansion(root);
+
+                    if (currentUser != null)
+                    {
+                        MarkFocus(root, currentUser.Department?.Name);
+                    }
                 }
 
                 // Math Layout Passes
@@ -510,11 +549,20 @@ namespace CompanyEmployees.Application.Contexts
             return root;
         }
 
-        private void CalculateSubtreeWidths(OrgChartNode node)
+        private static void SetAllExpanded(OrgChartNode node, bool expanded)
         {
-            if (node.Subordinates.Count == 0)
+            node.IsExpanded = expanded;
+            foreach (var child in node.Subordinates)
             {
-                node.SubtreeWidth = 80.0; // Base width for a single node
+                SetAllExpanded(child, expanded);
+            }
+        }
+
+        public static void CalculateSubtreeWidths(OrgChartNode node)
+        {
+            if (!node.IsExpanded || node.Subordinates.Count == 0)
+            {
+                node.SubtreeWidth = 80.0; // Base width for a single node / collapsed branch
                 return;
             }
 
@@ -528,7 +576,7 @@ namespace CompanyEmployees.Application.Contexts
             node.SubtreeWidth = Math.Max(80.0, totalWidth);
         }
 
-        private void CalculateNodeCoordinates(OrgChartNode node, int depth, double x, int siblingIndex, double currentY)
+        public static void CalculateNodeCoordinates(OrgChartNode node, int depth, double x, int siblingIndex, double currentY)
         {
             node.Depth = depth;
             node.X = x;
@@ -538,7 +586,7 @@ namespace CompanyEmployees.Application.Contexts
             double stagger = (siblingIndex % 2 == 1) ? 40.0 : 0.0;
             node.Y = currentY + stagger;
 
-            if (node.Subordinates.Count > 0)
+            if (node.IsExpanded && node.Subordinates.Count > 0)
             {
                 double currentX = x - (node.SubtreeWidth / 2.0);
                 for (int i = 0; i < node.Subordinates.Count; i++)
