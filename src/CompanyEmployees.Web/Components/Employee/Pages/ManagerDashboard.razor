@@ -295,6 +295,9 @@ else
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
+    [SupplyParameterFromQuery(Name = "search")]
+    public string? InitialSearch { get; set; }
+
     private bool _authorized;
     private Guid _managerId;
     private ManagerDashboardResult? _data;
@@ -325,6 +328,11 @@ else
 
         var me = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
         _managerId = me.Id;
+
+        if (!string.IsNullOrWhiteSpace(InitialSearch))
+        {
+            _quickSearch = InitialSearch;
+        }
 
         _authorized = true;
         await LoadAsync();

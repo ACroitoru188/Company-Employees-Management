@@ -390,6 +390,7 @@ namespace CompanyEmployees.Application.Contexts
         {
             var allUsers = await _userGateway.GetAllUsersAsync();
             var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
+            var allPendingRequests = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
 
             var nodeMap = new Dictionary<Guid, OrgChartNode>();
             foreach (var u in activeUsers)
@@ -397,13 +398,28 @@ namespace CompanyEmployees.Application.Contexts
                 var initials = string.Concat(u.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
                 if (initials.Length > 2) initials = initials.Substring(0, 2);
 
+                var activeContract = u.Contracts?.FirstOrDefault(c => c.Status == ContractStatus.Active);
+                var pendingReq = allPendingRequests.FirstOrDefault(r => r.UserId == u.Id);
+
                 nodeMap[u.Id] = new OrgChartNode
                 {
                     UserId = u.Id,
                     Name = u.Name,
+                    Email = u.Email ?? string.Empty,
                     Role = u.Role.ToString(),
                     Department = u.Department?.Name ?? string.Empty,
-                    Initials = initials
+                    Initials = initials,
+                    ManagerId = u.ManagerId,
+                    HasPendingRequest = pendingReq != null,
+                    PendingRequestId = pendingReq?.Id,
+                    PendingRequestType = pendingReq?.Type.ToString(),
+                    PendingRequestDates = pendingReq != null ? $"{pendingReq.StartDate:MMM d} – {pendingReq.EndDate:MMM d, yyyy}" : null,
+                    HasContract = activeContract != null,
+                    ContractId = activeContract?.Id,
+                    ContractType = activeContract?.Type,
+                    ContractStatus = activeContract?.Status,
+                    ContractStartDate = activeContract?.StartDate,
+                    ContractEndDate = activeContract?.EndDate
                 };
             }
 

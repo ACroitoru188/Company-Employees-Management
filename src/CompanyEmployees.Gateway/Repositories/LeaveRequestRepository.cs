@@ -89,6 +89,15 @@ namespace CompanyEmployees.Gateway.Repositories
                 .ToList();
         }
 
+        public async Task<List<LeaveRequest>> GetAllCompanyPendingRequestsAsync()
+        {
+            return await _context.LeaveRequests
+                .Where(r => r.Status == LeaveStatus.Pending)
+                .OrderByDescending(r => r.CreatedAt)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
         public async Task<LeaveRequest?> GetRequestByIdAsync(Guid requestId)
         {
             // Manager/Department are included so LeaveApprovalPolicy can be evaluated;

@@ -112,9 +112,12 @@ else
 	[CascadingParameter]
 	private Task<AuthenticationState>? AuthStateTask { get; set; }
 
+	[SupplyParameterFromQuery(Name = "search")]
+	public string? InitialSearch { get; set; }
+
 	private bool _authorized;
-	private List<User> _users = [];
-	private List<Department> _departments = [];
+	private List<User> _users = new();
+	private List<Department> _departments = new();
 	private string _quickSearch = "";
 
 	private Func<User, bool> _quickFilter => u =>
@@ -140,6 +143,11 @@ else
 		{
 			Nav.NavigateTo("/employee/dashboard");
 			return;
+		}
+
+		if (!string.IsNullOrWhiteSpace(InitialSearch))
+		{
+			_quickSearch = InitialSearch;
 		}
 
 		_authorized = true;

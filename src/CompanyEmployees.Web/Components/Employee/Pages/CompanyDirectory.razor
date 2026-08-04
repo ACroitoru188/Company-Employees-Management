@@ -2,17 +2,19 @@
 @layout CompanyEmployees.Web.Components.Layout.EmployeeLayout
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Application
+@using CompanyEmployees.Domain.Enums
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
 @inject EmployeeContext EmployeeCtx
 @inject NavigationManager Nav
+@inject ISnackbar Snackbar
 
 <PageTitle>Organization Chart · Time Off Management</PageTitle>
 
 <MudText Typo="Typo.h5" Style="font-weight:600;">Organization Chart</MudText>
 <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
-    Explore the company structure. Drag to pan, scroll to zoom.
+    Explore the company structure. Drag to pan, scroll to zoom. Hover or click an employee for details and actions.
 </MudText>
 
 <MudCard Elevation="1" Style="height: 75vh; overflow: hidden; position: relative; cursor: grab;" class="org-card">
@@ -25,10 +27,10 @@
         {
             <svg width="100%" height="100%">
                 <g transform="@($"translate({_translateX.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {_translateY.ToString(System.Globalization.CultureInfo.InvariantCulture)}) scale({_scale.ToString(System.Globalization.CultureInfo.InvariantCulture)})")">
-                    @* Lines Layer *@
+                    @* Lines Layer (Orthogonal 90-degree connectors) *@
                     @foreach (var edge in _edges)
                     {
-                        <line x1="@edge.Source.X" y1="@(edge.Source.Y + 25)" x2="@edge.Target.X" y2="@(edge.Target.Y - 25)" 
+                        <path d="@GetOrthogonalPath(edge.Source, edge.Target)" 
                               class="@(edge.Target.IsFocusNode && edge.Source.IsFocusNode ? "org-line-focus" : "org-line")" />
                     }
 
@@ -36,24 +38,87 @@
                     @foreach (var node in _nodes)
                     {
                         <g transform="translate(@node.X, @node.Y)">
-                            <!-- We render a MudTooltip inside a foreignObject, or just standard SVG title for tooltip -->
-                            <title>@($"{node.Name} - {node.Role}")</title>
-                            <title>@($"{node.Name} - {node.Role}")</title>
                             <circle r="25" class="@(node.IsFocusNode ? "org-node-circle-focus" : "org-node-circle")" 
-                                    @onmouseenter="() => OnNodeMouseEnter(node)" @onmouseleave="OnNodeMouseLeave" />
+                                    @onmouseenter="() => OnNodeMouseEnter(node)" 
+                                    @onmouseleave="OnNodeMouseLeave"
+                                    @onclick="() => OnNodeClick(node)" />
                             <text class="@(node.IsFocusNode ? "org-text-focus" : "org-text")" dominant-baseline="central" text-anchor="middle"
                                   style="pointer-events: none;">@node.Initials</text>
                         </g>
                     }
 
-                    @* Hover Info Panel (Rendered last to ensure it's on top/foreground) *@
+                    @* Hover / Focus Info Panel (Rendered last to ensure top z-order) *@
                     @if (_hoveredNode != null)
                     {
-                        <foreignObject x="@(_hoveredNode.X + 35)" y="@(_hoveredNode.Y - 40)" width="220" height="120" style="pointer-events: none;">
-                            <div class="org-info-panel">
-                                <div style="font-weight: bold; margin-bottom: 4px; font-size: 14px; color: var(--mud-palette-text-primary);">@_hoveredNode.Name</div>
-                                <div style="font-size: 12px; color: var(--mud-palette-text-secondary); margin-bottom: 2px;">@_hoveredNode.Role</div>
-                                <div style="font-size: 12px; color: var(--mud-palette-primary);">@_hoveredNode.Department</div>
+                        <foreignObject x="@(_hoveredNode.X + 32)" y="@(_hoveredNode.Y - 60)" width="345" height="@(_isManagerOrHr ? "245" : "175")" style="pointer-events: auto;">
+                            <div class="org-info-panel"
+                                 @onmouseenter="OnPanelMouseEnter"
+                                 @onmouseleave="OnPanelMouseLeave">
+                                <div class="org-info-header">
+                                    <div class="org-info-details">
+                                        <div class="info-row">
+                                            <span class="info-label">Name:</span>
+                                            <span class="info-value" title="@_hoveredNode.Name">@_hoveredNode.Name</span>
+                                        </div>
+                                        <div class="info-row">
+                                            <span class="info-label">Department:</span>
+                                            <span class="info-value" title="@_hoveredNode.Department">@_hoveredNode.Department</span>
+                                        </div>
+                                        <div class="info-row">
+                                            <span class="info-label">Role:</span>
+                                            <span class="info-value" title="@_hoveredNode.Role">@_hoveredNode.Role</span>
+                                        </div>
+                                        <div class="info-row">
+                                            <span class="info-label">Contract:</span>
+                                            <span class="info-value">@GetContractPeriodText(_hoveredNode)</span>
+                                        </div>
+                                        <div class="info-row">
+                                            <span class="info-label">Contract Status:</span>
+                                            <span class="info-value">
+                                                @if (_hoveredNode.HasContract && _hoveredNode.ContractType != null)
+                                                {
+                                                    <span class="badge @(_hoveredNode.ContractType == ContractType.Determinate ? "determinate" : "indeterminate")">
+                                                        @GetContractStatusText(_hoveredNode)
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span>—</span>
+                                                }
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="org-info-avatar-box">
+                                        <div class="avatar-frame">
+                                            <span class="avatar-initials">@_hoveredNode.Initials</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (_isManagerOrHr)
+                                {
+                                    <div class="org-info-actions">
+                                        @if (_hoveredNode.HasPendingRequest)
+                                        {
+                                            <button class="action-btn btn-request active" @onclick="@(() => OnViewRequestClicked(_hoveredNode))" title="View pending leave request">
+                                                <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+                                                View Request
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="action-btn btn-request disabled" @onclick="@(() => OnViewRequestClicked(_hoveredNode))" title="No pending leave requests">
+                                                <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+                                                No Request
+                                            </button>
+                                        }
+
+                                        <button class="action-btn btn-contract" @onclick="@(() => OnManageContractClicked(_hoveredNode))" title="Manage contract for this employee">
+                                            <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                                            Manage Contract
+                                        </button>
+                                    </div>
+                                }
                             </div>
                         </foreignObject>
                     }
@@ -77,6 +142,12 @@
     private double _translateY = 0;
     
     private OrgChartNode? _hoveredNode = null;
+    private CancellationTokenSource? _hoverCts;
+    private bool _isMouseOverPanel = false;
+
+    private bool _isManagerOrHr = false;
+    private string _userRole = "";
+    private string _userDepartment = "";
     
     private bool _isDragging = false;
     private double _startX = 0;
@@ -90,11 +161,16 @@
 
         var authState = await AuthStateTask!;
         var userIdString = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var role = authState.User.FindFirst(ClaimTypes.Role)?.Value;
+        _userRole = authState.User.FindFirst(ClaimTypes.Role)?.Value ?? "";
+        _userDepartment = authState.User.FindFirst("Department")?.Value ?? "";
+
+        _isManagerOrHr = _userRole == UserRole.LineManager.ToString() ||
+                         _userRole == UserRole.Admin.ToString() ||
+                         _userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase);
 
         if (Guid.TryParse(userIdString, out var userId))
         {
-            bool isAdmin = role == "Admin";
+            bool isAdmin = _userRole == UserRole.Admin.ToString();
             _root = await EmployeeCtx.GetCompanyOrgChartAsync(userId, isAdmin);
 
             if (_root != null)
@@ -164,12 +240,114 @@
 
     private void OnNodeMouseEnter(OrgChartNode node)
     {
-        if (_isDragging) return; // Prevent hover popups while panning the canvas
+        if (_isDragging) return;
+        _hoverCts?.Cancel();
         _hoveredNode = node;
     }
 
     private void OnNodeMouseLeave()
     {
-        _hoveredNode = null;
+        _hoverCts?.Cancel();
+        _hoverCts = new CancellationTokenSource();
+        var token = _hoverCts.Token;
+
+        Task.Delay(250, token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled && !_isMouseOverPanel)
+            {
+                InvokeAsync(() =>
+                {
+                    _hoveredNode = null;
+                    StateHasChanged();
+                });
+            }
+        });
+    }
+
+    private void OnPanelMouseEnter()
+    {
+        _isMouseOverPanel = true;
+        _hoverCts?.Cancel();
+    }
+
+    private void OnPanelMouseLeave()
+    {
+        _isMouseOverPanel = false;
+        OnNodeMouseLeave();
+    }
+
+    private void OnNodeClick(OrgChartNode node)
+    {
+        if (_hasDragged) return;
+        _hoveredNode = node;
+    }
+
+    private void OnViewRequestClicked(OrgChartNode node)
+    {
+        if (!node.HasPendingRequest)
+        {
+            Snackbar.Add($"No pending requests for {node.Name}.", Severity.Info);
+            return;
+        }
+
+        if (_userRole == UserRole.LineManager.ToString())
+        {
+            Nav.NavigateTo($"/manager/team?search={Uri.EscapeDataString(node.Name)}");
+        }
+        else if (_userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo($"/hr/dashboard?search={Uri.EscapeDataString(node.Name)}");
+        }
+        else
+        {
+            Nav.NavigateTo($"/admin/users?search={Uri.EscapeDataString(node.Name)}");
+        }
+    }
+
+    private void OnManageContractClicked(OrgChartNode node)
+    {
+        if (_userRole == UserRole.LineManager.ToString())
+        {
+            Nav.NavigateTo($"/manager/team?search={Uri.EscapeDataString(node.Name)}");
+        }
+        else
+        {
+            Nav.NavigateTo($"/admin/users?search={Uri.EscapeDataString(node.Name)}");
+        }
+    }
+
+    private static string GetContractPeriodText(OrgChartNode node)
+    {
+        if (!node.HasContract || !node.ContractStartDate.HasValue)
+            return "—";
+
+        var start = node.ContractStartDate.Value.ToString("dd.MM.yyyy");
+        if (node.ContractEndDate.HasValue)
+        {
+            return $"{start} - {node.ContractEndDate.Value:dd.MM.yyyy}";
+        }
+
+        return $"{start} - Indefinite";
+    }
+
+    private static string GetContractStatusText(OrgChartNode node)
+    {
+        if (!node.HasContract || node.ContractType == null)
+            return "—";
+
+        return node.ContractType == ContractType.Determinate ? "Determinate" : "Indeterminate";
+    }
+
+    private static string GetOrthogonalPath(OrgChartNode source, OrgChartNode target)
+    {
+        var c = System.Globalization.CultureInfo.InvariantCulture;
+        double startX = source.X;
+        double startY = source.Y + 25;
+        double endX = target.X;
+        double endY = target.Y - 25;
+        double midY = (startY + endY) / 2.0;
+
+        return $"M {startX.ToString(c)} {startY.ToString(c)} V {midY.ToString(c)} H {endX.ToString(c)} V {endY.ToString(c)}";
     }
 }
+
