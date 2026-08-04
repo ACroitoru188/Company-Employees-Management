@@ -18,15 +18,6 @@ namespace CompanyEmployees.Gateway.Repositories
             return notification;
         }
 
-        public async Task<List<Notification>> GetUnreadNotificationsAsync(Guid userId)
-        {
-            return await _context.Notifications
-                .Where(n => n.UserId == userId && !n.IsRead)
-                .OrderByDescending(n => n.CreatedAt)
-                .AsNoTracking()
-                .ToListAsync();
-        }
-
         public async Task<List<Notification>> GetRecentAsync(Guid userId, int take)
         {
             return await _context.Notifications

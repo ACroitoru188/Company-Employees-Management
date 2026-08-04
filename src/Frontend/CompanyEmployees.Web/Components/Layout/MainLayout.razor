@@ -1,5 +1,10 @@
 @inherits LayoutComponentBase
 
+@* Only the popover provider, not the whole EmployeeProviders set: MudThemeProvider would
+   overwrite this layout's own palette. Needed because Dashboard.razor renders TopBar,
+   which hosts the notification bell — and its MudMenu cannot open without one. *@
+<MudPopoverProvider />
+
 <div class="app">
     <aside class="sidebar">
         <div class="sidebar-brand">

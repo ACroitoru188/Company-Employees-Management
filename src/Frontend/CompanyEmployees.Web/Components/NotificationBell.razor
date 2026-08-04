@@ -1,104 +1,177 @@
 @using Microsoft.Extensions.DependencyInjection
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Globalization
 @using System.Security.Claims
 @using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Application.Notifications
 @inject IServiceScopeFactory ScopeFactory
 @inject AuthenticationStateProvider AuthState
 @inject INotificationDispatcher Dispatcher
+@inject NavigationManager Nav
 @implements IDisposable
 
-<div class="profile-wrap">
-    <MudBadge Content="@_notifications.Count" Color="Color.Error" Overlap="true" Visible="@_notifications.Any()">
-        <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" OnClick="ToggleNotifications" />
-    </MudBadge>
-
-    @if(_notificationsOpen)
-    {
-		<div class="profile-backdrop" @onclick="CloseNotifications"></div>
-        <div class="profile-menu" @onclick:stopPropagation="true"
-             style="width: 300px; padding: 12px; max-height: 400px; overflow-y: auto; background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: absolute; right: 0; top: 100%; z-index: 9999;">
-
-            <div class="d-flex justify-space-between align-center mb-2">
-                <strong style="font-size: 14px; color: gray;">Notifications</strong>
-                @if(_notifications.Any())
+<MudMenu ActivationEvent="MouseEvent.LeftClick"
+         AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+    @* Custom activator content gets no click handler from MudMenu —
+       it has to toggle the menu through the MenuContext itself. *@
+    <ActivatorContent Context="menu">
+        <MudBadge Content="@_unreadCount" Color="Color.Error" Overlap="true"
+                  Visible="@(_unreadCount > 0)">
+            <MudIconButton Icon="@Icons.Material.Filled.Notifications"
+                           Color="Color.Inherit" OnClick="@menu.ToggleAsync" />
+        </MudBadge>
+    </ActivatorContent>
+    <ChildContent>
+        <div style="width:360px;">
+            <div class="px-4 py-2 d-flex align-center justify-space-between gap-3"
+                 @onclick:stopPropagation="true">
+                <MudText Typo="Typo.subtitle2">Notifications</MudText>
+                @if (_unreadCount > 0)
                 {
-                    <button class="pm-item"
-                    style="padding: 0; color: var(--mud-palette-primary); background: none; border: none; font-size: 12px; cursor: pointer;"
-                    @onclick="CloseNotifications">Mark all as read</button>
+                    <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary"
+                               OnClick="MarkAllAsReadAsync">Mark all as read</MudButton>
                 }
             </div>
+            <MudDivider />
 
-            <div class="pm-sep"></div>
-
-            @if(!_notifications.Any())
+            @if (_notifications.Count == 0)
             {
-                <div style="padding: 16px; text-align: center; color: gray; font-size: 13px;">
-                    No new notifications. You're all caught up!
+                <div class="px-4 py-8 d-flex flex-column align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" Size="Size.Large"
+                             Style="color:var(--mud-palette-text-disabled);" />
+                    <MudText Typo="Typo.body2" Align="Align.Center"
+                             Style="color:var(--mud-palette-text-secondary);">
+                        No notifications yet.
+                    </MudText>
                 </div>
             }
             else
             {
-                foreach (var notification in _notifications)
-                {
-                    <div style="padding: 8px 0; border-bottom: 1px solid #eee;">
-                        <div style="font-size: 13px; margin-bottom: 4px; color: gray;">@notification.Message</div>
-                        <div style="font-size: 11px; color: gray;">@notification.CreatedAt.ToString("g")</div>
-                    </div>
-                }
+                <div style="max-height:380px; overflow-y:auto;">
+                    @foreach (var notification in _notifications)
+                    {
+                        var item = notification;
+                        <MudMenuItem OnClick="@(() => OpenAsync(item))">
+                            <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
+                                @* Fixed-width slot so read and unread rows stay aligned. *@
+                                <div style="width:8px; flex:0 0 8px; margin-top:.5rem;">
+                                    @if (!item.IsRead)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Circle"
+                                                 Style="font-size:.5rem; color:var(--mud-palette-primary);" />
+                                    }
+                                </div>
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.body2"
+                                             Style="@(item.IsRead ? "white-space:normal;" : "white-space:normal; font-weight:600;")">
+                                        @item.Message
+                                    </MudText>
+                                    <MudText Typo="Typo.caption"
+                                             Style="color:var(--mud-palette-text-secondary);">
+                                        @FormatWhen(item.CreatedAt)
+                                    </MudText>
+                                </MudStack>
+                            </MudStack>
+                        </MudMenuItem>
+                    }
+                </div>
             }
         </div>
-    }
-</div>
+    </ChildContent>
+</MudMenu>
 
 @code {
+    // How many the dropdown holds. The full list lives on the history page.
+    private const int VisibleCount = 8;
+
     private Guid _currentUserId;
     private List<Notification> _notifications = new();
+    private int _unreadCount;
     private IDisposable? _subscription;
-	private bool _notificationsOpen;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthState.GetAuthenticationStateAsync();
         var userIdString = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        // Without a user there is nothing to show and nothing to listen for. Falling
-        // through with Guid.Empty used to query the database for a user that never exists.
+        // Without a user there is nothing to show and nothing to listen for.
         if (!Guid.TryParse(userIdString, out _currentUserId))
             return;
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var context = scope.ServiceProvider.GetRequiredService<CompanyEmployees.Application.Contexts.NotificationContext>();
-        _notifications = await context.GetMyUnreadNotificationsAsync(_currentUserId);
+        await ReloadAsync();
 
-        // The dispatcher calls this straight from the code that saved the notification —
-        // same process, no hop over the network. InvokeAsync marshals back onto the
-        // circuit's synchronization context before touching component state.
         _subscription = Dispatcher.Subscribe(_currentUserId, notification =>
         {
             _notifications.Insert(0, notification);
+            if (_notifications.Count > VisibleCount)
+                _notifications.RemoveAt(_notifications.Count - 1);
+
+            _unreadCount++;
             return InvokeAsync(StateHasChanged);
         });
     }
 
-    public void Dispose() => _subscription?.Dispose();
-
-    private async Task CloseNotifications()
+    // The layout shares its scoped DbContext with the page, and a second query on it
+    // throws — hence a scope of our own for every database call here.
+    private async Task ReloadAsync()
     {
         await using var scope = ScopeFactory.CreateAsyncScope();
-        var context = scope.ServiceProvider.GetRequiredService<CompanyEmployees.Application.Contexts.NotificationContext>();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
 
-        foreach (var notification in _notifications)
-        {
-            await context.MarkAsReadAsync(notification.Id);
-        }
-
-        _notifications.Clear();
-        _notificationsOpen = false;
+        _notifications = await context.GetRecentAsync(_currentUserId, VisibleCount);
+        _unreadCount = await context.GetUnreadCountAsync(_currentUserId);
     }
 
-    private void ToggleNotifications()
+    // Opening a notification is what marks it read. Closing the panel no longer touches
+    // anything: MudMenu owns the click-outside behaviour, so a stray click can't wipe
+    // the unread list the way the hand-rolled backdrop did.
+    private async Task OpenAsync(Notification notification)
     {
-        _notificationsOpen = !_notificationsOpen;
-	}   
+        if (!notification.IsRead)
+        {
+            await using (var scope = ScopeFactory.CreateAsyncScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
+                await context.MarkAsReadAsync(notification.Id);
+            }
+
+            // The list is read with AsNoTracking, so this only updates what is on screen.
+            notification.IsRead = true;
+            _unreadCount = Math.Max(0, _unreadCount - 1);
+        }
+
+        if (!string.IsNullOrWhiteSpace(notification.ActionUrl))
+            Nav.NavigateTo(notification.ActionUrl);
+    }
+
+    private async Task MarkAllAsReadAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
+        await context.MarkAllAsReadAsync(_currentUserId);
+
+        foreach (var notification in _notifications)
+            notification.IsRead = true;
+
+        _unreadCount = 0;
+    }
+
+    private static string FormatWhen(DateTime createdAtUtc)
+    {
+        var elapsed = DateTime.UtcNow - createdAtUtc;
+
+        if (elapsed < TimeSpan.FromMinutes(1))
+            return "just now";
+        if (elapsed < TimeSpan.FromHours(1))
+            return $"{(int)elapsed.TotalMinutes}m ago";
+        if (elapsed < TimeSpan.FromDays(1))
+            return $"{(int)elapsed.TotalHours}h ago";
+        if (elapsed < TimeSpan.FromDays(7))
+            return $"{(int)elapsed.TotalDays}d ago";
+
+        return createdAtUtc.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+    }
+
+    public void Dispose() => _subscription?.Dispose();
 }

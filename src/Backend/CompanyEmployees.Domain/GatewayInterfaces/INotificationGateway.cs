@@ -5,7 +5,6 @@ namespace CompanyEmployees.Domain.GatewayInterfaces
     public interface INotificationGateway
     {
         Task<Notification> CreateNotificationAsync(Notification notification);
-        Task<List<Notification>> GetUnreadNotificationsAsync(Guid userId);
         Task MarkAsReadAsync(Guid notificationId);
 
         // Read and unread alike, newest first — the bell shows history, not just a to-do

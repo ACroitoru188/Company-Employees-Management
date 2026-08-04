@@ -32,9 +32,6 @@ namespace CompanyEmployees.Application.Contexts
             return notification;
         }
 
-        public Task<List<Notification>> GetMyUnreadNotificationsAsync(Guid userId) =>
-            _gateway.GetUnreadNotificationsAsync(userId);
-
         // The bell shows a short history; the count comes separately so the badge
         // stays accurate even when the list is trimmed to the newest few.
         public Task<List<Notification>> GetRecentAsync(Guid userId, int take = 8) =>

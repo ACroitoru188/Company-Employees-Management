@@ -366,7 +366,9 @@ namespace CompanyEmployees.Application.Contexts
                 await _notifications.SendNotificationAsync(
                     delegateId,
                     $"You have been assigned as temporary Line Manager delegate for {period}.",
-                    "/manager/dashboard");
+                    // /manager/dashboard is the retro mock-up nothing links to; the real
+                    // manager view is /manager/team.
+                    "/manager/team");
             }
             catch (Exception ex)
             {
