@@ -177,12 +177,28 @@ static void SeedContracts(CompanyEmployeesDbContext db)
                 Status = ContractStatus.Active,
                 StartDate = startDate,
                 EndDate = endDate,
-                Notes = isDeterminate ? "Contract individual pe perioadă determinată" : "Contract individual pe perioadă nedeterminată",
+                Notes = isDeterminate ? "Individual fixed-term employment contract" : "Individual permanent employment contract",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
 
             db.Contracts.Add(contract);
+            modified = true;
+        }
+    }
+
+    // Sanitize any existing contract notes from Romanian to English
+    var allContracts = db.Contracts.ToList();
+    foreach (var contract in allContracts)
+    {
+        if (contract.Notes == "Contract individual pe perioadă determinată")
+        {
+            contract.Notes = "Individual fixed-term employment contract";
+            modified = true;
+        }
+        else if (contract.Notes == "Contract individual pe perioadă nedeterminată")
+        {
+            contract.Notes = "Individual permanent employment contract";
             modified = true;
         }
     }

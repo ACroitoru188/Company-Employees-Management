@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Enums;
+using CompanyEmployees.Domain.Enums;
 
 namespace CompanyEmployees.Domain.Entities;
 
@@ -15,7 +15,7 @@ public class RoleAssignment
     public Guid? NewManagerId { get; set; }
     public User? NewManager { get; set; }
 
-    public Guid AssignedById { get; set; } // trebuie să fie un Admin
+    public Guid AssignedById { get; set; } // must be an Admin
     public User AssignedBy { get; set; }
 
     public DateTime CreatedAt { get; set; }
