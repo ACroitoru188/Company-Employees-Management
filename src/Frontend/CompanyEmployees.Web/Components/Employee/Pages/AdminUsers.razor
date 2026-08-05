@@ -52,6 +52,7 @@ else
 			</MudSelect>
 			<MudButton Variant="Variant.Filled" Color="Color.Primary"
 					   StartIcon="@Icons.Material.Filled.PersonAdd"
+					   Style="height:44px; align-self:center; transform:translateY(2px);"
 					   OnClick="CreateEmployeeAsync" Disabled="@_creating">
 				@(_creating ? "Creating..." : "Create account")
 			</MudButton>
