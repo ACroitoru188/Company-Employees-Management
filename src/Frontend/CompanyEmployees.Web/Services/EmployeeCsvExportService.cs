@@ -32,17 +32,15 @@ public sealed class EmployeeCsvExportService
         _db = db;
     }
 
-    public async Task<EmployeeCsvExport> GenerateAsync(Guid? regionId, CancellationToken cancellationToken = default)
+    public async Task<EmployeeCsvExport> GenerateAsync(Guid regionId, CancellationToken cancellationToken = default)
     {
         var query = _db.Users
             .Include(user => user.Manager)
             .Include(user => user.Department)
             .Include(user => user.Region)
             .Include(user => user.Contracts)
-            .AsNoTracking();
-
-        if (regionId.HasValue)
-            query = query.Where(user => user.RegionId == regionId.Value);
+            .AsNoTracking()
+            .Where(user => user.RegionId == regionId);
 
         var users = await query
             .OrderBy(user => user.Name)

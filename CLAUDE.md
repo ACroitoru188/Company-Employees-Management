@@ -148,8 +148,9 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
 - `UserName == Email` for all users, so `Identity.Name` from the auth state *is* the email.
 - The cookie includes `RegionId` and `Region` claims for display and HTTP endpoint scoping, while
   sensitive application queries use the account's current database region. Team rosters,
-  manager/HR dashboards and decisions, contract actions, non-admin org charts, and HR CSV exports
-  are region-scoped. Admin lists and exports remain global.
+  manager/HR dashboards and decisions, contract actions, non-admin org charts, and every CSV
+  export are region-scoped. Admins may preview the global user list, but foreign rows remain
+  read-only and exports always use the admin account's database region, never the preview filter.
 - `DbTimeOffService` resolves the current user from the **auth state**
   (`AuthenticationStateProvider.GetAuthenticationStateAsync()` → `Identity.Name` → email →
   `GetEmployeeByEmailAsync`), cached per circuit. Every `ITimeOffService` method funnels through

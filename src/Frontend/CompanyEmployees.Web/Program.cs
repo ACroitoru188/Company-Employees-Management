@@ -154,20 +154,18 @@ app.MapGet("/api/employees/export.csv", async (
     UserManager<User> userManager,
     CancellationToken cancellationToken) =>
 {
-    Guid? regionId = null;
-    if (!httpContext.User.IsInRole(UserRole.Admin.ToString()))
-    {
-        var email = httpContext.User.Identity?.Name;
-        regionId = await userManager.Users
-            .Where(user => user.Email == email)
-            .Select(user => (Guid?)user.RegionId)
-            .FirstOrDefaultAsync(cancellationToken);
+    // Export scope always comes from the authenticated account in the database.
+    // A UI preview selection must never expose another region's employee data.
+    var email = httpContext.User.Identity?.Name;
+    var regionId = await userManager.Users
+        .Where(user => user.Email == email)
+        .Select(user => (Guid?)user.RegionId)
+        .FirstOrDefaultAsync(cancellationToken);
 
-        if (!regionId.HasValue)
-            return Results.NotFound();
-    }
+    if (!regionId.HasValue)
+        return Results.NotFound();
 
-    var export = await csvExporter.GenerateAsync(regionId, cancellationToken);
+    var export = await csvExporter.GenerateAsync(regionId.Value, cancellationToken);
     return Results.File(export.Content, "text/csv; charset=utf-8", export.FileName);
 }).RequireAuthorization(policy => policy.RequireAssertion(context =>
     context.User.IsInRole(UserRole.Admin.ToString())
