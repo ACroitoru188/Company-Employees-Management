@@ -24,6 +24,7 @@ builder.Services.AddMudServices();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<ThemeState>();
 builder.Services.AddScoped<EmployeeAccountService>();
+builder.Services.AddScoped<EmployeeCsvExportService>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IAccountEmailSender, SmtpAccountEmailSender>();
 builder.Services.AddControllers();
@@ -138,6 +139,16 @@ app.MapGet("/api/auth/logout", async (SignInManager<User> signInManager) =>
     await signInManager.SignOutAsync();
     return Results.Redirect("/");
 });
+
+app.MapGet("/api/employees/export.csv", async (
+    EmployeeCsvExportService csvExporter,
+    CancellationToken cancellationToken) =>
+{
+    var export = await csvExporter.GenerateAsync(cancellationToken);
+    return Results.File(export.Content, "text/csv; charset=utf-8", export.FileName);
+}).RequireAuthorization(policy => policy.RequireAssertion(context =>
+    context.User.IsInRole(UserRole.Admin.ToString())
+    || context.User.HasClaim("Department", HomeRouteResolver.HrDepartmentName)));
 
 
 app.Run();

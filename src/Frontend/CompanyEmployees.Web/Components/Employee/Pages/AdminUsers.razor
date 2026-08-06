@@ -22,7 +22,14 @@
 }
 else
 {
-	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Users & Contracts</MudText>
+	<div class="d-flex justify-space-between align-center gap-3 flex-wrap mb-4">
+		<MudText Typo="Typo.h5" Style="font-weight:600;">Users & Contracts</MudText>
+		<MudButton Href="/api/employees/export.csv"
+				   Variant="Variant.Outlined" Color="Color.Primary"
+				   StartIcon="@Icons.Material.Filled.Download">
+			Download latest CSV
+		</MudButton>
+	</div>
 
 	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
 		<MudText Typo="Typo.subtitle1" Style="font-weight:600;" Class="mb-1">
