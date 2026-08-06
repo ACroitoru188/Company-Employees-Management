@@ -110,8 +110,10 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   in several countries. The `AddRegions` migration seeds Romania (`RO`) and Pakistan (`PK`),
   assigns all existing accounts to Romania, and `AddMoreRegions` adds 30 additional international
   regions. Admin account creation requires a region, and the Users grid can relocate an account
-  later. Relocation changes the security stamp and removes manager/direct-report links that would
-  cross the new regional boundary.
+  later. Admins may preview employee lists from every region, but foreign-region rows are
+  read-only: department, contract, transfer, and account-creation mutations are checked against
+  the administrator's own region in both the UI and application/service layer. Relocation changes
+  the security stamp and removes manager/direct-report links that would cross the new regional boundary.
   `SeedRegionalDemoAccounts` adds one Admin (`admin.<code>@siemens.com`), Line Manager
   (`lm.<code>@siemens.com`), and HR employee (`hr.<code>@siemens.com`) to every active region,
   all using `User123!`. Regional HR belongs to the global HR department and reports to the Line

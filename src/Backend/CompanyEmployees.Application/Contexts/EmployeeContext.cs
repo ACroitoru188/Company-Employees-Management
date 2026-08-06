@@ -345,25 +345,23 @@ namespace CompanyEmployees.Application.Contexts
         public Task DeleteDepartmentAsync(Guid id) =>
             _departmentGateway.DeleteAsync(id);
 
-        public async Task AssignUserToDepartmentAsync(Guid userId, Guid? departmentId)
+        public async Task AssignUserToDepartmentAsync(Guid adminId, Guid userId, Guid? departmentId)
         {
-            var user = await _userGateway.GetUserByIdAsync(userId);
-            if (user == null)
-                throw new EntityNotFoundException($"No user with id {userId}.");
+            var user = await EnsureRegionalAdminCanManageAsync(adminId, userId);
 
             user.DepartmentId = departmentId;
             await _userGateway.UpdateUserAsync(user);
         }
 
-        public async Task AssignUserToRegionAsync(Guid userId, Guid regionId)
+        public async Task AssignUserToRegionAsync(Guid adminId, Guid userId, Guid regionId)
         {
             var region = await _regionGateway.GetByIdAsync(regionId);
             if (region == null || !region.IsActive)
                 throw new InvalidOperationException("Select a valid active region.");
 
-            var user = await _userGateway.GetUserByIdAsync(userId);
-            if (user == null)
-                throw new EntityNotFoundException($"No user with id {userId}.");
+            // The source-region admin owns the transfer. Once the employee moves,
+            // only an administrator in the destination region may edit them.
+            var user = await EnsureRegionalAdminCanManageAsync(adminId, userId);
             if (user.RegionId == regionId)
                 return;
 
@@ -815,6 +813,7 @@ namespace CompanyEmployees.Application.Contexts
         }
 
         public async Task SaveUserContractAsync(
+            Guid adminId,
             Guid userId,
             ContractType type,
             ContractStatus status,
@@ -822,9 +821,7 @@ namespace CompanyEmployees.Application.Contexts
             DateOnly? endDate,
             string? notes)
         {
-            var user = await _userGateway.GetUserByIdAsync(userId);
-            if (user == null)
-                throw new EntityNotFoundException($"No user with id {userId}.");
+            await EnsureRegionalAdminCanManageAsync(adminId, userId);
 
             var active = await _contractGateway.GetActiveContractByUserIdAsync(userId);
             if (active != null)
@@ -853,6 +850,23 @@ namespace CompanyEmployees.Application.Contexts
                 };
                 await _contractGateway.CreateAsync(newContract);
             }
+        }
+
+        private async Task<User> EnsureRegionalAdminCanManageAsync(Guid adminId, Guid userId)
+        {
+            var admin = await _userGateway.GetUserByIdAsync(adminId);
+            if (admin == null)
+                throw new EntityNotFoundException($"No administrator with id {adminId}.");
+            if (admin.Role != UserRole.Admin)
+                throw new UnauthorizedException("Only administrators can manage employee accounts.");
+
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+            if (user.RegionId != admin.RegionId)
+                throw new UnauthorizedException("You can preview other regions, but you cannot edit their employees.");
+
+            return user;
         }
     }
 }

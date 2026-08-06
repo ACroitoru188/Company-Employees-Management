@@ -29,6 +29,7 @@ public sealed class EmployeeAccountService
     }
 
     public async Task<EmployeeAccountResult> CreateAsync(
+        Guid adminId,
         string name,
         string invitationEmail,
         Guid departmentId,
@@ -58,6 +59,12 @@ public sealed class EmployeeAccountService
             .SingleOrDefaultAsync(candidate => candidate.Id == regionId && candidate.IsActive);
         if (region == null)
             throw new InvalidOperationException("Select a valid active region.");
+
+        var admin = await _userManager.FindByIdAsync(adminId.ToString());
+        if (admin == null || admin.Role != UserRole.Admin)
+            throw new InvalidOperationException("Only administrators can create employee accounts.");
+        if (admin.RegionId != region.Id)
+            throw new InvalidOperationException("You can only create accounts in your own region.");
 
         var email = await GenerateUniqueEmailAsync(normalizedName);
         var employeeId = await GenerateNumericEmployeeIdAsync();

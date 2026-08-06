@@ -24,8 +24,9 @@ else
 {
 	<div class="d-flex justify-space-between align-center gap-3 flex-wrap mb-4">
 		<MudText Typo="Typo.h5" Style="font-weight:600;">Users & Contracts</MudText>
-		<MudSelect T="Guid?" @bind-Value="_regionFilterId"
-				   Label="Viewing region" Variant="Variant.Outlined"
+		<MudSelect T="Guid?" Value="_regionFilterId"
+				   ValueChanged="OnViewingRegionChanged"
+				   Label="Preview region" Variant="Variant.Outlined"
 				   Dense="true" Style="min-width:220px;">
 			<MudSelectItem T="Guid?" Value="@((Guid?)null)">All regions</MudSelectItem>
 			@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
@@ -45,20 +46,26 @@ else
 			Create employee account
 		</MudText>
 		<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-			Enter the employee's name, real email address, department, and employment region. Their Siemens login and employee ID are generated automatically.
+			Create employees in your assigned region. Their Siemens login and employee ID are generated automatically.
 		</MudText>
+		@if (!CanManageSelectedRegion)
+		{
+			<MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+				This regional preview is read-only. Return to <strong>@GetRegionName(_adminRegionId)</strong> to create an account.
+			</MudAlert>
+		}
 
 		<div class="d-flex align-end gap-3 flex-wrap">
 			<MudTextField T="string" @bind-Value="_newEmployeeName"
 						  Label="Full name" Variant="Variant.Outlined"
-						  Style="min-width:260px;" Disabled="@_creating" />
+						  Style="min-width:260px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
 			<MudTextField T="string" @bind-Value="_newEmployeeInvitationEmail"
 						  Label="Real email address" Variant="Variant.Outlined"
 						  InputType="InputType.Email" Style="min-width:300px;"
-						  Disabled="@_creating" />
+						  Disabled="@(_creating || !CanManageSelectedRegion)" />
 			<MudSelect T="Guid?" @bind-Value="_newEmployeeDepartmentId"
 					   Label="Department" Variant="Variant.Outlined"
-					   Style="min-width:220px;" Disabled="@_creating">
+					   Style="min-width:220px;" Disabled="@(_creating || !CanManageSelectedRegion)">
 				@foreach (var department in _departments.OrderBy(d => d.Name))
 				{
 					<MudSelectItem T="Guid?" Value="@((Guid?)department.Id)">
@@ -68,7 +75,7 @@ else
 			</MudSelect>
 			<MudSelect T="Guid?" @bind-Value="_newEmployeeRegionId"
 					   Label="Region" Variant="Variant.Outlined"
-					   Style="min-width:200px;" Disabled="@_creating">
+					   Style="min-width:200px;" Disabled="true">
 				@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
 				{
 					<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
@@ -77,7 +84,7 @@ else
 			<MudButton Variant="Variant.Filled" Color="Color.Primary"
 					   StartIcon="@Icons.Material.Filled.PersonAdd"
 					   Style="height:44px; align-self:center; transform:translateY(2px);"
-					   OnClick="CreateEmployeeAsync" Disabled="@_creating">
+					   OnClick="CreateEmployeeAsync" Disabled="@(_creating || !CanManageSelectedRegion)">
 				@(_creating ? "Creating..." : "Create account")
 			</MudButton>
 		</div>
@@ -106,9 +113,24 @@ else
 
 	@if (_regionFilterId.HasValue)
 	{
+		@if (CanManageSelectedRegion)
+		{
+			<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+				Managing your assigned region, <strong>@GetRegionName(_adminRegionId)</strong>.
+			</MudAlert>
+		}
+		else
+		{
+			<MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+				Previewing <strong>@GetRegionName(_regionFilterId.Value)</strong> in read-only mode.
+				Only an administrator assigned to that region can make changes.
+			</MudAlert>
+		}
+	}
+	else
+	{
 		<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-			Showing employees assigned to <strong>@GetRegionName(_regionFilterId.Value)</strong>.
-			A confirmed transfer removes the employee from this list immediately.
+			Previewing all regions. Employees outside <strong>@GetRegionName(_adminRegionId)</strong> are read-only.
 		</MudAlert>
 	}
 
@@ -180,7 +202,7 @@ else
 									 SearchFunc="@SearchDepartments"
 									 ToStringFunc="@GetDepartmentName"
 									 ResetValueOnEmptyText="true"
-									 CoerceText="true" Dense="true" />
+									 CoerceText="true" Dense="true" Disabled="@(!CanEditUser(context.Item))" />
 				</CellTemplate>
 			</TemplateColumn>
 			<TemplateColumn T="User" Title="Region" Sortable="true"
@@ -188,7 +210,7 @@ else
 				<CellTemplate>
 					<MudSelect T="Guid" Value="context.Item.RegionId"
 							   ValueChanged="@(value => OnUserRegionChangedAsync(context.Item, value))"
-							   Dense="true" Variant="Variant.Text">
+							   Dense="true" Variant="Variant.Text" Disabled="@(!CanEditUser(context.Item))">
 						@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
 						{
 							<MudSelectItem T="Guid" Value="@region.Id">@region.Name</MudSelectItem>
@@ -200,7 +222,8 @@ else
 				<CellTemplate>
 					<MudTooltip Text="Manage Contract">
 						<MudIconButton Icon="@Icons.Material.Filled.Assignment" Size="Size.Small" Color="Color.Primary"
-									   OnClick="@(() => OpenEditContractDialog(context.Item))" />
+									   OnClick="@(() => OpenEditContractDialog(context.Item))"
+									   Disabled="@(!CanEditUser(context.Item))" />
 					</MudTooltip>
 				</CellTemplate>
 			</TemplateColumn>
@@ -228,6 +251,8 @@ else
 	private Guid? _newEmployeeDepartmentId;
 	private Guid? _newEmployeeRegionId;
 	private Guid? _regionFilterId;
+	private Guid _adminId;
+	private Guid _adminRegionId;
 	private bool _creating;
 	private EmployeeAccountResult? _createdAccount;
 
@@ -247,6 +272,9 @@ else
 	private IEnumerable<User> FilteredUsers => _regionFilterId.HasValue
 		? _users.Where(user => user.RegionId == _regionFilterId.Value)
 		: _users;
+
+	private bool CanManageSelectedRegion => _regionFilterId == _adminRegionId;
+	private bool CanEditUser(User user) => user.RegionId == _adminRegionId;
 
 	protected override async Task OnInitializedAsync()
 	{
@@ -270,7 +298,10 @@ else
 		await LoadAsync();
 
 		var currentAdmin = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
+		_adminId = currentAdmin.Id;
+		_adminRegionId = currentAdmin.RegionId;
 		_regionFilterId = currentAdmin.RegionId;
+		_newEmployeeRegionId = currentAdmin.RegionId;
 	}
 
 	private async Task LoadAsync()
@@ -297,6 +328,12 @@ else
 
 	private async Task OpenEditContractDialog(User user)
 	{
+		if (!CanEditUser(user))
+		{
+			Snackbar.Add("Other regions are read-only.", Severity.Warning);
+			return;
+		}
+
 		var contract = GetActiveContract(user);
 		var parameters = new DialogParameters<EditContractDialog>
 		{
@@ -309,7 +346,7 @@ else
 
 		if (result != null && !result.Canceled && result.Data is EditContractDialog.ContractEditResult res)
 		{
-			await Employees.SaveUserContractAsync(user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes);
+			await Employees.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes);
 			Snackbar.Add($"Contract updated for {user.Name}.", Severity.Success);
 			await LoadAsync();
 		}
@@ -317,13 +354,19 @@ else
 
 	private async Task OnUserDepartmentChangedAsync(User user, Guid? departmentId)
 	{
-		await Employees.AssignUserToDepartmentAsync(user.Id, departmentId);
+		if (!CanEditUser(user))
+			return;
+
+		await Employees.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId);
 		Snackbar.Add($"{user.Name} moved.", Severity.Success);
 		await LoadAsync();
 	}
 
 	private async Task OnUserRegionChangedAsync(User user, Guid regionId)
 	{
+		if (!CanEditUser(user))
+			return;
+
 		if (user.RegionId == regionId)
 			return;
 
@@ -344,7 +387,7 @@ else
 
 		try
 		{
-			await Employees.AssignUserToRegionAsync(user.Id, regionId);
+			await Employees.AssignUserToRegionAsync(_adminId, user.Id, regionId);
 			Snackbar.Add($"{user.Name} moved from {sourceRegion} to {destinationRegion}.", Severity.Success);
 			await LoadAsync();
 		}
@@ -352,6 +395,12 @@ else
 		{
 			Snackbar.Add(exception.Message, Severity.Error);
 		}
+	}
+
+	private Task OnViewingRegionChanged(Guid? regionId)
+	{
+		_regionFilterId = regionId;
+		return Task.CompletedTask;
 	}
 
 	private async Task CreateEmployeeAsync()
@@ -386,6 +435,7 @@ else
 		try
 		{
 			_createdAccount = await Accounts.CreateAsync(
+				_adminId,
 				_newEmployeeName,
 				_newEmployeeInvitationEmail,
 				_newEmployeeDepartmentId.Value,
@@ -395,7 +445,7 @@ else
 			_newEmployeeName = "";
 			_newEmployeeInvitationEmail = "";
 			_newEmployeeDepartmentId = null;
-			_newEmployeeRegionId = null;
+			_newEmployeeRegionId = _adminRegionId;
 			await LoadAsync();
 			Snackbar.Add(
 				_createdAccount.EmailDelivered
