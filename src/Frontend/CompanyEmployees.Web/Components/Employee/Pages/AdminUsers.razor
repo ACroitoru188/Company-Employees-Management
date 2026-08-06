@@ -29,7 +29,7 @@ else
 			Create employee account
 		</MudText>
 		<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-			Enter the employee's name, real email address, and department. Their Siemens login and employee ID are generated automatically.
+			Enter the employee's name, real email address, and department. Their Siemens login is generated automatically.
 		</MudText>
 
 		<div class="d-flex align-end gap-3 flex-wrap">
@@ -66,7 +66,6 @@ else
 				<MudText Typo="Typo.body2">Department: @_createdAccount.Department</MudText>
 				<MudText Typo="Typo.body2">Siemens login: @_createdAccount.Email</MudText>
 				<MudText Typo="Typo.body2">Invitation email: @_createdAccount.InvitationEmail</MudText>
-				<MudText Typo="Typo.body2">Employee ID: @_createdAccount.EmployeeId</MudText>
 				@if (_createdAccount.EmailDelivered)
 				{
 					<MudText Typo="Typo.body2">A password setup email was sent to the employee.</MudText>
@@ -94,7 +93,6 @@ else
 		<Columns>
 			<PropertyColumn Property="@(u => u.Name)" Title="Name" />
 			<PropertyColumn Property="@(u => u.Email)" Title="Email" />
-			<PropertyColumn Property="@(u => u.Id)" Title="Employee ID" />
 			<PropertyColumn Property="@(u => u.Role)" Title="Role" />
 			<TemplateColumn T="User" Title="Contract Type" Sortable="true"
 							SortBy="@(u => GetActiveContract(u)?.Type.ToString() ?? "None")" Filterable="false">
