@@ -470,10 +470,10 @@
     {
         if (day < _today)
             return "Past dates cannot be selected.";
+        if (_holidays.TryGetValue(day, out var holiday))
+            return $"{holiday.Name} is a public holiday.";
         if (IsWeekend(day))
             return "Weekends are already non-working days.";
-		if (_holidays.TryGetValue(day, out var holiday))
-			return $"{holiday.Name} is a regional public holiday.";
         return _selectedType is null ? "Select a leave type first." : null;
     }
 
