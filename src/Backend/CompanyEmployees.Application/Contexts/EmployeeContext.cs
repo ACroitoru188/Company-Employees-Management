@@ -16,6 +16,7 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IUserGateway _userGateway;
         private readonly IDepartmentGateway _departmentGateway;
         private readonly IRegionGateway _regionGateway;
+        private readonly IPublicHolidayProvider _holidayProvider;
         private readonly IContractGateway _contractGateway;
         private readonly NotificationContext _notifications;
 
@@ -25,6 +26,7 @@ namespace CompanyEmployees.Application.Contexts
             IUserGateway userGateway,
             IDepartmentGateway departmentGateway,
             IRegionGateway regionGateway,
+            IPublicHolidayProvider holidayProvider,
             IContractGateway contractGateway,
             NotificationContext notifications) : base(logger)
         {
@@ -32,6 +34,7 @@ namespace CompanyEmployees.Application.Contexts
             _userGateway = userGateway;
             _departmentGateway = departmentGateway;
             _regionGateway = regionGateway;
+            _holidayProvider = holidayProvider;
             _contractGateway = contractGateway;
             _notifications = notifications;
         }
@@ -51,8 +54,16 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task<List<LeaveBalanceResult>> GetMyBalancesAsync(Guid userId, int year)
         {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            await _leaveRequestGateway.EnsureDefaultAllocationsAsync(userId, year);
             var allocations = await _leaveRequestGateway.GetAllocationsByUserAsync(userId, year);
             var requests = await _leaveRequestGateway.GetRequestsByUserAsync(userId);
+            var holidays = (await _holidayProvider.GetHolidaysAsync(user.Region.Code, year))
+                .Select(holiday => holiday.Date)
+                .ToHashSet();
 
             var balances = new List<LeaveBalanceResult>();
             foreach (var allocation in allocations)
@@ -61,7 +72,7 @@ namespace CompanyEmployees.Application.Contexts
                     .Where(r => r.Status == LeaveStatus.Approved
                                 && r.Type == allocation.LeaveType
                                 && r.StartDate.Year == year)
-                    .Sum(r => CountDays(r.StartDate, r.EndDate));
+                    .Sum(r => CountWorkingDays(r.StartDate, r.EndDate, holidays));
 
                 balances.Add(new LeaveBalanceResult
                 {
@@ -71,6 +82,15 @@ namespace CompanyEmployees.Application.Contexts
                 });
             }
             return balances;
+        }
+
+        public async Task<IReadOnlyList<PublicHoliday>> GetRegionalHolidaysAsync(Guid userId, int year)
+        {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            return await _holidayProvider.GetHolidaysAsync(user.Region.Code, year);
         }
 
         // Approved leave of the user's team (same manager, excluding the user,
@@ -392,7 +412,11 @@ namespace CompanyEmployees.Application.Contexts
             if (overlaps)
                 throw new InvalidOperationException("You already have a request in that period.");
 
-            var requestedDays = CountDays(start, end);
+            await EnsureWorkingDayAsync(requester, start);
+            await EnsureWorkingDayAsync(requester, end);
+            var requestedDays = await CountWorkingDaysAsync(requester, start, end);
+            if (requestedDays == 0)
+                throw new InvalidOperationException("The selected period contains no working days.");
             var balances = await GetMyBalancesAsync(userId, start.Year);
             var balance = balances.FirstOrDefault(b => b.Type == type);
             if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
@@ -438,7 +462,15 @@ namespace CompanyEmployees.Application.Contexts
             if (overlaps)
                 throw new InvalidOperationException("This user already has a request in that period.");
 
-            var requestedDays = CountDays(newStart, newEnd);
+            // Reload through the user gateway so the employee's Region navigation is
+            // always available when regional working-day rules are evaluated.
+            var requester = await _userGateway.GetUserByIdAsync(request.UserId);
+            if (requester == null)
+                throw new EntityNotFoundException($"No user with id {request.UserId}.");
+
+            await EnsureWorkingDayAsync(requester, newStart);
+            await EnsureWorkingDayAsync(requester, newEnd);
+            var requestedDays = await CountWorkingDaysAsync(requester, newStart, newEnd);
             var balances = await GetMyBalancesAsync(request.UserId, newStart.Year);
             var balance = balances.FirstOrDefault(b => b.Type == request.Type);
             if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
@@ -452,8 +484,43 @@ namespace CompanyEmployees.Application.Contexts
                 requestId, newStart, newEnd);
         }
 
-        private static int CountDays(DateOnly start, DateOnly end) =>
-            end.DayNumber - start.DayNumber + 1;
+        private async Task EnsureWorkingDayAsync(User user, DateOnly day)
+        {
+            if (day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+                throw new InvalidOperationException("Leave must start and end on a working day.");
+
+            var holidays = await _holidayProvider.GetHolidaysAsync(user.Region.Code, day.Year);
+            var holiday = holidays.FirstOrDefault(candidate => candidate.Date == day);
+            if (holiday != null)
+                throw new InvalidOperationException($"{day:MMM d} is {holiday.Name} in {user.Region.Name}.");
+        }
+
+        private async Task<int> CountWorkingDaysAsync(User user, DateOnly start, DateOnly end)
+        {
+            var holidays = new HashSet<DateOnly>();
+            for (var year = start.Year; year <= end.Year; year++)
+            {
+                foreach (var holiday in await _holidayProvider.GetHolidaysAsync(user.Region.Code, year))
+                    holidays.Add(holiday.Date);
+            }
+
+            return CountWorkingDays(start, end, holidays);
+        }
+
+        private static int CountWorkingDays(DateOnly start, DateOnly end, HashSet<DateOnly> holidays)
+        {
+            var count = 0;
+            for (var day = start; day <= end; day = day.AddDays(1))
+            {
+                if (day.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday
+                    && !holidays.Contains(day))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
 
         public async Task<OrgChartNode?> GetCompanyOrgChartAsync(Guid currentUserId, bool isAdmin)
         {

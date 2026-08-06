@@ -83,7 +83,11 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   `DeleteBehavior.NoAction`), `CreatedAt`/`UpdatedAt`.
 - **`LeaveRequest`** — `UserId`, `DateOnly StartDate/EndDate`, `Reason`, `LeaveStatus`,
   `LeaveType`, `Approvals`.
-- **`LeaveAllocation`** — per user/type/year day quota.
+- **`LeaveAllocation`** — per user/type/year day quota. Missing allocations are created lazily
+  by `EmployeeContext.GetMyBalancesAsync` through
+  `ILeaveRequestGateway.EnsureDefaultAllocationsAsync`: Annual 21, Sick 10, Parental 10, and
+  Unpaid 30 days. This makes new and regionally seeded accounts usable without a separate
+  allocation backfill and initializes the next year when it is first viewed.
 - **`LeaveApproval`** — approval chain (`ApproverId`, `Step`, `Status`, `ReviewedAt`). Written by
   `ManagerContext.DecideRequestAsync` (manager approve/decline) or `EmployeeContext.
   HrDecideRequestAsync` (HR review, added 2026-07-28) in the same SaveChanges as the request's
@@ -108,6 +112,11 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   regions. Admin account creation requires a region, and the Users grid can relocate an account
   later. Relocation changes the security stamp and removes manager/direct-report links that would
   cross the new regional boundary.
+  `SeedRegionalDemoAccounts` adds one Admin (`admin.<code>@siemens.com`), Line Manager
+  (`lm.<code>@siemens.com`), and HR employee (`hr.<code>@siemens.com`) to every active region,
+  all using `User123!`. Regional HR belongs to the global HR department and reports to the Line
+  Manager in the same region. This migration is additive-only so rollback cannot erase HR data
+  subsequently attached to these accounts.
 - **Departments are org data, not team visibility** (deliberate): **Team** = the user's manager
   **plus** the active users sharing the same `ManagerId` (excluding the user).
   `EmployeeContext.GetTeamMembersAsync` / `GetTeamRequestsAsync` are the single source of that
@@ -235,6 +244,13 @@ Pages in `Web/Components/Employee/Pages/` — `EmployeeDashboard` (`/employee/da
 - Leave-type color map: `Components/Employee/LeaveTypePalette.cs`, applied via inline `Style`
   (the colors aren't theme `Color` enum members). `LeaveBalanceSummary.razor` is the shared
   header + balance cards (Dashboard passes a CTA through its `Actions` RenderFragment).
+- The employee calendar loads public holidays for the signed-in user's current region through
+  `IPublicHolidayProvider`. `NagerDatePublicHolidayProvider` uses the stable Nager.Date v3 API,
+  caches results by country/year, and has built-in calendars for unsupported PK/IN/AE regions
+  (India's full fallback is currently 2026; other India years contain only the three national
+  fixed holidays, while UAE/Pakistan fallbacks omit lunar dates). Weekends and regional public
+  holidays are displayed but cannot be selected, and they do not consume the leave balance.
+  The Application layer repeats those checks on submit/edit so the UI cannot be bypassed.
 - **View-models vs domain**: `Web/Models/` (`TeamMember`, `TimeOffRequest`, `LeaveBalance`) and
   the Web-side `LeaveType`/`RequestStatus` enums are **separate from the domain enums** and
   explicitly mapped in `DbTimeOffService` (numeric orders differ — never cast between them).
