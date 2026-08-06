@@ -122,6 +122,28 @@
     padding: 4px 22px 22px;
 }
 
+.cal-holiday-notice {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 22px 14px;
+    padding: 9px 12px;
+    border: 1px solid color-mix(in srgb, #d32f2f 28%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, #d32f2f 7%, var(--mud-palette-surface));
+    color: var(--mud-palette-text-secondary);
+    font-size: 12px;
+}
+
+.cal-holiday-swatch {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    border: 1px solid color-mix(in srgb, #d32f2f 40%, transparent);
+    border-radius: 3px;
+    background: color-mix(in srgb, #d32f2f 14%, var(--mud-palette-surface));
+}
+
 .cal-empty {
     padding: 24px 22px;
     font-size: 13px;
@@ -222,6 +244,23 @@
 
 .cal-weekend.cal-selected {
     opacity: 0.82;
+}
+
+.cal-cell.cal-holiday {
+    background: color-mix(in srgb, #d32f2f 10%, var(--mud-palette-surface));
+    border-color: color-mix(in srgb, #d32f2f 30%, var(--mud-palette-lines-default));
+    cursor: not-allowed;
+}
+
+.cal-holiday .cal-daynum {
+    color: #c62828;
+}
+
+.cal-holiday-name {
+    color: #c62828;
+    font-size: 0.62rem;
+    font-weight: 600;
+    line-height: 1.15;
 }
 
 .cal-range-endpoint .cal-daynum,
@@ -373,6 +412,25 @@
     opacity: 0.82;
 }
 
+.wv-head-holiday .wv-num,
+.wv-holiday-name {
+    color: #c62828;
+}
+
+.wv-holiday-name {
+    max-width: 100%;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.wv-cell-holiday {
+    background: color-mix(in srgb, #d32f2f 9%, var(--mud-palette-surface));
+    border-color: color-mix(in srgb, #d32f2f 28%, #e8eaed);
+    cursor: not-allowed;
+}
+
 .wv-cell-past {
     background: color-mix(in srgb, var(--mud-palette-surface) 82%, var(--mud-palette-background));
     opacity: 0.65;
@@ -488,6 +546,15 @@
     color: #9aa0a6;
 }
 
+.gv-hholiday {
+    background: color-mix(in srgb, #d32f2f 10%, var(--mud-palette-surface));
+}
+
+.gv-hholiday .gv-hdow,
+.gv-hholiday .gv-hnum {
+    color: #c62828;
+}
+
 .gv-hdisabled {
     cursor: not-allowed;
     opacity: 0.65;
@@ -582,6 +649,10 @@
 
 .gv-wend {
     background: #f7f8fa;
+}
+
+.gv-holiday {
+    background: color-mix(in srgb, #d32f2f 7%, var(--mud-palette-surface));
 }
 
 .gv-today {
