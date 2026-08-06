@@ -35,8 +35,11 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task<List<LeaveRequest>> GetPendingRequestsForManagerAsync(Guid managerId)
         {
+            var manager = await GetUserOrThrowAsync(managerId);
             var today = DateOnly.FromDateTime(DateTime.Today);
-            var directPending = await _leaveRequestGateway.GetPendingRequestsByManagerAsync(managerId);
+            var directPending = (await _leaveRequestGateway.GetPendingRequestsByManagerAsync(managerId))
+                .Where(request => request.User.RegionId == manager.RegionId)
+                .ToList();
 
             // Also check for delegated managers
             var delegatedManagerIds = await _delegationGateway.GetDelegatedManagerIdsAsync(managerId, today);
@@ -47,7 +50,7 @@ namespace CompanyEmployees.Application.Contexts
             foreach (var delegatedManagerId in delegatedManagerIds)
             {
                 var delegatedPending = await _leaveRequestGateway.GetPendingRequestsByManagerAsync(delegatedManagerId);
-                allRequests.AddRange(delegatedPending);
+                allRequests.AddRange(delegatedPending.Where(request => request.User.RegionId == manager.RegionId));
             }
 
             return allRequests.DistinctBy(r => r.Id).OrderBy(r => r.StartDate).ToList();
@@ -56,14 +59,21 @@ namespace CompanyEmployees.Application.Contexts
         // Scoped to the manager's own direct reports and delegated requests.
         public async Task<ManagerDashboardResult> GetManagerDashboardAsync(Guid managerId)
         {
+            var manager = await GetUserOrThrowAsync(managerId);
             var today = DateOnly.FromDateTime(DateTime.Today);
             var result = new ManagerDashboardResult();
 
             // Load active delegations
-            result.ActiveDelegationsGiven = await _delegationGateway.GetActiveDelegationsForManagerAsync(managerId, today);
-            result.ActiveDelegationsReceived = await _delegationGateway.GetActiveDelegationsForDelegateAsync(managerId, today);
+            result.ActiveDelegationsGiven = (await _delegationGateway.GetActiveDelegationsForManagerAsync(managerId, today))
+                .Where(delegation => delegation.Delegate.RegionId == manager.RegionId)
+                .ToList();
+            result.ActiveDelegationsReceived = (await _delegationGateway.GetActiveDelegationsForDelegateAsync(managerId, today))
+                .Where(delegation => delegation.Manager.RegionId == manager.RegionId)
+                .ToList();
 
-            var reports = await _userGateway.GetDirectReportsAsync(managerId);
+            var reports = (await _userGateway.GetDirectReportsAsync(managerId))
+                .Where(report => report.RegionId == manager.RegionId)
+                .ToList();
             result.TeamSize = reports.Count;
 
             var reportIds = reports.Select(p => p.Id).ToList();
@@ -95,7 +105,9 @@ namespace CompanyEmployees.Application.Contexts
             }
 
             // Direct pending requests
-            var pending = await _leaveRequestGateway.GetPendingRequestsByManagerAsync(managerId);
+            var pending = (await _leaveRequestGateway.GetPendingRequestsByManagerAsync(managerId))
+                .Where(request => request.User.RegionId == manager.RegionId)
+                .ToList();
             foreach (var request in pending)
             {
                 var waiting = (DateTime.UtcNow - request.CreatedAt).Days;
@@ -123,7 +135,7 @@ namespace CompanyEmployees.Application.Contexts
             foreach (var delegation in result.ActiveDelegationsReceived)
             {
                 var delegatedPending = await _leaveRequestGateway.GetPendingRequestsByManagerAsync(delegation.ManagerId);
-                foreach (var request in delegatedPending)
+                foreach (var request in delegatedPending.Where(request => request.User.RegionId == manager.RegionId))
                 {
                     if (result.Pending.Any(p => p.RequestId == request.Id))
                         continue;
@@ -157,9 +169,12 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task<LeaveRequest> DecideRequestAsync(Guid managerId, Guid requestId, bool approve)
         {
+            var manager = await GetUserOrThrowAsync(managerId);
             var request = await _leaveRequestGateway.GetRequestByIdAsync(requestId);
             if (request == null)
                 throw new EntityNotFoundException($"No leave request with id {requestId}.");
+            if (request.User.RegionId != manager.RegionId)
+                throw new UnauthorizedException("You cannot review requests from another region.");
 
             if (request.Status != LeaveStatus.Pending)
                 throw new InvalidOperationException("This request has already been decided.");
@@ -232,9 +247,12 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task ExtendContractAsync(Guid managerId, Guid contractId, DateOnly newEndDate)
         {
+            var manager = await GetUserOrThrowAsync(managerId);
             var contract = await _contractGateway.GetByIdAsync(contractId);
             if (contract == null)
                 throw new EntityNotFoundException($"Contract with ID {contractId} not found.");
+            if (contract.User.RegionId != manager.RegionId)
+                throw new UnauthorizedException("You cannot manage contracts from another region.");
 
             // Check authorization: direct manager or active delegate
             var today = DateOnly.FromDateTime(DateTime.Today);
@@ -286,9 +304,12 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task TerminateContractAsync(Guid managerId, Guid contractId, string? reason)
         {
+            var manager = await GetUserOrThrowAsync(managerId);
             var contract = await _contractGateway.GetByIdAsync(contractId);
             if (contract == null)
                 throw new EntityNotFoundException($"Contract with ID {contractId} not found.");
+            if (contract.User.RegionId != manager.RegionId)
+                throw new UnauthorizedException("You cannot manage contracts from another region.");
 
             var today = DateOnly.FromDateTime(DateTime.Today);
             var isDirectManager = contract.User.ManagerId == managerId;
@@ -349,6 +370,10 @@ namespace CompanyEmployees.Application.Contexts
             if (delegateUser == null || delegateUser.Status != UserStatus.Active)
                 throw new EntityNotFoundException("Selected delegate user was not found or is inactive.");
 
+            var manager = await GetUserOrThrowAsync(managerId);
+            if (delegateUser.RegionId != manager.RegionId)
+                throw new UnauthorizedException("You can only delegate to a manager in your region.");
+
             var delegation = new ManagerDelegation
             {
                 Id = Guid.NewGuid(),
@@ -400,15 +425,27 @@ namespace CompanyEmployees.Application.Contexts
             _logger.LogInformation("Manager {ManagerId} cancelled delegation {DelegationId}.", managerId, delegationId);
         }
 
-        public Task<List<ManagerDelegation>> GetMyDelegationsAsync(Guid managerId)
+        public async Task<List<ManagerDelegation>> GetMyDelegationsAsync(Guid managerId)
         {
-            return _delegationGateway.GetAllDelegationsByManagerAsync(managerId);
+            var manager = await GetUserOrThrowAsync(managerId);
+            return (await _delegationGateway.GetAllDelegationsByManagerAsync(managerId))
+                .Where(delegation => delegation.Delegate.RegionId == manager.RegionId)
+                .ToList();
         }
 
-        public Task<List<ManagerDelegation>> GetActiveDelegationsAssignedToMeAsync(Guid delegateId)
+        public async Task<List<ManagerDelegation>> GetActiveDelegationsAssignedToMeAsync(Guid delegateId)
         {
+            var delegateUser = await GetUserOrThrowAsync(delegateId);
             var today = DateOnly.FromDateTime(DateTime.Today);
-            return _delegationGateway.GetActiveDelegationsForDelegateAsync(delegateId, today);
+            return (await _delegationGateway.GetActiveDelegationsForDelegateAsync(delegateId, today))
+                .Where(delegation => delegation.Manager.RegionId == delegateUser.RegionId)
+                .ToList();
+        }
+
+        private async Task<User> GetUserOrThrowAsync(Guid userId)
+        {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            return user ?? throw new EntityNotFoundException($"No user with id {userId}.");
         }
     }
 }

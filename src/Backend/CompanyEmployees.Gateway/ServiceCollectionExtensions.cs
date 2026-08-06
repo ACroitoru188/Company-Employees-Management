@@ -11,6 +11,7 @@ namespace CompanyEmployees.Gateway
             services.AddScoped<IUserGateway, UserRepository>();
             services.AddScoped<ILeaveRequestGateway, LeaveRequestRepository>();
             services.AddScoped<IDepartmentGateway, DepartmentRepository>();
+            services.AddScoped<IRegionGateway, RegionRepository>();
             services.AddScoped<IContractGateway, ContractRepository>();
             services.AddScoped<IManagerDelegationGateway, ManagerDelegationRepository>();
             return services;

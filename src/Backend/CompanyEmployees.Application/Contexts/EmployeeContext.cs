@@ -15,6 +15,7 @@ namespace CompanyEmployees.Application.Contexts
         private readonly ILeaveRequestGateway _leaveRequestGateway;
         private readonly IUserGateway _userGateway;
         private readonly IDepartmentGateway _departmentGateway;
+        private readonly IRegionGateway _regionGateway;
         private readonly IContractGateway _contractGateway;
         private readonly NotificationContext _notifications;
 
@@ -23,12 +24,14 @@ namespace CompanyEmployees.Application.Contexts
             ILeaveRequestGateway leaveRequestGateway,
             IUserGateway userGateway,
             IDepartmentGateway departmentGateway,
+            IRegionGateway regionGateway,
             IContractGateway contractGateway,
             NotificationContext notifications) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
             _departmentGateway = departmentGateway;
+            _regionGateway = regionGateway;
             _contractGateway = contractGateway;
             _notifications = notifications;
         }
@@ -101,13 +104,16 @@ namespace CompanyEmployees.Application.Contexts
                 return team;
 
             var manager = await _userGateway.GetUserByIdAsync(me.ManagerId.Value);
-            if (manager != null)
+            if (manager != null && manager.RegionId == me.RegionId)
                 team.Add(manager);
 
             var allUsers = await _userGateway.GetAllUsersAsync();
             foreach (var user in allUsers)
             {
-                if (user.ManagerId == me.ManagerId && user.Id != userId && user.Status == UserStatus.Active)
+                if (user.ManagerId == me.ManagerId
+                    && user.Id != userId
+                    && user.Status == UserStatus.Active
+                    && user.RegionId == me.RegionId)
                     team.Add(user);
             }
             return team;
@@ -115,12 +121,18 @@ namespace CompanyEmployees.Application.Contexts
 
         // Org-wide figures for the HR dashboard. One call, so the page issues a
         // single round trip instead of several against the same scoped context.
-        public async Task<HrDashboardResult> GetHrDashboardAsync()
+        public async Task<HrDashboardResult> GetHrDashboardAsync(Guid hrUserId)
         {
+            var hrUser = await _userGateway.GetUserByIdAsync(hrUserId);
+            if (hrUser == null)
+                throw new EntityNotFoundException($"No user with id {hrUserId}.");
+
             var today = DateOnly.FromDateTime(DateTime.Today);
             var result = new HrDashboardResult();
 
-            var users = await _userGateway.GetAllUsersAsync();
+            var users = (await _userGateway.GetAllUsersAsync())
+                .Where(user => user.RegionId == hrUser.RegionId)
+                .ToList();
             var activeIds = new List<Guid>();
             var perDepartment = new Dictionary<string, int>();
 
@@ -152,7 +164,9 @@ namespace CompanyEmployees.Application.Contexts
             }
             result.Departments.Sort((a, b) => b.Count.CompareTo(a.Count));
 
-            var pending = await _leaveRequestGateway.GetAllPendingRequestsAsync();
+            var pending = (await _leaveRequestGateway.GetAllPendingRequestsAsync())
+                .Where(request => request.User.RegionId == hrUser.RegionId)
+                .ToList();
             result.PendingRequests = pending.Count;
 
             foreach (var request in pending)
@@ -190,9 +204,15 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task<LeaveRequest> HrDecideRequestAsync(Guid approverId, Guid requestId, bool approve)
         {
+            var approver = await _userGateway.GetUserByIdAsync(approverId);
+            if (approver == null)
+                throw new EntityNotFoundException($"No user with id {approverId}.");
+
             var request = await _leaveRequestGateway.GetRequestByIdAsync(requestId);
             if (request == null)
                 throw new EntityNotFoundException($"No leave request with id {requestId}.");
+            if (request.User.RegionId != approver.RegionId)
+                throw new UnauthorizedException("You cannot review requests from another region.");
             if (request.Status != LeaveStatus.Pending)
                 throw new InvalidOperationException("This request has already been decided.");
 
@@ -261,8 +281,22 @@ namespace CompanyEmployees.Application.Contexts
         public Task<List<Department>> GetDepartmentsAsync() =>
             _departmentGateway.GetAllAsync();
 
+        public Task<List<Region>> GetRegionsAsync(bool activeOnly = false) =>
+            _regionGateway.GetAllAsync(activeOnly);
+
         public Task<List<User>> GetAllUsersAsync() =>
             _userGateway.GetAllUsersAsync();
+
+        public async Task<List<User>> GetUsersInMyRegionAsync(Guid userId)
+        {
+            var requester = await _userGateway.GetUserByIdAsync(userId);
+            if (requester == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            return (await _userGateway.GetAllUsersAsync())
+                .Where(user => user.RegionId == requester.RegionId)
+                .ToList();
+        }
 
         public async Task<Department> CreateDepartmentAsync(string name, Guid? managerId)
         {
@@ -299,6 +333,41 @@ namespace CompanyEmployees.Application.Contexts
 
             user.DepartmentId = departmentId;
             await _userGateway.UpdateUserAsync(user);
+        }
+
+        public async Task AssignUserToRegionAsync(Guid userId, Guid regionId)
+        {
+            var region = await _regionGateway.GetByIdAsync(regionId);
+            if (region == null || !region.IsActive)
+                throw new InvalidOperationException("Select a valid active region.");
+
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+            if (user.RegionId == regionId)
+                return;
+
+            user.RegionId = regionId;
+
+            // A relocation must not preserve cross-region reporting relationships.
+            if (user.ManagerId is Guid managerId)
+            {
+                var manager = await _userGateway.GetUserByIdAsync(managerId);
+                if (manager?.RegionId != regionId)
+                    user.ManagerId = null;
+            }
+
+            user.SecurityStamp = Guid.NewGuid().ToString("D");
+            user.UpdatedAt = DateTime.UtcNow;
+            await _userGateway.UpdateUserAsync(user);
+
+            var directReports = await _userGateway.GetAllDirectReportsAsync(userId);
+            foreach (var report in directReports.Where(report => report.RegionId != regionId))
+            {
+                report.ManagerId = null;
+                report.UpdatedAt = DateTime.UtcNow;
+                await _userGateway.UpdateUserAsync(report);
+            }
         }
 
         public async Task<LeaveRequest> SubmitRequestAsync(
@@ -389,7 +458,14 @@ namespace CompanyEmployees.Application.Contexts
         public async Task<OrgChartNode?> GetCompanyOrgChartAsync(Guid currentUserId, bool isAdmin)
         {
             var allUsers = await _userGateway.GetAllUsersAsync();
-            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
+            var requestingUser = allUsers.FirstOrDefault(user => user.Id == currentUserId);
+            if (requestingUser == null)
+                throw new EntityNotFoundException($"No user with id {currentUserId}.");
+
+            var activeUsers = allUsers
+                .Where(user => user.Status == UserStatus.Active
+                               && (isAdmin || user.RegionId == requestingUser.RegionId))
+                .ToList();
             var allPendingRequests = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
 
             var nodeMap = new Dictionary<Guid, OrgChartNode>();

@@ -12,6 +12,7 @@ namespace CompanyEmployees.Domain.GatewayInterfaces
         // Active direct reports of a manager (User.ManagerId). User.DirectReports is never
         // loaded by GetUserByIdAsync, so the query has to go the other way round.
         Task<List<User>> GetDirectReportsAsync(Guid managerId);
+        Task<List<User>> GetAllDirectReportsAsync(Guid managerId);
 
         Task CreateUserAsync(User user);
         Task UpdateUserAsync(User user);

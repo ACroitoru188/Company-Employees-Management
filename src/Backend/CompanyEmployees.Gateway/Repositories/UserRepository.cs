@@ -17,6 +17,7 @@ namespace CompanyEmployees.Gateway.Repositories
             return await _context.Users
                 .Include(u => u.Manager)
                 .Include(u => u.Department)
+                .Include(u => u.Region)
                 .FirstOrDefaultAsync(u => u.Id == userId);
         }
 
@@ -24,6 +25,7 @@ namespace CompanyEmployees.Gateway.Repositories
         {
             return await _context.Users
                 .Include(u => u.Department)
+                .Include(u => u.Region)
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
 
@@ -31,6 +33,7 @@ namespace CompanyEmployees.Gateway.Repositories
         {
             return await _context.Users
                 .Include(u => u.Department)
+                .Include(u => u.Region)
                 .Include(u => u.Contracts)
                 .AsNoTracking()
                 .ToListAsync();
@@ -41,11 +44,18 @@ namespace CompanyEmployees.Gateway.Repositories
             // Inactive users are soft-deleted, so they must not count towards a team.
             return await _context.Users
                 .Include(u => u.Department)
+                .Include(u => u.Region)
                 .Where(u => u.ManagerId == managerId && u.Status == UserStatus.Active)
                 .OrderBy(u => u.Name)
                 .AsNoTracking()
                 .ToListAsync();
         }
+
+        public Task<List<User>> GetAllDirectReportsAsync(Guid managerId) =>
+            _context.Users
+                .Include(user => user.Region)
+                .Where(user => user.ManagerId == managerId)
+                .ToListAsync();
 
         public async Task CreateUserAsync(User user)
         {

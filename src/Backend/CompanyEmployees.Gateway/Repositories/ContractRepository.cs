@@ -16,6 +16,7 @@ namespace CompanyEmployees.Gateway.Repositories
         {
             return await _context.Contracts
                 .Include(c => c.User)
+                    .ThenInclude(u => u.Region)
                 .FirstOrDefaultAsync(c => c.Id == contractId);
         }
 

@@ -29,12 +29,22 @@ namespace CompanyEmployees.Web.Security
             // HR is a department, not a UserRole, so the role claim alone can't tell
             // HR staff apart. UserManager loads the user without its navigations, so
             // the department name needs its own lookup (sign-in only, not per request).
-            var department = await UserManager.Users
+            var scope = await UserManager.Users
                 .Where(u => u.Id == user.Id)
-                .Select(u => u.Department != null ? u.Department.Name : null)
+                .Select(u => new
+                {
+                    Department = u.Department != null ? u.Department.Name : null,
+                    u.RegionId,
+                    Region = u.Region.Name
+                })
                 .FirstOrDefaultAsync();
-            if (department != null)
-                identity.AddClaim(new Claim("Department", department));
+            if (scope?.Department != null)
+                identity.AddClaim(new Claim("Department", scope.Department));
+            if (scope != null)
+            {
+                identity.AddClaim(new Claim("RegionId", scope.RegionId.ToString("D")));
+                identity.AddClaim(new Claim("Region", scope.Region));
+            }
 
             return identity;
         }

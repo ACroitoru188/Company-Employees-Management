@@ -101,6 +101,13 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   `Create/Update/DeleteDepartmentAsync`, `AssignUserToDepartmentAsync`) behind
   `IDepartmentGateway`/`DepartmentRepository`. Seeded: "Design" (managed by the line manager,
   containing LM + the two employees) and empty "Production"; admin + PM have no department.
+- **`Region`** is the current employment and security scope (`Name`, unique `Code`, `IsActive`).
+  `User.RegionId` is required and separate from department, so one department can contain people
+  in several countries. The `AddRegions` migration seeds Romania (`RO`) and Pakistan (`PK`),
+  assigns all existing accounts to Romania, and `AddMoreRegions` adds 30 additional international
+  regions. Admin account creation requires a region, and the Users grid can relocate an account
+  later. Relocation changes the security stamp and removes manager/direct-report links that would
+  cross the new regional boundary.
 - **Departments are org data, not team visibility** (deliberate): **Team** = the user's manager
   **plus** the active users sharing the same `ManagerId` (excluding the user).
   `EmployeeContext.GetTeamMembersAsync` / `GetTeamRequestsAsync` are the single source of that
@@ -121,12 +128,17 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   `AddCascadingAuthenticationState()` + `Web/Security/IdentityRevalidatingAuthenticationStateProvider`
   (30-min security-stamp revalidation). `<AuthorizeView>` / `[CascadingParameter]
   Task<AuthenticationState>` work.
-- **Login flow**: `Login.razor` (route `/`, MudBlazor form) submits a hidden HTML
-  `<form method="post" action="/api/auth/login">` via JS interop — the minimal API in
-  `Program.cs` calls `SignInManager.PasswordSignInAsync` and redirects to `/employee/dashboard`
-  (or `/?error=InvalidCredentials`). The hidden-form hop exists because an interactive circuit
+- **Login flow**: `Login.razor` (route `/`, MudBlazor form) requires a region and submits a hidden
+  HTML `<form method="post" action="/api/auth/login">` via JS interop — the minimal API verifies
+  the password and that the account belongs to the selected active region, then redirects to
+  `/employee/dashboard` (or `/?error=InvalidCredentials`). Selecting a region never grants
+  access; it must match `User.RegionId`. The hidden-form hop exists because an interactive circuit
   can't set the auth cookie itself; don't "simplify" it away.
 - `UserName == Email` for all users, so `Identity.Name` from the auth state *is* the email.
+- The cookie includes `RegionId` and `Region` claims for display and HTTP endpoint scoping, while
+  sensitive application queries use the account's current database region. Team rosters,
+  manager/HR dashboards and decisions, contract actions, non-admin org charts, and HR CSV exports
+  are region-scoped. Admin lists and exports remain global.
 - `DbTimeOffService` resolves the current user from the **auth state**
   (`AuthenticationStateProvider.GetAuthenticationStateAsync()` → `Identity.Name` → email →
   `GetEmployeeByEmailAsync`), cached per circuit. Every `ITimeOffService` method funnels through

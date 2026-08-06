@@ -100,19 +100,27 @@ app.MapRazorComponents<App>()
 app.MapPost("/api/auth/login", async (HttpContext context,
     [Microsoft.AspNetCore.Mvc.FromForm] string email,
     [Microsoft.AspNetCore.Mvc.FromForm] string password,
+    [Microsoft.AspNetCore.Mvc.FromForm] Guid? regionId,
     [Microsoft.AspNetCore.Mvc.FromForm] string? returnUrl,
     SignInManager<User> signInManager,
     UserManager<User> userManager) =>
 {
-    var result = await signInManager.PasswordSignInAsync(
-        userName: email,
-        password: password,
-        isPersistent: true,
-        lockoutOnFailure: false);
+    var account = await userManager.FindByNameAsync(email);
+    var result = account == null
+        ? Microsoft.AspNetCore.Identity.SignInResult.Failed
+        : await signInManager.CheckPasswordSignInAsync(account, password, lockoutOnFailure: false);
 
-    if(result.Succeeded)
+    var regionMatches = result.Succeeded
+        && regionId.HasValue
+        && account!.RegionId == regionId.Value
+        && await userManager.Users.AnyAsync(user =>
+            user.Id == account.Id && user.RegionId == regionId.Value && user.Region.IsActive);
+
+    if(regionMatches)
     {
-        var account = await userManager.Users
+        await signInManager.SignInAsync(account!, isPersistent: true);
+
+        var destination = await userManager.Users
             .Where(u => u.NormalizedUserName == email.ToUpperInvariant())
             .Select(u => new
             {
@@ -124,7 +132,7 @@ app.MapPost("/api/auth/login", async (HttpContext context,
         if (returnUrl is not null && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//"))
             return Results.Redirect(returnUrl);
 
-        return Results.Redirect(HomeRouteResolver.Resolve(account?.Role, account?.Department));
+        return Results.Redirect(HomeRouteResolver.Resolve(destination?.Role, destination?.Department));
     }
     else
     {
@@ -141,10 +149,25 @@ app.MapGet("/api/auth/logout", async (SignInManager<User> signInManager) =>
 });
 
 app.MapGet("/api/employees/export.csv", async (
+    HttpContext httpContext,
     EmployeeCsvExportService csvExporter,
+    UserManager<User> userManager,
     CancellationToken cancellationToken) =>
 {
-    var export = await csvExporter.GenerateAsync(cancellationToken);
+    Guid? regionId = null;
+    if (!httpContext.User.IsInRole(UserRole.Admin.ToString()))
+    {
+        var email = httpContext.User.Identity?.Name;
+        regionId = await userManager.Users
+            .Where(user => user.Email == email)
+            .Select(user => (Guid?)user.RegionId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (!regionId.HasValue)
+            return Results.NotFound();
+    }
+
+    var export = await csvExporter.GenerateAsync(regionId, cancellationToken);
     return Results.File(export.Content, "text/csv; charset=utf-8", export.FileName);
 }).RequireAuthorization(policy => policy.RequireAssertion(context =>
     context.User.IsInRole(UserRole.Admin.ToString())

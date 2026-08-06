@@ -22,6 +22,11 @@ public class User : IdentityUser<Guid>
     public Guid? DepartmentId { get; set; }
     public Department? Department { get; set; }
 
+    // Current employment region. This is the authorization boundary used when
+    // showing employees, leave requests, dashboards and exports.
+    public Guid RegionId { get; set; }
+    public Region Region { get; set; } = null!;
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

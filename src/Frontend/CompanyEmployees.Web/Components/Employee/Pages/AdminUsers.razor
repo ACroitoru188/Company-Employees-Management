@@ -24,6 +24,15 @@ else
 {
 	<div class="d-flex justify-space-between align-center gap-3 flex-wrap mb-4">
 		<MudText Typo="Typo.h5" Style="font-weight:600;">Users & Contracts</MudText>
+		<MudSelect T="Guid?" @bind-Value="_regionFilterId"
+				   Label="Viewing region" Variant="Variant.Outlined"
+				   Dense="true" Style="min-width:220px;">
+			<MudSelectItem T="Guid?" Value="@((Guid?)null)">All regions</MudSelectItem>
+			@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
+			{
+				<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
+			}
+		</MudSelect>
 		<MudButton Href="/api/employees/export.csv"
 				   Variant="Variant.Outlined" Color="Color.Primary"
 				   StartIcon="@Icons.Material.Filled.Download">
@@ -36,7 +45,7 @@ else
 			Create employee account
 		</MudText>
 		<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-			Enter the employee's name, real email address, and department. Their Siemens login and employee ID are generated automatically.
+			Enter the employee's name, real email address, department, and employment region. Their Siemens login and employee ID are generated automatically.
 		</MudText>
 
 		<div class="d-flex align-end gap-3 flex-wrap">
@@ -57,6 +66,14 @@ else
 					</MudSelectItem>
 				}
 			</MudSelect>
+			<MudSelect T="Guid?" @bind-Value="_newEmployeeRegionId"
+					   Label="Region" Variant="Variant.Outlined"
+					   Style="min-width:200px;" Disabled="@_creating">
+				@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
+				{
+					<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
+				}
+			</MudSelect>
 			<MudButton Variant="Variant.Filled" Color="Color.Primary"
 					   StartIcon="@Icons.Material.Filled.PersonAdd"
 					   Style="height:44px; align-self:center; transform:translateY(2px);"
@@ -71,9 +88,9 @@ else
 				<MudText Typo="Typo.subtitle2" Style="font-weight:600;">Account created</MudText>
 				<MudText Typo="Typo.body2">Name: @_createdAccount.Name</MudText>
 				<MudText Typo="Typo.body2">Department: @_createdAccount.Department</MudText>
+				<MudText Typo="Typo.body2">Region: @_createdAccount.Region</MudText>
 				<MudText Typo="Typo.body2">Siemens login: @_createdAccount.Email</MudText>
 				<MudText Typo="Typo.body2">Invitation email: @_createdAccount.InvitationEmail</MudText>
-				<MudText Typo="Typo.body2">Employee ID: @_createdAccount.EmployeeId</MudText>
 				@if (_createdAccount.EmailDelivered)
 				{
 					<MudText Typo="Typo.body2">A password setup email was sent to the employee.</MudText>
@@ -87,7 +104,15 @@ else
 		}
 	</MudPaper>
 
-	<MudDataGrid T="User" Items="@_users" QuickFilter="@_quickFilter"
+	@if (_regionFilterId.HasValue)
+	{
+		<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+			Showing employees assigned to <strong>@GetRegionName(_regionFilterId.Value)</strong>.
+			A confirmed transfer removes the employee from this list immediately.
+		</MudAlert>
+	}
+
+	<MudDataGrid T="User" Items="@FilteredUsers" QuickFilter="@_quickFilter"
 				 Filterable="true" SortMode="SortMode.Multiple"
 				 FilterMode="DataGridFilterMode.ColumnFilterRow"
 				 Hover="true" Dense="true" Elevation="1">
@@ -101,7 +126,6 @@ else
 		<Columns>
 			<PropertyColumn Property="@(u => u.Name)" Title="Name" />
 			<PropertyColumn Property="@(u => u.Email)" Title="Email" />
-			<PropertyColumn Property="@(u => u.Id)" Title="Employee ID" />
 			<PropertyColumn Property="@(u => u.Role)" Title="Role" />
 			<TemplateColumn T="User" Title="Contract Type" Sortable="true"
 							SortBy="@(u => GetActiveContract(u)?.Type.ToString() ?? "None")" Filterable="false">
@@ -159,6 +183,19 @@ else
 									 CoerceText="true" Dense="true" />
 				</CellTemplate>
 			</TemplateColumn>
+			<TemplateColumn T="User" Title="Region" Sortable="true"
+							 SortBy="@(u => GetRegionName(u.RegionId))" Filterable="false">
+				<CellTemplate>
+					<MudSelect T="Guid" Value="context.Item.RegionId"
+							   ValueChanged="@(value => OnUserRegionChangedAsync(context.Item, value))"
+							   Dense="true" Variant="Variant.Text">
+						@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
+						{
+							<MudSelectItem T="Guid" Value="@region.Id">@region.Name</MudSelectItem>
+						}
+					</MudSelect>
+				</CellTemplate>
+			</TemplateColumn>
 			<TemplateColumn T="User" Title="Actions" Filterable="false" Sortable="false">
 				<CellTemplate>
 					<MudTooltip Text="Manage Contract">
@@ -184,10 +221,13 @@ else
 	private bool _authorized;
 	private List<User> _users = new();
 	private List<Department> _departments = new();
+	private List<Region> _regions = new();
 	private string _quickSearch = "";
 	private string _newEmployeeName = "";
 	private string _newEmployeeInvitationEmail = "";
 	private Guid? _newEmployeeDepartmentId;
+	private Guid? _newEmployeeRegionId;
+	private Guid? _regionFilterId;
 	private bool _creating;
 	private EmployeeAccountResult? _createdAccount;
 
@@ -199,9 +239,14 @@ else
 			|| (u.Email ?? "").Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
 			|| u.Role.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
 			|| GetDepartmentName(u.DepartmentId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+			|| GetRegionName(u.RegionId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
 			|| (contract != null && contract.Type.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase))
 			|| (contract != null && contract.Status.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase));
 	};
+
+	private IEnumerable<User> FilteredUsers => _regionFilterId.HasValue
+		? _users.Where(user => user.RegionId == _regionFilterId.Value)
+		: _users;
 
 	protected override async Task OnInitializedAsync()
 	{
@@ -223,12 +268,16 @@ else
 
 		_authorized = true;
 		await LoadAsync();
+
+		var currentAdmin = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
+		_regionFilterId = currentAdmin.RegionId;
 	}
 
 	private async Task LoadAsync()
 	{
 		_users = await Employees.GetAllUsersAsync();
 		_departments = await Employees.GetDepartmentsAsync();
+		_regions = await Employees.GetRegionsAsync();
 	}
 
 	private Contract? GetActiveContract(User user)
@@ -273,6 +322,38 @@ else
 		await LoadAsync();
 	}
 
+	private async Task OnUserRegionChangedAsync(User user, Guid regionId)
+	{
+		if (user.RegionId == regionId)
+			return;
+
+		var sourceRegion = GetRegionName(user.RegionId);
+		var destinationRegion = GetRegionName(regionId);
+		var confirmed = await DialogService.ShowMessageBoxAsync(
+			"Confirm region transfer",
+			$"Are you sure you want to move {user.Name} from {sourceRegion} to {destinationRegion}? " +
+			"They will no longer appear in the source region's employee lists, and cross-region manager links will be removed.",
+			yesText: "Yes, transfer",
+			cancelText: "Cancel");
+
+		if (confirmed != true)
+		{
+			StateHasChanged();
+			return;
+		}
+
+		try
+		{
+			await Employees.AssignUserToRegionAsync(user.Id, regionId);
+			Snackbar.Add($"{user.Name} moved from {sourceRegion} to {destinationRegion}.", Severity.Success);
+			await LoadAsync();
+		}
+		catch (Exception exception)
+		{
+			Snackbar.Add(exception.Message, Severity.Error);
+		}
+	}
+
 	private async Task CreateEmployeeAsync()
 	{
 		if (string.IsNullOrWhiteSpace(_newEmployeeName))
@@ -293,6 +374,12 @@ else
 			return;
 		}
 
+		if (_newEmployeeRegionId == null)
+		{
+			Snackbar.Add("Select a region.", Severity.Warning);
+			return;
+		}
+
 		_creating = true;
 		_createdAccount = null;
 
@@ -302,11 +389,13 @@ else
 				_newEmployeeName,
 				_newEmployeeInvitationEmail,
 				_newEmployeeDepartmentId.Value,
+				_newEmployeeRegionId.Value,
 				Nav.BaseUri);
 
 			_newEmployeeName = "";
 			_newEmployeeInvitationEmail = "";
 			_newEmployeeDepartmentId = null;
+			_newEmployeeRegionId = null;
 			await LoadAsync();
 			Snackbar.Add(
 				_createdAccount.EmailDelivered
@@ -326,6 +415,9 @@ else
 
 	private string GetDepartmentName(Guid? id) =>
 		id == null ? "None" : _departments.FirstOrDefault(d => d.Id == id)?.Name ?? "";
+
+	private string GetRegionName(Guid id) =>
+		_regions.FirstOrDefault(region => region.Id == id)?.Name ?? "Unknown";
 
 	private Task<IEnumerable<Guid?>> SearchDepartments(string value, CancellationToken token)
 	{
