@@ -200,6 +200,23 @@ public class DbTimeOffService : ITimeOffService
         }
     }
 
+    public async Task<IReadOnlyList<RegionalHoliday>> GetRegionalHolidaysAsync(int year)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            var holidays = await _employee.GetRegionalHolidaysAsync(user.Id, year);
+            return holidays
+                .Select(holiday => new RegionalHoliday(holiday.Date, holiday.Name))
+                .ToList();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason)
     {
         await _lock.WaitAsync();

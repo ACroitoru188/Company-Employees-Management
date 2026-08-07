@@ -15,6 +15,8 @@ namespace CompanyEmployees.Application.Contexts
         private readonly ILeaveRequestGateway _leaveRequestGateway;
         private readonly IUserGateway _userGateway;
         private readonly IDepartmentGateway _departmentGateway;
+        private readonly IRegionGateway _regionGateway;
+        private readonly IPublicHolidayProvider _holidayProvider;
         private readonly IContractGateway _contractGateway;
         private readonly NotificationContext _notifications;
 
@@ -23,12 +25,16 @@ namespace CompanyEmployees.Application.Contexts
             ILeaveRequestGateway leaveRequestGateway,
             IUserGateway userGateway,
             IDepartmentGateway departmentGateway,
+            IRegionGateway regionGateway,
+            IPublicHolidayProvider holidayProvider,
             IContractGateway contractGateway,
             NotificationContext notifications) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
             _departmentGateway = departmentGateway;
+            _regionGateway = regionGateway;
+            _holidayProvider = holidayProvider;
             _contractGateway = contractGateway;
             _notifications = notifications;
         }
@@ -48,8 +54,16 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task<List<LeaveBalanceResult>> GetMyBalancesAsync(Guid userId, int year)
         {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            await _leaveRequestGateway.EnsureDefaultAllocationsAsync(userId, year);
             var allocations = await _leaveRequestGateway.GetAllocationsByUserAsync(userId, year);
             var requests = await _leaveRequestGateway.GetRequestsByUserAsync(userId);
+            var holidays = (await _holidayProvider.GetHolidaysAsync(user.Region.Code, year))
+                .Select(holiday => holiday.Date)
+                .ToHashSet();
 
             var balances = new List<LeaveBalanceResult>();
             foreach (var allocation in allocations)
@@ -58,7 +72,7 @@ namespace CompanyEmployees.Application.Contexts
                     .Where(r => r.Status == LeaveStatus.Approved
                                 && r.Type == allocation.LeaveType
                                 && r.StartDate.Year == year)
-                    .Sum(r => CountDays(r.StartDate, r.EndDate));
+                    .Sum(r => CountWorkingDays(r.StartDate, r.EndDate, holidays));
 
                 balances.Add(new LeaveBalanceResult
                 {
@@ -68,6 +82,15 @@ namespace CompanyEmployees.Application.Contexts
                 });
             }
             return balances;
+        }
+
+        public async Task<IReadOnlyList<PublicHoliday>> GetRegionalHolidaysAsync(Guid userId, int year)
+        {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            return await _holidayProvider.GetHolidaysAsync(user.Region.Code, year);
         }
 
         // Approved leave of the user's team (same manager, excluding the user,
@@ -101,13 +124,16 @@ namespace CompanyEmployees.Application.Contexts
                 return team;
 
             var manager = await _userGateway.GetUserByIdAsync(me.ManagerId.Value);
-            if (manager != null)
+            if (manager != null && manager.RegionId == me.RegionId)
                 team.Add(manager);
 
             var allUsers = await _userGateway.GetAllUsersAsync();
             foreach (var user in allUsers)
             {
-                if (user.ManagerId == me.ManagerId && user.Id != userId && user.Status == UserStatus.Active)
+                if (user.ManagerId == me.ManagerId
+                    && user.Id != userId
+                    && user.Status == UserStatus.Active
+                    && user.RegionId == me.RegionId)
                     team.Add(user);
             }
             return team;
@@ -115,12 +141,18 @@ namespace CompanyEmployees.Application.Contexts
 
         // Org-wide figures for the HR dashboard. One call, so the page issues a
         // single round trip instead of several against the same scoped context.
-        public async Task<HrDashboardResult> GetHrDashboardAsync()
+        public async Task<HrDashboardResult> GetHrDashboardAsync(Guid hrUserId)
         {
+            var hrUser = await _userGateway.GetUserByIdAsync(hrUserId);
+            if (hrUser == null)
+                throw new EntityNotFoundException($"No user with id {hrUserId}.");
+
             var today = DateOnly.FromDateTime(DateTime.Today);
             var result = new HrDashboardResult();
 
-            var users = await _userGateway.GetAllUsersAsync();
+            var users = (await _userGateway.GetAllUsersAsync())
+                .Where(user => user.RegionId == hrUser.RegionId)
+                .ToList();
             var activeIds = new List<Guid>();
             var perDepartment = new Dictionary<string, int>();
 
@@ -152,7 +184,9 @@ namespace CompanyEmployees.Application.Contexts
             }
             result.Departments.Sort((a, b) => b.Count.CompareTo(a.Count));
 
-            var pending = await _leaveRequestGateway.GetAllPendingRequestsAsync();
+            var pending = (await _leaveRequestGateway.GetAllPendingRequestsAsync())
+                .Where(request => request.User.RegionId == hrUser.RegionId)
+                .ToList();
             result.PendingRequests = pending.Count;
 
             foreach (var request in pending)
@@ -190,9 +224,15 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task<LeaveRequest> HrDecideRequestAsync(Guid approverId, Guid requestId, bool approve)
         {
+            var approver = await _userGateway.GetUserByIdAsync(approverId);
+            if (approver == null)
+                throw new EntityNotFoundException($"No user with id {approverId}.");
+
             var request = await _leaveRequestGateway.GetRequestByIdAsync(requestId);
             if (request == null)
                 throw new EntityNotFoundException($"No leave request with id {requestId}.");
+            if (request.User.RegionId != approver.RegionId)
+                throw new UnauthorizedException("You cannot review requests from another region.");
             if (request.Status != LeaveStatus.Pending)
                 throw new InvalidOperationException("This request has already been decided.");
 
@@ -261,8 +301,22 @@ namespace CompanyEmployees.Application.Contexts
         public Task<List<Department>> GetDepartmentsAsync() =>
             _departmentGateway.GetAllAsync();
 
+        public Task<List<Region>> GetRegionsAsync(bool activeOnly = false) =>
+            _regionGateway.GetAllAsync(activeOnly);
+
         public Task<List<User>> GetAllUsersAsync() =>
             _userGateway.GetAllUsersAsync();
+
+        public async Task<List<User>> GetUsersInMyRegionAsync(Guid userId)
+        {
+            var requester = await _userGateway.GetUserByIdAsync(userId);
+            if (requester == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            return (await _userGateway.GetAllUsersAsync())
+                .Where(user => user.RegionId == requester.RegionId)
+                .ToList();
+        }
 
         public async Task<Department> CreateDepartmentAsync(string name, Guid? managerId)
         {
@@ -291,14 +345,47 @@ namespace CompanyEmployees.Application.Contexts
         public Task DeleteDepartmentAsync(Guid id) =>
             _departmentGateway.DeleteAsync(id);
 
-        public async Task AssignUserToDepartmentAsync(Guid userId, Guid? departmentId)
+        public async Task AssignUserToDepartmentAsync(Guid adminId, Guid userId, Guid? departmentId)
         {
-            var user = await _userGateway.GetUserByIdAsync(userId);
-            if (user == null)
-                throw new EntityNotFoundException($"No user with id {userId}.");
+            var user = await EnsureRegionalAdminCanManageAsync(adminId, userId);
 
             user.DepartmentId = departmentId;
             await _userGateway.UpdateUserAsync(user);
+        }
+
+        public async Task AssignUserToRegionAsync(Guid adminId, Guid userId, Guid regionId)
+        {
+            var region = await _regionGateway.GetByIdAsync(regionId);
+            if (region == null || !region.IsActive)
+                throw new InvalidOperationException("Select a valid active region.");
+
+            // The source-region admin owns the transfer. Once the employee moves,
+            // only an administrator in the destination region may edit them.
+            var user = await EnsureRegionalAdminCanManageAsync(adminId, userId);
+            if (user.RegionId == regionId)
+                return;
+
+            user.RegionId = regionId;
+
+            // A relocation must not preserve cross-region reporting relationships.
+            if (user.ManagerId is Guid managerId)
+            {
+                var manager = await _userGateway.GetUserByIdAsync(managerId);
+                if (manager?.RegionId != regionId)
+                    user.ManagerId = null;
+            }
+
+            user.SecurityStamp = Guid.NewGuid().ToString("D");
+            user.UpdatedAt = DateTime.UtcNow;
+            await _userGateway.UpdateUserAsync(user);
+
+            var directReports = await _userGateway.GetAllDirectReportsAsync(userId);
+            foreach (var report in directReports.Where(report => report.RegionId != regionId))
+            {
+                report.ManagerId = null;
+                report.UpdatedAt = DateTime.UtcNow;
+                await _userGateway.UpdateUserAsync(report);
+            }
         }
 
         public async Task<LeaveRequest> SubmitRequestAsync(
@@ -323,7 +410,11 @@ namespace CompanyEmployees.Application.Contexts
             if (overlaps)
                 throw new InvalidOperationException("You already have a request in that period.");
 
-            var requestedDays = CountDays(start, end);
+            await EnsureWorkingDayAsync(requester, start);
+            await EnsureWorkingDayAsync(requester, end);
+            var requestedDays = await CountWorkingDaysAsync(requester, start, end);
+            if (requestedDays == 0)
+                throw new InvalidOperationException("The selected period contains no working days.");
             var balances = await GetMyBalancesAsync(userId, start.Year);
             var balance = balances.FirstOrDefault(b => b.Type == type);
             if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
@@ -369,7 +460,15 @@ namespace CompanyEmployees.Application.Contexts
             if (overlaps)
                 throw new InvalidOperationException("This user already has a request in that period.");
 
-            var requestedDays = CountDays(newStart, newEnd);
+            // Reload through the user gateway so the employee's Region navigation is
+            // always available when regional working-day rules are evaluated.
+            var requester = await _userGateway.GetUserByIdAsync(request.UserId);
+            if (requester == null)
+                throw new EntityNotFoundException($"No user with id {request.UserId}.");
+
+            await EnsureWorkingDayAsync(requester, newStart);
+            await EnsureWorkingDayAsync(requester, newEnd);
+            var requestedDays = await CountWorkingDaysAsync(requester, newStart, newEnd);
             var balances = await GetMyBalancesAsync(request.UserId, newStart.Year);
             var balance = balances.FirstOrDefault(b => b.Type == request.Type);
             if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
@@ -383,13 +482,55 @@ namespace CompanyEmployees.Application.Contexts
                 requestId, newStart, newEnd);
         }
 
-        private static int CountDays(DateOnly start, DateOnly end) =>
-            end.DayNumber - start.DayNumber + 1;
+        private async Task EnsureWorkingDayAsync(User user, DateOnly day)
+        {
+            if (day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+                throw new InvalidOperationException("Leave must start and end on a working day.");
+
+            var holidays = await _holidayProvider.GetHolidaysAsync(user.Region.Code, day.Year);
+            var holiday = holidays.FirstOrDefault(candidate => candidate.Date == day);
+            if (holiday != null)
+                throw new InvalidOperationException($"{day:MMM d} is {holiday.Name} in {user.Region.Name}.");
+        }
+
+        private async Task<int> CountWorkingDaysAsync(User user, DateOnly start, DateOnly end)
+        {
+            var holidays = new HashSet<DateOnly>();
+            for (var year = start.Year; year <= end.Year; year++)
+            {
+                foreach (var holiday in await _holidayProvider.GetHolidaysAsync(user.Region.Code, year))
+                    holidays.Add(holiday.Date);
+            }
+
+            return CountWorkingDays(start, end, holidays);
+        }
+
+        private static int CountWorkingDays(DateOnly start, DateOnly end, HashSet<DateOnly> holidays)
+        {
+            var count = 0;
+            for (var day = start; day <= end; day = day.AddDays(1))
+            {
+                if (day.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday
+                    && !holidays.Contains(day))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
 
         public async Task<OrgChartNode?> GetCompanyOrgChartAsync(Guid currentUserId, bool isAdmin)
         {
             var allUsers = await _userGateway.GetAllUsersAsync();
-            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
+            var requestingUser = allUsers.FirstOrDefault(user => user.Id == currentUserId);
+            if (requestingUser == null)
+                throw new EntityNotFoundException($"No user with id {currentUserId}.");
+
+            var activeUsers = allUsers
+                .Where(user => user.Status == UserStatus.Active
+                               && (isAdmin || user.RegionId == requestingUser.RegionId))
+                .ToList();
             var allPendingRequests = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
 
             var nodeMap = new Dictionary<Guid, OrgChartNode>();
@@ -672,6 +813,7 @@ namespace CompanyEmployees.Application.Contexts
         }
 
         public async Task SaveUserContractAsync(
+            Guid adminId,
             Guid userId,
             ContractType type,
             ContractStatus status,
@@ -679,9 +821,7 @@ namespace CompanyEmployees.Application.Contexts
             DateOnly? endDate,
             string? notes)
         {
-            var user = await _userGateway.GetUserByIdAsync(userId);
-            if (user == null)
-                throw new EntityNotFoundException($"No user with id {userId}.");
+            await EnsureRegionalAdminCanManageAsync(adminId, userId);
 
             var active = await _contractGateway.GetActiveContractByUserIdAsync(userId);
             if (active != null)
@@ -710,6 +850,23 @@ namespace CompanyEmployees.Application.Contexts
                 };
                 await _contractGateway.CreateAsync(newContract);
             }
+        }
+
+        private async Task<User> EnsureRegionalAdminCanManageAsync(Guid adminId, Guid userId)
+        {
+            var admin = await _userGateway.GetUserByIdAsync(adminId);
+            if (admin == null)
+                throw new EntityNotFoundException($"No administrator with id {adminId}.");
+            if (admin.Role != UserRole.Admin)
+                throw new UnauthorizedException("Only administrators can manage employee accounts.");
+
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+            if (user.RegionId != admin.RegionId)
+                throw new UnauthorizedException("You can preview other regions, but you cannot edit their employees.");
+
+            return user;
         }
     }
 }

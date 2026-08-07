@@ -3,10 +3,13 @@
 @using System.Security.Claims
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Domain.Enums
+@using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Application.Contexts
 @layout AuthLayout
 @rendermode InteractiveServer
 @inject NavigationManager Nav
 @inject IJSRuntime JSRuntime
+@inject EmployeeContext Employees
 
 <PageTitle>Sign in · Time Off Management</PageTitle>
 <EmployeeProviders />
@@ -34,10 +37,20 @@
             <AntiforgeryToken />
             <input type="hidden" name="email" value="@_email" />
             <input type="hidden" name="password" value="@_password" />
+            <input type="hidden" name="regionId" value="@_regionId" />
             <input type="hidden" name="returnUrl" value="@ReturnUrl" />
         </form>
 
         <MudForm @ref="_form">
+			<MudSelect T="Guid?" @bind-Value="_regionId" Label="Region"
+					   Variant="Variant.Outlined" Required="true"
+					   RequiredError="Region is required" Class="mb-4"
+					   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Public">
+				@foreach (var region in _regions)
+				{
+					<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
+				}
+			</MudSelect>
             <MudTextField T="string" @bind-Value="_email" Label="Work email"
                           Variant="Variant.Outlined" InputType="InputType.Email"
                           Required="true" RequiredError="Email is required"
@@ -80,6 +93,8 @@
     private bool _keepSignedIn = true;
     private string? _error;
     private bool _busy;
+    private List<Region> _regions = [];
+    private Guid? _regionId;
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
@@ -109,8 +124,12 @@
 
         if (!string.IsNullOrEmpty(QueryError))
         {
-            _error = "Invalid email or password.";
+            _error = "Invalid email, password, or region.";
         }
+
+		_regions = await Employees.GetRegionsAsync(activeOnly: true);
+		_regionId = _regions.FirstOrDefault(region => region.Code == "RO")?.Id
+			?? _regions.FirstOrDefault()?.Id;
     }
 
     private static string? ValidateEmail(string value) =>

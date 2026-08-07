@@ -53,13 +53,10 @@
         </div>
     </div>
 
-    @if (VisibleMonthHolidays.Count > 0)
-    {
-        <div class="cal-holiday-notice" role="note">
-            <span class="cal-holiday-swatch" aria-hidden="true"></span>
-            <span><strong>Red days</strong> are Romanian public holidays (statutory days off).</span>
-        </div>
-    }
+    <div class="cal-holiday-note" role="note">
+        <span class="cal-holiday-note-square" aria-hidden="true"></span>
+        <span><strong>Red dates are national public holidays</strong> — they are non-working days, so you do not need to request leave.</span>
+    </div>
 
     @if (_view == CalView.Month)
     {
@@ -79,17 +76,16 @@
                     var selected = IsSelected(day);
                     var isEndpoint = IsRangeEndpoint(day);
                     var canSelect = CanSelectDay(day);
-                    var holidayName = RomanianPublicHolidays.GetName(day);
-                    <div class="cal-cell @(inMonth ? "" : "cal-other") @(IsWeekend(day) ? "cal-weekend" : "") @(holidayName is not null ? "cal-holiday" : "") @(isPast ? "cal-past" : "") @(selected ? "cal-selected" : "") @(isEndpoint ? "cal-range-endpoint" : "") @(canSelect ? "cal-selectable" : "cal-disabled") @(day == _today ? "cal-today-cell" : "")"
+                    <div class="cal-cell @(inMonth ? "" : "cal-other") @(IsWeekend(day) ? "cal-weekend" : "") @(IsHoliday(day) ? "cal-holiday" : "") @(isPast ? "cal-past" : "") @(selected ? "cal-selected" : "") @(isEndpoint ? "cal-range-endpoint" : "") @(canSelect ? "cal-selectable" : "cal-disabled") @(day == _today ? "cal-today-cell" : "")"
                          style="@SelectionStyle(day)"
                          data-date="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
                          aria-disabled="@(!canSelect)"
                          title="@UnavailableDateHint(day)"
                          @onclick="DayClickCallback(day)">
                         <span class="cal-daynum">@day.Day</span>
-                        @if (holidayName is not null)
+                        @if (_holidays.TryGetValue(day, out var holiday))
                         {
-                            <span class="cal-holiday-name">@holidayName</span>
+                            <span class="cal-holiday-name">@holiday.Name</span>
                         }
                         @if (_teamByDay.TryGetValue(day, out var absences))
                         {
@@ -124,17 +120,16 @@
                 var selected = IsSelected(day);
                 var isEndpoint = IsRangeEndpoint(day);
                 var canSelect = CanSelectDay(day);
-                var holidayName = RomanianPublicHolidays.GetName(day);
                 <div class="wv-col">
-                    <div class="wv-head @(isPast ? "wv-head-past" : "") @(isWeekend ? "wv-head-weekend" : "") @(holidayName is not null ? "wv-head-holiday" : "")">
+                    <div class="wv-head @(isPast ? "wv-head-past" : "") @(isWeekend ? "wv-head-weekend" : "") @(IsHoliday(day) ? "wv-head-holiday" : "")">
                         <span class="wv-dow">@(day.ToString("ddd", CultureInfo.InvariantCulture).ToUpperInvariant())</span>
                         <span class="wv-num @(isToday ? "wv-num-today" : "")">@day.Day</span>
-                        @if (holidayName is not null)
+                        @if (_holidays.TryGetValue(day, out var weekHoliday))
                         {
-                            <span class="wv-holiday-name">@holidayName</span>
+                            <span class="wv-holiday-name">@weekHoliday.Name</span>
                         }
                     </div>
-                    <div class="wv-cell @(isToday ? "wv-cell-today" : "") @(isWeekend ? "wv-cell-weekend" : "") @(holidayName is not null ? "wv-cell-holiday" : "") @(isPast ? "wv-cell-past" : "") @(selected ? "wv-cell-selected" : "") @(isEndpoint ? "wv-range-endpoint" : "") @(canSelect ? "wv-cell-selectable" : "wv-cell-disabled")"
+                    <div class="wv-cell @(isToday ? "wv-cell-today" : "") @(isWeekend ? "wv-cell-weekend" : "") @(IsHoliday(day) ? "wv-cell-holiday" : "") @(isPast ? "wv-cell-past" : "") @(selected ? "wv-cell-selected" : "") @(isEndpoint ? "wv-range-endpoint" : "") @(canSelect ? "wv-cell-selectable" : "wv-cell-disabled")"
                          style="@SelectionStyle(day)"
                          data-date="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
                          aria-disabled="@(!canSelect)"
@@ -164,8 +159,7 @@
                 var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
                 var selected = IsSelected(date);
                 var isEndpoint = IsRangeEndpoint(date);
-                var isHoliday = RomanianPublicHolidays.IsHoliday(date);
-                <div class="gv-hday @(IsWeekend(date) ? "gv-hwend gv-hdisabled" : "") @(isHoliday ? "gv-hholiday gv-hdisabled" : "") @(date == _today ? "gv-htoday" : "") @(selected ? "gv-range-selected" : "") @(isEndpoint ? "gv-range-endpoint" : "")"
+                <div class="gv-hday @(IsWeekend(date) ? "gv-hwend gv-hdisabled" : "") @(IsHoliday(date) ? "gv-hholiday gv-hdisabled" : "") @(date == _today ? "gv-htoday" : "") @(selected ? "gv-range-selected" : "") @(isEndpoint ? "gv-range-endpoint" : "")"
                      style="@SelectionStyle(date)"
                      aria-disabled="@(!CanSelectDay(date))"
                      title="@UnavailableDateHint(date)"
@@ -192,7 +186,7 @@
                 {
                     var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
                     var seg = row.Items.FirstOrDefault(r => r.StartDate <= date && r.EndDate >= date);
-                    <div class="gv-cell gv-day @(IsWeekend(date) ? "gv-wend" : "") @(RomanianPublicHolidays.IsHoliday(date) ? "gv-holiday" : "") @(date == _today ? "gv-today" : "")">
+                    <div class="gv-cell gv-day @(IsWeekend(date) ? "gv-wend" : "") @(IsHoliday(date) ? "gv-holiday" : "") @(date == _today ? "gv-today" : "")">
                         @if (seg is not null)
                         {
                             <div class="gv-bar @(date == seg.StartDate ? "gv-bar-s" : "") @(date == seg.EndDate ? "gv-bar-e" : "")"
@@ -214,6 +208,7 @@
                 </span>
             }
             <span class="gv-legend-item"><span class="gv-square gv-square-wend"></span>Weekend</span>
+            <span class="gv-legend-item"><span class="gv-square gv-square-holiday"></span>National public holiday — non-working day</span>
             <span class="gv-legend-item"><span class="gv-square gv-square-today"></span>Today</span>
         </div>
     }
@@ -292,6 +287,7 @@
     private Dictionary<DateOnly, List<TeamAbsence>> _teamByDay = [];
     private List<DateOnly> _days = [];
     private IReadOnlyList<TeamTimeOff> _ranges = [];
+    private Dictionary<DateOnly, RegionalHoliday> _holidays = [];
 
     private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Today);
     private CalView _view = CalView.Month;
@@ -300,8 +296,6 @@
     private DateOnly _anchor;
     private DateOnly VisibleMonth => new(_anchor.Year, _anchor.Month, 1);
     private DateOnly WeekStart => _anchor.AddDays(-(((int)_anchor.DayOfWeek + 6) % 7));
-    private IReadOnlyDictionary<DateOnly, string> VisibleMonthHolidays =>
-        RomanianPublicHolidays.ForMonth(VisibleMonth);
 
     private LeaveType? _selectedType;
     private DateOnly? _anchorDay;
@@ -333,6 +327,7 @@
 
             var gridStart = VisibleMonth.AddDays(-(((int)VisibleMonth.DayOfWeek + 6) % 7));
             _days = Enumerable.Range(0, 42).Select(gridStart.AddDays).ToList();
+            await LoadHolidaysAsync(_days[0], _days[^1]);
         }
         else
         {
@@ -340,7 +335,19 @@
                 ? (WeekStart, WeekStart.AddDays(6))
                 : (VisibleMonth, VisibleMonth.AddMonths(1).AddDays(-1));
             _ranges = await TimeOff.GetTeamTimeOffForRangeAsync(from, to);
+            await LoadHolidaysAsync(from, to);
         }
+    }
+
+    private async Task LoadHolidaysAsync(DateOnly from, DateOnly to)
+    {
+        var holidays = new List<RegionalHoliday>();
+        for (var year = from.Year; year <= to.Year; year++)
+            holidays.AddRange(await TimeOff.GetRegionalHolidaysAsync(year));
+
+        _holidays = holidays
+            .GroupBy(holiday => holiday.Date)
+            .ToDictionary(group => group.Key, group => group.First());
     }
 
     private async Task Navigate(int delta)
@@ -402,11 +409,11 @@
     private static bool IsWeekend(DateOnly day) =>
         day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
 
-    private static int WorkingDays(DateOnly start, DateOnly end)
+    private int WorkingDays(DateOnly start, DateOnly end)
     {
         var count = 0;
         for (var day = start; day <= end; day = day.AddDays(1))
-            if (!IsWeekend(day) && !RomanianPublicHolidays.IsHoliday(day))
+            if (!IsWeekend(day) && !IsHoliday(day))
                 count++;
         return count;
     }
@@ -450,10 +457,9 @@
     }
 
     private bool CanSelectDay(DateOnly day) =>
-        _selectedType is not null
-        && day >= _today
-        && !IsWeekend(day)
-        && !RomanianPublicHolidays.IsHoliday(day);
+        _selectedType is not null && day >= _today && !IsWeekend(day) && !IsHoliday(day);
+
+    private bool IsHoliday(DateOnly day) => _holidays.ContainsKey(day);
 
     private EventCallback<MouseEventArgs> DayClickCallback(DateOnly day) =>
         CanSelectDay(day)
@@ -464,8 +470,8 @@
     {
         if (day < _today)
             return "Past dates cannot be selected.";
-        if (RomanianPublicHolidays.GetName(day) is { } holidayName)
-            return $"{holidayName} is a Romanian public holiday.";
+        if (_holidays.TryGetValue(day, out var holiday))
+            return $"{holiday.Name} is a public holiday.";
         if (IsWeekend(day))
             return "Weekends are already non-working days.";
         return _selectedType is null ? "Select a leave type first." : null;
@@ -519,7 +525,7 @@
         }
     }
 
-    private static int RangeDays((DateOnly Start, DateOnly End) range) =>
+    private int RangeDays((DateOnly Start, DateOnly End) range) =>
         WorkingDays(range.Start, range.End);
 
     private string TypeChipStyle(LeaveType type, bool isSelected)

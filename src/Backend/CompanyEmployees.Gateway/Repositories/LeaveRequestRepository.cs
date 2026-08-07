@@ -30,6 +30,34 @@ namespace CompanyEmployees.Gateway.Repositories
                 .ToListAsync();
         }
 
+        public async Task EnsureDefaultAllocationsAsync(Guid userId, int year)
+        {
+            var existingTypes = await _context.LeaveAllocations
+                .Where(allocation => allocation.UserId == userId && allocation.Year == year)
+                .Select(allocation => allocation.LeaveType)
+                .ToListAsync();
+
+            var missing = Enum.GetValues<LeaveType>().Except(existingTypes).ToList();
+            if (missing.Count == 0)
+                return;
+
+            var now = DateTime.UtcNow;
+            foreach (var type in missing)
+            {
+                _context.LeaveAllocations.Add(new LeaveAllocation
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    LeaveType = type,
+                    Year = year,
+                    NumberOfDays = LeaveAllocationPolicy.DefaultDays(type),
+                    CreatedAt = now
+                });
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
         public async Task<List<LeaveRequest>> GetApprovedRequestsForUsersAsync(
             List<Guid> userIds, DateOnly from, DateOnly to)
         {

@@ -17,6 +17,7 @@ namespace CompanyEmployees.Persistence
         public DbSet<LeaveAllocation> LeaveAllocations { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<Department> Departments { get; set; }
+        public DbSet<Region> Regions { get; set; }
         public DbSet<Contract> Contracts { get; set; }
         public DbSet<ManagerDelegation> ManagerDelegations { get; set; }
 

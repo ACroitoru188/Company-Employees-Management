@@ -83,7 +83,11 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   `DeleteBehavior.NoAction`), `CreatedAt`/`UpdatedAt`.
 - **`LeaveRequest`** — `UserId`, `DateOnly StartDate/EndDate`, `Reason`, `LeaveStatus`,
   `LeaveType`, `Approvals`.
-- **`LeaveAllocation`** — per user/type/year day quota.
+- **`LeaveAllocation`** — per user/type/year day quota. Missing allocations are created lazily
+  by `EmployeeContext.GetMyBalancesAsync` through
+  `ILeaveRequestGateway.EnsureDefaultAllocationsAsync`: Annual 21, Sick 10, Parental 10, and
+  Unpaid 30 days. This makes new and regionally seeded accounts usable without a separate
+  allocation backfill and initializes the next year when it is first viewed.
 - **`LeaveApproval`** — approval chain (`ApproverId`, `Step`, `Status`, `ReviewedAt`). Written by
   `ManagerContext.DecideRequestAsync` (manager approve/decline) or `EmployeeContext.
   HrDecideRequestAsync` (HR review, added 2026-07-28) in the same SaveChanges as the request's
@@ -101,6 +105,20 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   `Create/Update/DeleteDepartmentAsync`, `AssignUserToDepartmentAsync`) behind
   `IDepartmentGateway`/`DepartmentRepository`. Seeded: "Design" (managed by the line manager,
   containing LM + the two employees) and empty "Production"; admin + PM have no department.
+- **`Region`** is the current employment and security scope (`Name`, unique `Code`, `IsActive`).
+  `User.RegionId` is required and separate from department, so one department can contain people
+  in several countries. The `AddRegions` migration seeds Romania (`RO`) and Pakistan (`PK`),
+  assigns all existing accounts to Romania, and `AddMoreRegions` adds 30 additional international
+  regions. Admin account creation requires a region, and the Users grid can relocate an account
+  later. Admins may preview employee lists from every region, but foreign-region rows are
+  read-only: department, contract, transfer, and account-creation mutations are checked against
+  the administrator's own region in both the UI and application/service layer. Relocation changes
+  the security stamp and removes manager/direct-report links that would cross the new regional boundary.
+  `SeedRegionalDemoAccounts` adds one Admin (`admin.<code>@siemens.com`), Line Manager
+  (`lm.<code>@siemens.com`), and HR employee (`hr.<code>@siemens.com`) to every active region,
+  all using `User123!`. Regional HR belongs to the global HR department and reports to the Line
+  Manager in the same region. This migration is additive-only so rollback cannot erase HR data
+  subsequently attached to these accounts.
 - **Departments are org data, not team visibility** (deliberate): **Team** = the user's manager
   **plus** the active users sharing the same `ManagerId` (excluding the user).
   `EmployeeContext.GetTeamMembersAsync` / `GetTeamRequestsAsync` are the single source of that
@@ -121,12 +139,18 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   `AddCascadingAuthenticationState()` + `Web/Security/IdentityRevalidatingAuthenticationStateProvider`
   (30-min security-stamp revalidation). `<AuthorizeView>` / `[CascadingParameter]
   Task<AuthenticationState>` work.
-- **Login flow**: `Login.razor` (route `/`, MudBlazor form) submits a hidden HTML
-  `<form method="post" action="/api/auth/login">` via JS interop — the minimal API in
-  `Program.cs` calls `SignInManager.PasswordSignInAsync` and redirects to `/employee/dashboard`
-  (or `/?error=InvalidCredentials`). The hidden-form hop exists because an interactive circuit
+- **Login flow**: `Login.razor` (route `/`, MudBlazor form) requires a region and submits a hidden
+  HTML `<form method="post" action="/api/auth/login">` via JS interop — the minimal API verifies
+  the password and that the account belongs to the selected active region, then redirects to
+  `/employee/dashboard` (or `/?error=InvalidCredentials`). Selecting a region never grants
+  access; it must match `User.RegionId`. The hidden-form hop exists because an interactive circuit
   can't set the auth cookie itself; don't "simplify" it away.
 - `UserName == Email` for all users, so `Identity.Name` from the auth state *is* the email.
+- The cookie includes `RegionId` and `Region` claims for display and HTTP endpoint scoping, while
+  sensitive application queries use the account's current database region. Team rosters,
+  manager/HR dashboards and decisions, contract actions, non-admin org charts, and every CSV
+  export are region-scoped. Admins may preview the global user list, but foreign rows remain
+  read-only and exports always use the admin account's database region, never the preview filter.
 - `DbTimeOffService` resolves the current user from the **auth state**
   (`AuthenticationStateProvider.GetAuthenticationStateAsync()` → `Identity.Name` → email →
   `GetEmployeeByEmailAsync`), cached per circuit. Every `ITimeOffService` method funnels through
@@ -223,6 +247,13 @@ Pages in `Web/Components/Employee/Pages/` — `EmployeeDashboard` (`/employee/da
 - Leave-type color map: `Components/Employee/LeaveTypePalette.cs`, applied via inline `Style`
   (the colors aren't theme `Color` enum members). `LeaveBalanceSummary.razor` is the shared
   header + balance cards (Dashboard passes a CTA through its `Actions` RenderFragment).
+- The employee calendar loads public holidays for the signed-in user's current region through
+  `IPublicHolidayProvider`. `NagerDatePublicHolidayProvider` uses the stable Nager.Date v3 API,
+  caches results by country/year, and has built-in calendars for unsupported PK/IN/AE regions
+  (India's full fallback is currently 2026; other India years contain only the three national
+  fixed holidays, while UAE/Pakistan fallbacks omit lunar dates). Weekends and regional public
+  holidays are displayed but cannot be selected, and they do not consume the leave balance.
+  The Application layer repeats those checks on submit/edit so the UI cannot be bypassed.
 - **View-models vs domain**: `Web/Models/` (`TeamMember`, `TimeOffRequest`, `LeaveBalance`) and
   the Web-side `LeaveType`/`RequestStatus` enums are **separate from the domain enums** and
   explicitly mapped in `DbTimeOffService` (numeric orders differ — never cast between them).

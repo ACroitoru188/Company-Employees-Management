@@ -532,8 +532,10 @@ else
 
     private async Task OpenCreateDelegationDialog()
     {
-        var allUsers = await Employees.GetAllUsersAsync();
-        var candidateDelegates = allUsers.Where(u => u.Id != _managerId).ToList();
+        var regionUsers = await Employees.GetUsersInMyRegionAsync(_managerId);
+        var candidateDelegates = regionUsers
+            .Where(u => u.Id != _managerId)
+            .ToList();
 
         var parameters = new DialogParameters<CreateDelegationDialog>
         {
