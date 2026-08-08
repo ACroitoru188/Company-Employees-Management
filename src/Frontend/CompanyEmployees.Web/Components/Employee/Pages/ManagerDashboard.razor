@@ -16,6 +16,7 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject ActingContext Acting
 
 <PageTitle>Department · Time Off & Contracts</PageTitle>
 
@@ -352,6 +353,9 @@ else
 
     private bool _authorized;
     private Guid _managerId;
+    private ActingOnBehalf? _onBehalf;
+    private string _realUserName = "";
+    private string _actingAsName = "";
     private ManagerDashboardResult? _data;
     private string _quickSearch = "";
     private ManagerPendingRequest? _selectedRequest;
@@ -426,6 +430,15 @@ else
         var me = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
         _managerId = me.Id;
 
+        // Non-null only while this account is borrowed. Passing it makes every action below
+        // re-check the delegation window, which the auth cookie alone would outlive.
+        var acting = await Acting.GetAsync();
+        _onBehalf = acting is { IsImpersonating: true, DelegationId: not null }
+            ? new ActingOnBehalf(acting.RealUserId, acting.DelegationId.Value)
+            : null;
+        _realUserName = acting?.RealUserName ?? "";
+        _actingAsName = acting?.EffectiveUserName ?? "";
+
         if (!string.IsNullOrWhiteSpace(InitialSearch))
         {
             _quickSearch = InitialSearch;
@@ -458,7 +471,7 @@ else
     {
         try
         {
-            await Manager.DecideRequestAsync(_managerId, requestId, approve);
+            await Manager.DecideRequestAsync(_managerId, requestId, approve, _onBehalf);
             Snackbar.Add(approve ? "Request approved." : "Request declined.", Severity.Success);
             if (_selectedRequest?.RequestId == requestId)
             {
@@ -491,7 +504,7 @@ else
         {
             try
             {
-                await Manager.ExtendContractAsync(_managerId, member.ContractId.Value, newEndDate);
+                await Manager.ExtendContractAsync(_managerId, member.ContractId.Value, newEndDate, _onBehalf);
                 Snackbar.Add($"Contract extended for {member.Name} until {newEndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}.", Severity.Success);
                 await LoadAsync();
             }
@@ -517,9 +530,15 @@ else
         if (result != null && !result.Canceled)
         {
             var reason = result.Data as string;
+
+            // Terminating cannot be undone, and from inside a borrowed account the screen
+            // looks exactly like your own — so make the identity impossible to skip past.
+            if (_onBehalf is not null && !await ConfirmTerminationAsync(member.Name))
+                return;
+
             try
             {
-                await Manager.TerminateContractAsync(_managerId, member.ContractId.Value, reason);
+                await Manager.TerminateContractAsync(_managerId, member.ContractId.Value, reason, _onBehalf);
                 Snackbar.Add($"Contract terminated for {member.Name}.", Severity.Warning);
                 await LoadAsync();
             }
@@ -529,6 +548,13 @@ else
             }
         }
     }
+
+    private async Task<bool> ConfirmTerminationAsync(string employeeName) =>
+        await DialogService.ShowMessageBoxAsync(
+            "Terminate contract",
+            (MarkupString)($"You are <b>{_realUserName}</b>, acting as <b>{_actingAsName}</b>.<br/>" +
+                           $"Terminate the contract for <b>{employeeName}</b>? This cannot be undone."),
+            yesText: "Terminate", noText: null, cancelText: "Cancel") == true;
 
     private async Task OpenCreateDelegationDialog()
     {
@@ -549,7 +575,7 @@ else
         {
             try
             {
-                await Manager.CreateDelegationAsync(_managerId, res.DelegateId, res.StartDate, res.EndDate, res.Reason);
+                await Manager.CreateDelegationAsync(_managerId, res.DelegateId, res.StartDate, res.EndDate, res.Reason, _onBehalf);
                 Snackbar.Add("Delegation created successfully.", Severity.Success);
                 await LoadAsync();
             }

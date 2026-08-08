@@ -17,6 +17,7 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IContractGateway _contractGateway;
         private readonly IManagerDelegationGateway _delegationGateway;
         private readonly NotificationContext _notifications;
+        private readonly ImpersonationContext _impersonation;
 
         public ManagerContext(
             ILogger<ManagerContext> logger,
@@ -24,13 +25,27 @@ namespace CompanyEmployees.Application.Contexts
             IUserGateway userGateway,
             IContractGateway contractGateway,
             IManagerDelegationGateway delegationGateway,
-            NotificationContext notifications) : base(logger)
+            NotificationContext notifications,
+            ImpersonationContext impersonation) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
             _contractGateway = contractGateway;
             _delegationGateway = delegationGateway;
             _notifications = notifications;
+            _impersonation = impersonation;
+        }
+
+        // Every action taken from inside a borrowed account passes through here first. It
+        // delegates to ImpersonationContext rather than re-checking the window locally, so
+        // the rule for "is this delegation still good" has exactly one implementation.
+        private async Task GuardAsync(Guid actingAsUserId, ActingOnBehalf? onBehalf)
+        {
+            if (onBehalf is null)
+                return;
+
+            await _impersonation.ValidateDelegationAsync(
+                onBehalf.RealUserId, onBehalf.DelegationId, actingAsUserId);
         }
 
         public async Task<List<LeaveRequest>> GetPendingRequestsForManagerAsync(Guid managerId)
@@ -167,8 +182,10 @@ namespace CompanyEmployees.Application.Contexts
             return result;
         }
 
-        public async Task<LeaveRequest> DecideRequestAsync(Guid managerId, Guid requestId, bool approve)
+        public async Task<LeaveRequest> DecideRequestAsync(
+            Guid managerId, Guid requestId, bool approve, ActingOnBehalf? onBehalf = null)
         {
+            await GuardAsync(managerId, onBehalf);
             var manager = await GetUserOrThrowAsync(managerId);
             var request = await _leaveRequestGateway.GetRequestByIdAsync(requestId);
             if (request == null)
@@ -245,8 +262,10 @@ namespace CompanyEmployees.Application.Contexts
             return request;
         }
 
-        public async Task ExtendContractAsync(Guid managerId, Guid contractId, DateOnly newEndDate)
+        public async Task ExtendContractAsync(
+            Guid managerId, Guid contractId, DateOnly newEndDate, ActingOnBehalf? onBehalf = null)
         {
+            await GuardAsync(managerId, onBehalf);
             var manager = await GetUserOrThrowAsync(managerId);
             var contract = await _contractGateway.GetByIdAsync(contractId);
             if (contract == null)
@@ -302,8 +321,10 @@ namespace CompanyEmployees.Application.Contexts
                 managerId, contractId, contract.UserId, previousEnd, newEndDate);
         }
 
-        public async Task TerminateContractAsync(Guid managerId, Guid contractId, string? reason)
+        public async Task TerminateContractAsync(
+            Guid managerId, Guid contractId, string? reason, ActingOnBehalf? onBehalf = null)
         {
+            await GuardAsync(managerId, onBehalf);
             var manager = await GetUserOrThrowAsync(managerId);
             var contract = await _contractGateway.GetByIdAsync(contractId);
             if (contract == null)
@@ -354,8 +375,15 @@ namespace CompanyEmployees.Application.Contexts
                 managerId, contractId, contract.UserId, reason);
         }
 
-        public async Task<ManagerDelegation> CreateDelegationAsync(Guid managerId, Guid delegateId, DateOnly start, DateOnly end, string? reason)
+        public async Task<ManagerDelegation> CreateDelegationAsync(
+            Guid managerId, Guid delegateId, DateOnly start, DateOnly end, string? reason,
+            ActingOnBehalf? onBehalf = null)
         {
+            // No chaining: authority that was lent cannot be lent onward. Only the account's
+            // real owner may hand it to someone else.
+            if (onBehalf is not null)
+                throw new UnauthorizedException("You cannot delegate from an account you are only borrowing.");
+
             if (managerId == delegateId)
                 throw new InvalidOperationException("You cannot delegate responsibilities to yourself.");
 

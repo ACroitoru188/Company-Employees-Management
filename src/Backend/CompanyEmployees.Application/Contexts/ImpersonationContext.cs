@@ -71,9 +71,11 @@ namespace CompanyEmployees.Application.Contexts
             return realUser;
         }
 
-        // Re-checked before every impersonated action, not only when switching: the cookie
-        // outlives the delegation, so a cancelled or expired window has to bite immediately.
-        public async Task<ManagerDelegation> ValidateDelegationAsync(Guid realUserId, Guid delegationId)
+        // Re-checked before every impersonated action, not only when switching: the auth
+        // cookie lasts five hours and outlives the delegation, so a cancelled or expired
+        // window has to bite the moment it changes rather than at the next sign-in.
+        public async Task<ManagerDelegation> ValidateDelegationAsync(
+            Guid realUserId, Guid delegationId, Guid? actingAsUserId = null)
         {
             var delegation = await _delegations.GetByIdAsync(delegationId)
                 ?? throw new EntityNotFoundException($"No delegation with id {delegationId}.");
@@ -83,6 +85,10 @@ namespace CompanyEmployees.Application.Contexts
 
             if (delegation.ManagerId == realUserId)
                 throw new InvalidOperationException("You cannot act as yourself.");
+
+            // Guards against a stale cookie pointing at a delegation for a different account.
+            if (actingAsUserId.HasValue && delegation.ManagerId != actingAsUserId.Value)
+                throw new UnauthorizedException("This delegation does not cover that account.");
 
             var today = DateOnly.FromDateTime(DateTime.Today);
             if (!delegation.IsActive || delegation.StartDate > today || delegation.EndDate < today)

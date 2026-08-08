@@ -12,6 +12,7 @@
 @inject ActingContext Acting
 @inject IServiceScopeFactory ScopeFactory
 @inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
 @inject ILogger<EmployeeLayout> Logger
 @implements IDisposable
 
@@ -115,10 +116,16 @@
                 else if (_availableDelegations.Count > 0)
                 {
                     @* Switching swaps the auth cookie, which a circuit cannot do — hence a
-                       real form post, the same hop the login page makes. *@
-                    <form id="impersonateForm" method="post" action="/api/auth/impersonate" style="display:none;">
-                        <input type="hidden" name="delegationId" @bind-value="_pendingDelegationId" />
-                    </form>
+                       real form post, the same hop the login page makes. One form per
+                       delegation with its id already in the markup: filling a single shared
+                       form on click races the render, and the post leaves with an empty id. *@
+                    @foreach (var delegation in _availableDelegations)
+                    {
+                        <form id="@ImpersonateFormId(delegation.Id)" method="post"
+                              action="/api/auth/impersonate" style="display:none;">
+                            <input type="hidden" name="delegationId" value="@delegation.Id" />
+                        </form>
+                    }
 
                     <MudMenu ActivationEvent="MouseEvent.LeftClick" AnchorOrigin="Origin.TopCenter"
                              TransformOrigin="Origin.BottomCenter" FullWidth="true" Dense="true">
@@ -203,6 +210,9 @@
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? SwitchError { get; set; }
+
     private const string ImpersonationTint = "#AD1457";
 
     private string _name = "";
@@ -212,7 +222,6 @@
 
     private ActingUser? _acting;
     private List<ManagerDelegation> _availableDelegations = new();
-    private Guid _pendingDelegationId;
 
     private string AppBarStyle => _acting?.IsImpersonating == true
         ? $"color:#fff; background:{ImpersonationTint};"
@@ -242,6 +251,14 @@
             await LoadAvailableDelegationsAsync();
     }
 
+    // The impersonate endpoint can only answer with a redirect, so a refusal arrives as a
+    // query string. Without this the switch just appears to do nothing.
+    protected override void OnParametersSet()
+    {
+        if (SwitchError is not null)
+            Snackbar.Add("That delegation is no longer available.", Severity.Warning);
+    }
+
     private async Task LoadAvailableDelegationsAsync()
     {
         try
@@ -258,13 +275,11 @@
         }
     }
 
-    private async Task StartImpersonationAsync(Guid delegationId)
-    {
-        _pendingDelegationId = delegationId;
-        StateHasChanged();
-        await JSRuntime.InvokeVoidAsync("eval",
-            "document.getElementById('impersonateForm').submit();");
-    }
+    private static string ImpersonateFormId(Guid delegationId) => $"impersonate-{delegationId:D}";
+
+    private Task StartImpersonationAsync(Guid delegationId) =>
+        JSRuntime.InvokeVoidAsync("eval",
+            $"document.getElementById('{ImpersonateFormId(delegationId)}').submit();").AsTask();
 
     private static string Initials(string name) =>
         string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
