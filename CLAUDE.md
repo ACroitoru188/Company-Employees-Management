@@ -58,8 +58,16 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   MSB3027/MSB3026 (file-in-use), not a compile error. `taskkill /F /IM CompanyEmployees.Web.exe`
   first.
 - Connection string: `ConnectionStrings:Default` in `Web/appsettings.Development.json`
-  (LocalDB `CompanyEmployees`). `Persistence/DesignTimeDbContextFactory.cs` hardcodes its own copy
-  for `dotnet ef` tooling.
+  (LocalDB `CompanyEmployees`). `Persistence/DesignTimeDbContextFactory.cs` keeps its own copy
+  for `dotnet ef` tooling, overridable with the `ConnectionStrings__Default` **environment
+  variable** — LocalDB is Windows-only, so on Linux/macOS that variable is required or every
+  `dotnet ef` command dies with "LocalDB is not supported on this platform".
+- **Everyone ends up on the same schema by just running the app** — `Database.Migrate()` on
+  startup applies whatever is pending. `scripts/db-update.ps1` (Windows/LocalDB) and
+  `scripts/db-update.sh` (Linux/macOS, connection string required) do the same without
+  launching, and print the migration list so you can confirm you are in sync after a pull.
+  `scripts/sql/reset-delegation-test-data.sql` empties the delegation tables — testing leftovers
+  only, a no-op on a machine that has not run the feature.
 - **Dev startup applies migrations**: `Program.cs` calls `db.Database.Migrate()` in Development,
   creating the DB if absent and applying anything pending. **Data persists between runs** —
   nothing is dropped, so records added through the UI survive a restart. Because the schema now
