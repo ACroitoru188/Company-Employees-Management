@@ -233,6 +233,7 @@
     private ActingUser? _acting;
     private List<ManagerDelegation> _availableDelegations = new();
     private bool _canSeeDelegationHistory;
+    private bool _switchErrorShown;
 
     private string AppBarStyle => _acting?.IsImpersonating == true
         ? $"color:#fff; background:{ImpersonationTint};"
@@ -268,11 +269,16 @@
     }
 
     // The impersonate endpoint can only answer with a redirect, so a refusal arrives as a
-    // query string. Without this the switch just appears to do nothing.
+    // query string. Without this the switch just appears to do nothing. Shown once: the
+    // parameter stays in the URL, and the layout is parameterised again on every render
+    // pass — prerender and interactive alone would raise it twice.
     protected override void OnParametersSet()
     {
-        if (SwitchError is not null)
-            Snackbar.Add("That delegation is no longer available.", Severity.Warning);
+        if (SwitchError is null || _switchErrorShown)
+            return;
+
+        _switchErrorShown = true;
+        Snackbar.Add("That delegation is no longer available.", Severity.Warning);
     }
 
     private async Task LoadAvailableDelegationsAsync()

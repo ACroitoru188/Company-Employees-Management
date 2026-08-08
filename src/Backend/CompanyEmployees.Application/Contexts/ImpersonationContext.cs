@@ -27,12 +27,14 @@ namespace CompanyEmployees.Application.Contexts
         }
 
         // Returns the account to sign in as. Throws when the switch is not allowed.
+        //
+        // Chaining is refused by the caller, from the cookie: a row left open by a sign-out
+        // or an expired cookie says nothing about whether an account is being borrowed right
+        // now, and treating it as if it did locked people out permanently. Any such row is
+        // closed here instead.
         public async Task<User> StartAsync(Guid realUserId, Guid delegationId, string? ipAddress)
         {
-            // No chaining: an already-borrowed account must not be able to borrow another.
-            var openSession = await _sessions.GetOpenSessionAsync(realUserId);
-            if (openSession != null)
-                throw new InvalidOperationException("You are already acting as someone else. Return to your own account first.");
+            await EndOpenSessionAsync(realUserId);
 
             var delegation = await ValidateDelegationAsync(realUserId, delegationId);
 
@@ -60,15 +62,22 @@ namespace CompanyEmployees.Application.Contexts
         // Returns the account to sign back in as.
         public async Task<User> StopAsync(Guid realUserId)
         {
-            var openSession = await _sessions.GetOpenSessionAsync(realUserId);
-            if (openSession != null)
-                await _sessions.EndSessionAsync(openSession.Id, DateTime.UtcNow);
+            await EndOpenSessionAsync(realUserId);
 
             var realUser = await _users.GetUserByIdAsync(realUserId)
                 ?? throw new EntityNotFoundException($"No user with id {realUserId}.");
 
             _logger.LogInformation("User {RealUserId} returned to their own account.", realUserId);
             return realUser;
+        }
+
+        // Also called on sign-out: leaving the row open there is what used to make the next
+        // switch impossible.
+        public async Task EndOpenSessionAsync(Guid realUserId)
+        {
+            var openSession = await _sessions.GetOpenSessionAsync(realUserId);
+            if (openSession != null)
+                await _sessions.EndSessionAsync(openSession.Id, DateTime.UtcNow);
         }
 
         // Re-checked before every impersonated action, not only when switching: the auth
@@ -82,6 +91,13 @@ namespace CompanyEmployees.Application.Contexts
 
             if (delegation.DelegateId != realUserId)
                 throw new UnauthorizedException("This delegation was not given to you.");
+
+            // The cookie belongs to the borrowed account, so Identity revalidates that
+            // account's security stamp and never the delegate's. Deactivating the delegate
+            // has to end their borrowed access too, hence checking them here.
+            var realUser = await _users.GetUserByIdAsync(realUserId);
+            if (realUser is null || realUser.Status != UserStatus.Active)
+                throw new UnauthorizedException("Your own account is no longer active.");
 
             if (delegation.ManagerId == realUserId)
                 throw new InvalidOperationException("You cannot act as yourself.");

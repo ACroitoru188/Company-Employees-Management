@@ -26,7 +26,7 @@
     {
         @* Oversight, not personal history — hence admins only. The backend refuses the
            scope regardless, so hiding the tab is convenience, not the control. *@
-        <MudTabPanel Text="@($"Everyone in {_regionName}")" Icon="@Icons.Material.Filled.Policy" />
+        <MudTabPanel Text="@($"Everyone in {RegionLabel}")" Icon="@Icons.Material.Filled.Policy" />
     }
 </MudTabs>
 
@@ -103,8 +103,13 @@ else
     private bool _loading = true;
     private bool _failed;
     private bool _isAdmin;
-    private string _regionName = "";
     private DelegationHistoryResult _result = new();
+
+    // The name comes back with the rows, resolved from the same record they were filtered
+    // by; the Region claim is fixed at sign-in and would still name the old one after a
+    // transfer. Falls back to the claim only until the first load returns.
+    private string RegionLabel => _result.RegionName ?? _claimRegionName;
+    private string _claimRegionName = "my region";
 
     private DelegationHistoryScope Scope => _tab switch
     {
@@ -132,7 +137,7 @@ else
         }
 
         _isAdmin = user.FindFirst(ClaimTypes.Role)?.Value == UserRole.Admin.ToString();
-        _regionName = user.FindFirst("Region")?.Value ?? "my region";
+        _claimRegionName = user.FindFirst("Region")?.Value ?? "my region";
 
         await LoadAsync();
         _loading = false;

@@ -10,10 +10,11 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 @inject ThemeState ThemeState
-@* Admin-only path: submitting leave has to create a stand-in first. Everything else on
-   this page still goes through ITimeOffService. *@
+@* Admin-only path: submitting leave has to create a stand-in first, which ITimeOffService
+   has no business knowing about. Everything else on this page still goes through it. *@
 @inject EmployeeContext Employees
 @inject ManagerContext Manager
+@inject ActingContext Acting
 @inject IDialogService DialogService
 
 <PageTitle>Calendar · Time Off Management</PageTitle>
@@ -513,7 +514,12 @@
         _reason = null;
     }
 
-    private async Task Submit()
+    private Task Submit() => SubmitAsync(offerDelegation: true);
+
+    // offerDelegation is false on the retry: the dialog's dates are editable, so a period
+    // that misses the leave leaves the rule unsatisfied. Prompting again would loop and
+    // create a live delegation on every pass.
+    private async Task SubmitAsync(bool offerDelegation)
     {
         if (_range is not { } range || _selectedType is not { } type)
             return;
@@ -525,12 +531,15 @@
             CancelSelection();
             _selectedType = null;
         }
-        catch (DelegationRequiredException)
+        catch (DelegationRequiredException ex)
         {
             // The rule lives in EmployeeContext; this only offers the way out of it. If the
             // delegation gets created the submit is retried, so the two land together.
-            if (await OfferDelegationAsync(range))
-                await Submit();
+            if (offerDelegation && await OfferDelegationAsync(range))
+                await SubmitAsync(offerDelegation: false);
+            else if (!offerDelegation)
+                Snackbar.Add($"{ex.Message} The delegation you created does not cover these dates.",
+                    Severity.Error);
         }
         catch (Exception ex)
         {
@@ -542,9 +551,21 @@
     // Returns true when a delegation was created and the request is worth retrying.
     private async Task<bool> OfferDelegationAsync((DateOnly Start, DateOnly End) range)
     {
-        var me = await Employees.GetEmployeeByEmailAsync((await AuthStateTask!).User.Identity!.Name!);
-        var candidates = (await Employees.GetUsersInMyRegionAsync(me.Id))
-            .Where(user => user.Id != me.Id)
+        var acting = await Acting.GetAsync();
+        if (acting is null)
+            return false;
+
+        // Lent authority cannot be lent onward — the same rule CreateDelegationAsync
+        // enforces, said before the dialog rather than after it.
+        if (acting.IsImpersonating)
+        {
+            Snackbar.Add("Only the owner of this account can choose who covers for them.", Severity.Error);
+            return false;
+        }
+
+        var me = acting.EffectiveUserId;
+        var candidates = (await Employees.GetUsersInMyRegionAsync(me))
+            .Where(user => user.Id != me)
             .ToList();
 
         if (candidates.Count == 0)
@@ -573,7 +594,7 @@
         try
         {
             await Manager.CreateDelegationAsync(
-                me.Id, result.DelegateId, result.StartDate, result.EndDate, result.Reason);
+                me, result.DelegateId, result.StartDate, result.EndDate, result.Reason);
             return true;
         }
         catch (Exception ex)

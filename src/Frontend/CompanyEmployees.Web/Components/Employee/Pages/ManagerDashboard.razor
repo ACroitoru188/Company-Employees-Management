@@ -52,10 +52,15 @@ else
                        Href="/manager/delegation-history">
                 Delegation History
             </MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.SwapHoriz"
-                       OnClick="OpenCreateDelegationDialog">
-                Delegate Responsibilities
-            </MudButton>
+            @if (_onBehalf is null)
+            {
+                @* Hidden while borrowing: CreateDelegationAsync refuses it anyway, and
+                   finding that out after filling the dialog is worse than not offering it. *@
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.SwapHoriz"
+                           OnClick="OpenCreateDelegationDialog">
+                    Delegate Responsibilities
+                </MudButton>
+            }
         </div>
     </div>
 
@@ -358,9 +363,13 @@ else
 
     private bool _authorized;
     private Guid _managerId;
-    private ActingOnBehalf? _onBehalf;
-    private string _realUserName = "";
-    private string _actingAsName = "";
+    private ActingUser? _acting;
+
+    // Non-null only while this account is borrowed; every manager action below takes it so
+    // the delegation window is re-checked, which the auth cookie alone would outlive.
+    private ActingOnBehalf? _onBehalf => _acting is { IsImpersonating: true, DelegationId: not null }
+        ? new ActingOnBehalf(_acting.RealUserId, _acting.DelegationId.Value)
+        : null;
     private ManagerDashboardResult? _data;
     private string _quickSearch = "";
     private ManagerPendingRequest? _selectedRequest;
@@ -435,14 +444,7 @@ else
         var me = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
         _managerId = me.Id;
 
-        // Non-null only while this account is borrowed. Passing it makes every action below
-        // re-check the delegation window, which the auth cookie alone would outlive.
-        var acting = await Acting.GetAsync();
-        _onBehalf = acting is { IsImpersonating: true, DelegationId: not null }
-            ? new ActingOnBehalf(acting.RealUserId, acting.DelegationId.Value)
-            : null;
-        _realUserName = acting?.RealUserName ?? "";
-        _actingAsName = acting?.EffectiveUserName ?? "";
+        _acting = await Acting.GetAsync();
 
         if (!string.IsNullOrWhiteSpace(InitialSearch))
         {
@@ -557,7 +559,7 @@ else
     private async Task<bool> ConfirmTerminationAsync(string employeeName) =>
         await DialogService.ShowMessageBoxAsync(
             "Terminate contract",
-            (MarkupString)($"You are <b>{_realUserName}</b>, acting as <b>{_actingAsName}</b>.<br/>" +
+            (MarkupString)($"You are <b>{_acting!.RealUserName}</b>, acting as <b>{_acting.EffectiveUserName}</b>.<br/>" +
                            $"Terminate the contract for <b>{employeeName}</b>? This cannot be undone."),
             yesText: "Terminate", noText: null, cancelText: "Cancel") == true;
 

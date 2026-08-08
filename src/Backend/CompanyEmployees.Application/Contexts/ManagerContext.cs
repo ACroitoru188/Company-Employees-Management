@@ -510,6 +510,7 @@ namespace CompanyEmployees.Application.Contexts
         {
             List<DelegatedAction> actions;
             int total;
+            string? regionName = null;
 
             if (scope == DelegationHistoryScope.EveryoneInRegion)
             {
@@ -519,6 +520,7 @@ namespace CompanyEmployees.Application.Contexts
 
                 actions = await _delegatedActions.GetForRegionAsync(caller.RegionId, skip, take);
                 total = await _delegatedActions.CountForRegionAsync(caller.RegionId);
+                regionName = caller.Region?.Name;
             }
             else if (scope == DelegationHistoryScope.DoneInMyName)
             {
@@ -534,6 +536,7 @@ namespace CompanyEmployees.Application.Contexts
             return new DelegationHistoryResult
             {
                 Total = total,
+                RegionName = regionName,
                 Items = actions.Select(action => new DelegationHistoryEntry
                 {
                     When = action.CreatedAt,

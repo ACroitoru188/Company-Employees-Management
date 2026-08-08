@@ -94,7 +94,10 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   status change — one transaction either way.
 - **`Notification`** — per-user message + optional `ActionUrl`, pushed live over SignalR (see
   Notifications below).
-- `RoleAssignment`, `ImpersonationSession` — audit-ish entities, not wired to any UI.
+- `RoleAssignment` — audit-ish entity, not wired to any UI.
+- **`ImpersonationSession`**, **`DelegatedAction`** — the delegation audit trail; see
+  "Delegation = borrowed accounts" below. `ImpersonationSession` was reshaped on 2026-08-08
+  (it used to be `AdminId`/`TargetUserId` with no table).
 - Fluent config lives in `Persistence/Configurations/*Configuration.cs` (one class per entity,
   auto-applied from the assembly). "Deleting" a user = soft delete via `Status = Inactive`
   (`UserRepository.DeleteUserAsync`).
@@ -273,6 +276,53 @@ Pages in `Web/Components/Employee/Pages/` — `EmployeeDashboard` (`/employee/da
   2026-07-28. Both list tables are `MudDataGrid` (sortable/filterable/paged via a `QuickFilter`
   toolbar search), not the plain `MudTable` used elsewhere.
 - Date formatting: always `CultureInfo.InvariantCulture` (server culture may not be English).
+
+## Delegation = borrowed accounts (not delegated permissions)
+
+Added 2026-08-08. A delegate **signs in as** the delegator for the delegation window, rather
+than gaining rights while staying themselves. Chosen deliberately over permission delegation:
+the UX is "I see what they see", and it covers admin duties, which a per-action permission
+model did not. **The trade-off is accepted, not overlooked** — while borrowing, the delegate
+can read everything that account can (contracts, sick-leave reasons), and reads leave no
+trace. The compensating controls below are what make that acceptable; don't remove them.
+
+- **`Web/Security/ActingUser.Resolve(ClaimsPrincipal)` is the only code that reads the
+  impersonation claims** (`RealUserId`, `RealUserName`, `DelegationId` in
+  `ImpersonationClaims`). Endpoints call it with `HttpContext.User`; components go through
+  the scoped `ActingContext`. Do not re-derive "who is really acting" anywhere else.
+- **Switching is two minimal APIs**, for the same reason login is one — a circuit cannot
+  write the auth cookie: `POST /api/auth/impersonate` (form-posted `delegationId`) and
+  `GET /api/auth/impersonate/stop`. Landing page comes from `HomeRouteResolver`, as at login.
+- **Every rule lives in `Application/Contexts/ImpersonationContext`.** The endpoints only
+  turn its result into a redirect. `ValidateDelegationAsync` is re-run before *every*
+  borrowed action (via `ManagerContext.GuardAsync`) because the 5 h cookie outlives the
+  delegation; it also checks the *delegate's* own status, which Identity never revalidates
+  since the cookie belongs to the borrowed account.
+- **Chaining is refused from the cookie** (`acting.IsImpersonating` at the endpoint), not
+  from an open `ImpersonationSession` row — a row survives sign-out and cookie expiry, and
+  using it as the signal locked people out permanently. Sign-out closes the row.
+- `ManagerContext.DecideRequestAsync` / `ExtendContractAsync` / `TerminateContractAsync` /
+  `CreateDelegationAsync` all take an optional **`ActingOnBehalf`** (real user + delegation),
+  supplied by the page, null when acting as yourself. Explicit rather than ambient. Any new
+  delegatable action must take it too, or it escapes the guard and the audit.
+- **`DelegatedAction`** is the audit trail: written once per borrowed action, never updated,
+  so it stays true when the reporting graph changes. Notifications name both —
+  "approved by Line Manager X (delegate: Y)".
+- **UI signals**: the app bar turns Material Red 700 with the borrowed name and an exit
+  button, the drawer shows that account above yours, and terminating a contract from a
+  borrowed account asks first, naming both identities.
+- History lives at `/manager/delegation-history` — two personal tabs, plus a region-scoped
+  "everyone" tab for Admins that `ManagerContext` refuses for anyone else (hiding the tab is
+  convenience, not the control). Nav entry appears only for admins and people who have
+  actually delegated or been delegated to.
+- **Admins must nominate a stand-in before taking leave**: nobody reviews their requests, so
+  `EmployeeContext.SubmitRequestAsync` throws `DelegationRequiredException` unless an active
+  delegation overlaps the period. `EmployeeCalendar` catches that one exception, offers the
+  dialog pre-filled with the leave dates, and retries the submit **once**.
+  - That path is the one place an *employee* page injects `EmployeeContext`/`ManagerContext`
+    directly instead of `ITimeOffService`. Deliberate: delegation has no business on that
+    interface, and adding it would drag it into `InMemoryTimeOffService` too. Treat it as an
+    exception, not precedent.
 
 ## Notifications (in-process dispatcher)
 

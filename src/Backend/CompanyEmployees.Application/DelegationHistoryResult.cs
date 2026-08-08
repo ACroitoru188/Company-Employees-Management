@@ -21,6 +21,10 @@ namespace CompanyEmployees.Application
     {
         public List<DelegationHistoryEntry> Items { get; set; } = new();
         public int Total { get; set; }
+
+        // Set for the region scope, from the same row the rows were filtered by — a label
+        // taken from the sign-in claim would still say the old region after a transfer.
+        public string? RegionName { get; set; }
     }
 
     public class DelegationHistoryEntry

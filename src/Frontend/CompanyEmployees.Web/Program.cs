@@ -145,8 +145,17 @@ app.MapPost("/api/auth/login", async (HttpContext context,
 
 // Sign-out has to be a plain HTTP request too: an interactive circuit can't
 // touch the auth cookie (same reason the login form posts here).
-app.MapGet("/api/auth/logout", async (SignInManager<User> signInManager) =>
+app.MapGet("/api/auth/logout", async (
+    HttpContext context,
+    ImpersonationContext impersonation,
+    SignInManager<User> signInManager) =>
 {
+    // Close any borrowed session first: a row left open here is indistinguishable from one
+    // still in use, and used to block the next switch for good.
+    var acting = ActingUser.Resolve(context.User);
+    if (acting is not null)
+        await impersonation.EndOpenSessionAsync(acting.RealUserId);
+
     await signInManager.SignOutAsync();
     return Results.Redirect("/");
 });
@@ -164,6 +173,11 @@ app.MapPost("/api/auth/impersonate", async (
     if (acting is null)
         return Results.Redirect("/");
 
+    // No chaining, decided from the cookie rather than from an open session row: the row
+    // survives a sign-out or an expired cookie, the claim does not.
+    if (acting.IsImpersonating)
+        return Results.Redirect("/employee/dashboard?error=DelegationUnavailable");
+
     try
     {
         var target = await impersonation.StartAsync(
@@ -176,7 +190,9 @@ app.MapPost("/api/auth/impersonate", async (
             new Claim(ImpersonationClaims.DelegationId, delegationId.ToString("D"))
         });
 
-        return Results.Redirect("/manager/team");
+        // Same landing rule as login: /manager/team bounces anyone who is not a
+        // LineManager, and admins are delegated from too.
+        return Results.Redirect(HomeRouteResolver.Resolve(target.Role, target.Department?.Name));
     }
     catch (Exception ex)
     {

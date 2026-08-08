@@ -34,9 +34,13 @@ namespace CompanyEmployees.Persistence.Configurations
                    .HasForeignKey(a => a.DelegationId)
                    .OnDelete(DeleteBehavior.NoAction);
 
-            // The two history views read by one of these and sort by date.
+            // The two personal views filter on one of these and sort by date.
             builder.HasIndex(a => new { a.ActedAsUserId, a.CreatedAt });
             builder.HasIndex(a => new { a.RealUserId, a.CreatedAt });
+
+            // The admin view filters by region through a join, so nothing above helps its
+            // ordering — this covers the sort for the whole-table pass.
+            builder.HasIndex(a => a.CreatedAt);
         }
     }
 }
