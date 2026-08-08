@@ -2,12 +2,19 @@
 @layout EmployeeLayout
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Exceptions
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inject ITimeOffService TimeOff
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 @inject ThemeState ThemeState
+@* Admin-only path: submitting leave has to create a stand-in first. Everything else on
+   this page still goes through ITimeOffService. *@
+@inject EmployeeContext Employees
+@inject ManagerContext Manager
+@inject IDialogService DialogService
 
 <PageTitle>Calendar · Time Off Management</PageTitle>
 
@@ -518,10 +525,61 @@
             CancelSelection();
             _selectedType = null;
         }
+        catch (DelegationRequiredException)
+        {
+            // The rule lives in EmployeeContext; this only offers the way out of it. If the
+            // delegation gets created the submit is retried, so the two land together.
+            if (await OfferDelegationAsync(range))
+                await Submit();
+        }
         catch (Exception ex)
         {
             // Business validations (overlap, balance, past dates) surface here.
             Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    // Returns true when a delegation was created and the request is worth retrying.
+    private async Task<bool> OfferDelegationAsync((DateOnly Start, DateOnly End) range)
+    {
+        var me = await Employees.GetEmployeeByEmailAsync((await AuthStateTask!).User.Identity!.Name!);
+        var candidates = (await Employees.GetUsersInMyRegionAsync(me.Id))
+            .Where(user => user.Id != me.Id)
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            Snackbar.Add("There is nobody in your region who could take over.", Severity.Error);
+            return false;
+        }
+
+        var parameters = new DialogParameters<CreateDelegationDialog>
+        {
+            { x => x.AvailableUsers, candidates },
+            { x => x.InitialStartDate, range.Start },
+            { x => x.InitialEndDate, range.End },
+            { x => x.Intro, "Your leave is approved automatically, so somebody has to cover your "
+                          + "responsibilities while you are away. The dates match your request — "
+                          + "shorten them if the handover is shorter." }
+        };
+
+        var dialog = await DialogService.ShowAsync<CreateDelegationDialog>(
+            "Who takes over while you are away?", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+
+        if ((await dialog.Result) is not { Canceled: false, Data: CreateDelegationDialog.DelegationResult result })
+            return false;
+
+        try
+        {
+            await Manager.CreateDelegationAsync(
+                me.Id, result.DelegateId, result.StartDate, result.EndDate, result.Reason);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            return false;
         }
     }
 

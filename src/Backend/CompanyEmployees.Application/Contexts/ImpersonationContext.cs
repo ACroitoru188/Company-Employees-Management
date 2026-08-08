@@ -100,5 +100,14 @@ namespace CompanyEmployees.Application.Contexts
         // What the profile switcher offers.
         public Task<List<ManagerDelegation>> GetAvailableDelegationsAsync(Guid realUserId) =>
             _delegations.GetActiveDelegationsForDelegateAsync(realUserId, DateOnly.FromDateTime(DateTime.Today));
+
+        // Whether the delegation history is worth a nav entry: admins always have it as
+        // oversight, everyone else only once they have delegated or been delegated to.
+        public async Task<bool> CanSeeDelegationHistoryAsync(Guid userId)
+        {
+            var user = await _users.GetUserByIdAsync(userId);
+            return user?.Role == UserRole.Admin
+                   || await _delegations.HasAnyDelegationAsync(userId);
+        }
     }
 }

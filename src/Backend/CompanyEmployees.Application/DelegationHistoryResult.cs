@@ -8,7 +8,11 @@ namespace CompanyEmployees.Application
         DoneInMyName,
 
         // Things this person did while covering for someone else.
-        DoneByMe
+        DoneByMe,
+
+        // Oversight across the caller's region. Admins only — enforced in ManagerContext,
+        // not merely by hiding the tab.
+        EveryoneInRegion
     }
 
     // Flattened for the page, like the dashboard results: the Web layer gets names, not

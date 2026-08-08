@@ -66,6 +66,14 @@
                             Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
                 <MudNavLink Href="employee/org-chart" Match="NavLinkMatch.All"
                             Icon="@Icons.Material.Filled.AccountTree">Org Chart</MudNavLink>
+                @if (_canSeeDelegationHistory)
+                {
+                    @* Hidden rather than shown-and-empty: for most people this page has
+                       nothing in it and never will. Admins always get it — for them it is
+                       oversight of the region, not their own history. *@
+                    <MudNavLink Href="manager/delegation-history" Match="NavLinkMatch.All"
+                                Icon="@Icons.Material.Filled.History">Delegation History</MudNavLink>
+                }
                 @if (_department == HomeRouteResolver.HrDepartmentName)
                 {
                     <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">
@@ -224,6 +232,7 @@
 
     private ActingUser? _acting;
     private List<ManagerDelegation> _availableDelegations = new();
+    private bool _canSeeDelegationHistory;
 
     private string AppBarStyle => _acting?.IsImpersonating == true
         ? $"color:#fff; background:{ImpersonationTint};"
@@ -247,10 +256,15 @@
 
         _acting = await Acting.GetAsync();
 
-        // The one thing here that does need the database. Own scope for the same reason the
-        // comment above gives, and skipped entirely while already inside another account.
-        if (_acting is not null && !_acting.IsImpersonating)
+        if (_acting is null)
+            return;
+
+        // The two things here that do need the database. Own scope for the same reason the
+        // comment above gives; the switcher is skipped while already inside another account.
+        if (!_acting.IsImpersonating)
             await LoadAvailableDelegationsAsync();
+
+        await LoadDelegationHistoryAccessAsync();
     }
 
     // The impersonate endpoint can only answer with a redirect, so a refusal arrives as a
@@ -274,6 +288,25 @@
             // The switcher is not worth taking every page down for.
             Logger.LogWarning(ex, "Could not load delegations for user {UserId}.", _acting!.RealUserId);
             _availableDelegations = new List<ManagerDelegation>();
+        }
+    }
+
+    // Asked for the account currently in use: inside a borrowed account the drawer should
+    // describe that account, not the person borrowing it.
+    private async Task LoadDelegationHistoryAccessAsync()
+    {
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var impersonation = scope.ServiceProvider.GetRequiredService<ImpersonationContext>();
+            _canSeeDelegationHistory =
+                await impersonation.CanSeeDelegationHistoryAsync(_acting!.EffectiveUserId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not resolve delegation history access for {UserId}.",
+                _acting!.EffectiveUserId);
+            _canSeeDelegationHistory = false;
         }
     }
 

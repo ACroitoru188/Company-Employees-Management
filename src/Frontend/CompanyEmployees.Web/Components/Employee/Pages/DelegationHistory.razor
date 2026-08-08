@@ -22,6 +22,12 @@
 <MudTabs Elevation="0" Rounded="true" ActivePanelIndex="@_tab" ActivePanelIndexChanged="OnTabChangedAsync">
     <MudTabPanel Text="Done in my name" Icon="@Icons.Material.Filled.Inbox" />
     <MudTabPanel Text="Done by me as delegate" Icon="@Icons.Material.Filled.SwapHoriz" />
+    @if (_isAdmin)
+    {
+        @* Oversight, not personal history — hence admins only. The backend refuses the
+           scope regardless, so hiding the tab is convenience, not the control. *@
+        <MudTabPanel Text="@($"Everyone in {_regionName}")" Icon="@Icons.Material.Filled.Policy" />
+    }
 </MudTabs>
 
 @if (_loading)
@@ -40,9 +46,12 @@ else if (_result.Total == 0)
         <MudIcon Icon="@Icons.Material.Outlined.HistoryToggleOff" Size="Size.Large"
                  Style="color:var(--mud-palette-text-disabled);" />
         <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-            @(Scope == DelegationHistoryScope.DoneInMyName
-                ? "Nobody has acted on your behalf yet."
-                : "You have not acted for anyone else yet.")
+            @(Scope switch
+            {
+                DelegationHistoryScope.DoneInMyName => "Nobody has acted on your behalf yet.",
+                DelegationHistoryScope.DoneByMe => "You have not acted for anyone else yet.",
+                _ => "Nothing has been done from a borrowed account in this region yet."
+            })
         </MudText>
     </MudPaper>
 }
@@ -93,10 +102,16 @@ else
     private int _page = 1;
     private bool _loading = true;
     private bool _failed;
+    private bool _isAdmin;
+    private string _regionName = "";
     private DelegationHistoryResult _result = new();
 
-    private DelegationHistoryScope Scope =>
-        _tab == 0 ? DelegationHistoryScope.DoneInMyName : DelegationHistoryScope.DoneByMe;
+    private DelegationHistoryScope Scope => _tab switch
+    {
+        0 => DelegationHistoryScope.DoneInMyName,
+        1 => DelegationHistoryScope.DoneByMe,
+        _ => DelegationHistoryScope.EveryoneInRegion
+    };
 
     private int PageCount => (_result.Total + PageSize - 1) / PageSize;
 
@@ -115,6 +130,9 @@ else
             _loading = false;
             return;
         }
+
+        _isAdmin = user.FindFirst(ClaimTypes.Role)?.Value == UserRole.Admin.ToString();
+        _regionName = user.FindFirst("Region")?.Value ?? "my region";
 
         await LoadAsync();
         _loading = false;

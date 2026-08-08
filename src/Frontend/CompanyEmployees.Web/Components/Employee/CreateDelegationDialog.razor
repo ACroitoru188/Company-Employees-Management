@@ -4,7 +4,9 @@
 <MudDialog>
     <DialogContent>
         <MudText Typo="Typo.body2" Class="mb-3" Style="color:var(--mud-palette-text-secondary);">
-            Temporarily delegate your manager approval rights and contract management duties to a colleague.
+            @(string.IsNullOrWhiteSpace(Intro)
+                ? "Temporarily delegate your manager approval rights and contract management duties to a colleague."
+                : Intro)
         </MudText>
 
         <MudSelect T="Guid?" Label="Delegate To (Colleague)" @bind-Value="_selectedDelegateId"
@@ -54,6 +56,12 @@
 
     [Parameter] public List<User> AvailableUsers { get; set; } = [];
 
+    // Set when the dialog opens out of a leave request: the dates arrive filled in with the
+    // leave period, but stay editable so a shorter handover is possible.
+    [Parameter] public DateOnly? InitialStartDate { get; set; }
+    [Parameter] public DateOnly? InitialEndDate { get; set; }
+    [Parameter] public string? Intro { get; set; }
+
     private Guid? _selectedDelegateId;
     private DateTime? _startDate = DateTime.Today;
     private DateTime? _endDate = DateTime.Today.AddDays(7);
@@ -61,6 +69,14 @@
     private string _errorMessage = "";
 
     public record DelegationResult(Guid DelegateId, DateOnly StartDate, DateOnly EndDate, string? Reason);
+
+    protected override void OnInitialized()
+    {
+        if (InitialStartDate.HasValue)
+            _startDate = InitialStartDate.Value.ToDateTime(TimeOnly.MinValue);
+        if (InitialEndDate.HasValue)
+            _endDate = InitialEndDate.Value.ToDateTime(TimeOnly.MinValue);
+    }
 
     private bool IsValid => _selectedDelegateId.HasValue && _startDate.HasValue && _endDate.HasValue && _endDate >= _startDate;
 

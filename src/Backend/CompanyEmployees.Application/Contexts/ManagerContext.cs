@@ -502,19 +502,34 @@ namespace CompanyEmployees.Application.Contexts
             _logger.LogInformation("Manager {ManagerId} cancelled delegation {DelegationId}.", managerId, delegationId);
         }
 
-        // Reads the audit rows this context writes. Both scopes are filtered to the caller,
-        // so there is nothing to authorise beyond being signed in — you cannot ask for
-        // someone else's history.
+        // Reads the audit rows this context writes. The two personal scopes are filtered to
+        // the caller and need no further authorisation; the region-wide one is oversight and
+        // is checked here, so hiding the tab is not what protects it.
         public async Task<DelegationHistoryResult> GetDelegationHistoryAsync(
             Guid userId, DelegationHistoryScope scope, int skip, int take)
         {
-            var actions = scope == DelegationHistoryScope.DoneInMyName
-                ? await _delegatedActions.GetActedAsAsync(userId, skip, take)
-                : await _delegatedActions.GetPerformedByAsync(userId, skip, take);
+            List<DelegatedAction> actions;
+            int total;
 
-            var total = scope == DelegationHistoryScope.DoneInMyName
-                ? await _delegatedActions.CountActedAsAsync(userId)
-                : await _delegatedActions.CountPerformedByAsync(userId);
+            if (scope == DelegationHistoryScope.EveryoneInRegion)
+            {
+                var caller = await GetUserOrThrowAsync(userId);
+                if (caller.Role != UserRole.Admin)
+                    throw new UnauthorizedException("Only an administrator can view the whole region's history.");
+
+                actions = await _delegatedActions.GetForRegionAsync(caller.RegionId, skip, take);
+                total = await _delegatedActions.CountForRegionAsync(caller.RegionId);
+            }
+            else if (scope == DelegationHistoryScope.DoneInMyName)
+            {
+                actions = await _delegatedActions.GetActedAsAsync(userId, skip, take);
+                total = await _delegatedActions.CountActedAsAsync(userId);
+            }
+            else
+            {
+                actions = await _delegatedActions.GetPerformedByAsync(userId, skip, take);
+                total = await _delegatedActions.CountPerformedByAsync(userId);
+            }
 
             return new DelegationHistoryResult
             {
