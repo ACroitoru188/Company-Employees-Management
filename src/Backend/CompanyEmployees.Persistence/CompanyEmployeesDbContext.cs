@@ -20,6 +20,7 @@ namespace CompanyEmployees.Persistence
         public DbSet<Region> Regions { get; set; }
         public DbSet<Contract> Contracts { get; set; }
         public DbSet<ManagerDelegation> ManagerDelegations { get; set; }
+        public DbSet<ImpersonationSession> ImpersonationSessions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

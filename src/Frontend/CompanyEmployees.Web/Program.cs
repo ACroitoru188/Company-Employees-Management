@@ -1,6 +1,7 @@
 using Azure.Identity;
 using Blazored.LocalStorage;
 using CompanyEmployees.Application;
+using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Gateway;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -147,6 +149,67 @@ app.MapGet("/api/auth/logout", async (SignInManager<User> signInManager) =>
     await signInManager.SignOutAsync();
     return Results.Redirect("/");
 });
+
+// Borrowing an account swaps the auth cookie, so it has to happen over a plain request
+// like login does. The rules live in ImpersonationContext; this only maps them to a
+// redirect. Both endpoints require an already-signed-in user.
+app.MapPost("/api/auth/impersonate", async (
+    HttpContext context,
+    [Microsoft.AspNetCore.Mvc.FromForm] Guid delegationId,
+    ImpersonationContext impersonation,
+    SignInManager<User> signInManager) =>
+{
+    var realUserId = ResolveRealUserId(context.User);
+    if (realUserId is null)
+        return Results.Redirect("/");
+
+    try
+    {
+        var target = await impersonation.StartAsync(
+            realUserId.Value, delegationId, context.Connection.RemoteIpAddress?.ToString());
+
+        var realName = context.User.FindFirst("FullName")?.Value ?? "";
+        await signInManager.SignInWithClaimsAsync(target, isPersistent: true, new[]
+        {
+            new Claim(ImpersonationClaims.RealUserId, realUserId.Value.ToString("D")),
+            new Claim(ImpersonationClaims.RealUserName, realName),
+            new Claim(ImpersonationClaims.DelegationId, delegationId.ToString("D"))
+        });
+
+        return Results.Redirect("/manager/team");
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Impersonation refused for user {RealUserId}.", realUserId);
+        return Results.Redirect("/employee/dashboard?error=DelegationUnavailable");
+    }
+}).DisableAntiforgery();
+
+app.MapPost("/api/auth/impersonate/stop", async (
+    HttpContext context,
+    ImpersonationContext impersonation,
+    SignInManager<User> signInManager) =>
+{
+    var realUserId = ResolveRealUserId(context.User);
+    if (realUserId is null)
+        return Results.Redirect("/");
+
+    var realUser = await impersonation.StopAsync(realUserId.Value);
+    await signInManager.SignInAsync(realUser, isPersistent: true);
+
+    return Results.Redirect("/employee/dashboard");
+}).DisableAntiforgery();
+
+// The human at the keyboard: the RealUserId claim while an account is borrowed, the
+// signed-in user otherwise. Keeping this in one place is what stops "who is really acting"
+// from being re-derived, differently, at each call site.
+static Guid? ResolveRealUserId(ClaimsPrincipal principal)
+{
+    var claim = principal.FindFirst(ImpersonationClaims.RealUserId)?.Value
+                ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+    return Guid.TryParse(claim, out var id) ? id : null;
+}
 
 app.MapGet("/api/employees/export.csv", async (
     HttpContext httpContext,
