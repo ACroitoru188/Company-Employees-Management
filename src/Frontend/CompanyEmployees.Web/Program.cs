@@ -26,6 +26,7 @@ builder.Services.AddMudServices();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<ThemeState>();
 builder.Services.AddScoped<EmployeeAccountService>();
+builder.Services.AddScoped<ActingContext>();
 builder.Services.AddScoped<EmployeeCsvExportService>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IAccountEmailSender, SmtpAccountEmailSender>();
@@ -159,20 +160,19 @@ app.MapPost("/api/auth/impersonate", async (
     ImpersonationContext impersonation,
     SignInManager<User> signInManager) =>
 {
-    var realUserId = ResolveRealUserId(context.User);
-    if (realUserId is null)
+    var acting = ActingUser.Resolve(context.User);
+    if (acting is null)
         return Results.Redirect("/");
 
     try
     {
         var target = await impersonation.StartAsync(
-            realUserId.Value, delegationId, context.Connection.RemoteIpAddress?.ToString());
+            acting.RealUserId, delegationId, context.Connection.RemoteIpAddress?.ToString());
 
-        var realName = context.User.FindFirst("FullName")?.Value ?? "";
         await signInManager.SignInWithClaimsAsync(target, isPersistent: true, new[]
         {
-            new Claim(ImpersonationClaims.RealUserId, realUserId.Value.ToString("D")),
-            new Claim(ImpersonationClaims.RealUserName, realName),
+            new Claim(ImpersonationClaims.RealUserId, acting.RealUserId.ToString("D")),
+            new Claim(ImpersonationClaims.RealUserName, acting.RealUserName),
             new Claim(ImpersonationClaims.DelegationId, delegationId.ToString("D"))
         });
 
@@ -180,36 +180,27 @@ app.MapPost("/api/auth/impersonate", async (
     }
     catch (Exception ex)
     {
-        app.Logger.LogWarning(ex, "Impersonation refused for user {RealUserId}.", realUserId);
+        app.Logger.LogWarning(ex, "Impersonation refused for user {RealUserId}.", acting.RealUserId);
         return Results.Redirect("/employee/dashboard?error=DelegationUnavailable");
     }
 }).DisableAntiforgery();
 
-app.MapPost("/api/auth/impersonate/stop", async (
+// GET so the banner's exit can be a plain link, like logout: a forced request only ever
+// returns someone to their own account, so there is nothing here worth a CSRF token.
+app.MapGet("/api/auth/impersonate/stop", async (
     HttpContext context,
     ImpersonationContext impersonation,
     SignInManager<User> signInManager) =>
 {
-    var realUserId = ResolveRealUserId(context.User);
-    if (realUserId is null)
+    var acting = ActingUser.Resolve(context.User);
+    if (acting is null)
         return Results.Redirect("/");
 
-    var realUser = await impersonation.StopAsync(realUserId.Value);
+    var realUser = await impersonation.StopAsync(acting.RealUserId);
     await signInManager.SignInAsync(realUser, isPersistent: true);
 
     return Results.Redirect("/employee/dashboard");
-}).DisableAntiforgery();
-
-// The human at the keyboard: the RealUserId claim while an account is borrowed, the
-// signed-in user otherwise. Keeping this in one place is what stops "who is really acting"
-// from being re-derived, differently, at each call site.
-static Guid? ResolveRealUserId(ClaimsPrincipal principal)
-{
-    var claim = principal.FindFirst(ImpersonationClaims.RealUserId)?.Value
-                ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-    return Guid.TryParse(claim, out var id) ? id : null;
-}
+});
 
 app.MapGet("/api/employees/export.csv", async (
     HttpContext httpContext,

@@ -1,19 +1,46 @@
+@using System.Globalization
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inherits LayoutComponentBase
 @inject ThemeState ThemeState
+@inject ActingContext Acting
+@inject IServiceScopeFactory ScopeFactory
+@inject IJSRuntime JSRuntime
+@inject ILogger<EmployeeLayout> Logger
 @implements IDisposable
 
 <CompanyEmployees.Web.Components.Employee.EmployeeProviders />
 
 <MudLayout>
-    <MudAppBar Elevation="1" Style="color:#fff;">
+    @* The bar people already look at changes colour, rather than a strip being added above
+       it: an added element gets tuned out within days, a familiar one that looks wrong does
+       not. This is the main guard against acting in someone's account by accident. *@
+    <MudAppBar Elevation="1" Style="@AppBarStyle">
         <MudText Typo="Typo.h6" Style="font-weight:700; letter-spacing:.06em;">SIEMENS</MudText>
-        <MudText Typo="Typo.body2" Class="ml-3" Style="opacity:.85;">Time Off Management</MudText>
+        @if (_acting?.IsImpersonating == true)
+        {
+            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Class="ml-4" />
+            <MudText Typo="Typo.body2" Class="ml-2" Style="font-weight:600;">
+                Acting as @_acting.EffectiveUserName
+            </MudText>
+            <MudButton Href="/api/auth/impersonate/stop" ForceLoad="true"
+                       Variant="Variant.Outlined" Size="Size.Small" Class="ml-3"
+                       Style="color:#fff; border-color:rgba(255,255,255,.7);">
+                Return to my account
+            </MudButton>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="ml-3" Style="opacity:.85;">Time Off Management</MudText>
+        }
         <MudSpacer />
-        
+
         <!-- Interactive notification bell in AppBar -->
         <div class="mr-4">
             <CompanyEmployees.Web.Components.NotificationBell />
@@ -66,6 +93,59 @@
                 }
             </MudNavMenu>
             <div class="mt-auto" style="border-top:1px solid var(--mud-palette-lines-default);">
+                @if (_acting?.IsImpersonating == true)
+                {
+                    @* The borrowed account sits above your own, so the drawer always answers
+                       "whose account am I in" without opening anything. *@
+                    <div class="pa-4 d-flex align-center gap-3"
+                         style="@($"background:{ImpersonationTint};")">
+                        <MudAvatar Size="Size.Small" Style="background:#fff; color:#AD1457;">
+                            @Initials(_acting.EffectiveUserName)
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.body2" Style="color:#fff; font-weight:600;">
+                                @_acting.EffectiveUserName
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,.85);">
+                                acting on their behalf
+                            </MudText>
+                        </div>
+                    </div>
+                }
+                else if (_availableDelegations.Count > 0)
+                {
+                    @* Switching swaps the auth cookie, which a circuit cannot do — hence a
+                       real form post, the same hop the login page makes. *@
+                    <form id="impersonateForm" method="post" action="/api/auth/impersonate" style="display:none;">
+                        <input type="hidden" name="delegationId" @bind-value="_pendingDelegationId" />
+                    </form>
+
+                    <MudMenu ActivationEvent="MouseEvent.LeftClick" AnchorOrigin="Origin.TopCenter"
+                             TransformOrigin="Origin.BottomCenter" FullWidth="true" Dense="true">
+                        <ActivatorContent Context="switchMenu">
+                            <div class="pa-3 d-flex align-center gap-2" style="cursor:pointer;"
+                                 @onclick="switchMenu.ToggleAsync">
+                                <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small"
+                                         Style="color:var(--mud-palette-text-secondary);" />
+                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                    Act for someone else (@_availableDelegations.Count)
+                                </MudText>
+                            </div>
+                        </ActivatorContent>
+                        <ChildContent>
+                            @foreach (var delegation in _availableDelegations)
+                            {
+                                <MudMenuItem OnClick="@(() => StartImpersonationAsync(delegation.Id))">
+                                    <MudText Typo="Typo.body2">@delegation.Manager.Name</MudText>
+                                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                                        until @delegation.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                                    </MudText>
+                                </MudMenuItem>
+                            }
+                        </ChildContent>
+                    </MudMenu>
+                }
+
                 <MudMenu ActivationEvent="MouseEvent.LeftClick" AnchorOrigin="Origin.TopCenter"
                          TransformOrigin="Origin.BottomCenter" FullWidth="true" Dense="true">
                     @* Custom activator content gets no click handler from MudMenu —
@@ -123,10 +203,20 @@
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
+    private const string ImpersonationTint = "#AD1457";
+
     private string _name = "";
     private string _initials = "";
     private string _role = "";
     private string _department = "";
+
+    private ActingUser? _acting;
+    private List<ManagerDelegation> _availableDelegations = new();
+    private Guid _pendingDelegationId;
+
+    private string AppBarStyle => _acting?.IsImpersonating == true
+        ? $"color:#fff; background:{ImpersonationTint};"
+        : "color:#fff;";
 
     // User info comes from the auth cookie's claims, never from the database:
     // the layout shares the page's scoped DbContext, and a second query in
@@ -142,9 +232,42 @@
         _name = user.FindFirst("FullName")?.Value ?? "";
         _role = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
         _department = user.FindFirst("Department")?.Value ?? "";
-        _initials = string.Concat(
-            _name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
+        _initials = Initials(_name);
+
+        _acting = await Acting.GetAsync();
+
+        // The one thing here that does need the database. Own scope for the same reason the
+        // comment above gives, and skipped entirely while already inside another account.
+        if (_acting is not null && !_acting.IsImpersonating)
+            await LoadAvailableDelegationsAsync();
     }
+
+    private async Task LoadAvailableDelegationsAsync()
+    {
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var impersonation = scope.ServiceProvider.GetRequiredService<ImpersonationContext>();
+            _availableDelegations = await impersonation.GetAvailableDelegationsAsync(_acting!.RealUserId);
+        }
+        catch (Exception ex)
+        {
+            // The switcher is not worth taking every page down for.
+            Logger.LogWarning(ex, "Could not load delegations for user {UserId}.", _acting!.RealUserId);
+            _availableDelegations = new List<ManagerDelegation>();
+        }
+    }
+
+    private async Task StartImpersonationAsync(Guid delegationId)
+    {
+        _pendingDelegationId = delegationId;
+        StateHasChanged();
+        await JSRuntime.InvokeVoidAsync("eval",
+            "document.getElementById('impersonateForm').submit();");
+    }
+
+    private static string Initials(string name) =>
+        string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
 
     public void Dispose() => ThemeState.OnChange -= StateHasChanged;
 }
