@@ -21,6 +21,7 @@ namespace CompanyEmployees.Persistence
         public DbSet<Contract> Contracts { get; set; }
         public DbSet<ManagerDelegation> ManagerDelegations { get; set; }
         public DbSet<ImpersonationSession> ImpersonationSessions { get; set; }
+        public DbSet<DelegatedAction> DelegatedActions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

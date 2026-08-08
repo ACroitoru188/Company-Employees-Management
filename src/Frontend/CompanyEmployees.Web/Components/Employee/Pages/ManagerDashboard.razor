@@ -47,6 +47,11 @@ else
             </MudText>
         </div>
         <div class="d-flex gap-2">
+            @* The only way into the history page — deliberately not in the drawer nav. *@
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.History"
+                       Href="/manager/delegation-history">
+                Delegation History
+            </MudButton>
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.SwapHoriz"
                        OnClick="OpenCreateDelegationDialog">
                 Delegate Responsibilities

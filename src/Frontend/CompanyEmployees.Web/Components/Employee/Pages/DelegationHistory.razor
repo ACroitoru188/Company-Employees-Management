@@ -1,0 +1,168 @@
+@page "/manager/delegation-history"
+@layout EmployeeLayout
+@using System.Globalization
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Logging
+@using CompanyEmployees.Application
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Enums
+@using CompanyEmployees.Web.Security
+@inject ManagerContext Manager
+@inject NavigationManager Nav
+@inject ILogger<DelegationHistory> Logger
+
+<PageTitle>Delegation history · Time Off Management</PageTitle>
+
+<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-1">Delegation history</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+    Actions taken from a borrowed account, and who was behind them.
+</MudText>
+
+<MudTabs Elevation="0" Rounded="true" ActivePanelIndex="@_tab" ActivePanelIndexChanged="OnTabChangedAsync">
+    <MudTabPanel Text="Done in my name" Icon="@Icons.Material.Filled.Inbox" />
+    <MudTabPanel Text="Done by me as delegate" Icon="@Icons.Material.Filled.SwapHoriz" />
+</MudTabs>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Class="mt-4" />
+}
+else if (_failed)
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">
+        The history could not be loaded. Please refresh the page.
+    </MudAlert>
+}
+else if (_result.Total == 0)
+{
+    <MudPaper Class="pa-8 mt-4 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Outlined.HistoryToggleOff" Size="Size.Large"
+                 Style="color:var(--mud-palette-text-disabled);" />
+        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+            @(Scope == DelegationHistoryScope.DoneInMyName
+                ? "Nobody has acted on your behalf yet."
+                : "You have not acted for anyone else yet.")
+        </MudText>
+    </MudPaper>
+}
+else
+{
+    <MudTable T="DelegationHistoryEntry" Items="@_result.Items" Hover="true" Elevation="1" Class="mt-4">
+        <HeaderContent>
+            <MudTh>When</MudTh>
+            <MudTh>Action</MudTh>
+            <MudTh>Employee</MudTh>
+            <MudTh>Performed by</MudTh>
+            <MudTh>Acting as</MudTh>
+            <MudTh>Details</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="When">
+                @context.When.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
+            </MudTd>
+            <MudTd DataLabel="Action">
+                <MudChip T="string" Size="Size.Small" Color="@ActionColor(context.ActionType)">
+                    @ActionLabel(context.ActionType)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Employee">@context.TargetName</MudTd>
+            <MudTd DataLabel="Performed by">@context.RealUserName</MudTd>
+            <MudTd DataLabel="Acting as">@context.ActedAsName</MudTd>
+            <MudTd DataLabel="Details">@(string.IsNullOrWhiteSpace(context.Details) ? "—" : context.Details)</MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    @if (PageCount > 1)
+    {
+        <div class="d-flex justify-center mt-4">
+            <MudPagination Count="@PageCount" Selected="@_page" SelectedChanged="OnPageChangedAsync"
+                           Color="Color.Primary" ShowFirstButton="true" ShowLastButton="true" />
+        </div>
+    }
+}
+
+@code {
+    private const int PageSize = 20;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private Guid _userId;
+    private int _tab;
+    private int _page = 1;
+    private bool _loading = true;
+    private bool _failed;
+    private DelegationHistoryResult _result = new();
+
+    private DelegationHistoryScope Scope =>
+        _tab == 0 ? DelegationHistoryScope.DoneInMyName : DelegationHistoryScope.DoneByMe;
+
+    private int PageCount => (_result.Total + PageSize - 1) / PageSize;
+
+    // No role check: both queries are filtered to this user, so the page can only ever show
+    // your own two sides of it. Gating on LineManager would just hide history from someone
+    // whose role changed after the fact.
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+            return;
+
+        var user = (await AuthStateTask!).User;
+        if (!Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out _userId))
+        {
+            _failed = true;
+            _loading = false;
+            return;
+        }
+
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _result = await Manager.GetDelegationHistoryAsync(
+                _userId, Scope, (_page - 1) * PageSize, PageSize);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load delegation history for user {UserId}.", _userId);
+            _failed = true;
+        }
+    }
+
+    private Task OnPageChangedAsync(int page)
+    {
+        _page = page;
+        return LoadAsync();
+    }
+
+    // Switching perspective is a different list, so paging starts over.
+    private Task OnTabChangedAsync(int tab)
+    {
+        _tab = tab;
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private static string ActionLabel(DelegatedActionType type) => type switch
+    {
+        DelegatedActionType.LeaveApproved => "Leave approved",
+        DelegatedActionType.LeaveRejected => "Leave declined",
+        DelegatedActionType.ContractExtended => "Contract extended",
+        DelegatedActionType.ContractTerminated => "Contract terminated",
+        _ => type.ToString()
+    };
+
+    private static Color ActionColor(DelegatedActionType type) => type switch
+    {
+        DelegatedActionType.LeaveApproved => Color.Success,
+        DelegatedActionType.LeaveRejected => Color.Warning,
+        DelegatedActionType.ContractExtended => Color.Info,
+        DelegatedActionType.ContractTerminated => Color.Error,
+        _ => Color.Default
+    };
+}

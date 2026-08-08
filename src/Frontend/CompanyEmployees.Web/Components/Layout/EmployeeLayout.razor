@@ -100,7 +100,7 @@
                        "whose account am I in" without opening anything. *@
                     <div class="pa-4 d-flex align-center gap-3"
                          style="@($"background:{ImpersonationTint};")">
-                        <MudAvatar Size="Size.Small" Style="background:#fff; color:#AD1457;">
+                        <MudAvatar Size="Size.Small" Style="@($"background:#fff; color:{ImpersonationTint};")">
                             @Initials(_acting.EffectiveUserName)
                         </MudAvatar>
                         <div>
@@ -213,7 +213,9 @@
     [SupplyParameterFromQuery(Name = "error")]
     public string? SwitchError { get; set; }
 
-    private const string ImpersonationTint = "#AD1457";
+    // Red rather than a softer accent: this is the one state where a wrong click lands on
+    // someone else's team. Material Red 700 keeps white text above the 4.5:1 contrast floor.
+    private const string ImpersonationTint = "#D32F2F";
 
     private string _name = "";
     private string _initials = "";
