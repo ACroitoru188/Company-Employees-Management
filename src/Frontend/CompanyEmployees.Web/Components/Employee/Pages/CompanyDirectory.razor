@@ -430,6 +430,8 @@
                     
                     <div class="card-actions mt-2">
                         <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                                   Disabled="@(_activeContinent.Id != "europe")"
+                                   EndIcon="@(_activeContinent.Id == "europe" ? string.Empty : Icons.Material.Filled.Lock)"
                                    OnClick="@(() => OnContinentDblClick(_activeContinent))">
                             @(_activeContinent.Id == "europe" ? "Explore Europe Hubs" : "Drill Down")
                         </MudButton>
@@ -621,6 +623,8 @@
                     </div>
                     <div class="card-actions mt-2">
                         <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                                   Disabled="@(_activeCountry.Id != "rou")"
+                                   EndIcon="@(_activeCountry.Id == "rou" ? string.Empty : Icons.Material.Filled.Lock)"
                                    OnClick="@(() => OnCountryDblClick(_activeCountry))"
                                    Style="text-transform:none; font-weight:700; white-space:nowrap;">
                             Drill Down
@@ -923,10 +927,11 @@
                         <MudButton Size="Size.Small"
                                    Variant="Variant.Filled"
                                    Color="Color.Primary"
-                                   EndIcon="@Icons.Material.Filled.ArrowForward"
+                                   Disabled="@(_activeRomaniaCounty.Id != "ro_bv" && !_activeRomaniaCounty.Name.Contains("Brașov") && !_activeRomaniaCounty.Name.Contains("Brasov"))"
+                                   EndIcon="@(_activeRomaniaCounty.Id == "ro_bv" || _activeRomaniaCounty.Name.Contains("Brașov") || _activeRomaniaCounty.Name.Contains("Brasov") ? string.Empty : Icons.Material.Filled.Lock)"
                                    OnClick="@(() => OnRomaniaCountyDblClick(_activeRomaniaCounty))"
-                                   Style="text-transform:none; font-weight:700; white-space:nowrap;">
-                            @(_activeRomaniaCounty.Id == "ro_bv" || _activeRomaniaCounty.Name.Contains("Brașov") || _activeRomaniaCounty.Name.Contains("Brasov") ? "Explore Brașov Hubs (2)" : "Drill Down")
+                                   Style="text-transform:none; font-weight:700; white-space:nowrap; font-size: 11px;">
+                            @(_activeRomaniaCounty.Id == "ro_bv" || _activeRomaniaCounty.Name.Contains("Brașov") || _activeRomaniaCounty.Name.Contains("Brasov") ? "Explore Brașov Hubs" : "Drill Down")
                         </MudButton>
                     </div>
                 </div>
@@ -1168,14 +1173,14 @@
                 <svg width="100%" height="100%">
                     <g transform="@($"translate({_translateX.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {_translateY.ToString(System.Globalization.CultureInfo.InvariantCulture)}) scale({_scale.ToString(System.Globalization.CultureInfo.InvariantCulture)})")">
                         @* Lines Layer (Orthogonal 90-degree connectors) *@
-                        @foreach (var edge in _edges)
+                        @foreach (var edge in VisibleEdges)
                         {
                             <path d="@GetOrthogonalPath(edge.Source, edge.Target)" 
                                   class="@(edge.Target.IsFocusNode && edge.Source.IsFocusNode ? "org-line-focus" : "org-line")" />
                         }
 
                         @* Nodes Layer *@
-                        @foreach (var node in _nodes)
+                        @foreach (var node in VisibleNodes)
                         {
                             bool isSelf = node.UserId == _currentUserId;
                             <g transform="translate(@node.X, @node.Y)">
@@ -1193,9 +1198,19 @@
                                 @if (node.HasChildren)
                                 {
                                     <g class="org-expand-btn" transform="translate(0, 25)"
-                                       @onclick="() => ToggleNodeExpand(node)" @onclick:stopPropagation="true">
-                                        <circle r="9" class="expand-btn-bg" />
-                                        @((MarkupString)$"<text x=\"0\" y=\"0\" class=\"expand-btn-icon\" text-anchor=\"middle\" dominant-baseline=\"central\">{(node.IsExpanded ? "−" : "+")}</text>")
+                                       @onclick="async () => await ToggleNodeExpand(node)" @onclick:stopPropagation="true">
+                                        @if (node.IsLoading)
+                                        {
+                                            <circle r="9" class="expand-btn-bg" />
+                                            <circle r="7" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.4" stroke-dashoffset="20">
+                                                <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="1s" repeatCount="indefinite" />
+                                            </circle>
+                                        }
+                                        else
+                                        {
+                                            <circle r="9" class="expand-btn-bg" />
+                                            @((MarkupString)$"<text x=\"0\" y=\"0\" class=\"expand-btn-icon\" text-anchor=\"middle\" dominant-baseline=\"central\">{(node.IsExpanded ? "−" : "+")}</text>")
+                                        }
                                     </g>
                                 }
                             </g>
@@ -1210,37 +1225,46 @@
                                      @onmouseleave="OnPanelMouseLeave">
                                     <div class="org-info-header">
                                         <div class="org-info-details">
-                                            <div class="info-row">
-                                                <span class="info-label">Name:</span>
-                                                <span class="info-value" title="@_hoveredNode.Name">@_hoveredNode.Name</span>
-                                            </div>
+                                            @if (_hoveredNode.Role != "Department")
+                                            {
+                                                <div class="info-row">
+                                                    <span class="info-label">Name:</span>
+                                                    <span class="info-value" title="@_hoveredNode.Name">@_hoveredNode.Name</span>
+                                                </div>
+                                            }
                                             <div class="info-row">
                                                 <span class="info-label">Department:</span>
                                                 <span class="info-value" title="@_hoveredNode.Department">@_hoveredNode.Department</span>
                                             </div>
-                                            <div class="info-row">
-                                                <span class="info-label">Role:</span>
-                                                <span class="info-value" title="@_hoveredNode.Role">@_hoveredNode.Role</span>
-                                            </div>
-                                            <div class="info-row">
-                                                <span class="info-label">Contract:</span>
-                                                <span class="info-value">@GetContractPeriodText(_hoveredNode)</span>
-                                            </div>
-                                            <div class="info-row">
-                                                <span class="info-label">Contract Status:</span>
-                                                <span class="info-value">
-                                                    @if (_hoveredNode.HasContract && _hoveredNode.ContractType != null)
-                                                    {
-                                                        <span class="badge @(_hoveredNode.ContractType == ContractType.Determinate ? "determinate" : "indeterminate")">
-                                                            @GetContractStatusText(_hoveredNode)
-                                                        </span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span>—</span>
-                                                    }
-                                                </span>
-                                            </div>
+                                            @if (_hoveredNode.Role != "Department")
+                                            {
+                                                <div class="info-row">
+                                                    <span class="info-label">Role:</span>
+                                                    <span class="info-value" title="@_hoveredNode.Role">@_hoveredNode.Role</span>
+                                                </div>
+                                            }
+                                            @if (_hoveredNode.Role != "Department")
+                                            {
+                                                <div class="info-row">
+                                                    <span class="info-label">Contract:</span>
+                                                    <span class="info-value">@GetContractPeriodText(_hoveredNode)</span>
+                                                </div>
+                                                <div class="info-row">
+                                                    <span class="info-label">Contract Status:</span>
+                                                    <span class="info-value">
+                                                        @if (_hoveredNode.HasContract && _hoveredNode.ContractType != null)
+                                                        {
+                                                            <span class="badge @(_hoveredNode.ContractType == ContractType.Determinate ? "determinate" : "indeterminate")">
+                                                                @GetContractStatusText(_hoveredNode)
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>—</span>
+                                                        }
+                                                    </span>
+                                                </div>
+                                            }
                                         </div>
                                         <div class="org-info-avatar-box">
                                             <div class="avatar-frame">
@@ -1249,7 +1273,7 @@
                                         </div>
                                     </div>
 
-                                    @if (_isManagerOrHr)
+                                    @if (_isManagerOrHr && _hoveredNode.Role != "Department")
                                     {
                                         <div class="org-info-actions">
                                             @if (!CanManageRequests(_hoveredNode))
@@ -1397,6 +1421,23 @@
     private double _startX = 0;
     private double _startY = 0;
     private bool _hasDragged = false;
+
+    // Virtualization (Culling) Properties
+    private double ViewportWidth => 2500;
+    private double ViewportHeight => 1500;
+
+    private double GraphMinX => (-300 - _translateX) / _scale;
+    private double GraphMaxX => (ViewportWidth + 300 - _translateX) / _scale;
+    private double GraphMinY => (-300 - _translateY) / _scale;
+    private double GraphMaxY => (ViewportHeight + 300 - _translateY) / _scale;
+
+    private IEnumerable<OrgChartNode> VisibleNodes => _nodes.Where(n => 
+        n.X >= GraphMinX && n.X <= GraphMaxX && 
+        n.Y >= GraphMinY && n.Y <= GraphMaxY);
+
+    private IEnumerable<(OrgChartNode Source, OrgChartNode Target)> VisibleEdges => _edges.Where(e =>
+        (e.Source.X >= GraphMinX && e.Source.X <= GraphMaxX && e.Source.Y >= GraphMinY && e.Source.Y <= GraphMaxY) ||
+        (e.Target.X >= GraphMinX && e.Target.X <= GraphMaxX && e.Target.Y >= GraphMinY && e.Target.Y <= GraphMaxY));
 
     private OrgChartNode? _selectedSearchNode;
 
@@ -1921,12 +1962,42 @@
     private async Task FocusOnNode(Guid targetUserId)
     {
         if (_root == null) return;
-
-        bool found = ExpandPathToNode(_root, targetUserId);
-        if (!found && targetUserId != _root.UserId)
+        
+        bool isAdmin = _userRole == UserRole.Admin.ToString() || (_isManagerOrHr && _userDepartment != "HR" && _userRole != UserRole.LineManager.ToString());
+        var path = await EmployeeCtx.GetOrgChartPathAsync(targetUserId, isAdmin, _currentUserId);
+        
+        if (path.Count == 0 && targetUserId != _root.UserId)
         {
             Snackbar.Add("Employee is not within your accessible team structure.", Severity.Info);
             return;
+        }
+
+        // Iteratively expand path
+        foreach (var pathNode in path)
+        {
+            // Find this node in our loaded tree
+            OrgChartNode? foundNode = null;
+            if (pathNode.Role == "Department")
+            {
+                foundNode = _nodes.FirstOrDefault(n => n.Role == "Department" && n.Department == pathNode.Department && n.ManagerId == pathNode.ManagerId);
+            }
+            else
+            {
+                foundNode = _nodes.FirstOrDefault(n => n.UserId == pathNode.UserId);
+            }
+
+            if (foundNode != null)
+            {
+                if (foundNode.HasUnloadedChildren && foundNode.Subordinates.Count == 0)
+                {
+                    // Programmatically expand it
+                    await ToggleNodeExpand(foundNode);
+                }
+                else if (!foundNode.IsExpanded)
+                {
+                    await ToggleNodeExpand(foundNode);
+                }
+            }
         }
 
         RecalculateLayout();
@@ -1963,22 +2034,7 @@
         StateHasChanged();
     }
 
-    private bool ExpandPathToNode(OrgChartNode current, Guid targetUserId)
-    {
-        if (current.UserId == targetUserId) return true;
-
-        foreach (var child in current.Subordinates)
-        {
-            if (ExpandPathToNode(child, targetUserId))
-            {
-                current.IsExpanded = true;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
+    // ExpandPathToNode is no longer used since we use iterative path expansion
     private class ElementBounds
     {
         public double Width { get; set; }
@@ -1998,9 +2054,28 @@
         }
     }
 
-    private void ToggleNodeExpand(OrgChartNode node)
+    private async Task ToggleNodeExpand(OrgChartNode node)
     {
-        node.IsExpanded = !node.IsExpanded;
+        if (!node.IsExpanded)
+        {
+            if (node.HasUnloadedChildren && node.Subordinates.Count == 0)
+            {
+                node.IsLoading = true;
+                StateHasChanged();
+                
+                bool isAdmin = _userRole == UserRole.Admin.ToString() || (_isManagerOrHr && _userDepartment != "HR" && _userRole != UserRole.LineManager.ToString());
+                node.Subordinates = await EmployeeCtx.GetOrgChartChildrenAsync(node, _currentUserId, isAdmin);
+                
+                node.HasUnloadedChildren = false;
+                node.IsLoading = false;
+            }
+            node.IsExpanded = true;
+        }
+        else
+        {
+            node.IsExpanded = false;
+        }
+
         RecalculateLayout();
     }
 
@@ -2163,21 +2238,21 @@
         return $"M {startX.ToString(c)} {startY.ToString(c)} V {midY.ToString(c)} H {endX.ToString(c)} V {endY.ToString(c)}";
     }
 
-    private Task<IEnumerable<OrgChartNode>> SearchEmployees(string value, CancellationToken token)
+    private async Task<IEnumerable<OrgChartNode>> SearchEmployees(string value, CancellationToken token)
     {
-        var searchable = GetSearchableNodes();
         if (string.IsNullOrWhiteSpace(value))
         {
-            return Task.FromResult<IEnumerable<OrgChartNode>>(searchable.Take(8));
+            return new List<OrgChartNode>();
         }
 
-        var results = searchable
-            .Where(n => (!string.IsNullOrWhiteSpace(n.Name) && n.Name.Contains(value, StringComparison.OrdinalIgnoreCase)) ||
-                        (!string.IsNullOrWhiteSpace(n.Role) && n.Role.Contains(value, StringComparison.OrdinalIgnoreCase)) ||
-                        (!string.IsNullOrWhiteSpace(n.Department) && n.Department.Contains(value, StringComparison.OrdinalIgnoreCase)))
-            .Take(10);
-
-        return Task.FromResult<IEnumerable<OrgChartNode>>(results);
+        var users = await EmployeeCtx.SearchUsersAsync(value, 10);
+        return users.Select(u => new OrgChartNode
+        {
+            UserId = u.Id,
+            Name = u.Name,
+            Role = u.Role.ToString(),
+            Department = u.Department?.Name ?? string.Empty
+        });
     }
 
     private List<OrgChartNode> GetSearchableNodes()
@@ -2209,7 +2284,7 @@
             }
         }
 
-        return list.Where(n => !string.IsNullOrWhiteSpace(n.Name) && n.Name != "Company HQ").ToList();
+        return list.Where(n => !string.IsNullOrWhiteSpace(n.Name) && n.Name != "Company HQ" && n.Role != "Department").ToList();
     }
 
     private void CollectAllNodes(OrgChartNode node, List<OrgChartNode> list)

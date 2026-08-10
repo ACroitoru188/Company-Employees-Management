@@ -31,7 +31,9 @@ namespace CompanyEmployees.Application
         // Visual properties
         public bool IsFocusNode { get; set; } // If true, this node or its branch is the user's focus
         public bool IsExpanded { get; set; } = true; // If false, subordinates are hidden
-        public bool HasChildren => Subordinates.Count > 0;
+        public bool IsLoading { get; set; } // If true, data is currently being fetched
+        public bool HasUnloadedChildren { get; set; } // If true, has children but they are not loaded
+        public bool HasChildren => Subordinates.Count > 0 || HasUnloadedChildren;
 
         // Mathematical Layout Properties
         public double X { get; set; }
