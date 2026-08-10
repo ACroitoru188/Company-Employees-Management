@@ -7,6 +7,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
 @inject EmployeeContext Employees
+@inject ManagerContext Manager
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
@@ -17,7 +18,19 @@
 	<MudProgressCircular Indeterminate="true" />
 }
 else
-{
+	@if (_isActingAdmin && _activeDelegationsReceived.Count > 0)
+	{
+		<MudAlert Severity="Severity.Info" Variant="Variant.Filled" Elevation="1" Class="mb-4">
+			<div class="d-flex align-center justify-space-between flex-wrap gap-2">
+				<div>
+					<strong>Delegated Admin Notice:</strong> You are currently acting as an active delegate for:
+					@string.Join(", ", _activeDelegationsReceived.Select(d => $"{d.Manager?.Name ?? "Admin"} (until {d.EndDate.ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture)})"))
+				</div>
+				<MudChip T="string" Size="Size.Small" Color="Color.Surface">Delegation Active</MudChip>
+			</div>
+		</MudAlert>
+	}
+
 	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Departments</MudText>
 
 	<MudDataGrid T="Department" Items="@_departments" QuickFilter="@_quickFilter"
@@ -84,6 +97,8 @@ else
 	private Task<AuthenticationState>? AuthStateTask { get; set; }
 
 	private bool _authorized;
+	private bool _isActingAdmin;
+	private List<ManagerDelegation> _activeDelegationsReceived = new();
 	private List<Department> _departments = [];
 	private List<User> _users = [];
 	private IEnumerable<User> _lineManagers => _users.Where(u => u.Role == UserRole.LineManager);
@@ -100,8 +115,8 @@ else
 			|| GetManagerName(d.ManagerId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase);
 	};
 
-	// The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
-	// so non-admins are redirected without a database query.
+	// The role comes from the auth cookie's claims (AppClaimsPrincipalFactory).
+	// If the user is not an Admin, we query the DB to see if they are an active delegate of an Admin.
 	protected override async Task OnInitializedAsync()
 	{
 		if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
@@ -111,8 +126,25 @@ else
 		var role = user.FindFirst(ClaimTypes.Role)?.Value;
 		if (role != UserRole.Admin.ToString())
 		{
-			Nav.NavigateTo("/employee/dashboard");
-			return;
+			var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+			if (Guid.TryParse(userIdStr, out var uId))
+			{
+				var delegationsReceived = await Manager.GetActiveDelegationsAssignedToMeAsync(uId);
+				_isActingAdmin = delegationsReceived.Any(d => d.Manager.Role == UserRole.Admin);
+				
+				if (!_isActingAdmin)
+				{
+					Nav.NavigateTo("/employee/dashboard");
+					return;
+				}
+				
+				_activeDelegationsReceived = delegationsReceived.Where(d => d.Manager.Role == UserRole.Admin).ToList();
+			}
+			else
+			{
+				Nav.NavigateTo("/employee/dashboard");
+				return;
+			}
 		}
 
 		_authorized = true;
