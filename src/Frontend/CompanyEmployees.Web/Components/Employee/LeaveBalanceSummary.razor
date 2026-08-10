@@ -1,10 +1,11 @@
 @using System.Globalization
 @using CompanyEmployees.Web.Services
 @inject ThemeState ThemeState
+@inject AppLocalizer Text
 
 <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
     <div>
-        <MudText Typo="Typo.h5" Style="font-weight:600;">Good morning, @FirstName</MudText>
+        <MudText Typo="Typo.h5" Style="font-weight:600;">@Text.Format("Good morning, {0}", FirstName)</MudText>
         <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">@Subtitle</MudText>
     </div>
     @if (Actions is not null)
@@ -20,19 +21,19 @@
             <MudCard Elevation="1">
                 <MudCardContent>
                     <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
-                        @balance.Type.ToString().ToUpperInvariant()
+                        @Text[balance.Type.ToString()].ToUpper(CultureInfo.CurrentCulture)
                     </MudText>
                     <div class="d-flex align-baseline gap-1 mb-2">
                         <MudText Typo="Typo.h4" Style="font-weight:700;">@balance.Remaining</MudText>
                         <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-                            / @balance.DaysTotal days
+                            / @Text.Format("{0} days", balance.DaysTotal)
                         </MudText>
                     </div>
                     <MudProgressLinear Value="@(100.0 * balance.Remaining / balance.DaysTotal)"
                                        Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mb-2"
                                        Style="@($"--mud-palette-primary:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
                     <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                        @balance.DaysUsed used this year
+                        @Text.Format("{0} used this year", balance.DaysUsed)
                     </MudText>
                 </MudCardContent>
             </MudCard>
@@ -47,12 +48,12 @@
 
     private string FirstName => UserName.Split(' ')[0];
 
-    private static string Subtitle
+    private string Subtitle
     {
         get
         {
             var d = DateTime.Today;
-            return $"{d.ToString("dddd, MMMM d, yyyy", CultureInfo.InvariantCulture)} · Week {ISOWeek.GetWeekOfYear(d)}";
+            return $"{d.ToString("D", CultureInfo.CurrentCulture)} · {Text.Format("Week {0}", ISOWeek.GetWeekOfYear(d))}";
         }
     }
 }

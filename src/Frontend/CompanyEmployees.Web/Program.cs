@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Localization;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,10 +22,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddMudServices();
+builder.Services.AddMudLocalization();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<ThemeState>();
 builder.Services.AddScoped<EmployeeAccountService>();
 builder.Services.AddScoped<EmployeeCsvExportService>();
+builder.Services.AddScoped<LanguagePreferenceService>();
+builder.Services.AddSingleton<AppLocalizer>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IAccountEmailSender, SmtpAccountEmailSender>();
 builder.Services.AddControllers();
@@ -66,6 +70,21 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 var app = builder.Build();
+
+var supportedCultures = SupportedLanguages.All
+    .Select(language => new System.Globalization.CultureInfo(language.Culture))
+    .ToArray();
+
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture(SupportedLanguages.DefaultCulture),
+    SupportedCultures = supportedCultures,
+    SupportedUICultures = supportedCultures,
+    RequestCultureProviders =
+    [
+        new CookieRequestCultureProvider()
+    ]
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -119,6 +138,17 @@ app.MapPost("/api/auth/login", async (HttpContext context,
     if(regionMatches)
     {
         await signInManager.SignInAsync(account!, isPersistent: true);
+
+        var culture = SupportedLanguages.Normalize(account!.PreferredCulture);
+        context.Response.Cookies.Append(
+            CookieRequestCultureProvider.DefaultCookieName,
+            CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(culture)),
+            new CookieOptions
+            {
+                Expires = DateTimeOffset.UtcNow.AddYears(1),
+                IsEssential = true,
+                SameSite = SameSiteMode.Lax
+            });
 
         var destination = await userManager.Users
             .Where(u => u.NormalizedUserName == email.ToUpperInvariant())

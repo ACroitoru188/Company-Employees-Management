@@ -13,8 +13,9 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject AppLocalizer Text
 
-<PageTitle>Users · Admin</PageTitle>
+<PageTitle>@Text["Users"] · @Text["Admin"]</PageTitle>
 
 @if (!_authorized)
 {
@@ -23,12 +24,12 @@
 else
 {
 	<div class="d-flex justify-space-between align-center gap-3 flex-wrap mb-4">
-		<MudText Typo="Typo.h5" Style="font-weight:600;">Users & Contracts</MudText>
+		<MudText Typo="Typo.h5" Style="font-weight:600;">@Text["Users & Contracts"]</MudText>
 		<MudSelect T="Guid?" Value="_regionFilterId"
 				   ValueChanged="OnViewingRegionChanged"
-				   Label="Preview region" Variant="Variant.Outlined"
+				   Label="@(Text["Preview region"])" Variant="Variant.Outlined"
 				   Dense="true" Style="min-width:220px;">
-			<MudSelectItem T="Guid?" Value="@((Guid?)null)">All regions</MudSelectItem>
+			<MudSelectItem T="Guid?" Value="@((Guid?)null)">@Text["All regions"]</MudSelectItem>
 			@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
 			{
 				<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
@@ -37,34 +38,34 @@ else
 		<MudButton Href="/api/employees/export.csv"
 				   Variant="Variant.Outlined" Color="Color.Primary"
 				   StartIcon="@Icons.Material.Filled.Download">
-			Download latest CSV
+			@Text["Download latest CSV"]
 		</MudButton>
 	</div>
 
 	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
 		<MudText Typo="Typo.subtitle1" Style="font-weight:600;" Class="mb-1">
-			Create employee account
+			@Text["Create employee account"]
 		</MudText>
 		<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-			Create employees in your assigned region. Their Siemens login and employee ID are generated automatically.
+			@Text["Create employees in your assigned region. Their Siemens login and employee ID are generated automatically."]
 		</MudText>
 		@if (!CanManageSelectedRegion)
 		{
 			<MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
-				This regional preview is read-only. Return to <strong>@GetRegionName(_adminRegionId)</strong> to create an account.
+				@Text.Format("This regional preview is read-only. Return to {0} to create an account.", GetRegionName(_adminRegionId))
 			</MudAlert>
 		}
 
 		<div class="d-flex align-end gap-3 flex-wrap">
 			<MudTextField T="string" @bind-Value="_newEmployeeName"
-						  Label="Full name" Variant="Variant.Outlined"
+						  Label="@(Text["Full name"])" Variant="Variant.Outlined"
 						  Style="min-width:260px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
 			<MudTextField T="string" @bind-Value="_newEmployeeInvitationEmail"
-						  Label="Real email address" Variant="Variant.Outlined"
+						  Label="@(Text["Real email address"])" Variant="Variant.Outlined"
 						  InputType="InputType.Email" Style="min-width:300px;"
 						  Disabled="@(_creating || !CanManageSelectedRegion)" />
 			<MudSelect T="Guid?" @bind-Value="_newEmployeeDepartmentId"
-					   Label="Department" Variant="Variant.Outlined"
+					   Label="@(Text["Department"])" Variant="Variant.Outlined"
 					   Style="min-width:220px;" Disabled="@(_creating || !CanManageSelectedRegion)">
 				@foreach (var department in _departments.OrderBy(d => d.Name))
 				{
@@ -74,7 +75,7 @@ else
 				}
 			</MudSelect>
 			<MudSelect T="Guid?" @bind-Value="_newEmployeeRegionId"
-					   Label="Region" Variant="Variant.Outlined"
+					   Label="@(Text["Region"])" Variant="Variant.Outlined"
 					   Style="min-width:200px;" Disabled="true">
 				@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
 				{
@@ -85,27 +86,27 @@ else
 					   StartIcon="@Icons.Material.Filled.PersonAdd"
 					   Style="height:44px; align-self:center; transform:translateY(2px);"
 					   OnClick="CreateEmployeeAsync" Disabled="@(_creating || !CanManageSelectedRegion)">
-				@(_creating ? "Creating..." : "Create account")
+				@(_creating ? Text["Creating..."] : Text["Create account"])
 			</MudButton>
 		</div>
 
 		@if (_createdAccount != null)
 		{
 			<MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mt-4">
-				<MudText Typo="Typo.subtitle2" Style="font-weight:600;">Account created</MudText>
-				<MudText Typo="Typo.body2">Name: @_createdAccount.Name</MudText>
-				<MudText Typo="Typo.body2">Department: @_createdAccount.Department</MudText>
-				<MudText Typo="Typo.body2">Region: @_createdAccount.Region</MudText>
-				<MudText Typo="Typo.body2">Siemens login: @_createdAccount.Email</MudText>
-				<MudText Typo="Typo.body2">Invitation email: @_createdAccount.InvitationEmail</MudText>
+				<MudText Typo="Typo.subtitle2" Style="font-weight:600;">@Text["Account created"]</MudText>
+				<MudText Typo="Typo.body2">@Text.Format("Name: {0}", _createdAccount.Name)</MudText>
+				<MudText Typo="Typo.body2">@Text.Format("Department: {0}", _createdAccount.Department)</MudText>
+				<MudText Typo="Typo.body2">@Text.Format("Region: {0}", _createdAccount.Region)</MudText>
+				<MudText Typo="Typo.body2">@Text.Format("Siemens login: {0}", _createdAccount.Email)</MudText>
+				<MudText Typo="Typo.body2">@Text.Format("Invitation email: {0}", _createdAccount.InvitationEmail)</MudText>
 				@if (_createdAccount.EmailDelivered)
 				{
-					<MudText Typo="Typo.body2">A password setup email was sent to the employee.</MudText>
+					<MudText Typo="Typo.body2">@Text["A password setup email was sent to the employee."]</MudText>
 				}
 				else
 				{
-					<MudText Typo="Typo.body2">SMTP is not configured. Use this development-only setup link:</MudText>
-					<MudLink Href="@_createdAccount.DevelopmentSetupLink">Set password</MudLink>
+					<MudText Typo="Typo.body2">@Text["SMTP is not configured. Use this development-only setup link:"]</MudText>
+					<MudLink Href="@_createdAccount.DevelopmentSetupLink">@Text["Set password"]</MudLink>
 				}
 			</MudAlert>
 		}
@@ -116,21 +117,21 @@ else
 		@if (CanManageSelectedRegion)
 		{
 			<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-				Managing your assigned region, <strong>@GetRegionName(_adminRegionId)</strong>.
+				@Text.Format("Managing your assigned region, {0}.", GetRegionName(_adminRegionId))
 			</MudAlert>
 		}
 		else
 		{
 			<MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-				Previewing <strong>@GetRegionName(_regionFilterId.Value)</strong> in read-only mode.
-				Only an administrator assigned to that region can make changes.
+				@Text.Format("Previewing {0} in read-only mode.", GetRegionName(_regionFilterId.Value))
+				@Text["Only an administrator assigned to that region can make changes."]
 			</MudAlert>
 		}
 	}
 	else
 	{
 		<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-			Previewing all regions. Employees outside <strong>@GetRegionName(_adminRegionId)</strong> are read-only.
+			@Text.Format("Previewing all regions. Employees outside {0} are read-only.", GetRegionName(_adminRegionId))
 		</MudAlert>
 	}
 
@@ -139,17 +140,21 @@ else
 				 FilterMode="DataGridFilterMode.ColumnFilterRow"
 				 Hover="true" Dense="true" Elevation="1">
 		<ToolBarContent>
-			<MudTextField @bind-Value="_quickSearch" Placeholder="Search users or contracts..."
+			<MudTextField @bind-Value="_quickSearch" Placeholder="@(Text["Search users or contracts..."])"
 						  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
 						  IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
 						  Immediate="true" />
 			<MudSpacer />
 		</ToolBarContent>
 		<Columns>
-			<PropertyColumn Property="@(u => u.Name)" Title="Name" />
-			<PropertyColumn Property="@(u => u.Email)" Title="Email" />
-			<PropertyColumn Property="@(u => u.Role)" Title="Role" />
-			<TemplateColumn T="User" Title="Contract Type" Sortable="true"
+			<PropertyColumn Property="@(u => u.Name)" Title="@(Text["Name"])" />
+			<PropertyColumn Property="@(u => u.Email)" Title="@(Text["Email"])" />
+			<TemplateColumn T="User" Title="@(Text["Role"])" Sortable="true" SortBy="@(u => u.Role)">
+				<CellTemplate>
+					@Text[context.Item.Role == UserRole.Employee ? "Employee role" : context.Item.Role.ToString()]
+				</CellTemplate>
+			</TemplateColumn>
+			<TemplateColumn T="User" Title="@(Text["Contract Type"])" Sortable="true"
 							SortBy="@(u => GetActiveContract(u)?.Type.ToString() ?? "None")" Filterable="false">
 				<CellTemplate>
 					@{
@@ -157,19 +162,19 @@ else
 					}
 					@if (contract == null)
 					{
-						<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">No Contract</MudChip>
+						<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">@Text["No Contract"]</MudChip>
 					}
 					else if (contract.Type == ContractType.Determinate)
 					{
-						<MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Determinate</MudChip>
+						<MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">@Text["Determinate"]</MudChip>
 					}
 					else
 					{
-						<MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">Indeterminate</MudChip>
+						<MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">@Text["Indeterminate"]</MudChip>
 					}
 				</CellTemplate>
 			</TemplateColumn>
-			<TemplateColumn T="User" Title="Contract Period & Status" Sortable="true"
+			<TemplateColumn T="User" Title="@(Text["Contract Period & Status"])" Sortable="true"
 							SortBy="@(u => GetActiveContract(u)?.Status.ToString() ?? "")" Filterable="false">
 				<CellTemplate>
 					@{
@@ -180,10 +185,10 @@ else
 						<div class="d-flex flex-column">
 							<div class="d-flex align-center gap-1">
 								<MudChip T="string" Size="Size.Small" Color="@GetStatusColor(contract.Status)" Variant="Variant.Text" Class="pa-0 ma-0">
-									@contract.Status
+									@Text[contract.Status.ToString()]
 								</MudChip>
 								<MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-									@contract.StartDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) – @(contract.EndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
+									@contract.StartDate.ToString("d", CultureInfo.CurrentCulture) – @(contract.EndDate?.ToString("d", CultureInfo.CurrentCulture) ?? Text["Indefinite"])
 								</MudText>
 							</div>
 						</div>
@@ -194,7 +199,7 @@ else
 					}
 				</CellTemplate>
 			</TemplateColumn>
-			<TemplateColumn T="User" Title="Department" Sortable="true"
+			<TemplateColumn T="User" Title="@(Text["Department"])" Sortable="true"
 							 SortBy="@(u => GetDepartmentName(u.DepartmentId))" Filterable="false">
 				<CellTemplate>
 					<MudAutocomplete T="Guid?" Value="context.Item.DepartmentId"
@@ -205,7 +210,7 @@ else
 									 CoerceText="true" Dense="true" Disabled="@(!CanEditUser(context.Item))" />
 				</CellTemplate>
 			</TemplateColumn>
-			<TemplateColumn T="User" Title="Region" Sortable="true"
+			<TemplateColumn T="User" Title="@(Text["Region"])" Sortable="true"
 							 SortBy="@(u => GetRegionName(u.RegionId))" Filterable="false">
 				<CellTemplate>
 					<MudSelect T="Guid" Value="context.Item.RegionId"
@@ -218,9 +223,9 @@ else
 					</MudSelect>
 				</CellTemplate>
 			</TemplateColumn>
-			<TemplateColumn T="User" Title="Actions" Filterable="false" Sortable="false">
+			<TemplateColumn T="User" Title="@(Text["Actions"])" Filterable="false" Sortable="false">
 				<CellTemplate>
-					<MudTooltip Text="Manage Contract">
+					<MudTooltip Text="@(Text["Manage Contract"])" >
 						<MudIconButton Icon="@Icons.Material.Filled.Assignment" Size="Size.Small" Color="Color.Primary"
 									   OnClick="@(() => OpenEditContractDialog(context.Item))"
 									   Disabled="@(!CanEditUser(context.Item))" />
@@ -330,7 +335,7 @@ else
 	{
 		if (!CanEditUser(user))
 		{
-			Snackbar.Add("Other regions are read-only.", Severity.Warning);
+			Snackbar.Add(Text["Other regions are read-only."], Severity.Warning);
 			return;
 		}
 
@@ -341,13 +346,13 @@ else
 			{ x => x.ExistingContract, contract }
 		};
 
-		var dialog = await DialogService.ShowAsync<EditContractDialog>("Manage Contract", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+		var dialog = await DialogService.ShowAsync<EditContractDialog>(Text["Manage Contract"], parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
 		var result = await dialog.Result;
 
 		if (result != null && !result.Canceled && result.Data is EditContractDialog.ContractEditResult res)
 		{
 			await Employees.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes);
-			Snackbar.Add($"Contract updated for {user.Name}.", Severity.Success);
+			Snackbar.Add(Text.Format("Contract updated for {0}.", user.Name), Severity.Success);
 			await LoadAsync();
 		}
 	}
@@ -358,7 +363,7 @@ else
 			return;
 
 		await Employees.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId);
-		Snackbar.Add($"{user.Name} moved.", Severity.Success);
+		Snackbar.Add(Text.Format("{0} moved.", user.Name), Severity.Success);
 		await LoadAsync();
 	}
 
@@ -373,11 +378,10 @@ else
 		var sourceRegion = GetRegionName(user.RegionId);
 		var destinationRegion = GetRegionName(regionId);
 		var confirmed = await DialogService.ShowMessageBoxAsync(
-			"Confirm region transfer",
-			$"Are you sure you want to move {user.Name} from {sourceRegion} to {destinationRegion}? " +
-			"They will no longer appear in the source region's employee lists, and cross-region manager links will be removed.",
-			yesText: "Yes, transfer",
-			cancelText: "Cancel");
+			Text["Confirm region transfer"],
+			Text.Format("Are you sure you want to move {0} from {1} to {2}? They will no longer appear in the source region's employee lists, and cross-region manager links will be removed.", user.Name, sourceRegion, destinationRegion),
+			yesText: Text["Yes, transfer"],
+			cancelText: Text["Cancel"]);
 
 		if (confirmed != true)
 		{
@@ -388,7 +392,7 @@ else
 		try
 		{
 			await Employees.AssignUserToRegionAsync(_adminId, user.Id, regionId);
-			Snackbar.Add($"{user.Name} moved from {sourceRegion} to {destinationRegion}.", Severity.Success);
+			Snackbar.Add(Text.Format("{0} moved from {1} to {2}.", user.Name, sourceRegion, destinationRegion), Severity.Success);
 			await LoadAsync();
 		}
 		catch (Exception exception)
@@ -407,25 +411,25 @@ else
 	{
 		if (string.IsNullOrWhiteSpace(_newEmployeeName))
 		{
-			Snackbar.Add("Employee name is required.", Severity.Warning);
+			Snackbar.Add(Text["Employee name is required."], Severity.Warning);
 			return;
 		}
 
 		if (string.IsNullOrWhiteSpace(_newEmployeeInvitationEmail))
 		{
-			Snackbar.Add("Employee email is required.", Severity.Warning);
+			Snackbar.Add(Text["Employee email is required."], Severity.Warning);
 			return;
 		}
 
 		if (_newEmployeeDepartmentId == null)
 		{
-			Snackbar.Add("Select a department.", Severity.Warning);
+			Snackbar.Add(Text["Select a department."], Severity.Warning);
 			return;
 		}
 
 		if (_newEmployeeRegionId == null)
 		{
-			Snackbar.Add("Select a region.", Severity.Warning);
+			Snackbar.Add(Text["Select a region."], Severity.Warning);
 			return;
 		}
 
@@ -449,8 +453,8 @@ else
 			await LoadAsync();
 			Snackbar.Add(
 				_createdAccount.EmailDelivered
-					? "Employee account created and setup email sent."
-					: "Employee account created; SMTP is not configured.",
+					? Text["Employee account created and setup email sent."]
+					: Text["Employee account created; SMTP is not configured."],
 				_createdAccount.EmailDelivered ? Severity.Success : Severity.Warning);
 		}
 		catch (Exception exception)
@@ -464,16 +468,16 @@ else
 	}
 
 	private string GetDepartmentName(Guid? id) =>
-		id == null ? "None" : _departments.FirstOrDefault(d => d.Id == id)?.Name ?? "";
+		id == null ? Text["None"] : _departments.FirstOrDefault(d => d.Id == id)?.Name ?? "";
 
 	private string GetRegionName(Guid id) =>
-		_regions.FirstOrDefault(region => region.Id == id)?.Name ?? "Unknown";
+		_regions.FirstOrDefault(region => region.Id == id)?.Name ?? Text["Unknown"];
 
 	private Task<IEnumerable<Guid?>> SearchDepartments(string value, CancellationToken token)
 	{
 		var allIds = _departments.Select(d => (Guid?)d.Id).Prepend(null);
 
-		if (string.IsNullOrEmpty(value) || value.Equals("None", StringComparison.InvariantCultureIgnoreCase) || _departments.Any(d => d.Name.Equals(value, StringComparison.InvariantCultureIgnoreCase)))
+		if (string.IsNullOrEmpty(value) || value.Equals(Text["None"], StringComparison.CurrentCultureIgnoreCase) || _departments.Any(d => d.Name.Equals(value, StringComparison.CurrentCultureIgnoreCase)))
 		{
 			return Task.FromResult(allIds);
 		}

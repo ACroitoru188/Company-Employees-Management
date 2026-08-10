@@ -6,37 +6,38 @@
 @inject ITimeOffService TimeOff
 @inject IDialogService DialogService
 @inject NavigationManager Nav
+@inject AppLocalizer Text
 
-<PageTitle>My Requests · Time Off Management</PageTitle>
+<PageTitle>@Text["My Requests"] · @Text["Time Off Management"]</PageTitle>
 
-<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">My Requests</MudText>
+<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">@Text["My Requests"]</MudText>
 
 <MudTable T="TimeOffRequest" Items="@_requests" Hover="true" Elevation="1"
-          OnRowClick="@(args => OpenDetails(args.Item))">
+          OnRowClick="@(args => args.Item is null ? Task.CompletedTask : OpenDetails(args.Item))">
     <HeaderContent>
-        <MudTh>Type</MudTh>
-        <MudTh>Dates</MudTh>
-        <MudTh>Status</MudTh>
-        <MudTh>Submitted</MudTh>
+        <MudTh>@Text["Type"]</MudTh>
+        <MudTh>@Text["Dates"]</MudTh>
+        <MudTh>@Text["Status"]</MudTh>
+        <MudTh>@Text["Submitted"]</MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="Type">
-            @LeaveTypePalette.Label(context.Type)
+        <MudTd DataLabel="@(Text["Type"])">
+            @Text[context.Type.ToString()]
         </MudTd>
-        <MudTd DataLabel="Dates">
-            @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-            @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+        <MudTd DataLabel="@(Text["Dates"])">
+            @context.StartDate.ToString("d", CultureInfo.CurrentCulture) –
+            @context.EndDate.ToString("d", CultureInfo.CurrentCulture)
             <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                @context.Days @(context.Days == 1 ? "day" : "days")
+                @context.Days @Text[context.Days == 1 ? "day" : "days"]
             </MudText>
         </MudTd>
-        <MudTd DataLabel="Status">
+        <MudTd DataLabel="@(Text["Status"])">
             <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">
-                @context.Status
+                @Text[context.Status.ToString()]
             </MudChip>
         </MudTd>
-        <MudTd DataLabel="Submitted">
-            @context.SubmittedAt.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+        <MudTd DataLabel="@(Text["Submitted"])">
+            @context.SubmittedAt.ToString("d", CultureInfo.CurrentCulture)
         </MudTd>
     </RowTemplate>
 </MudTable>
@@ -69,6 +70,6 @@
         {
             { d => d.Request, request }
         };
-        return DialogService.ShowAsync<RequestDetailsDialog>("Request details", parameters);
+        return DialogService.ShowAsync<RequestDetailsDialog>(Text["Request details"], parameters);
     }
 }

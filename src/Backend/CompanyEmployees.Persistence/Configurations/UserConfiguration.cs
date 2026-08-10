@@ -28,6 +28,9 @@ namespace CompanyEmployees.Persistence.Configurations
                    .WithMany(r => r.Users)
                    .HasForeignKey(u => u.RegionId)
                    .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Property(u => u.PreferredCulture)
+                   .HasMaxLength(16);
         }
     }
 }

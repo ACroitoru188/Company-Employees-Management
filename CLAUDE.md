@@ -119,6 +119,19 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   all using `User123!`. Regional HR belongs to the global HR department and reports to the Line
   Manager in the same region. This migration is additive-only so rollback cannot erase HR data
   subsequently attached to these accounts.
+- **Language is a user preference, not a regional boundary.** `User.PreferredCulture` is nullable;
+  null means English. `SupportedLanguages` exposes the deduplicated primary languages represented
+  by the seeded countries. An authenticated user selects a language from the profile menu;
+  `LanguagePreferenceService` saves it and `culture.js` updates the ASP.NET culture cookie before
+  reloading. Login writes the saved culture back to the cookie, so the choice follows the account
+  across devices. `AppLocalizer` translates the authenticated application shell and employee
+  dashboard, calendar, team roster, request list/details, departments, and user/contract admin
+  pages, and falls back to English for missing content. Translation content lives directly in
+  `Web/Languages`, with one
+  UTF-8 JSON file per culture (including `en.json`); `AppLocalizer` loads and validates those files,
+  then resolves keys and formats values. Missing culture-specific keys fall back to `en.json`, so
+  pages can be translated incrementally. `AddMudLocalization()` makes MudBlazor pager/filter text
+  follow the active culture too. Arabic and Urdu set the document direction to RTL.
 - **Departments are org data, not team visibility** (deliberate): **Team** = the user's manager
   **plus** the active users sharing the same `ManagerId` (excluding the user).
   `EmployeeContext.GetTeamMembersAsync` / `GetTeamRequestsAsync` are the single source of that
@@ -145,6 +158,9 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   `/employee/dashboard` (or `/?error=InvalidCredentials`). Selecting a region never grants
   access; it must match `User.RegionId`. The hidden-form hop exists because an interactive circuit
   can't set the auth cookie itself; don't "simplify" it away.
+- English (`en`) is the request-localization default. The login endpoint restores the account's
+  optional `PreferredCulture`; language selection is only exposed after authentication and never
+  changes `RegionId`, authorization, holidays, or export scope.
 - `UserName == Email` for all users, so `Identity.Name` from the auth state *is* the email.
 - The cookie includes `RegionId` and `Region` claims for display and HTTP endpoint scoping, while
   sensitive application queries use the account's current database region. Team rosters,

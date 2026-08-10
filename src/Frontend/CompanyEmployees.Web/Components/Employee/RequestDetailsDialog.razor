@@ -1,42 +1,43 @@
 @using System.Globalization
+@inject AppLocalizer Text
 
 <MudDialog>
     <DialogContent>
         <div class="d-flex align-center gap-2 mb-3">
             <MudChip T="string" Size="Size.Small"
                      Style="@($"background:{LeaveTypePalette.Hex(Request.Type)}; color:white;")">
-                @LeaveTypePalette.Label(Request.Type)
+                @Text[Request.Type.ToString()]
             </MudChip>
             <MudChip T="string" Size="Size.Small" Color="@StatusColor(Request.Status)">
-                @Request.Status
+                @Text[Request.Status.ToString()]
             </MudChip>
         </div>
 
         <MudText Typo="Typo.subtitle1" Style="font-weight:600;">
-            @Request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-            @Request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-            (@Request.Days @(Request.Days == 1 ? "day" : "days"))
+            @Request.StartDate.ToString("d", CultureInfo.CurrentCulture) –
+            @Request.EndDate.ToString("d", CultureInfo.CurrentCulture)
+            (@Request.Days @Text[Request.Days == 1 ? "day" : "days"])
         </MudText>
 
-        <MudText Typo="Typo.body2" Class="mt-3" Style="color:var(--mud-palette-text-secondary);">Reason</MudText>
+        <MudText Typo="Typo.body2" Class="mt-3" Style="color:var(--mud-palette-text-secondary);">@Text["Reason"]</MudText>
         <MudText Typo="Typo.body1">@(string.IsNullOrWhiteSpace(Request.Reason) ? "—" : Request.Reason)</MudText>
 
         <MudDivider Class="my-3" />
 
         <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-            Submitted @Request.SubmittedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
+            @Text.Format("Submitted {0}", Request.SubmittedAt.ToString("g", CultureInfo.CurrentCulture))
         </MudText>
         @if (Request.Status is RequestStatus.Approved or RequestStatus.Rejected)
         {
             <br />
             <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                Decided by @(Request.DecidedBy ?? "D. Novak")@(Request.DecidedAt is { } decided
-                    ? $" · {decided.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)}" : "")
+                @Text.Format("Decided by {0}{1}", Request.DecidedBy ?? "D. Novak", Request.DecidedAt is { } decided
+                    ? $" · {decided.ToString("g", CultureInfo.CurrentCulture)}" : "")
             </MudText>
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="@(() => MudDialog.Close())">Close</MudButton>
+        <MudButton OnClick="@(() => MudDialog.Close())">@Text["Close"]</MudButton>
     </DialogActions>
 </MudDialog>
 
