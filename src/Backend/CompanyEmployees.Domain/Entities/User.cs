@@ -27,6 +27,10 @@ public class User : IdentityUser<Guid>
     public Guid RegionId { get; set; }
     public Region Region { get; set; } = null!;
 
+    // UI language chosen by the employee. Null means the application default (English).
+    // This preference is deliberately independent from the employee's security region.
+    public string? PreferredCulture { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

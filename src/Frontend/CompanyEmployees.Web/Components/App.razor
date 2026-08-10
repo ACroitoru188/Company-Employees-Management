@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
+@using System.Globalization
+<html lang="@CultureInfo.CurrentUICulture.Name" dir="@(CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft ? "rtl" : "ltr")">
 
 <head>
     <meta charset="utf-8" />
@@ -34,6 +35,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
     <script src="/pointer.js"></script>
     <script src="/anim.js"></script>
+    <script src="/js/culture.js"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 </body>

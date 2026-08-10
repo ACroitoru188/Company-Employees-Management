@@ -4,6 +4,9 @@
 @using CompanyEmployees.Web.Services
 @inherits LayoutComponentBase
 @inject ThemeState ThemeState
+@inject LanguagePreferenceService LanguagePreferences
+@inject AppLocalizer Text
+@inject IJSRuntime JSRuntime
 @implements IDisposable
 
 <CompanyEmployees.Web.Components.Employee.EmployeeProviders />
@@ -11,7 +14,7 @@
 <MudLayout>
     <MudAppBar Elevation="1" Style="color:#fff;">
         <MudText Typo="Typo.h6" Style="font-weight:700; letter-spacing:.06em;">SIEMENS</MudText>
-        <MudText Typo="Typo.body2" Class="ml-3" Style="opacity:.85;">Time Off Management</MudText>
+        <MudText Typo="Typo.body2" Class="ml-3" Style="opacity:.85;">@Text["Time Off Management"]</MudText>
         <MudSpacer />
         
         <!-- Interactive notification bell in AppBar -->
@@ -25,26 +28,26 @@
     <MudDrawer Open="true" Variant="DrawerVariant.Persistent" ClipMode="DrawerClipMode.Always" Elevation="1">
         <div class="d-flex flex-column" style="height:100%;">
             <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">
-                WORKSPACE
+                @Text["WORKSPACE"]
             </MudText>
             <MudNavMenu>
                 <MudNavLink Href="employee/dashboard" Match="NavLinkMatch.All"
-                            Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+                            Icon="@Icons.Material.Filled.Dashboard">@Text["Dashboard"]</MudNavLink>
                 <MudNavLink Href="employee/calendar" Match="NavLinkMatch.All"
-                            Icon="@Icons.Material.Filled.CalendarMonth">Calendar</MudNavLink>
+                            Icon="@Icons.Material.Filled.CalendarMonth">@Text["Calendar"]</MudNavLink>
                 <MudNavLink Href="employee/team" Match="NavLinkMatch.All"
-                            Icon="@Icons.Material.Filled.Groups">Team</MudNavLink>
+                            Icon="@Icons.Material.Filled.Groups">@Text["Team"]</MudNavLink>
                 <MudNavLink Href="employee/my-requests" Match="NavLinkMatch.All"
-                            Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
+                            Icon="@Icons.Material.Filled.Description">@Text["My Requests"]</MudNavLink>
                 <MudNavLink Href="employee/org-chart" Match="NavLinkMatch.All"
-                            Icon="@Icons.Material.Filled.AccountTree">Org Chart</MudNavLink>
+                            Icon="@Icons.Material.Filled.AccountTree">@Text["Org Chart"]</MudNavLink>
                 @if (_department == HomeRouteResolver.HrDepartmentName)
                 {
                     <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">
                         HR
                     </MudText>
                     <MudNavLink Href="hr/dashboard" Match="NavLinkMatch.All"
-                                Icon="@Icons.Material.Filled.Badge">HR Dashboard</MudNavLink>
+                                Icon="@Icons.Material.Filled.Badge">@Text["HR Dashboard"]</MudNavLink>
                 }
                 @if (_role == "LineManager")
                 {
@@ -52,7 +55,7 @@
                         LineManager
                     </MudText>
                     <MudNavLink Href="manager/team" Match="NavLinkMatch.All"
-                                Icon="@Icons.Material.Filled.SupervisorAccount">Department</MudNavLink>
+                                Icon="@Icons.Material.Filled.SupervisorAccount">@Text["Department"]</MudNavLink>
                 }
                 @if (_role == "Admin")
                 {
@@ -60,9 +63,9 @@
                         IT ADMIN
                     </MudText>
                     <MudNavLink Href="admin/departments" Match="NavLinkMatch.All"
-                                Icon="@Icons.Material.Filled.Business">Departments</MudNavLink>
+                                Icon="@Icons.Material.Filled.Business">@Text["Departments"]</MudNavLink>
                     <MudNavLink Href="admin/users" Match="NavLinkMatch.All"
-                                Icon="@Icons.Material.Filled.People">Users</MudNavLink>
+                                Icon="@Icons.Material.Filled.People">@Text["Users"]</MudNavLink>
                 }
             </MudNavMenu>
             <div class="mt-auto" style="border-top:1px solid var(--mud-palette-lines-default);">
@@ -86,19 +89,30 @@
                     </ActivatorContent>
                     <ChildContent>
                         <div class="px-4 py-2 d-flex align-center justify-space-between gap-3" @onclick:stopPropagation="true">
-                            <MudText Typo="Typo.body2">Dark mode</MudText>
+                            <MudText Typo="Typo.body2">@Text["Dark mode"]</MudText>
                             <MudSwitch T="bool" Value="ThemeState.IsDarkMode"
                                        ValueChanged="@(async (bool _) => await ThemeState.ToggleAsync())"
                                        Color="Color.Primary" />
                         </div>
                         <MudDivider />
+                        <div class="px-4 py-2" @onclick:stopPropagation="true">
+                            <MudSelect T="string" Value="_culture" ValueChanged="ChangeLanguageAsync"
+                                       Label="@(Text["Language"])" Dense="true" Variant="Variant.Outlined"
+                                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Language">
+                                @foreach (var language in SupportedLanguages.All)
+                                {
+                                    <MudSelectItem T="string" Value="@language.Culture">@language.NativeName</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </div>
+                        <MudDivider />
                         <MudMenuItem Href="mailto:it-support@siemens.com"
-                                     Icon="@Icons.Material.Filled.SupportAgent">Contact IT department</MudMenuItem>
+                                     Icon="@Icons.Material.Filled.SupportAgent">@Text["Contact IT department"]</MudMenuItem>
                         <MudDivider />
                         @* Full page load: the logout endpoint must clear the auth cookie itself. *@
                         <MudMenuItem Href="/api/auth/logout" ForceLoad="true"
                                      Icon="@Icons.Material.Filled.Logout" IconColor="Color.Error">
-                            <MudText Typo="Typo.body2" Color="Color.Error">Sign out</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Error">@Text["Sign out"]</MudText>
                         </MudMenuItem>
                     </ChildContent>
                 </MudMenu>
@@ -127,6 +141,8 @@
     private string _initials = "";
     private string _role = "";
     private string _department = "";
+    private string _email = "";
+    private string _culture = SupportedLanguages.DefaultCulture;
 
     // User info comes from the auth cookie's claims, never from the database:
     // the layout shares the page's scoped DbContext, and a second query in
@@ -142,8 +158,21 @@
         _name = user.FindFirst("FullName")?.Value ?? "";
         _role = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
         _department = user.FindFirst("Department")?.Value ?? "";
+        _email = user.Identity?.Name ?? "";
+        _culture = SupportedLanguages.Normalize(System.Globalization.CultureInfo.CurrentUICulture.Name);
         _initials = string.Concat(
             _name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
+    }
+
+    private async Task ChangeLanguageAsync(string culture)
+    {
+        culture = SupportedLanguages.Normalize(culture);
+        if (culture == _culture)
+            return;
+
+        await LanguagePreferences.SaveAsync(_email, culture);
+        _culture = culture;
+        await JSRuntime.InvokeVoidAsync("companyCulture.set", culture);
     }
 
     public void Dispose() => ThemeState.OnChange -= StateHasChanged;
