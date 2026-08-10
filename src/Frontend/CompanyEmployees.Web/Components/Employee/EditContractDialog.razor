@@ -1,107 +1,116 @@
 @using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Domain.Enums
 @using System.Globalization
+@implements IDialogContentComponent<EditContractDialog.Model>
 
-<MudDialog>
-    <DialogContent>
-        <MudText Typo="Typo.body1" Class="mb-3">
-            Manage contract details for <strong>@UserName</strong>
-        </MudText>
+<FluentDialogBody>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+        <FluentLabel Typo="Typography.Body">
+            Manage contract details for <strong>@Content.UserName</strong>
+        </FluentLabel>
 
-        <MudSelect T="ContractType" Label="Contract Type" @bind-Value="_type"
-                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
-            <MudSelectItem Value="ContractType.Determinate">Determinate</MudSelectItem>
-            <MudSelectItem Value="ContractType.Indeterminate">Indeterminate</MudSelectItem>
-        </MudSelect>
+        <FluentSelect TOption="ContractType"
+                      Label="Contract type"
+                      Items="@ContractTypes"
+                      OptionValue="@(t => t.ToString())"
+                      OptionText="@(t => t.ToString())"
+                      SelectedOption="@Content.Type"
+                      SelectedOptionChanged="@(t => Content.Type = t)"
+                      Style="width:100%;" />
 
-        <MudSelect T="ContractStatus" Label="Contract Status" @bind-Value="_status"
-                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
-            <MudSelectItem Value="ContractStatus.Active">Active</MudSelectItem>
-            <MudSelectItem Value="ContractStatus.Terminated">Terminated</MudSelectItem>
-            <MudSelectItem Value="ContractStatus.Expired">Expired</MudSelectItem>
-        </MudSelect>
+        <FluentSelect TOption="ContractStatus"
+                      Label="Contract status"
+                      Items="@ContractStatuses"
+                      OptionValue="@(s => s.ToString())"
+                      OptionText="@(s => s.ToString())"
+                      SelectedOption="@Content.Status"
+                      SelectedOptionChanged="@(s => Content.Status = s)"
+                      Style="width:100%;" />
 
-        <div class="d-flex gap-3 mb-3">
-            <MudDatePicker Label="Start Date"
-                           @bind-Date="_startDate"
-                           Variant="Variant.Outlined"
-                           Margin="Margin.Dense"
-                           Class="flex-grow-1" />
-            @if (_type == ContractType.Determinate)
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12">
+            <FluentDatePicker Label="Start date" @bind-Value="Content.StartDate" Style="width:100%;" />
+            @if (Content.Type == ContractType.Determinate)
             {
-                <MudDatePicker Label="End Date"
-                               @bind-Date="_endDate"
-                               Variant="Variant.Outlined"
-                               Margin="Margin.Dense"
-                               Class="flex-grow-1" />
+                <FluentDatePicker Label="End date" @bind-Value="Content.EndDate" Style="width:100%;" />
             }
-        </div>
+        </FluentStack>
 
-        <MudTextField T="string"
-                      Label="Notes / Details"
-                      @bind-Value="_notes"
-                      Variant="Variant.Outlined"
-                      Lines="2"
-                      Margin="Margin.Dense"
-                      Placeholder="Contract reference, remarks..." />
+        <FluentTextArea @bind-Value="Content.Notes"
+                        Label="Notes / details"
+                        Placeholder="Contract reference, remarks..."
+                        Rows="2"
+                        Style="width:100%;" />
 
-        @if (!string.IsNullOrEmpty(_errorMessage))
+        @if (!string.IsNullOrEmpty(Content.ErrorMessage))
         {
-            <MudText Color="Color.Error" Typo="Typo.caption" Class="mt-2">@_errorMessage</MudText>
+            <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">
+                @Content.ErrorMessage
+            </FluentMessageBar>
         }
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">
-            Save Contract
-        </MudButton>
-    </DialogActions>
-</MudDialog>
+    </FluentStack>
+</FluentDialogBody>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter]
+    public Model Content { get; set; } = default!;
 
-    [Parameter] public string UserName { get; set; } = "";
-    [Parameter] public Contract? ExistingContract { get; set; }
+    // Fluent runs the primary action's validation outside this component's event loop, so a
+    // message written onto Content during it would never reach the screen without this.
+    protected override void OnInitialized() => Content.Refresh = () => InvokeAsync(StateHasChanged);
 
-    private ContractType _type = ContractType.Indeterminate;
-    private ContractStatus _status = ContractStatus.Active;
-    private DateTime? _startDate = DateTime.Today;
-    private DateTime? _endDate = DateTime.Today.AddYears(1);
-    private string _notes = "";
-    private string _errorMessage = "";
+    private static readonly ContractType[] ContractTypes = Enum.GetValues<ContractType>();
+    private static readonly ContractStatus[] ContractStatuses = Enum.GetValues<ContractStatus>();
 
-    public record ContractEditResult(ContractType Type, ContractStatus Status, DateOnly StartDate, DateOnly? EndDate, string? Notes);
-
-    protected override void OnInitialized()
+    public class Model : DialogContentModel
     {
-        if (ExistingContract != null)
+        public string UserName { get; set; } = "";
+        public Contract? ExistingContract { get; set; }
+
+        public ContractType Type { get; set; } = ContractType.Indeterminate;
+        public ContractStatus Status { get; set; } = ContractStatus.Active;
+        public DateTime? StartDate { get; set; } = DateTime.Today;
+        public DateTime? EndDate { get; set; } = DateTime.Today.AddYears(1);
+        public string Notes { get; set; } = "";
+        public string ErrorMessage { get; set; } = "";
+
+        public void Initialise()
         {
-            _type = ExistingContract.Type;
-            _status = ExistingContract.Status;
-            _startDate = ExistingContract.StartDate.ToDateTime(TimeOnly.MinValue);
-            _endDate = ExistingContract.EndDate?.ToDateTime(TimeOnly.MinValue);
-            _notes = ExistingContract.Notes ?? "";
+            if (ExistingContract is null)
+                return;
+
+            Type = ExistingContract.Type;
+            Status = ExistingContract.Status;
+            StartDate = ExistingContract.StartDate.ToDateTime(TimeOnly.MinValue);
+            EndDate = ExistingContract.EndDate?.ToDateTime(TimeOnly.MinValue);
+            Notes = ExistingContract.Notes ?? "";
+        }
+
+        // Returns null and fills ErrorMessage when the entry is not usable.
+        public ContractEditResult? TryBuildResult()
+        {
+            if (!StartDate.HasValue)
+            {
+                ErrorMessage = "Start date is required.";
+                NotifyChanged();
+                return null;
+            }
+
+            if (Type == ContractType.Determinate && (!EndDate.HasValue || EndDate < StartDate))
+            {
+                ErrorMessage = "Determinate contracts require an end date that is after the start date.";
+                NotifyChanged();
+                return null;
+            }
+
+            var end = Type == ContractType.Determinate && EndDate.HasValue
+                ? DateOnly.FromDateTime(EndDate.Value)
+                : (DateOnly?)null;
+
+            return new ContractEditResult(Type, Status, DateOnly.FromDateTime(StartDate.Value), end,
+                string.IsNullOrWhiteSpace(Notes) ? null : Notes);
         }
     }
 
-    private void Submit()
-    {
-        if (!_startDate.HasValue)
-        {
-            _errorMessage = "Start date is required.";
-            return;
-        }
-
-        if (_type == ContractType.Determinate && (!_endDate.HasValue || _endDate < _startDate))
-        {
-            _errorMessage = "Determinate contracts require an end date that is after the start date.";
-            return;
-        }
-
-        var start = DateOnly.FromDateTime(_startDate.Value);
-        var end = _type == ContractType.Determinate && _endDate.HasValue ? DateOnly.FromDateTime(_endDate.Value) : (DateOnly?)null;
-
-        MudDialog.Close(DialogResult.Ok(new ContractEditResult(_type, _status, start, end, string.IsNullOrWhiteSpace(_notes) ? null : _notes)));
-    }
+    public record ContractEditResult(
+        ContractType Type, ContractStatus Status, DateOnly StartDate, DateOnly? EndDate, string? Notes);
 }

@@ -8,76 +8,99 @@
 @inject IServiceScopeFactory ScopeFactory
 @inject AuthenticationStateProvider AuthState
 @inject INotificationDispatcher Dispatcher
+@inject IMessageService Messages
+@inject IDialogService DialogService
 @inject NavigationManager Nav
 @inject ILogger<NotificationBell> Logger
 @implements IDisposable
 
-<MudMenu ActivationEvent="MouseEvent.LeftClick"
-         AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
-    @* Custom activator content gets no click handler from MudMenu —
-       it has to toggle the menu through the MenuContext itself. *@
-    <ActivatorContent Context="menu">
-        <MudBadge Content="@_unreadCount" Color="Color.Error" Overlap="true"
-                  Visible="@(_unreadCount > 0)">
-            <MudIconButton Icon="@Icons.Material.Filled.Notifications"
-                           Color="Color.Inherit" OnClick="@menu.ToggleAsync" />
-        </MudBadge>
-    </ActivatorContent>
-    <ChildContent>
-        <div style="width:360px;">
-            <div class="px-4 py-2 d-flex align-center justify-space-between gap-3"
-                 @onclick:stopPropagation="true">
-                <MudText Typo="Typo.subtitle2">Notifications</MudText>
-                @if (_unreadCount > 0)
-                {
-                    <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary"
-                               OnClick="MarkAllAsReadAsync">Mark all as read</MudButton>
-                }
-            </div>
-            <MudDivider />
+@* Same trap as the bell below, one step ahead of it: an accent badge on the accent-blue app bar
+   is blue on blue. Fill is the neutral surface colour in either theme, with the accent as the
+   number on it. *@
+<FluentCounterBadge Count="@_unreadCount" Max="99"
+                    BackgroundColor="Color.Fill" Color="Color.Accent"
+                    ShowWhen="@(count => count > 0)">
+    @* White, stated: the bell sits on the accent-blue app bar, and an icon left to its default
+       takes the accent colour — blue on blue. It only ever showed because a stealth button used
+       to paint a pale box behind it, which is not a colour choice, it is an accident. Everything
+       else in this bar names #FFFFFF the same way. *@
+    <FluentButton Id="notification-bell" Appearance="Appearance.Stealth"
+                  IconStart="@(new Icons.Regular.Size20.Alert().WithColor("#FFFFFF"))"
+                  OnClick="@(() => _open = !_open)" Title="Notifications" />
+</FluentCounterBadge>
 
-            @if (_notifications.Count == 0)
+<FluentPopover AnchorId="notification-bell" @bind-Open="_open"
+               FixedPlacement="true" VerticalThreshold="320" Style="width: 380px;">
+    <Header>
+        <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+                     HorizontalGap="8" Width="100%">
+            <FluentLabel Typo="Typography.Header">Notifications</FluentLabel>
+            <FluentSpacer />
+            @if (_unreadCount > 0)
             {
-                <div class="px-4 py-8 d-flex flex-column align-center gap-2">
-                    <MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" Size="Size.Large"
-                             Style="color:var(--mud-palette-text-disabled);" />
-                    <MudText Typo="Typo.body2" Align="Align.Center"
-                             Style="color:var(--mud-palette-text-secondary);">
-                        No notifications yet.
-                    </MudText>
-                </div>
+                <FluentButton Appearance="Appearance.Stealth" OnClick="MarkAllAsReadAsync">
+                    Mark all as read
+                </FluentButton>
             }
-            else
-            {
-                <div style="max-height:380px; overflow-y:auto;">
-                    @foreach (var notification in _notifications)
-                    {
-                        <MudMenuItem OnClick="@(() => OpenAsync(notification))">
-                            <NotificationRow Notification="@notification" RelativeTime="true" />
-                        </MudMenuItem>
-                    }
-                </div>
-
-                @* The history page is deliberately absent from the drawer nav, so this is
-                   the only way in. *@
-                <MudDivider />
-                <MudMenuItem Href="/employee/notifications">
-                    <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Primary">
-                        See all notifications
-                    </MudText>
-                </MudMenuItem>
-            }
-        </div>
-    </ChildContent>
-</MudMenu>
+        </FluentStack>
+    </Header>
+    <Body>
+        @if (HasNotifications)
+        {
+            @* Fluent's own notification centre. It draws the card, the relative time and the
+               dismiss control; this component only keeps its list in step with the database. *@
+            <FluentMessageBarProvider Section="@MessageSections.NotificationCenter"
+                                      Type="MessageType.Notification"
+                                      MaxMessageCount="0"
+                                      NewestOnTop="true"
+                                      ClearAfterNavigation="false"
+                                      Class="notification-center" />
+        }
+        else
+        {
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="8"
+                         HorizontalAlignment="HorizontalAlignment.Center">
+                <FluentIcon Value="@(new Icons.Regular.Size24.CheckmarkCircle())"
+                            Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" />
+                <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                             CustomColor="var(--neutral-foreground-hint)">
+                    You are all caught up.
+                </FluentLabel>
+            </FluentStack>
+        }
+    </Body>
+    <Footer>
+        @* A panel rather than a page: the full list opens over whatever you were doing and
+           scrolls, and closing it leaves you where you were. It is also the only way to reach
+           notifications already read, since the centre above holds unread ones only. *@
+        <FluentButton Appearance="Appearance.Lightweight" OnClick="OpenAllAsync">
+            See all notifications
+        </FluentButton>
+    </Footer>
+</FluentPopover>
 
 @code {
+    // The centre is an unread inbox: dismissing a card is what marks it read, so anything
+    // already read lives on the history page rather than here.
     private const int VisibleCount = 8;
 
+    // NotificationContext has no unread-only query and adding one would change the
+    // Application layer for a presentation detail, so a window of recent rows is filtered
+    // here instead. The badge still counts every unread row in the database.
+    private const int RecentWindow = 50;
+
     private Guid _currentUserId;
-    private List<Notification> _notifications = new();
     private int _unreadCount;
+    private bool _open;
     private IDisposable? _subscription;
+
+    // Ids currently in the centre, so a reload landing on top of a live insert can't show the
+    // same notification twice.
+    private readonly HashSet<Guid> _shown = new();
+
+    // Asked of the service rather than of _shown: dismissing a card removes it from the
+    // service straight away, and this component only hears about it on the reload that follows.
+    private bool HasNotifications => Messages.Count(MessageSections.NotificationCenter) > 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -100,17 +123,9 @@
         InvokeAsync(async () =>
         {
             if (change.Created is null)
-            {
                 await ReloadAsync();
-            }
             else
-            {
-                _notifications.Insert(0, change.Created);
-                if (_notifications.Count > VisibleCount)
-                    _notifications.RemoveAt(_notifications.Count - 1);
-
-                _unreadCount++;
-            }
+                Show(change.Created, countAsUnread: true);
 
             StateHasChanged();
         });
@@ -124,29 +139,112 @@
             await using var scope = ScopeFactory.CreateAsyncScope();
             var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
 
-            _notifications = await context.GetRecentAsync(_currentUserId, VisibleCount);
+            var recent = await context.GetRecentAsync(_currentUserId, RecentWindow);
             _unreadCount = await context.GetUnreadCountAsync(_currentUserId);
+
+            ResetCenter();
+
+            // Oldest first: the provider shows a section newest-on-top, which is the reverse
+            // of the order the messages were added in.
+            foreach (var notification in recent.Where(n => !n.IsRead).Take(VisibleCount).Reverse())
+                Show(notification, countAsUnread: false);
         }
         catch (Exception ex)
         {
             // This lives in the layout, so an escaping exception replaces every page under
             // it with the error screen. An empty bell is the better failure mode.
             Logger.LogWarning(ex, "Could not load notifications for user {UserId}.", _currentUserId);
-            _notifications = new List<Notification>();
+            ResetCenter();
             _unreadCount = 0;
         }
     }
 
-    // Clicking a notification is the only thing that marks it read — MudMenu owns closing,
-    // so a stray click outside can no longer clear the list.
+    // Clear() detaches the messages without raising their OnClose; Remove() would, and would
+    // mark every card read on the way past.
+    private void ResetCenter()
+    {
+        Messages.Clear(MessageSections.NotificationCenter);
+        _shown.Clear();
+    }
+
+    private void Show(Notification notification, bool countAsUnread)
+    {
+        if (!_shown.Add(notification.Id))
+            return;
+
+        if (countAsUnread)
+            _unreadCount++;
+
+        Messages.ShowMessageBar(options =>
+        {
+            options.Section = MessageSections.NotificationCenter;
+            options.Intent = MessageIntent.Info;
+            options.Title = TitleFor(notification);
+            options.Body = notification.Message;
+
+            // Rendered as "5 minutes ago" against DateTime.Now, so it has to be local time;
+            // the column is UTC.
+            options.Timestamp = notification.CreatedAt.ToLocalTime();
+
+            // Opening one navigates, and the centre has to survive that.
+            options.ClearAfterNavigation = false;
+
+            // Dismissing the card is the acknowledgement.
+            options.OnClose = _ => MarkAsReadAsync(notification);
+
+            if (!string.IsNullOrWhiteSpace(notification.ActionUrl))
+            {
+                options.PrimaryAction = new ActionButton<Message>
+                {
+                    Text = "View",
+                    OnClick = _ => OpenAsync(notification)
+                };
+            }
+        });
+    }
+
+    // The card has no title of its own to show, and the heading line is single-line: the
+    // destination is the one short, reliable label the stored row carries.
+    private static string TitleFor(Notification notification)
+    {
+        var actionUrl = notification.ActionUrl ?? string.Empty;
+
+        if (actionUrl.StartsWith("/employee/my-requests", StringComparison.Ordinal))
+            return "Leave request";
+        if (actionUrl.StartsWith("/employee/profile", StringComparison.Ordinal))
+            return "Contract";
+        if (actionUrl.StartsWith("/manager", StringComparison.Ordinal))
+            return "Delegation";
+
+        return "Notification";
+    }
+
     private async Task OpenAsync(Notification notification)
     {
-        if (!notification.IsRead)
-            await RunAsync(context => context.MarkAsReadAsync(_currentUserId, notification.Id));
-
-        if (!string.IsNullOrWhiteSpace(notification.ActionUrl))
-            Nav.NavigateTo(notification.ActionUrl);
+        _open = false;
+        await MarkAsReadAsync(notification);
+        Nav.NavigateTo(notification.ActionUrl!);
     }
+
+    private async Task OpenAllAsync()
+    {
+        _open = false;
+
+        await DialogService.ShowPanelAsync<NotificationsPanel>(
+            new NotificationsPanel.Model { UserId = _currentUserId },
+            new DialogParameters
+            {
+                Title = "Notifications",
+                Alignment = HorizontalAlignment.Right,
+                Width = "440px",
+                PrimaryAction = null,
+                SecondaryAction = null,
+                ShowDismiss = true
+            });
+    }
+
+    private Task MarkAsReadAsync(Notification notification) =>
+        RunAsync(context => context.MarkAsReadAsync(_currentUserId, notification.Id));
 
     private Task MarkAllAsReadAsync() =>
         RunAsync(context => context.MarkAllAsReadAsync(_currentUserId));
@@ -167,5 +265,12 @@
         }
     }
 
-    public void Dispose() => _subscription?.Dispose();
+    public void Dispose()
+    {
+        _subscription?.Dispose();
+
+        // The service outlives this component within the circuit; leaving the section filled
+        // would double the list if the layout is rebuilt.
+        Messages.Clear(MessageSections.NotificationCenter);
+    }
 }

@@ -12,57 +12,61 @@
 
 <PageTitle>Notifications · Time Off Management</PageTitle>
 
-<div class="d-flex align-center justify-space-between mb-4">
-    <MudText Typo="Typo.h5" Style="font-weight:600;">Notifications</MudText>
+<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+             HorizontalGap="12" Wrap="true" Width="100%">
+    <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">Notifications</FluentLabel>
+    <FluentSpacer />
     @if (_unreadCount > 0)
     {
-        <MudButton Variant="Variant.Text" Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.DoneAll"
-                   OnClick="MarkAllAsReadAsync">Mark all as read</MudButton>
+        <FluentButton Appearance="Appearance.Lightweight"
+                      IconStart="@(new Icons.Regular.Size20.CheckmarkCircle())"
+                      OnClick="MarkAllAsReadAsync">Mark all as read</FluentButton>
     }
-</div>
+</FluentStack>
 
 @if (_loading)
 {
-    <MudProgressCircular Indeterminate="true" />
+    <FluentProgressRing />
 }
 else if (_failed)
 {
-    <MudAlert Severity="Severity.Error">
+    <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">
         Your notifications could not be loaded. Please refresh the page.
-    </MudAlert>
+    </FluentMessageBar>
 }
 else if (_total == 0)
 {
-    <MudPaper Class="pa-8 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
-        <MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" Size="Size.Large"
-                 Style="color:var(--mud-palette-text-disabled);" />
-        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-            You have no notifications yet.
-        </MudText>
-    </MudPaper>
+    <FluentCard Style="margin-top:16px;">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="8"
+                     HorizontalAlignment="HorizontalAlignment.Center">
+            <FluentIcon Value="@(new Icons.Regular.Size24.Alert())" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" />
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                You have no notifications yet.
+            </FluentLabel>
+        </FluentStack>
+    </FluentCard>
 }
 else
 {
-    <MudPaper Elevation="1">
-        <MudList T="Notification">
+    <FluentCard Style="margin-top:16px;">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
             @foreach (var notification in _notifications)
             {
-                <MudListItem T="Notification" OnClick="@(() => OpenAsync(notification))">
+                <FluentButton Appearance="Appearance.Stealth" Style="width:100%; text-align:left;"
+                              OnClick="@(() => OpenAsync(notification))">
                     <NotificationRow Notification="@notification" ShowNavigationHint="true" />
-                </MudListItem>
-                <MudDivider />
+                </FluentButton>
+                <FluentDivider Role="DividerRole.Presentation" />
             }
-        </MudList>
-    </MudPaper>
+        </FluentStack>
+    </FluentCard>
 
     @if (PageCount > 1)
     {
-        <div class="d-flex justify-center mt-4">
-            <MudPagination Count="@PageCount" Selected="@_page"
-                           SelectedChanged="OnPageChangedAsync"
-                           Color="Color.Primary" ShowFirstButton="true" ShowLastButton="true" />
-        </div>
+        <FluentStack Orientation="Orientation.Horizontal"
+                     HorizontalAlignment="HorizontalAlignment.Center" Width="100%">
+            <FluentPaginator State="@_pagination" />
+        </FluentStack>
     }
 }
 
@@ -80,12 +84,18 @@ else
     private bool _loading = true;
     private bool _failed;
 
+    // FluentPaginator drives itself from this state object and raises the change event when
+    // the user moves; the page index it exposes is zero-based.
+    private readonly PaginationState _pagination = new() { ItemsPerPage = PageSize };
+
     private int PageCount => (_total + PageSize - 1) / PageSize;
 
     protected override async Task OnInitializedAsync()
     {
         if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
             return;
+
+        _pagination.TotalItemCountChanged += (_, _) => StateHasChanged();
 
         var user = (await AuthStateTask!).User;
         if (!Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out _currentUserId))
@@ -108,6 +118,7 @@ else
         {
             _total = await Notifications.GetHistoryCountAsync(_currentUserId);
             _unreadCount = await Notifications.GetUnreadCountAsync(_currentUserId);
+            await _pagination.SetTotalItemCountAsync(_total);
         }
         catch (Exception ex)
         {
@@ -120,6 +131,7 @@ else
     {
         try
         {
+            _page = _pagination.CurrentPageIndex + 1;
             _notifications = await Notifications.GetHistoryPageAsync(
                 _currentUserId, (_page - 1) * PageSize, PageSize);
         }
@@ -130,11 +142,14 @@ else
         }
     }
 
-    // Only the slice is re-read: paging cannot change either count.
-    private Task OnPageChangedAsync(int page)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _page = page;
-        return LoadPageAsync();
+        // Only the slice is re-read: paging cannot change either count.
+        if (!firstRender && _pagination.CurrentPageIndex + 1 != _page)
+        {
+            await LoadPageAsync();
+            StateHasChanged();
+        }
     }
 
     private async Task OpenAsync(Notification notification)

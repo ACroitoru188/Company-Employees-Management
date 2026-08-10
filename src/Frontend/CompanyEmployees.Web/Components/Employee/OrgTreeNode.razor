@@ -1,0 +1,41 @@
+@* One node of the organization tree. It renders itself for each subordinate, which is how
+   the whole hierarchy is drawn without any layout maths of its own — FluentTreeView handles
+   indentation and the expand chevrons.
+
+   Selection rides on SelectedChanged, not @onclick: a click event bubbles through every
+   ancestor tree item, so the outermost (HQ) would always win and wipe the selection.
+   SelectedChanged fires only on the item whose state actually flipped. Expanded is bound
+   both ways so search / Focus Me can open the path to a node after first render. *@
+@using CompanyEmployees.Application
+
+<FluentTreeItem Expanded="@Node.IsExpanded"
+                ExpandedChanged="@(expanded => Node.IsExpanded = expanded)"
+                Selected="@(Node.UserId == SelectedId && Node.UserId != Guid.Empty)"
+                SelectedChanged="@(selected => selected ? OnSelect.InvokeAsync(Node) : Task.CompletedTask)">
+    <FluentPersona Name="@Node.Name" Initials="@Node.Initials" ImageSize="28px"
+                   TextPosition="TextPosition.End">
+        @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
+           rendered here explicitly above the secondary line. *@
+        <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@Node.Name</FluentLabel>
+        <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                     CustomColor="var(--neutral-foreground-hint)">
+            @Node.Role@(string.IsNullOrEmpty(Node.Department) ? "" : $" · {Node.Department}")
+        </FluentLabel>
+    </FluentPersona>
+
+    @foreach (var child in Node.Subordinates)
+    {
+        <OrgTreeNode Node="@child" SelectedId="@SelectedId" OnSelect="@OnSelect" />
+    }
+</FluentTreeItem>
+
+@code {
+    [Parameter, EditorRequired]
+    public OrgChartNode Node { get; set; } = default!;
+
+    [Parameter]
+    public Guid SelectedId { get; set; }
+
+    [Parameter]
+    public EventCallback<OrgChartNode> OnSelect { get; set; }
+}

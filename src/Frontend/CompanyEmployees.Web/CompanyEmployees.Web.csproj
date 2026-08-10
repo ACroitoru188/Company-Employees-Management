@@ -16,7 +16,8 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11" />
     <Folder Include="Assets\" />
-    <PackageReference Include="MudBlazor" Version="9.7.0" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.14.4" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.14.4" />
   </ItemGroup>
 
   <Target Name="KillZombieProcesses" BeforeTargets="PreBuildEvent" Condition="'$(OS)' == 'Windows_NT'">

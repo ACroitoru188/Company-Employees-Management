@@ -10,57 +10,63 @@
 
 <LeaveBalanceSummary UserName="@_userName" Balances="@_balances">
     <Actions>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="@(() => Nav.NavigateTo("/employee/calendar"))">
+        <FluentButton Appearance="Appearance.Accent"
+                      IconStart="@(new Icons.Regular.Size20.Add())"
+                      OnClick="@(() => Nav.NavigateTo("/employee/calendar"))">
             Request time off
-        </MudButton>
+        </FluentButton>
     </Actions>
 </LeaveBalanceSummary>
 
-<MudCard Elevation="1" Class="mt-6">
-    <MudCardContent>
-        <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Team time off</MudText>
+<FluentCard Style="margin-top:24px;">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+        <FluentLabel Typo="Typography.Header" Weight="FontWeight.Bold">Team time off</FluentLabel>
+
         @if (_teamTimeOff.Count == 0)
         {
-            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
                 No upcoming time off in your team.
-            </MudText>
+            </FluentLabel>
         }
         else
         {
             @foreach (var entry in _teamTimeOff)
             {
-                <div class="d-flex align-center gap-3 py-3"
-                     style="border-bottom:1px solid var(--mud-palette-lines-default);">
-                    <MudAvatar Size="Size.Small"
-                               Style="@($"background:{LeaveTypePalette.Hex(entry.Type)}; color:white; font-size:.7rem;")">
-                        @entry.Initials
-                    </MudAvatar>
-                    <div class="flex-grow-1">
-                        <MudText Typo="Typo.body2" Style="font-weight:500;">@entry.MemberName</MudText>
-                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                            @entry.Department
-                        </MudText>
-                    </div>
-                    <MudChip T="string" Size="Size.Small"
-                             Style="@($"background:{LeaveTypePalette.Hex(entry.Type)}; color:white;")">
+                <FluentDivider Role="DividerRole.Presentation" />
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+                             VerticalAlignment="VerticalAlignment.Center" Width="100%">
+                    <FluentPersona Name="@entry.MemberName" Initials="@entry.Initials"
+                                   ImageSize="36px" TextPosition="TextPosition.End">
+                        @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
+                           rendered here explicitly above the secondary line. *@
+                        <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@entry.MemberName</FluentLabel>
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">@entry.Department</FluentLabel>
+                    </FluentPersona>
+
+                    <FluentSpacer />
+
+                    @* Per-category colour, which Fluent's single-accent palette has no slot for. *@
+                    <FluentBadge Fill="highlight"
+                                 BackgroundColor="@LeaveTypePalette.Hex(entry.Type)"
+                                 Color="white">
                         @LeaveTypePalette.Label(entry.Type)
-                    </MudChip>
-                    <div style="text-align:right; min-width:150px;">
-                        <MudText Typo="Typo.body2">
+                    </FluentBadge>
+
+                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="0"
+                                 HorizontalAlignment="HorizontalAlignment.End" Width="160px">
+                        <FluentLabel Typo="Typography.Body">
                             @entry.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
                             @entry.EndDate.ToString("MMM d", CultureInfo.InvariantCulture)
-                        </MudText>
-                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                        </FluentLabel>
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
                             @entry.Days @(entry.Days == 1 ? "day" : "days")@(IsOngoing(entry) ? " · away now" : "")
-                        </MudText>
-                    </div>
-                </div>
+                        </FluentLabel>
+                    </FluentStack>
+                </FluentStack>
             }
         }
-    </MudCardContent>
-</MudCard>
+    </FluentStack>
+</FluentCard>
 
 @code {
     [CascadingParameter]

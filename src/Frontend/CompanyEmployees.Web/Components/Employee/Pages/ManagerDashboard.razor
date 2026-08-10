@@ -11,346 +11,344 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Components.Pages
+@using DomainInvalidOperationException = CompanyEmployees.Domain.Exceptions.InvalidOperationException
 @inject EmployeeContext Employees
 @inject ManagerContext Manager
 @inject NavigationManager Nav
-@inject ISnackbar Snackbar
+@inject IToastService Toast
 @inject IDialogService DialogService
 @inject ActingContext Acting
 
-<PageTitle>Department · Time Off & Contracts</PageTitle>
+<PageTitle>Department · Time Off &amp; Contracts</PageTitle>
 
 @if (!_authorized || _data is null)
 {
-    <MudProgressCircular Indeterminate="true" />
+    <FluentProgressRing />
 }
 else
 {
     @if (_data.ActiveDelegationsReceived.Count > 0)
     {
-        <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Elevation="1" Class="mb-4">
-            <div class="d-flex align-center justify-space-between flex-wrap gap-2">
-                <div>
+        <FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false">
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                         VerticalAlignment="VerticalAlignment.Center" Width="100%">
+                <FluentLabel Typo="Typography.Body">
                     <strong>Delegated Manager Notice:</strong> You are currently acting as an active delegate for:
                     @string.Join(", ", _data.ActiveDelegationsReceived.Select(d => $"{d.Manager?.Name ?? "Manager"} (until {d.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)})"))
-                </div>
-                <MudChip T="string" Size="Size.Small" Color="Color.Surface">Delegation Active</MudChip>
-            </div>
-        </MudAlert>
+                </FluentLabel>
+                <FluentSpacer />
+                <FluentBadge Appearance="Appearance.Neutral">Delegation Active</FluentBadge>
+            </FluentStack>
+        </FluentMessageBar>
     }
 
-    <div class="d-flex align-center justify-space-between flex-wrap gap-3 mb-4">
-        <div>
-            <MudText Typo="Typo.h5" Style="font-weight:600;">Department</MudText>
-            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+    @* Wrap so the action drops under the title on a narrow window instead of being pushed
+       off the right edge — a spacer will happily shove its siblings out of view. *@
+    <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+                 HorizontalGap="12" Wrap="true" Width="100%" Style="margin:16px 0;">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+            <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">Department</FluentLabel>
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
                 @_data.TeamSize direct @(_data.TeamSize == 1 ? "report" : "reports")
-            </MudText>
-        </div>
-        <div class="d-flex gap-2">
-            @* The only way into the history page — deliberately not in the drawer nav. *@
-            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.History"
-                       Href="/manager/delegation-history">
-                Delegation History
-            </MudButton>
-            @if (_onBehalf is null)
-            {
-                @* Hidden while borrowing: CreateDelegationAsync refuses it anyway, and
-                   finding that out after filling the dialog is worse than not offering it. *@
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.SwapHoriz"
-                           OnClick="OpenCreateDelegationDialog">
-                    Delegate Responsibilities
-                </MudButton>
-            }
-        </div>
-    </div>
+            </FluentLabel>
+        </FluentStack>
+        <FluentSpacer />
+        @* Delegation History is reached from the drawer nav; repeating it here only crowded
+           the header. Delegating is the action that belongs on this page. *@
+        @if (_onBehalf is null)
+        {
+            @* Hidden while borrowing: CreateDelegationAsync refuses it anyway, and
+               finding that out after filling the dialog is worse than not offering it. *@
+            <FluentButton Appearance="Appearance.Outline"
+                          IconStart="@(new Icons.Regular.Size20.ArrowSwap())"
+                          OnClick="OpenCreateDelegationDialog">
+                Delegate Responsibilities
+            </FluentButton>
+        }
+    </FluentStack>
 
-    <MudGrid Spacing="3" Class="mb-6">
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="1">
-                <MudCardContent>
-                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
-                        TEAM SIZE
-                    </MudText>
-                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.TeamSize</MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="1">
-                <MudCardContent>
-                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
-                        PENDING
-                    </MudText>
-                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.PendingRequests</MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="1">
-                <MudCardContent>
-                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
-                        ON LEAVE TODAY
-                    </MudText>
-                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.OnLeaveToday</MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="1">
-                <MudCardContent>
-                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
-                        WAITING &gt; 7 DAYS
-                    </MudText>
-                    <MudText Typo="Typo.h4" Style="font-weight:700;">@_data.StaleRequests</MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-    </MudGrid>
+    <FluentGrid Spacing="3" Style="margin-bottom:24px;">
+        <FluentGridItem xs="12" sm="6" md="3">
+            <FluentCard Style="padding:16px;">
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-overline">TEAM SIZE</FluentLabel>
+                    <FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@_data.TeamSize</FluentLabel>
+                </FluentStack>
+            </FluentCard>
+        </FluentGridItem>
+        <FluentGridItem xs="12" sm="6" md="3">
+            <FluentCard Style="padding:16px;">
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-overline">PENDING</FluentLabel>
+                    <FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@_data.PendingRequests</FluentLabel>
+                </FluentStack>
+            </FluentCard>
+        </FluentGridItem>
+        <FluentGridItem xs="12" sm="6" md="3">
+            <FluentCard Style="padding:16px;">
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-overline">ON LEAVE TODAY</FluentLabel>
+                    <FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@_data.OnLeaveToday</FluentLabel>
+                </FluentStack>
+            </FluentCard>
+        </FluentGridItem>
+        <FluentGridItem xs="12" sm="6" md="3">
+            <FluentCard Style="padding:16px;">
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-overline">WAITING &gt; 7 DAYS</FluentLabel>
+                    <FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@_data.StaleRequests</FluentLabel>
+                </FluentStack>
+            </FluentCard>
+        </FluentGridItem>
+    </FluentGrid>
 
     @if (_data.ActiveDelegationsGiven.Count > 0)
     {
-        <MudCard Elevation="1" Class="mb-6">
-            <MudCardHeader>
-                <CardHeaderContent>
-                    <MudText Typo="Typo.subtitle1" Style="font-weight:600;">Active Outgoing Delegations</MudText>
-                </CardHeaderContent>
-            </MudCardHeader>
-            <MudCardContent Class="pt-0">
-                <MudTable T="ManagerDelegation" Items="@_data.ActiveDelegationsGiven" Hover="true" Elevation="0" Dense="true">
-                    <HeaderContent>
-                        <MudTh>Delegate</MudTh>
-                        <MudTh>Period</MudTh>
-                        <MudTh>Reason</MudTh>
-                        <MudTh></MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd DataLabel="Delegate">@(context.Delegate?.Name ?? "Colleague")</MudTd>
-                        <MudTd DataLabel="Period">
-                            @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) – @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-                        </MudTd>
-                        <MudTd DataLabel="Reason">@(string.IsNullOrWhiteSpace(context.Reason) ? "—" : context.Reason)</MudTd>
-                        <MudTd Style="text-align:right;">
-                            <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined"
-                                       OnClick="@(() => CancelDelegationAsync(context.Id))">
-                                Cancel Delegation
-                            </MudButton>
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
-            </MudCardContent>
-        </MudCard>
+        <FluentCard Style="margin-bottom:24px; padding:16px;">
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+                <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Active Outgoing Delegations</FluentLabel>
+
+                @* Equal columns would leave the action stranded in the middle of a 450px
+                   track; the last one is sized for the button instead. *@
+                <FluentDataGrid Items="@_data.ActiveDelegationsGiven.AsQueryable()" TGridItem="ManagerDelegation"
+                                GridTemplateColumns="1fr 1fr 2fr 180px" ShowHover="true">
+                    <TemplateColumn Title="Delegate">
+                        @(context.Delegate?.Name ?? "Colleague")
+                    </TemplateColumn>
+                    <TemplateColumn Title="Period">
+                        @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
+                        @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                    </TemplateColumn>
+                    <TemplateColumn Title="Reason">
+                        @(string.IsNullOrWhiteSpace(context.Reason) ? "—" : context.Reason)
+                    </TemplateColumn>
+                    <TemplateColumn Align="Align.End">
+                        <FluentButton Appearance="Appearance.Outline"
+                                      OnClick="@(() => CancelDelegationAsync(context.Id))">
+                            Cancel Delegation
+                        </FluentButton>
+                    </TemplateColumn>
+                </FluentDataGrid>
+            </FluentStack>
+        </FluentCard>
     }
 
-    <!-- Requests awaiting approval -->
-    <div class="requests-panel">
-        <div class="panel-header">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
-            Requests to approve
-        </div>
-        <div class="px-4 py-2 border-bottom">
-            <MudTextField @bind-value="RequestsSearchTerm"
-                          PlaceHolder="Search by name..."
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Search"
-                          IconSize="Size.Small"
-                          Margin="Margin.Dense"
-                          Variant="Variant.Outlined"
-                          Immediate="true"></MudTextField>
-        </div>
-        <div class="requests-list">
+    <FluentCard Style="margin-bottom:24px; padding:16px;">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                         VerticalAlignment="VerticalAlignment.Center">
+                <FluentIcon Value="@(new Icons.Regular.Size20.Clock())" Color="Color.Accent" />
+                <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Requests to approve</FluentLabel>
+            </FluentStack>
+
+            <FluentSearch @bind-Value="RequestsSearchTerm" @bind-Value:after="StateHasChanged"
+                          Placeholder="Search by name..." Style="width:100%;" />
+
             @if (!FilteredRequests.Any())
             {
-                <div class="request-row">
-                    <div class="req-info">
-                        <div class="req-desc">No requests are waiting for approval.</div>
-                    </div>
-                </div>
+                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                    No requests are waiting for approval.
+                </FluentLabel>
             }
-            @{
-                var requestList = FilteredRequests.ToList();
-            }
-            @for (int i = 0; i < requestList.Count; i++)
+            else
             {
-                var request = requestList[i];
-                var isLast = i == requestList.Count - 1;
-                <div class="request-item" style="border-bottom: @(isLast ? "none" : "1px solid var(--mud-palette-lines-default)");">
-                    <div class="request-row" style="cursor: pointer; border-bottom: none; padding-bottom: @(_selectedRequest == request ? "0.5rem" : "1rem");" @onclick="() => ToggleRequest(request)">
-                        <div class="req-info">
-                            <div class="req-name d-flex align-center gap-2">
-                                <span>@request.Name</span>
-                                @if (request.IsDelegated)
-                                {
-                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
-                                        Delegated from @request.DelegatedFromManagerName
-                                    </MudChip>
-                                }
-                            </div>
-                            <div class="req-desc">
-                                @request.Type &middot; @request.Days @(request.Days == 1 ? "day" : "days") &middot; @request.Department
-                                &middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)–@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-                            </div>
-                        </div>
-                        <div class="req-status status-pending">pending</div>
-                    </div>
-                    
-                    @if (_selectedRequest == request)
+                @* The accordion replaces the hand-rolled expand/collapse row; ActiveId keeps the
+                   panel opened by a ?search= deep link expanded, as ToggleRequest used to. *@
+                <FluentAccordion @bind-ActiveId="_activeRequestId">
+                    @foreach (var request in FilteredRequests)
                     {
-                        <div class="request-details-panel mt-2 mb-4 p-4 rounded" style="background-color: var(--mud-palette-background-grey); border: 1px solid var(--mud-palette-lines-default);">
-                            @{
-                                var nameParts = request.Name.Split(' ', 2);
-                                var firstName = nameParts.Length > 0 ? nameParts[0] : "";
-                                var lastName = nameParts.Length > 1 ? nameParts[1] : "";
-                                var role = request.Role == "LineManager" ? "Manager" : request.Role;
-                            }
+                        <FluentAccordionItem Id="@request.RequestId.ToString()">
+                            <HeadingTemplate>
+                                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+                                             VerticalAlignment="VerticalAlignment.Center" Width="100%">
+                                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+                                        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                                                     VerticalAlignment="VerticalAlignment.Center">
+                                            <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+                                                @request.Name
+                                            </FluentLabel>
+                                            @if (request.IsDelegated)
+                                            {
+                                                <FluentBadge Appearance="Appearance.Lightweight">
+                                                    Delegated from @request.DelegatedFromManagerName
+                                                </FluentBadge>
+                                            }
+                                        </FluentStack>
+                                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                                            @request.Type &middot; @request.Days @(request.Days == 1 ? "day" : "days")
+                                            &middot; @request.Department
+                                            &middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)–@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                                        </FluentLabel>
+                                    </FluentStack>
+                                    <FluentSpacer />
+                                    @* Amber, the colour this app gives a pending decision everywhere
+                                       else — accent blue read as "approved". *@
+                                    <FluentBadge Fill="highlight" BackgroundColor="var(--warning)" Color="white">pending</FluentBadge>
+                                </FluentStack>
+                            </HeadingTemplate>
 
-                            <div class="d-flex justify-space-between mb-4">
-                                <div>
-                                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Name</MudText>
-                                    <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-2">@firstName</MudText>
-                                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Surname</MudText>
-                                    <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-2">@lastName</MudText>
-                                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Department</MudText>
-                                    <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-2">@request.Department</MudText>
-                                    <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Role</MudText>
-                                    <MudText Typo="Typo.body1" Style="font-weight:500;">@role</MudText>
-                                </div>
-                                <div class="d-flex align-center justify-center rounded border border-solid border-dark" style="width: 120px; height: 150px; background-color: var(--mud-palette-background-grey); border-width: 2px;">
-                                    <MudIcon Icon="@Icons.Material.Filled.Person" Style="font-size: 5rem; color: var(--mud-palette-text-secondary);" />
-                                </div>
-                            </div>
+                            <ChildContent>
+                                @{
+                                    var nameParts = request.Name.Split(' ', 2);
+                                    var firstName = nameParts.Length > 0 ? nameParts[0] : "";
+                                    var lastName = nameParts.Length > 1 ? nameParts[1] : "";
+                                    var role = request.Role == "LineManager" ? "Manager" : request.Role;
+                                    var reason = string.IsNullOrWhiteSpace(request.Reason)
+                                        || request.Reason.Equals(request.Type, StringComparison.OrdinalIgnoreCase)
+                                        || request.Reason.Equals(request.Type + " leave", StringComparison.OrdinalIgnoreCase)
+                                            ? "No reason specified"
+                                            : request.Reason;
+                                }
 
-                            <MudDivider Class="my-4" />
+                                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="24" Width="100%">
+                                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+                                        <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+                                            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Name</FluentLabel>
+                                            <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@firstName</FluentLabel>
+                                        </FluentStack>
+                                        <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+                                            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Surname</FluentLabel>
+                                            <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@lastName</FluentLabel>
+                                        </FluentStack>
+                                        <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+                                            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Department</FluentLabel>
+                                            <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.Department</FluentLabel>
+                                        </FluentStack>
+                                        <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+                                            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Role</FluentLabel>
+                                            <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@role</FluentLabel>
+                                        </FluentStack>
+                                    </FluentStack>
+                                </FluentStack>
 
-                            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Leave type</MudText>
-                            <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-3">@request.Type</MudText>
+                                <FluentDivider Role="DividerRole.Presentation" Style="margin:16px 0;" />
 
-                            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Reason</MudText>
-                            <MudText Typo="Typo.body1" Class="mb-3">@(string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Equals(request.Type, StringComparison.OrdinalIgnoreCase) || request.Reason.Equals(request.Type + " leave", StringComparison.OrdinalIgnoreCase) ? "No reason specified" : request.Reason)</MudText>
+                                <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+                                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+                                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Leave type</FluentLabel>
+                                        <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.Type</FluentLabel>
+                                    </FluentStack>
+                                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+                                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Reason</FluentLabel>
+                                        <FluentLabel Typo="Typography.Body">@reason</FluentLabel>
+                                    </FluentStack>
+                                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+                                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Period</FluentLabel>
+                                        <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+                                            @request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy")
+                                            (@request.Days @(request.Days == 1 ? "day" : "days"))
+                                        </FluentLabel>
+                                    </FluentStack>
+                                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+                                        Submitted @request.SubmittedAt.ToString("dd.MM.yyyy - HH:mm")
+                                    </FluentLabel>
+                                </FluentStack>
 
-                            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Period</MudText>
-                            <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-3">
-                                @request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy") (@request.Days @(request.Days == 1 ? "day" : "days"))
-                            </MudText>
-
-                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">Submitted @request.SubmittedAt.ToString("dd.MM.yyyy - HH:mm")</MudText>
-                            
-                            <div class="d-flex justify-end mt-4">
-                                <MudButton Variant="Variant.Filled" OnClick="() => ToggleRequest(request)" Class="mr-2">CLOSE</MudButton>
-                                <MudButton Variant="Variant.Filled" OnClick="() => EditDates(request)" Class="mr-2">EDIT DATES</MudButton>
-                                <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="() => DecideAsync(request.RequestId, false)" Class="mr-2">REJECT</MudButton>
-                                <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="() => DecideAsync(request.RequestId, true)">APPROVE</MudButton>
-                            </div>
-                        </div>
+                                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                                             HorizontalAlignment="HorizontalAlignment.End" Width="100%"
+                                             Style="margin-top:16px;">
+                                    <FluentButton Appearance="Appearance.Neutral"
+                                                  OnClick="@(() => EditDates(request))">EDIT DATES</FluentButton>
+                                    <FluentButton Appearance="Appearance.Neutral"
+                                                  OnClick="@(() => DecideAsync(request.RequestId, false))">REJECT</FluentButton>
+                                    <FluentButton Appearance="Appearance.Accent"
+                                                  OnClick="@(() => DecideAsync(request.RequestId, true))">APPROVE</FluentButton>
+                                </FluentStack>
+                            </ChildContent>
+                        </FluentAccordionItem>
                     }
-                </div>
+                </FluentAccordion>
             }
-        </div>
-    </div>
+        </FluentStack>
+    </FluentCard>
 
-    <MudText Typo="Typo.h6" Style="font-weight:600;" Class="mb-3">Members & Contracts</MudText>
+    <FluentLabel Typo="Typography.Header" Weight="FontWeight.Bold" MarginBlock="0 12px">Members &amp; Contracts</FluentLabel>
 
     @if (_data.Team.Count == 0)
     {
-        <MudPaper Class="pa-4" Elevation="0" Outlined="true">
-            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-                Nobody reports to you yet.
-            </MudText>
-        </MudPaper>
+        <FluentCard Style="padding:16px;">
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Nobody reports to you yet.</FluentLabel>
+        </FluentCard>
     }
     else
     {
-        <MudDataGrid T="ManagerTeamMember" Items="@_data.Team" QuickFilter="@_quickFilter"
-                     Filterable="true" SortMode="SortMode.Multiple"
-                     FilterMode="DataGridFilterMode.ColumnFilterRow"
-                     Hover="true" Dense="true" Elevation="1">
-            <ToolBarContent>
-                <MudTextField @bind-Value="_quickSearch" Placeholder="Search members..."
-                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                              IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
-                              Immediate="true" />
-                <MudSpacer />
-            </ToolBarContent>
-            <Columns>
-                <PropertyColumn Property="@(m => m.Name)" Title="Name" />
-                <PropertyColumn Property="@(m => m.Role)" Title="Role" />
-                <PropertyColumn Property="@(m => m.Department)" Title="Department" />
-                <TemplateColumn T="ManagerTeamMember" Title="Contract Type" Sortable="true"
-                                SortBy="@(m => m.ContractType?.ToString() ?? "None")" Filterable="false">
-                    <CellTemplate>
-                        @if (context.Item.ContractType == null)
-                        {
-                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">None</MudChip>
-                        }
-                        else if (context.Item.ContractType == ContractType.Determinate)
-                        {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Determinate</MudChip>
-                        }
-                        else
-                        {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">Indeterminate</MudChip>
-                        }
-                    </CellTemplate>
-                </TemplateColumn>
-                <TemplateColumn T="ManagerTeamMember" Title="Contract Period & Status" Sortable="true"
-                                SortBy="@(m => m.ContractStatus?.ToString() ?? "")" Filterable="false">
-                    <CellTemplate>
-                        @if (context.Item.ContractId.HasValue)
-                        {
-                            <div class="d-flex flex-column">
-                                <div class="d-flex align-center gap-1">
-                                    <MudChip T="string" Size="Size.Small" Color="@GetContractStatusColor(context.Item.ContractStatus)" Variant="Variant.Text" Class="pa-0 ma-0">
-                                        @context.Item.ContractStatus
-                                    </MudChip>
-                                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                                        @(context.Item.ContractStartDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "—") – 
-                                        @(context.Item.ContractEndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
-                                    </MudText>
-                                </div>
-                            </div>
-                        }
-                        else
-                        {
-                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">—</MudText>
-                        }
-                    </CellTemplate>
-                </TemplateColumn>
-                <TemplateColumn T="ManagerTeamMember" Title="Leave Status" Sortable="true"
-                                SortBy="@(m => m.OnLeaveToday)" Filterable="false">
-                    <CellTemplate>
-                        <MudChip T="string" Size="Size.Small"
-                                 Color="@(context.Item.OnLeaveToday ? Color.Warning : Color.Default)">
-                            @(context.Item.OnLeaveToday ? "On leave" : "Available")
-                        </MudChip>
-                    </CellTemplate>
-                </TemplateColumn>
-                <TemplateColumn T="ManagerTeamMember" Title="Contract Actions" Filterable="false" Sortable="false">
-                    <CellTemplate>
-                        <div class="d-flex align-center gap-1">
-                            @if (context.Item.ContractId.HasValue && context.Item.ContractType == ContractType.Determinate && context.Item.ContractStatus == ContractStatus.Active)
-                            {
-                                <MudTooltip Text="Extend Fixed-Term Contract">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Update" Size="Size.Small" Color="Color.Primary"
-                                                   OnClick="@(() => OpenExtendContractDialog(context.Item))" />
-                                </MudTooltip>
-                            }
-                            @if (context.Item.ContractId.HasValue && context.Item.ContractStatus == ContractStatus.Active)
-                            {
-                                <MudTooltip Text="Terminate Contract">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" Color="Color.Error"
-                                                   OnClick="@(() => OpenTerminateContractDialog(context.Item))" />
-                                </MudTooltip>
-                            }
-                        </div>
-                    </CellTemplate>
-                </TemplateColumn>
-            </Columns>
-            <PagerContent>
-                <MudDataGridPager T="ManagerTeamMember" />
-            </PagerContent>
-        </MudDataGrid>
+        <FluentSearch @bind-Value="_quickSearch" @bind-Value:after="StateHasChanged"
+                      Placeholder="Search members..." Style="width:320px; margin-bottom:8px;" />
+
+        @* Seven equal columns give the contract period the same room as "Role", and its
+           badge-plus-date runs past the cell and is cut mid-date. Weighted instead: the two
+           columns that carry a badge and a value get more, the short ones less. *@
+        <FluentDataGrid Items="@FilteredTeam" TGridItem="ManagerTeamMember" ResizableColumns="true"
+                        GridTemplateColumns="1.2fr 0.8fr 1fr 0.9fr 1.7fr 0.8fr 0.6fr"
+                        ShowHover="true" Pagination="@_pagination">
+            <PropertyColumn Title="Name" Property="@(m => m.Name)" Sortable="true" />
+            <PropertyColumn Title="Role" Property="@(m => m.Role)" Sortable="true" />
+            <PropertyColumn Title="Department" Property="@(m => m.Department)" Sortable="true" />
+
+            <TemplateColumn Title="Contract Type" Sortable="true" SortBy="@_byContractType">
+                @if (context.ContractType == null)
+                {
+                    <FluentBadge Appearance="Appearance.Neutral">None</FluentBadge>
+                }
+                else if (context.ContractType == ContractType.Determinate)
+                {
+                    <FluentBadge Appearance="Appearance.Lightweight">Determinate</FluentBadge>
+                }
+                else
+                {
+                    <FluentBadge Appearance="Appearance.Accent">Indeterminate</FluentBadge>
+                }
+            </TemplateColumn>
+
+            <TemplateColumn Title="Contract Period &amp; Status" Sortable="true" SortBy="@_byContractStatus">
+                @if (context.ContractId.HasValue)
+                {
+                    <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="6"
+                                 VerticalAlignment="VerticalAlignment.Center">
+                        <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(context.ContractStatus)" Color="white">
+                            @context.ContractStatus
+                        </FluentBadge>
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+                            @(context.ContractStartDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "—") –
+                            @(context.ContractEndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
+                        </FluentLabel>
+                    </FluentStack>
+                }
+                else
+                {
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">—</FluentLabel>
+                }
+            </TemplateColumn>
+
+            <TemplateColumn Title="Leave Status" Sortable="true" SortBy="@_byLeaveStatus">
+                <FluentBadge Appearance="@(context.OnLeaveToday ? Appearance.Accent : Appearance.Neutral)">
+                    @(context.OnLeaveToday ? "On leave" : "Available")
+                </FluentBadge>
+            </TemplateColumn>
+
+            <TemplateColumn Title="Contract Actions" Sortable="false" Align="Align.End">
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="4"
+                             VerticalAlignment="VerticalAlignment.Center">
+                    @if (context.ContractId.HasValue && context.ContractType == ContractType.Determinate
+                         && context.ContractStatus == ContractStatus.Active)
+                    {
+                        <FluentButton Appearance="Appearance.Stealth" Title="Extend Fixed-Term Contract"
+                                      IconStart="@(new Icons.Regular.Size20.CalendarArrowRight())"
+                                      OnClick="@(() => OpenExtendContractDialog(context))" />
+                    }
+                    @if (context.ContractId.HasValue && context.ContractStatus == ContractStatus.Active)
+                    {
+                        <FluentButton Appearance="Appearance.Stealth" Title="Terminate Contract"
+                                      IconStart="@(new Icons.Regular.Size20.DismissCircle().WithColor("var(--error)"))"
+                                      OnClick="@(() => OpenTerminateContractDialog(context))" />
+                    }
+                </FluentStack>
+            </TemplateColumn>
+        </FluentDataGrid>
+
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center" Width="100%">
+            <FluentPaginator State="@_pagination" />
+        </FluentStack>
     }
 }
 
@@ -372,23 +370,33 @@ else
         : null;
     private ManagerDashboardResult? _data;
     private string _quickSearch = "";
-    private ManagerPendingRequest? _selectedRequest;
+    private string? _activeRequestId;
     private string RequestsSearchTerm { get; set; } = "";
+
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 15 };
+
+    private readonly GridSort<ManagerTeamMember> _byContractType =
+        GridSort<ManagerTeamMember>.ByAscending(m => m.ContractType);
+    private readonly GridSort<ManagerTeamMember> _byContractStatus =
+        GridSort<ManagerTeamMember>.ByAscending(m => m.ContractStatus);
+    private readonly GridSort<ManagerTeamMember> _byLeaveStatus =
+        GridSort<ManagerTeamMember>.ByAscending(m => m.OnLeaveToday);
 
     private IEnumerable<ManagerPendingRequest> FilteredRequests => string.IsNullOrWhiteSpace(RequestsSearchTerm)
         ? (_data?.Pending ?? Enumerable.Empty<ManagerPendingRequest>())
         : (_data?.Pending ?? Enumerable.Empty<ManagerPendingRequest>()).Where(r => r.Name.Contains(RequestsSearchTerm, StringComparison.OrdinalIgnoreCase));
 
-    private void ToggleRequest(ManagerPendingRequest request)
+    private IQueryable<ManagerTeamMember> FilteredTeam =>
+        (_data?.Team ?? new List<ManagerTeamMember>()).Where(MatchesQuickSearch).AsQueryable();
+
+    private bool MatchesQuickSearch(ManagerTeamMember m)
     {
-        if (_selectedRequest == request)
-        {
-            _selectedRequest = null;
-        }
-        else
-        {
-            _selectedRequest = request;
-        }
+        if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
+        return m.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+            || m.Role.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+            || m.Department.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+            || (m.ContractType != null && m.ContractType.ToString()!.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase))
+            || (m.ContractStatus != null && m.ContractStatus.ToString()!.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task EditDates(ManagerPendingRequest request)
@@ -408,25 +416,51 @@ else
             SubmittedAt = request.SubmittedAt
         };
 
-        var parameters = new DialogParameters<EditLeaveDatesDialog>
+        var content = EditLeaveDatesDialog.Model.From(hrReq);
+
+        var parameters = new DialogParameters
         {
-            { d => d.Request, hrReq }
+            Title = "Edit leave period",
+            PrimaryAction = "Save",
+            SecondaryAction = "Cancel",
+            Width = "420px",
+            ValidateDialogAsync = () => SaveDatesAsync(content)
         };
-        var dialog = await DialogService.ShowAsync<EditLeaveDatesDialog>("Edit leave period", parameters);
+
+        var dialog = await DialogService.ShowDialogAsync<EditLeaveDatesDialog, EditLeaveDatesDialog.Model>(
+            content, parameters);
+
         var result = await dialog.Result;
-        if (result is { Canceled: false })
+        if (!result.Cancelled)
             await LoadAsync();
     }
 
-    private Func<ManagerTeamMember, bool> _quickFilter => m =>
+    // Runs before the dialog is allowed to close; returning false keeps it open with the
+    // message written back onto the content the dialog is rendering.
+    private async Task<bool> SaveDatesAsync(EditLeaveDatesDialog.Model content)
     {
-        if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
-        return m.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-            || m.Role.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-            || m.Department.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-            || (m.ContractType != null && m.ContractType.ToString()!.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase))
-            || (m.ContractStatus != null && m.ContractStatus.ToString()!.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase));
-    };
+        content.SetError(null);
+
+        if (content.Start is null || content.End is null)
+        {
+            content.SetError("Both dates are required.");
+            return false;
+        }
+
+        try
+        {
+            await Employees.UpdateRequestDatesAsync(
+                content.RequestId,
+                DateOnly.FromDateTime(content.Start.Value),
+                DateOnly.FromDateTime(content.End.Value));
+            return true;
+        }
+        catch (DomainInvalidOperationException ex)
+        {
+            content.SetError(ex.Message);
+            return false;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -457,7 +491,9 @@ else
 
         if (!string.IsNullOrWhiteSpace(InitialSearch) && _data != null)
         {
-            _selectedRequest = _data.Pending.FirstOrDefault(p => p.Name.Contains(InitialSearch, StringComparison.OrdinalIgnoreCase));
+            _activeRequestId = _data.Pending
+                .FirstOrDefault(p => p.Name.Contains(InitialSearch, StringComparison.OrdinalIgnoreCase))
+                ?.RequestId.ToString();
         }
     }
 
@@ -466,12 +502,12 @@ else
         _data = await Manager.GetManagerDashboardAsync(_managerId);
     }
 
-    private Color GetContractStatusColor(ContractStatus? status) => status switch
+    private static string StatusColor(ContractStatus? status) => status switch
     {
-        ContractStatus.Active => Color.Success,
-        ContractStatus.Terminated => Color.Error,
-        ContractStatus.Expired => Color.Dark,
-        _ => Color.Default
+        ContractStatus.Active => "var(--success)",
+        ContractStatus.Terminated => "var(--error)",
+        ContractStatus.Expired => "var(--neutral-foreground-hint)",
+        _ => "var(--neutral-foreground-hint)"
     };
 
     private async Task DecideAsync(Guid requestId, bool approve)
@@ -479,15 +515,15 @@ else
         try
         {
             await Manager.DecideRequestAsync(_managerId, requestId, approve, _onBehalf);
-            Snackbar.Add(approve ? "Request approved." : "Request declined.", Severity.Success);
-            if (_selectedRequest?.RequestId == requestId)
+            Toast.ShowSuccess(approve ? "Request approved." : "Request declined.");
+            if (_activeRequestId == requestId.ToString())
             {
-                _selectedRequest = null;
+                _activeRequestId = null;
             }
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            Toast.ShowError(ex.Message);
         }
 
         await LoadAsync();
@@ -497,27 +533,43 @@ else
     {
         if (!member.ContractId.HasValue) return;
 
-        var parameters = new DialogParameters<ExtendContractDialog>
+        var content = new ExtendContractDialog.Model
         {
-            { x => x.EmployeeName, member.Name },
-            { x => x.CurrentStartDate, member.ContractStartDate ?? DateOnly.FromDateTime(DateTime.Today) },
-            { x => x.CurrentEndDate, member.ContractEndDate }
+            EmployeeName = member.Name,
+            CurrentStartDate = member.ContractStartDate ?? DateOnly.FromDateTime(DateTime.Today),
+            CurrentEndDate = member.ContractEndDate
+        };
+        content.Initialise();
+
+        var parameters = new DialogParameters
+        {
+            Title = "Extend Contract",
+            PrimaryAction = "Extend",
+            SecondaryAction = "Cancel",
+            Width = "480px",
+            ValidateDialogAsync = () =>
+            {
+                content.Validate();
+                return Task.FromResult(content.IsValid);
+            }
         };
 
-        var dialog = await DialogService.ShowAsync<ExtendContractDialog>("Extend Contract", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialog = await DialogService.ShowDialogAsync<ExtendContractDialog, ExtendContractDialog.Model>(
+            content, parameters);
         var result = await dialog.Result;
 
-        if (result != null && !result.Canceled && result.Data is DateOnly newEndDate)
+        if (!result.Cancelled && content.IsValid)
         {
+            var newEndDate = content.SelectedDate;
             try
             {
                 await Manager.ExtendContractAsync(_managerId, member.ContractId.Value, newEndDate, _onBehalf);
-                Snackbar.Add($"Contract extended for {member.Name} until {newEndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}.", Severity.Success);
+                Toast.ShowSuccess($"Contract extended for {member.Name} until {newEndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}.");
                 await LoadAsync();
             }
             catch (Exception ex)
             {
-                Snackbar.Add(ex.Message, Severity.Error);
+                Toast.ShowError(ex.Message);
             }
         }
     }
@@ -526,17 +578,23 @@ else
     {
         if (!member.ContractId.HasValue) return;
 
-        var parameters = new DialogParameters<TerminateContractDialog>
+        var content = new TerminateContractDialog.Model { EmployeeName = member.Name };
+
+        var parameters = new DialogParameters
         {
-            { x => x.EmployeeName, member.Name }
+            Title = "Terminate Contract",
+            PrimaryAction = "Terminate",
+            SecondaryAction = "Cancel",
+            Width = "480px"
         };
 
-        var dialog = await DialogService.ShowAsync<TerminateContractDialog>("Terminate Contract", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialog = await DialogService.ShowDialogAsync<TerminateContractDialog, TerminateContractDialog.Model>(
+            content, parameters);
         var result = await dialog.Result;
 
-        if (result != null && !result.Canceled)
+        if (!result.Cancelled)
         {
-            var reason = result.Data as string;
+            var reason = string.IsNullOrWhiteSpace(content.Reason) ? null : content.Reason;
 
             // Terminating cannot be undone, and from inside a borrowed account the screen
             // looks exactly like your own — so make the identity impossible to skip past.
@@ -546,22 +604,28 @@ else
             try
             {
                 await Manager.TerminateContractAsync(_managerId, member.ContractId.Value, reason, _onBehalf);
-                Snackbar.Add($"Contract terminated for {member.Name}.", Severity.Warning);
+                Toast.ShowWarning($"Contract terminated for {member.Name}.");
                 await LoadAsync();
             }
             catch (Exception ex)
             {
-                Snackbar.Add(ex.Message, Severity.Error);
+                Toast.ShowError(ex.Message);
             }
         }
     }
 
-    private async Task<bool> ConfirmTerminationAsync(string employeeName) =>
-        await DialogService.ShowMessageBoxAsync(
-            "Terminate contract",
-            (MarkupString)($"You are <b>{_acting!.RealUserName}</b>, acting as <b>{_acting.EffectiveUserName}</b>.<br/>" +
-                           $"Terminate the contract for <b>{employeeName}</b>? This cannot be undone."),
-            yesText: "Terminate", noText: null, cancelText: "Cancel") == true;
+    private async Task<bool> ConfirmTerminationAsync(string employeeName)
+    {
+        var confirmation = await DialogService.ShowConfirmationAsync(
+            $"You are {_acting!.RealUserName}, acting as {_acting.EffectiveUserName}. " +
+            $"Terminate the contract for {employeeName}? This cannot be undone.",
+            "Terminate",
+            "Cancel",
+            "Terminate contract");
+
+        var result = await confirmation.Result;
+        return !result.Cancelled;
+    }
 
     private async Task OpenCreateDelegationDialog()
     {
@@ -570,25 +634,33 @@ else
             .Where(u => u.Id != _managerId)
             .ToList();
 
-        var parameters = new DialogParameters<CreateDelegationDialog>
+        var content = new CreateDelegationDialog.Model { AvailableUsers = candidateDelegates };
+
+        var parameters = new DialogParameters
         {
-            { x => x.AvailableUsers, candidateDelegates }
+            Title = "Delegate Manager Responsibilities",
+            PrimaryAction = "Delegate",
+            SecondaryAction = "Cancel",
+            Width = "520px",
+            ValidateDialogAsync = () => Task.FromResult(content.Validate())
         };
 
-        var dialog = await DialogService.ShowAsync<CreateDelegationDialog>("Delegate Manager Responsibilities", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialog = await DialogService.ShowDialogAsync<CreateDelegationDialog, CreateDelegationDialog.Model>(
+            content, parameters);
         var result = await dialog.Result;
 
-        if (result != null && !result.Canceled && result.Data is CreateDelegationDialog.DelegationResult res)
+        if (!result.Cancelled && content.IsValid)
         {
+            var res = content.ToResult();
             try
             {
                 await Manager.CreateDelegationAsync(_managerId, res.DelegateId, res.StartDate, res.EndDate, res.Reason, _onBehalf);
-                Snackbar.Add("Delegation created successfully.", Severity.Success);
+                Toast.ShowSuccess("Delegation created successfully.");
                 await LoadAsync();
             }
             catch (Exception ex)
             {
-                Snackbar.Add(ex.Message, Severity.Error);
+                Toast.ShowError(ex.Message);
             }
         }
     }
@@ -598,12 +670,12 @@ else
         try
         {
             await Manager.CancelDelegationAsync(_managerId, delegationId);
-            Snackbar.Add("Delegation cancelled.", Severity.Info);
+            Toast.ShowInfo("Delegation cancelled.");
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            Toast.ShowError(ex.Message);
         }
     }
 }

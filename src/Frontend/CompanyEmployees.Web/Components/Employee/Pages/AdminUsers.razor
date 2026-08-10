@@ -11,227 +11,254 @@
 @inject EmployeeContext Employees
 @inject EmployeeAccountService Accounts
 @inject NavigationManager Nav
-@inject ISnackbar Snackbar
+@inject IToastService Toast
 @inject IDialogService DialogService
 
 <PageTitle>Users · Admin</PageTitle>
 
 @if (!_authorized)
 {
-	<MudProgressCircular Indeterminate="true" />
+	<FluentProgressRing />
 }
 else
 {
-	<div class="d-flex justify-space-between align-center gap-3 flex-wrap mb-4">
-		<MudText Typo="Typo.h5" Style="font-weight:600;">Users & Contracts</MudText>
-		<MudSelect T="Guid?" Value="_regionFilterId"
-				   ValueChanged="OnViewingRegionChanged"
-				   Label="Preview region" Variant="Variant.Outlined"
-				   Dense="true" Style="min-width:220px;">
-			<MudSelectItem T="Guid?" Value="@((Guid?)null)">All regions</MudSelectItem>
-			@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
-			{
-				<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
-			}
-		</MudSelect>
-		<MudButton Href="/api/employees/export.csv"
-				   Variant="Variant.Outlined" Color="Color.Primary"
-				   StartIcon="@Icons.Material.Filled.Download">
+	<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+				 HorizontalGap="12" Wrap="true" Width="100%">
+		<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">Users &amp; Contracts</FluentLabel>
+		<FluentSpacer />
+		<FluentSelect TOption="RegionOption" Label="Preview region"
+					  Items="@_regionFilterOptions"
+					  OptionValue="@(option => option.Id.ToString())"
+					  OptionText="@(option => option.Name)"
+					  SelectedOption="@FilterOptionFor(_regionFilterId)"
+					  SelectedOptionChanged="OnViewingRegionChanged"
+					  Style="min-width:220px;" />
+		<FluentAnchor Href="/api/employees/export.csv" Appearance="Appearance.Outline"
+					  IconStart="@(new Icons.Regular.Size20.ArrowDownload())">
 			Download latest CSV
-		</MudButton>
-	</div>
+		</FluentAnchor>
+	</FluentStack>
 
-	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
-		<MudText Typo="Typo.subtitle1" Style="font-weight:600;" Class="mb-1">
-			Create employee account
-		</MudText>
-		<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-			Create employees in your assigned region. Their Siemens login and employee ID are generated automatically.
-		</MudText>
-		@if (!CanManageSelectedRegion)
-		{
-			<MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
-				This regional preview is read-only. Return to <strong>@GetRegionName(_adminRegionId)</strong> to create an account.
-			</MudAlert>
-		}
+	<FluentCard Style="margin:16px 0 24px; padding:16px;">
+		<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+			<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+				<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Create employee account</FluentLabel>
+				<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+					Create employees in your assigned region. Their Siemens login and employee ID are generated automatically.
+				</FluentLabel>
+			</FluentStack>
 
-		<div class="d-flex align-end gap-3 flex-wrap">
-			<MudTextField T="string" @bind-Value="_newEmployeeName"
-						  Label="Full name" Variant="Variant.Outlined"
-						  Style="min-width:260px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
-			<MudTextField T="string" @bind-Value="_newEmployeeInvitationEmail"
-						  Label="Real email address" Variant="Variant.Outlined"
-						  InputType="InputType.Email" Style="min-width:300px;"
-						  Disabled="@(_creating || !CanManageSelectedRegion)" />
-			<MudSelect T="Guid?" @bind-Value="_newEmployeeDepartmentId"
-					   Label="Department" Variant="Variant.Outlined"
-					   Style="min-width:220px;" Disabled="@(_creating || !CanManageSelectedRegion)">
-				@foreach (var department in _departments.OrderBy(d => d.Name))
-				{
-					<MudSelectItem T="Guid?" Value="@((Guid?)department.Id)">
-						@department.Name
-					</MudSelectItem>
-				}
-			</MudSelect>
-			<MudSelect T="Guid?" @bind-Value="_newEmployeeRegionId"
-					   Label="Region" Variant="Variant.Outlined"
-					   Style="min-width:200px;" Disabled="true">
-				@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
-				{
-					<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
-				}
-			</MudSelect>
-			<MudButton Variant="Variant.Filled" Color="Color.Primary"
-					   StartIcon="@Icons.Material.Filled.PersonAdd"
-					   Style="height:44px; align-self:center; transform:translateY(2px);"
-					   OnClick="CreateEmployeeAsync" Disabled="@(_creating || !CanManageSelectedRegion)">
-				@(_creating ? "Creating..." : "Create account")
-			</MudButton>
-		</div>
+			@if (!CanManageSelectedRegion)
+			{
+				<FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false">
+					This regional preview is read-only. Return to <strong>@GetRegionName(_adminRegionId)</strong> to create an account.
+				</FluentMessageBar>
+			}
 
-		@if (_createdAccount != null)
-		{
-			<MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mt-4">
-				<MudText Typo="Typo.subtitle2" Style="font-weight:600;">Account created</MudText>
-				<MudText Typo="Typo.body2">Name: @_createdAccount.Name</MudText>
-				<MudText Typo="Typo.body2">Department: @_createdAccount.Department</MudText>
-				<MudText Typo="Typo.body2">Region: @_createdAccount.Region</MudText>
-				<MudText Typo="Typo.body2">Siemens login: @_createdAccount.Email</MudText>
-				<MudText Typo="Typo.body2">Invitation email: @_createdAccount.InvitationEmail</MudText>
-				@if (_createdAccount.EmailDelivered)
-				{
-					<MudText Typo="Typo.body2">A password setup email was sent to the employee.</MudText>
-				}
-				else
-				{
-					<MudText Typo="Typo.body2">SMTP is not configured. Use this development-only setup link:</MudText>
-					<MudLink Href="@_createdAccount.DevelopmentSetupLink">Set password</MudLink>
-				}
-			</MudAlert>
-		}
-	</MudPaper>
+			<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true"
+						 VerticalAlignment="VerticalAlignment.Bottom">
+				<FluentTextField @bind-Value="_newEmployeeName" Label="Full name"
+								 Style="min-width:260px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
+				<FluentTextField @bind-Value="_newEmployeeInvitationEmail" Label="Real email address"
+								 TextFieldType="TextFieldType.Email" Style="min-width:300px;"
+								 Disabled="@(_creating || !CanManageSelectedRegion)" />
+				<FluentSelect TOption="Department" Label="Department"
+							  Items="@_departments.OrderBy(d => d.Name)"
+							  OptionValue="@(d => d.Id.ToString())"
+							  OptionText="@(d => d.Name)"
+							  SelectedOption="@_departments.FirstOrDefault(d => d.Id == _newEmployeeDepartmentId)"
+							  SelectedOptionChanged="@(d => _newEmployeeDepartmentId = d?.Id)"
+							  Style="min-width:220px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
+				@* Region is fixed to the administrator's own: creating outside it is refused by the
+				   application layer anyway, so the field only reports which one it will be. *@
+				<FluentSelect TOption="Region" Label="Region"
+							  Items="@ActiveRegions"
+							  OptionValue="@(r => r.Id.ToString())"
+							  OptionText="@(r => r.Name)"
+							  SelectedOption="@_regions.FirstOrDefault(r => r.Id == _newEmployeeRegionId)"
+							  Style="min-width:200px;" Disabled="true" />
+				<FluentButton Appearance="Appearance.Accent"
+							  IconStart="@(new Icons.Regular.Size20.PersonAdd())"
+							  OnClick="CreateEmployeeAsync" Disabled="@(_creating || !CanManageSelectedRegion)">
+					@(_creating ? "Creating..." : "Create account")
+				</FluentButton>
+			</FluentStack>
+
+			@if (_createdAccount != null)
+			{
+				<FluentMessageBar Intent="MessageIntent.Success" AllowDismiss="false">
+					<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+						<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">Account created</FluentLabel>
+						<FluentLabel Typo="Typography.Body">Name: @_createdAccount.Name</FluentLabel>
+						<FluentLabel Typo="Typography.Body">Department: @_createdAccount.Department</FluentLabel>
+						<FluentLabel Typo="Typography.Body">Region: @_createdAccount.Region</FluentLabel>
+						<FluentLabel Typo="Typography.Body">Siemens login: @_createdAccount.Email</FluentLabel>
+						<FluentLabel Typo="Typography.Body">Invitation email: @_createdAccount.InvitationEmail</FluentLabel>
+						@if (_createdAccount.EmailDelivered)
+						{
+							<FluentLabel Typo="Typography.Body">A password setup email was sent to the employee.</FluentLabel>
+						}
+						else
+						{
+							<FluentLabel Typo="Typography.Body">SMTP is not configured. Use this development-only setup link:</FluentLabel>
+							<FluentAnchor Href="@_createdAccount.DevelopmentSetupLink"
+										  Appearance="Appearance.Hypertext">Set password</FluentAnchor>
+						}
+					</FluentStack>
+				</FluentMessageBar>
+			}
+		</FluentStack>
+	</FluentCard>
 
 	@if (_regionFilterId.HasValue)
 	{
 		@if (CanManageSelectedRegion)
 		{
-			<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+			<FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false">
 				Managing your assigned region, <strong>@GetRegionName(_adminRegionId)</strong>.
-			</MudAlert>
+			</FluentMessageBar>
 		}
 		else
 		{
-			<MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+			<FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false">
 				Previewing <strong>@GetRegionName(_regionFilterId.Value)</strong> in read-only mode.
 				Only an administrator assigned to that region can make changes.
-			</MudAlert>
+			</FluentMessageBar>
 		}
 	}
 	else
 	{
-		<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+		<FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false">
 			Previewing all regions. Employees outside <strong>@GetRegionName(_adminRegionId)</strong> are read-only.
-		</MudAlert>
+		</FluentMessageBar>
 	}
 
-	<MudDataGrid T="User" Items="@FilteredUsers" QuickFilter="@_quickFilter"
-				 Filterable="true" SortMode="SortMode.Multiple"
-				 FilterMode="DataGridFilterMode.ColumnFilterRow"
-				 Hover="true" Dense="true" Elevation="1">
-		<ToolBarContent>
-			<MudTextField @bind-Value="_quickSearch" Placeholder="Search users or contracts..."
-						  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-						  IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
-						  Immediate="true" />
-			<MudSpacer />
-		</ToolBarContent>
-		<Columns>
-			<PropertyColumn Property="@(u => u.Name)" Title="Name" />
-			<PropertyColumn Property="@(u => u.Email)" Title="Email" />
-			<PropertyColumn Property="@(u => u.Role)" Title="Role" />
-			<TemplateColumn T="User" Title="Contract Type" Sortable="true"
-							SortBy="@(u => GetActiveContract(u)?.Type.ToString() ?? "None")" Filterable="false">
-				<CellTemplate>
-					@{
-						var contract = GetActiveContract(context.Item);
-					}
-					@if (contract == null)
-					{
-						<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">No Contract</MudChip>
-					}
-					else if (contract.Type == ContractType.Determinate)
-					{
-						<MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Determinate</MudChip>
-					}
-					else
-					{
-						<MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">Indeterminate</MudChip>
-					}
-				</CellTemplate>
-			</TemplateColumn>
-			<TemplateColumn T="User" Title="Contract Period & Status" Sortable="true"
-							SortBy="@(u => GetActiveContract(u)?.Status.ToString() ?? "")" Filterable="false">
-				<CellTemplate>
-					@{
-						var contract = GetActiveContract(context.Item);
-					}
-					@if (contract != null)
-					{
-						<div class="d-flex flex-column">
-							<div class="d-flex align-center gap-1">
-								<MudChip T="string" Size="Size.Small" Color="@GetStatusColor(contract.Status)" Variant="Variant.Text" Class="pa-0 ma-0">
-									@contract.Status
-								</MudChip>
-								<MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-									@contract.StartDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) – @(contract.EndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
-								</MudText>
-							</div>
-						</div>
-					}
-					else
-					{
-						<MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">—</MudText>
-					}
-				</CellTemplate>
-			</TemplateColumn>
-			<TemplateColumn T="User" Title="Department" Sortable="true"
-							 SortBy="@(u => GetDepartmentName(u.DepartmentId))" Filterable="false">
-				<CellTemplate>
-					<MudAutocomplete T="Guid?" Value="context.Item.DepartmentId"
-									 ValueChanged="@(v => OnUserDepartmentChangedAsync(context.Item, v))"
-									 SearchFunc="@SearchDepartments"
-									 ToStringFunc="@GetDepartmentName"
-									 ResetValueOnEmptyText="true"
-									 CoerceText="true" Dense="true" Disabled="@(!CanEditUser(context.Item))" />
-				</CellTemplate>
-			</TemplateColumn>
-			<TemplateColumn T="User" Title="Region" Sortable="true"
-							 SortBy="@(u => GetRegionName(u.RegionId))" Filterable="false">
-				<CellTemplate>
-					<MudSelect T="Guid" Value="context.Item.RegionId"
-							   ValueChanged="@(value => OnUserRegionChangedAsync(context.Item, value))"
-							   Dense="true" Variant="Variant.Text" Disabled="@(!CanEditUser(context.Item))">
-						@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
-						{
-							<MudSelectItem T="Guid" Value="@region.Id">@region.Name</MudSelectItem>
-						}
-					</MudSelect>
-				</CellTemplate>
-			</TemplateColumn>
-			<TemplateColumn T="User" Title="Actions" Filterable="false" Sortable="false">
-				<CellTemplate>
-					<MudTooltip Text="Manage Contract">
-						<MudIconButton Icon="@Icons.Material.Filled.Assignment" Size="Size.Small" Color="Color.Primary"
-									   OnClick="@(() => OpenEditContractDialog(context.Item))"
-									   Disabled="@(!CanEditUser(context.Item))" />
-					</MudTooltip>
-				</CellTemplate>
-			</TemplateColumn>
-		</Columns>
-		<PagerContent>
-			<MudDataGridPager T="User" />
-		</PagerContent>
-	</MudDataGrid>
+	<FluentSearch @bind-Value="_quickSearch" @bind-Value:after="StateHasChanged"
+				  Placeholder="Search users or contracts..." Style="width:320px; margin:16px 0 8px;" />
+
+	@* Explicit column widths: the department and region cells hold real editors, and left to
+	   auto-sizing they push past their column and overlap the next one. *@
+	<FluentDataGrid Items="@FilteredUsers" TGridItem="User" ResizableColumns="true"
+					ShowHover="true" Pagination="@_pagination"
+					GridTemplateColumns="1.2fr 1.6fr 0.8fr 1fr 1.6fr 1.3fr 1.1fr 0.5fr">
+		<PropertyColumn Title="Name" Property="@(u => u.Name)" Sortable="true"
+						Filtered="@(!string.IsNullOrWhiteSpace(_fName))">
+			<ColumnOptions>
+				<FluentSearch @bind-Value="_fName" @bind-Value:after="StateHasChanged"
+							  Placeholder="Filter by name" AutoFocus="true" />
+			</ColumnOptions>
+		</PropertyColumn>
+
+		<PropertyColumn Title="Email" Property="@(u => u.Email)" Sortable="true"
+						Filtered="@(!string.IsNullOrWhiteSpace(_fEmail))">
+			<ColumnOptions>
+				<FluentSearch @bind-Value="_fEmail" @bind-Value:after="StateHasChanged"
+							  Placeholder="Filter by email" AutoFocus="true" />
+			</ColumnOptions>
+		</PropertyColumn>
+
+		<PropertyColumn Title="Role" Property="@(u => u.Role)" Sortable="true"
+						Filtered="@(!string.IsNullOrWhiteSpace(_fRole))">
+			<ColumnOptions>
+				<FluentSearch @bind-Value="_fRole" @bind-Value:after="StateHasChanged"
+							  Placeholder="Filter by role" AutoFocus="true" />
+			</ColumnOptions>
+		</PropertyColumn>
+
+		<TemplateColumn Title="Contract Type" Sortable="true" SortBy="@_byContractType"
+						Filtered="@(!string.IsNullOrWhiteSpace(_fContract))">
+			<ColumnOptions>
+				<FluentSearch @bind-Value="_fContract" @bind-Value:after="StateHasChanged"
+							  Placeholder="Filter by type or status" AutoFocus="true" />
+			</ColumnOptions>
+			<ChildContent>
+			@{
+				var typeContract = GetActiveContract(context);
+			}
+			@if (typeContract == null)
+			{
+				<FluentBadge Appearance="Appearance.Neutral">No Contract</FluentBadge>
+			}
+			else if (typeContract.Type == ContractType.Determinate)
+			{
+				<FluentBadge Appearance="Appearance.Lightweight">Determinate</FluentBadge>
+			}
+			else
+			{
+				<FluentBadge Appearance="Appearance.Accent">Indeterminate</FluentBadge>
+			}
+			</ChildContent>
+		</TemplateColumn>
+
+		<TemplateColumn Title="Contract Period &amp; Status" Sortable="true" SortBy="@_byContractStatus">
+			@{
+				var periodContract = GetActiveContract(context);
+			}
+			@if (periodContract != null)
+			{
+				<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="6"
+							 VerticalAlignment="VerticalAlignment.Center">
+					<FluentBadge Fill="highlight" BackgroundColor="@StatusColor(periodContract.Status)" Color="white">
+						@periodContract.Status
+					</FluentBadge>
+					<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+						@periodContract.StartDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) –
+						@(periodContract.EndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
+					</FluentLabel>
+				</FluentStack>
+			}
+			else
+			{
+				<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">—</FluentLabel>
+			}
+		</TemplateColumn>
+
+		<TemplateColumn Title="Department" Sortable="true" SortBy="@_byDepartment"
+						Filtered="@(!string.IsNullOrWhiteSpace(_fDepartment))">
+			<ColumnOptions>
+				<FluentSearch @bind-Value="_fDepartment" @bind-Value:after="StateHasChanged"
+							  Placeholder="Filter by department" AutoFocus="true" />
+			</ColumnOptions>
+			<ChildContent>
+			<FluentCombobox TOption="DepartmentOption"
+							Items="@_departmentOptions"
+							OptionValue="@(option => option.Id.ToString())"
+							OptionText="@(option => option.Name)"
+							Autocomplete="ComboboxAutocomplete.Both"
+							SelectedOption="@DepartmentOptionFor(context.DepartmentId)"
+							SelectedOptionChanged="@(option => OnUserDepartmentChangedAsync(context, ToDepartmentId(option)))"
+							Disabled="@(!CanEditUser(context))" />
+			</ChildContent>
+		</TemplateColumn>
+
+		<TemplateColumn Title="Region" Sortable="true" SortBy="@_byRegion"
+						Filtered="@(!string.IsNullOrWhiteSpace(_fRegion))">
+			<ColumnOptions>
+				<FluentSearch @bind-Value="_fRegion" @bind-Value:after="StateHasChanged"
+							  Placeholder="Filter by region" AutoFocus="true" />
+			</ColumnOptions>
+			<ChildContent>
+			<FluentSelect TOption="Region"
+						  Items="@ActiveRegions"
+						  OptionValue="@(r => r.Id.ToString())"
+						  OptionText="@(r => r.Name)"
+						  SelectedOption="@_regions.FirstOrDefault(r => r.Id == context.RegionId)"
+						  SelectedOptionChanged="@(region => OnUserRegionChangedAsync(context, region))"
+						  Disabled="@(!CanEditUser(context))" />
+			</ChildContent>
+		</TemplateColumn>
+
+		<TemplateColumn Title="Actions" Sortable="false" Align="Align.End">
+			<FluentButton Appearance="Appearance.Stealth" Title="Manage Contract"
+						  IconStart="@(new Icons.Regular.Size20.ClipboardTextEdit())"
+						  OnClick="@(() => OpenEditContractDialog(context))"
+						  Disabled="@(!CanEditUser(context))" />
+		</TemplateColumn>
+	</FluentDataGrid>
+
+	<FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center" Width="100%">
+		<FluentPaginator State="@_pagination" />
+	</FluentStack>
 }
 
 @code {
@@ -256,7 +283,67 @@ else
 	private bool _creating;
 	private EmployeeAccountResult? _createdAccount;
 
-	private Func<User, bool> _quickFilter => u =>
+	private readonly PaginationState _pagination = new() { ItemsPerPage = 15 };
+
+	// Fluent's pickers select an object out of a list rather than resolving a value through a
+	// search callback, so the "no department" / "all regions" entries need a real row of their
+	// own; Guid.Empty stands in for null on the way in and out.
+	public sealed record DepartmentOption(Guid Id, string Name);
+	public sealed record RegionOption(Guid Id, string Name);
+
+	private static readonly DepartmentOption NoDepartment = new(Guid.Empty, "None");
+	private static readonly RegionOption AllRegions = new(Guid.Empty, "All regions");
+
+	private List<DepartmentOption> _departmentOptions = [NoDepartment];
+	private List<RegionOption> _regionFilterOptions = [AllRegions];
+
+	private IEnumerable<Region> ActiveRegions =>
+		_regions.Where(region => region.IsActive).OrderBy(region => region.Name);
+
+	private readonly GridSort<User> _byContractType =
+		GridSort<User>.ByAscending(u => u.Contracts!.OrderByDescending(c => c.CreatedAt).First().Type);
+	private readonly GridSort<User> _byContractStatus =
+		GridSort<User>.ByAscending(u => u.Contracts!.OrderByDescending(c => c.CreatedAt).First().Status);
+	private GridSort<User> _byDepartment => GridSort<User>.ByAscending(u => GetDepartmentName(u.DepartmentId));
+	private GridSort<User> _byRegion => GridSort<User>.ByAscending(u => GetRegionName(u.RegionId));
+
+	// Per-column filters, opened from each column's options icon. They narrow independently
+	// and stack with each other and with the toolbar search.
+	private string _fName = "";
+	private string _fEmail = "";
+	private string _fRole = "";
+	private string _fContract = "";
+	private string _fDepartment = "";
+	private string _fRegion = "";
+
+	private static bool Has(string filter, string? value) =>
+		string.IsNullOrWhiteSpace(filter)
+		|| (value ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+	private IQueryable<User> FilteredUsers =>
+		(_regionFilterId.HasValue
+			? _users.Where(user => user.RegionId == _regionFilterId.Value)
+			: _users)
+		.Where(MatchesQuickSearch)
+		.Where(MatchesColumnFilters)
+		.AsQueryable();
+
+	private bool MatchesColumnFilters(User u)
+	{
+		var contract = GetActiveContract(u);
+		var contractText = contract is null
+			? "No Contract"
+			: $"{contract.Type} {contract.Status}";
+
+		return Has(_fName, u.Name)
+			&& Has(_fEmail, u.Email)
+			&& Has(_fRole, u.Role.ToString())
+			&& Has(_fContract, contractText)
+			&& Has(_fDepartment, GetDepartmentName(u.DepartmentId))
+			&& Has(_fRegion, GetRegionName(u.RegionId));
+	}
+
+	private bool MatchesQuickSearch(User u)
 	{
 		if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
 		var contract = GetActiveContract(u);
@@ -267,11 +354,7 @@ else
 			|| GetRegionName(u.RegionId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
 			|| (contract != null && contract.Type.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase))
 			|| (contract != null && contract.Status.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase));
-	};
-
-	private IEnumerable<User> FilteredUsers => _regionFilterId.HasValue
-		? _users.Where(user => user.RegionId == _regionFilterId.Value)
-		: _users;
+	}
 
 	private bool CanManageSelectedRegion => _regionFilterId == _adminRegionId;
 	private bool CanEditUser(User user) => user.RegionId == _adminRegionId;
@@ -309,6 +392,17 @@ else
 		_users = await Employees.GetAllUsersAsync();
 		_departments = await Employees.GetDepartmentsAsync();
 		_regions = await Employees.GetRegionsAsync();
+
+		_departmentOptions = _departments
+			.OrderBy(department => department.Name)
+			.Select(department => new DepartmentOption(department.Id, department.Name))
+			.Prepend(NoDepartment)
+			.ToList();
+
+		_regionFilterOptions = ActiveRegions
+			.Select(region => new RegionOption(region.Id, region.Name))
+			.Prepend(AllRegions)
+			.ToList();
 	}
 
 	private Contract? GetActiveContract(User user)
@@ -318,36 +412,47 @@ else
 			.FirstOrDefault();
 	}
 
-	private Color GetStatusColor(ContractStatus status) => status switch
+	private static string StatusColor(ContractStatus status) => status switch
 	{
-		ContractStatus.Active => Color.Success,
-		ContractStatus.Terminated => Color.Error,
-		ContractStatus.Expired => Color.Dark,
-		_ => Color.Default
+		ContractStatus.Active => "var(--success)",
+		ContractStatus.Terminated => "var(--error)",
+		ContractStatus.Expired => "var(--neutral-foreground-hint)",
+		_ => "var(--neutral-foreground-hint)"
 	};
 
 	private async Task OpenEditContractDialog(User user)
 	{
 		if (!CanEditUser(user))
 		{
-			Snackbar.Add("Other regions are read-only.", Severity.Warning);
+			Toast.ShowWarning("Other regions are read-only.");
 			return;
 		}
 
-		var contract = GetActiveContract(user);
-		var parameters = new DialogParameters<EditContractDialog>
+		var content = new EditContractDialog.Model
 		{
-			{ x => x.UserName, user.Name },
-			{ x => x.ExistingContract, contract }
+			UserName = user.Name,
+			ExistingContract = GetActiveContract(user)
+		};
+		content.Initialise();
+
+		var parameters = new DialogParameters
+		{
+			Title = "Manage Contract",
+			PrimaryAction = "Save",
+			SecondaryAction = "Cancel",
+			Width = "520px",
+			// Keeps the dialog open with its own message when the entry is not usable.
+			ValidateDialogAsync = () => Task.FromResult(content.TryBuildResult() is not null)
 		};
 
-		var dialog = await DialogService.ShowAsync<EditContractDialog>("Manage Contract", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+		var dialog = await DialogService.ShowDialogAsync<EditContractDialog, EditContractDialog.Model>(
+			content, parameters);
 		var result = await dialog.Result;
 
-		if (result != null && !result.Canceled && result.Data is EditContractDialog.ContractEditResult res)
+		if (!result.Cancelled && content.TryBuildResult() is { } res)
 		{
 			await Employees.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes);
-			Snackbar.Add($"Contract updated for {user.Name}.", Severity.Success);
+			Toast.ShowSuccess($"Contract updated for {user.Name}.");
 			await LoadAsync();
 		}
 	}
@@ -357,29 +462,33 @@ else
 		if (!CanEditUser(user))
 			return;
 
+		if (user.DepartmentId == departmentId)
+			return;
+
 		await Employees.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId);
-		Snackbar.Add($"{user.Name} moved.", Severity.Success);
+		Toast.ShowSuccess($"{user.Name} moved.");
 		await LoadAsync();
 	}
 
-	private async Task OnUserRegionChangedAsync(User user, Guid regionId)
+	private async Task OnUserRegionChangedAsync(User user, Region? region)
 	{
-		if (!CanEditUser(user))
+		if (region is null || !CanEditUser(user))
 			return;
 
-		if (user.RegionId == regionId)
+		if (user.RegionId == region.Id)
 			return;
 
 		var sourceRegion = GetRegionName(user.RegionId);
-		var destinationRegion = GetRegionName(regionId);
-		var confirmed = await DialogService.ShowMessageBoxAsync(
-			"Confirm region transfer",
+		var destinationRegion = GetRegionName(region.Id);
+		var confirmation = await DialogService.ShowConfirmationAsync(
 			$"Are you sure you want to move {user.Name} from {sourceRegion} to {destinationRegion}? " +
 			"They will no longer appear in the source region's employee lists, and cross-region manager links will be removed.",
-			yesText: "Yes, transfer",
-			cancelText: "Cancel");
+			"Yes, transfer",
+			"Cancel",
+			"Confirm region transfer");
 
-		if (confirmed != true)
+		var confirmed = await confirmation.Result;
+		if (confirmed.Cancelled)
 		{
 			StateHasChanged();
 			return;
@@ -387,45 +496,44 @@ else
 
 		try
 		{
-			await Employees.AssignUserToRegionAsync(_adminId, user.Id, regionId);
-			Snackbar.Add($"{user.Name} moved from {sourceRegion} to {destinationRegion}.", Severity.Success);
+			await Employees.AssignUserToRegionAsync(_adminId, user.Id, region.Id);
+			Toast.ShowSuccess($"{user.Name} moved from {sourceRegion} to {destinationRegion}.");
 			await LoadAsync();
 		}
 		catch (Exception exception)
 		{
-			Snackbar.Add(exception.Message, Severity.Error);
+			Toast.ShowError(exception.Message);
 		}
 	}
 
-	private Task OnViewingRegionChanged(Guid? regionId)
+	private void OnViewingRegionChanged(RegionOption? option)
 	{
-		_regionFilterId = regionId;
-		return Task.CompletedTask;
+		_regionFilterId = option is null || option.Id == Guid.Empty ? null : option.Id;
 	}
 
 	private async Task CreateEmployeeAsync()
 	{
 		if (string.IsNullOrWhiteSpace(_newEmployeeName))
 		{
-			Snackbar.Add("Employee name is required.", Severity.Warning);
+			Toast.ShowWarning("Employee name is required.");
 			return;
 		}
 
 		if (string.IsNullOrWhiteSpace(_newEmployeeInvitationEmail))
 		{
-			Snackbar.Add("Employee email is required.", Severity.Warning);
+			Toast.ShowWarning("Employee email is required.");
 			return;
 		}
 
 		if (_newEmployeeDepartmentId == null)
 		{
-			Snackbar.Add("Select a department.", Severity.Warning);
+			Toast.ShowWarning("Select a department.");
 			return;
 		}
 
 		if (_newEmployeeRegionId == null)
 		{
-			Snackbar.Add("Select a region.", Severity.Warning);
+			Toast.ShowWarning("Select a region.");
 			return;
 		}
 
@@ -447,15 +555,15 @@ else
 			_newEmployeeDepartmentId = null;
 			_newEmployeeRegionId = _adminRegionId;
 			await LoadAsync();
-			Snackbar.Add(
-				_createdAccount.EmailDelivered
-					? "Employee account created and setup email sent."
-					: "Employee account created; SMTP is not configured.",
-				_createdAccount.EmailDelivered ? Severity.Success : Severity.Warning);
+
+			if (_createdAccount.EmailDelivered)
+				Toast.ShowSuccess("Employee account created and setup email sent.");
+			else
+				Toast.ShowWarning("Employee account created; SMTP is not configured.");
 		}
 		catch (Exception exception)
 		{
-			Snackbar.Add(exception.Message, Severity.Error);
+			Toast.ShowError(exception.Message);
 		}
 		finally
 		{
@@ -469,18 +577,12 @@ else
 	private string GetRegionName(Guid id) =>
 		_regions.FirstOrDefault(region => region.Id == id)?.Name ?? "Unknown";
 
-	private Task<IEnumerable<Guid?>> SearchDepartments(string value, CancellationToken token)
-	{
-		var allIds = _departments.Select(d => (Guid?)d.Id).Prepend(null);
+	private DepartmentOption DepartmentOptionFor(Guid? id) =>
+		id is null ? NoDepartment : _departmentOptions.FirstOrDefault(option => option.Id == id) ?? NoDepartment;
 
-		if (string.IsNullOrEmpty(value) || value.Equals("None", StringComparison.InvariantCultureIgnoreCase) || _departments.Any(d => d.Name.Equals(value, StringComparison.InvariantCultureIgnoreCase)))
-		{
-			return Task.FromResult(allIds);
-		}
+	private RegionOption FilterOptionFor(Guid? id) =>
+		id is null ? AllRegions : _regionFilterOptions.FirstOrDefault(option => option.Id == id) ?? AllRegions;
 
-		var matches = _departments
-			.Where(d => d.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase))
-			.Select(d => (Guid?)d.Id);
-		return Task.FromResult(matches);
-	}
+	private static Guid? ToDepartmentId(DepartmentOption? option) =>
+		option is null || option.Id == Guid.Empty ? null : option.Id;
 }

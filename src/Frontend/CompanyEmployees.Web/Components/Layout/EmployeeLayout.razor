@@ -12,201 +12,227 @@
 @inject ActingContext Acting
 @inject IServiceScopeFactory ScopeFactory
 @inject IJSRuntime JSRuntime
-@inject ISnackbar Snackbar
+@inject IToastService Toast
 @inject ILogger<EmployeeLayout> Logger
 @implements IDisposable
 
 <CompanyEmployees.Web.Components.Employee.EmployeeProviders />
 
-<MudLayout>
+<FluentLayout>
     @* The bar people already look at changes colour, rather than a strip being added above
        it: an added element gets tuned out within days, a familiar one that looks wrong does
        not. This is the main guard against acting in someone's account by accident. *@
-    <MudAppBar Elevation="1" Style="@AppBarStyle">
-        <MudText Typo="Typo.h6" Style="font-weight:700; letter-spacing:.06em;">SIEMENS</MudText>
-        @if (_acting?.IsImpersonating == true)
-        {
-            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Class="ml-4" />
-            <MudText Typo="Typo.body2" Class="ml-2" Style="font-weight:600;">
-                Acting as @_acting.EffectiveUserName
-            </MudText>
-            <MudButton Href="/api/auth/impersonate/stop" ForceLoad="true"
-                       Variant="Variant.Outlined" Size="Size.Small" Class="ml-3"
-                       Style="color:#fff; border-color:rgba(255,255,255,.7);">
-                Return to my account
-            </MudButton>
-        }
-        else
-        {
-            <MudText Typo="Typo.body2" Class="ml-3" Style="opacity:.85;">Time Off Management</MudText>
-        }
-        <MudSpacer />
+    <FluentHeader Style="@HeaderStyle">
+        <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+                     HorizontalGap="12" Width="100%">
+            <FluentLabel Typo="Typography.PaneHeader" Color="Color.Custom" CustomColor="#FFFFFF">SIEMENS</FluentLabel>
 
-        <!-- Interactive notification bell in AppBar -->
-        <div class="mr-4">
+            @if (_acting?.IsImpersonating == true)
+            {
+                <FluentIcon Value="@(new Icons.Regular.Size20.ArrowSwap())" Color="Color.Custom" CustomColor="#FFFFFF" />
+                <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold" Color="Color.Custom" CustomColor="#FFFFFF">
+                    Acting as @_acting.EffectiveUserName
+                </FluentLabel>
+                @* forceLoad, and OnClick rather than Href: FluentButton has no Href parameter
+                   (the attribute lands on the web component and does nothing), and the stop
+                   endpoint swaps the auth cookie, which only a full document load picks up. *@
+                <FluentButton Appearance="Appearance.Outline"
+                              OnClick="@(() => Nav.NavigateTo("/api/auth/impersonate/stop", forceLoad: true))">
+                    Return to my account
+                </FluentButton>
+            }
+            else
+            {
+                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="#FFFFFF">Time Off Management</FluentLabel>
+            }
+
+            <FluentSpacer />
             <CompanyEmployees.Web.Components.NotificationBell />
-        </div>
+            @* The borrowed account is already named on the left of this bar; repeating it here
+               left the real person nowhere on screen. *@
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="#FFFFFF">@SignedInName</FluentLabel>
+        </FluentStack>
+    </FluentHeader>
 
-        <MudText Typo="Typo.body2" Class="ml-2">@_name</MudText>
-    </MudAppBar>
+    @* FluentLayout is a flex column, and this row defaults to `flex: 0 1 auto` with
+       `align-items: start` — so it collapses to the height of the nav menu's items and the
+       whole shell stops partway down the window, with blank page below it. flex:1 makes the
+       row claim the space left under the header, Stretch makes the drawer and the page fill
+       it, and min-height:0 lets the page scroll inside instead of pushing the row taller. *@
+    <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="0" Width="100%"
+                 VerticalAlignment="VerticalAlignment.Stretch"
+                 Style="flex:1 1 auto; min-height:0;">
+        <FluentNavMenu Width="250" Collapsible="true" Title="Workspace">
+            @* The links live in their own region so the drawer itself never scrolls: this is
+               the part that gives way when a role has more sections than the window is tall,
+               while the account footer below keeps its corner.
 
-    <MudDrawer Open="true" Variant="DrawerVariant.Persistent" ClipMode="DrawerClipMode.Always" Elevation="1">
-        <div class="d-flex flex-column" style="height:100%;">
-            <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">
-                WORKSPACE
-            </MudText>
-            <MudNavMenu>
-                <MudNavLink Href="employee/dashboard" Match="NavLinkMatch.All"
-                            Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-                <MudNavLink Href="employee/calendar" Match="NavLinkMatch.All"
-                            Icon="@Icons.Material.Filled.CalendarMonth">Calendar</MudNavLink>
-                <MudNavLink Href="employee/team" Match="NavLinkMatch.All"
-                            Icon="@Icons.Material.Filled.Groups">Team</MudNavLink>
-                <MudNavLink Href="employee/my-requests" Match="NavLinkMatch.All"
-                            Icon="@Icons.Material.Filled.Description">My Requests</MudNavLink>
-                <MudNavLink Href="employee/org-chart" Match="NavLinkMatch.All"
-                            Icon="@Icons.Material.Filled.AccountTree">Org Chart</MudNavLink>
-                @if (_canSeeDelegationHistory)
+               Stretch is not optional here: a stack aligns its children to the start by
+               default, which leaves every nav row only as wide as its own label — ragged
+               edges and no full-width hover or selection band. *@
+            <FluentStack Class="drawer-links" Orientation="Orientation.Vertical"
+                         HorizontalAlignment="HorizontalAlignment.Stretch"
+                         VerticalGap="0" Width="100%">
+            <FluentNavLink Href="/employee/dashboard" Match="NavLinkMatch.All"
+                           Icon="@(new Icons.Regular.Size20.Board())">Dashboard</FluentNavLink>
+            <FluentNavLink Href="/employee/calendar" Match="NavLinkMatch.All"
+                           Icon="@(new Icons.Regular.Size20.CalendarLtr())">Calendar</FluentNavLink>
+            <FluentNavLink Href="/employee/team" Match="NavLinkMatch.All"
+                           Icon="@(new Icons.Regular.Size20.People())">Team</FluentNavLink>
+            <FluentNavLink Href="/employee/my-requests" Match="NavLinkMatch.All"
+                           Icon="@(new Icons.Regular.Size20.Document())">My Requests</FluentNavLink>
+            <FluentNavLink Href="/employee/org-chart" Match="NavLinkMatch.All"
+                           Icon="@(new Icons.Regular.Size20.Organization())">Org Chart</FluentNavLink>
+
+            @if (_canSeeDelegationHistory)
+            {
+                @* Hidden rather than shown-and-empty: for most people this page has nothing
+                   in it and never will. Admins always get it — for them it is oversight of
+                   the region, not their own history. *@
+                <FluentNavLink Href="/manager/delegation-history" Match="NavLinkMatch.All"
+                               Icon="@(new Icons.Regular.Size20.History())">Delegation History</FluentNavLink>
+            }
+
+            @* Flat links, not FluentNavGroups. A group is a collapsible heading over a list, and
+               these had one child each — a permanently expanded "HR" heading whose only purpose
+               was to hold "HR Dashboard", indented under it for no reason. The role already
+               decides whether the link appears at all; a heading saying so again adds a row and
+               a chevron and nothing else. *@
+            @if (_department == HomeRouteResolver.HrDepartmentName)
+            {
+                <FluentNavLink Href="/hr/dashboard" Match="NavLinkMatch.All"
+                               Icon="@(new Icons.Regular.Size20.PersonBoard())">HR Dashboard</FluentNavLink>
+            }
+
+            @if (_role == "LineManager")
+            {
+                <FluentNavLink Href="/manager/team" Match="NavLinkMatch.All"
+                               Icon="@(new Icons.Regular.Size20.PeopleTeam())">Department</FluentNavLink>
+            }
+
+            @if (_role == "Admin")
+            {
+                <FluentNavLink Href="/admin/departments" Match="NavLinkMatch.All"
+                               Icon="@(new Icons.Regular.Size20.Building())">Departments</FluentNavLink>
+                <FluentNavLink Href="/admin/users" Match="NavLinkMatch.All"
+                               Icon="@(new Icons.Regular.Size20.People())">Users</FluentNavLink>
+            }
+
+            </FluentStack>
+
+            @* The account footer is the drawer's last flex child, so it lands in the bottom
+               corner without an auto margin — which matters: an auto margin inside a scroll
+               container is added to the scrollable overflow, and that is what was producing a
+               scrollbar over content that already fitted. *@
+            <FluentStack Class="drawer-footer" Orientation="Orientation.Vertical"
+                         HorizontalAlignment="HorizontalAlignment.Stretch"
+                         VerticalGap="0" Width="100%">
+            <FluentDivider Role="DividerRole.Presentation" />
+
+            @if (_acting?.IsImpersonating == true)
+            {
+                @* The borrowed account sits above your own, so the drawer always answers
+                   "whose account am I in" without opening anything. *@
+                <FluentCard Style="@($"background:{ImpersonationTint}; margin:8px;")">
+                    <FluentPersona Name="@_acting.EffectiveUserName"
+                                   Initials="@Initials(_acting.EffectiveUserName)"
+                                   ImageSize="36px" TextPosition="TextPosition.End">
+                        @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
+                           rendered here explicitly above the secondary line. *@
+                        <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold" Color="Color.Custom" CustomColor="#FFFFFF">@_acting.EffectiveUserName</FluentLabel>
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="#FFFFFF">acting on their behalf</FluentLabel>
+                    </FluentPersona>
+                </FluentCard>
+            }
+            else if (_availableDelegations.Count > 0)
+            {
+                @* Switching swaps the auth cookie, which a circuit cannot do — hence a real
+                   form post, the same hop the login page makes. One form per delegation with
+                   its id already in the markup: filling a single shared form on click races
+                   the render, and the post leaves with an empty id. *@
+                @foreach (var delegation in _availableDelegations)
                 {
-                    @* Hidden rather than shown-and-empty: for most people this page has
-                       nothing in it and never will. Admins always get it — for them it is
-                       oversight of the region, not their own history. *@
-                    <MudNavLink Href="manager/delegation-history" Match="NavLinkMatch.All"
-                                Icon="@Icons.Material.Filled.History">Delegation History</MudNavLink>
+                    <form id="@ImpersonateFormId(delegation.Id)" method="post"
+                          action="/api/auth/impersonate" style="display:none;">
+                        <input type="hidden" name="delegationId" value="@delegation.Id" />
+                    </form>
                 }
-                @if (_department == HomeRouteResolver.HrDepartmentName)
-                {
-                    <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">
-                        HR
-                    </MudText>
-                    <MudNavLink Href="hr/dashboard" Match="NavLinkMatch.All"
-                                Icon="@Icons.Material.Filled.Badge">HR Dashboard</MudNavLink>
-                }
-                @if (_role == "LineManager")
-                {
-                    <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">
-                        LineManager
-                    </MudText>
-                    <MudNavLink Href="manager/team" Match="NavLinkMatch.All"
-                                Icon="@Icons.Material.Filled.SupervisorAccount">Department</MudNavLink>
-                }
-                @if (_role == "Admin")
-                {
-                    <MudText Typo="Typo.overline" Class="px-4 pt-4" Style="color:var(--mud-palette-text-secondary);">
-                        IT ADMIN
-                    </MudText>
-                    <MudNavLink Href="admin/departments" Match="NavLinkMatch.All"
-                                Icon="@Icons.Material.Filled.Business">Departments</MudNavLink>
-                    <MudNavLink Href="admin/users" Match="NavLinkMatch.All"
-                                Icon="@Icons.Material.Filled.People">Users</MudNavLink>
-                }
-            </MudNavMenu>
-            <div class="mt-auto" style="border-top:1px solid var(--mud-palette-lines-default);">
-                @if (_acting?.IsImpersonating == true)
-                {
-                    @* The borrowed account sits above your own, so the drawer always answers
-                       "whose account am I in" without opening anything. *@
-                    <div class="pa-4 d-flex align-center gap-3"
-                         style="@($"background:{ImpersonationTint};")">
-                        <MudAvatar Size="Size.Small" Style="@($"background:#fff; color:{ImpersonationTint};")">
-                            @Initials(_acting.EffectiveUserName)
-                        </MudAvatar>
-                        <div>
-                            <MudText Typo="Typo.body2" Style="color:#fff; font-weight:600;">
-                                @_acting.EffectiveUserName
-                            </MudText>
-                            <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,.85);">
-                                acting on their behalf
-                            </MudText>
-                        </div>
-                    </div>
-                }
-                else if (_availableDelegations.Count > 0)
-                {
-                    @* Switching swaps the auth cookie, which a circuit cannot do — hence a
-                       real form post, the same hop the login page makes. One form per
-                       delegation with its id already in the markup: filling a single shared
-                       form on click races the render, and the post leaves with an empty id. *@
+
+                <FluentButton Id="switch-account" Appearance="Appearance.Stealth"
+                              IconStart="@(new Icons.Regular.Size20.ArrowSwap())"
+                              OnClick="@(() => _switchMenuOpen = !_switchMenuOpen)">
+                    Act for someone else (@_availableDelegations.Count)
+                </FluentButton>
+                <FluentMenu Anchor="switch-account" @bind-Open="_switchMenuOpen" VerticalThreshold="170">
                     @foreach (var delegation in _availableDelegations)
                     {
-                        <form id="@ImpersonateFormId(delegation.Id)" method="post"
-                              action="/api/auth/impersonate" style="display:none;">
-                            <input type="hidden" name="delegationId" value="@delegation.Id" />
-                        </form>
+                        <FluentMenuItem OnClick="@(() => StartImpersonationAsync(delegation.Id))">
+                            <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+                                <FluentLabel Typo="Typography.Body">@delegation.Manager.Name</FluentLabel>
+                                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                                    until @delegation.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                                </FluentLabel>
+                            </FluentStack>
+                        </FluentMenuItem>
                     }
+                </FluentMenu>
+            }
 
-                    <MudMenu ActivationEvent="MouseEvent.LeftClick" AnchorOrigin="Origin.TopCenter"
-                             TransformOrigin="Origin.BottomCenter" FullWidth="true" Dense="true">
-                        <ActivatorContent Context="switchMenu">
-                            <div class="pa-3 d-flex align-center gap-2" style="cursor:pointer;"
-                                 @onclick="switchMenu.ToggleAsync">
-                                <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small"
-                                         Style="color:var(--mud-palette-text-secondary);" />
-                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                                    Act for someone else (@_availableDelegations.Count)
-                                </MudText>
-                            </div>
-                        </ActivatorContent>
-                        <ChildContent>
-                            @foreach (var delegation in _availableDelegations)
-                            {
-                                <MudMenuItem OnClick="@(() => StartImpersonationAsync(delegation.Id))">
-                                    <MudText Typo="Typo.body2">@delegation.Manager.Name</MudText>
-                                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                                        until @delegation.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-                                    </MudText>
-                                </MudMenuItem>
-                            }
-                        </ChildContent>
-                    </MudMenu>
-                }
+            <FluentButton Id="profile-menu" Appearance="Appearance.Stealth"
+                          OnClick="@(() => _profileMenuOpen = !_profileMenuOpen)">
+                @* Your own account, under the borrowed one. Every claim in the cookie describes
+                   the account being borrowed — name, role and department all belong to it — so
+                   while impersonating this reads the real identity off ActingUser instead, and
+                   drops the role line rather than attributing someone else's role to you. *@
+                @* ImageSize stated rather than left to the default: the disc's size belongs to the
+                   call site, not to a stylesheet rule that would reach every persona in the app. *@
+                <FluentPersona Name="@SignedInName" Initials="@(Initials(SignedInName))"
+                               ImageSize="36px" TextPosition="TextPosition.End">
+                    @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
+                       rendered here explicitly above the secondary line. *@
+                    <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@SignedInName</FluentLabel>
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                        @* HR is a department, not a UserRole — its staff are plain Employees,
+                           so show the department instead. *@
+                        @(_acting?.IsImpersonating == true
+                            ? "your account"
+                            : _department == HomeRouteResolver.HrDepartmentName ? "HR" : _role)
+                    </FluentLabel>
+                </FluentPersona>
+            </FluentButton>
+            <FluentMenu Anchor="profile-menu" @bind-Open="_profileMenuOpen" VerticalThreshold="170">
+                <FluentMenuItem>
+                    <FluentSwitch Value="ThemeState.IsDarkMode"
+                                  ValueChanged="@(async (bool _) => await ThemeState.ToggleAsync())"
+                                  Label="Dark mode" />
+                </FluentMenuItem>
+                <FluentDivider Role="DividerRole.Presentation" />
+                <FluentMenuItem OnClick="@(() => Nav.NavigateTo("mailto:it-support@siemens.com"))">
+                    <span slot="start">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.PersonSupport())" />
+                    </span>
+                    Contact IT department
+                </FluentMenuItem>
+                <FluentDivider Role="DividerRole.Presentation" />
+                @* Full page load: the logout endpoint must clear the auth cookie itself. *@
+                <FluentMenuItem OnClick="@(() => Nav.NavigateTo("/api/auth/logout", forceLoad: true))">
+                    <span slot="start">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.SignOut())" Color="Color.Error" />
+                    </span>
+                    Sign out
+                </FluentMenuItem>
+            </FluentMenu>
+            </FluentStack>
+        </FluentNavMenu>
 
-                <MudMenu ActivationEvent="MouseEvent.LeftClick" AnchorOrigin="Origin.TopCenter"
-                         TransformOrigin="Origin.BottomCenter" FullWidth="true" Dense="true">
-                    @* Custom activator content gets no click handler from MudMenu —
-                       it has to toggle the menu through the MenuContext itself. *@
-                    <ActivatorContent Context="menu">
-                        <div class="pa-4 d-flex align-center gap-3" style="cursor:pointer;"
-                             @onclick="menu.ToggleAsync">
-                            <MudAvatar Size="Size.Small" Color="Color.Primary">@_initials</MudAvatar>
-                            <div>
-                                <MudText Typo="Typo.body2">@_name</MudText>
-                                <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                                    @* HR is a department, not a UserRole — its staff are
-                                       plain Employees, so show the department instead. *@
-                                    @(_department == HomeRouteResolver.HrDepartmentName ? "HR" : _role)
-                                </MudText>
-                            </div>
-                        </div>
-                    </ActivatorContent>
-                    <ChildContent>
-                        <div class="px-4 py-2 d-flex align-center justify-space-between gap-3" @onclick:stopPropagation="true">
-                            <MudText Typo="Typo.body2">Dark mode</MudText>
-                            <MudSwitch T="bool" Value="ThemeState.IsDarkMode"
-                                       ValueChanged="@(async (bool _) => await ThemeState.ToggleAsync())"
-                                       Color="Color.Primary" />
-                        </div>
-                        <MudDivider />
-                        <MudMenuItem Href="mailto:it-support@siemens.com"
-                                     Icon="@Icons.Material.Filled.SupportAgent">Contact IT department</MudMenuItem>
-                        <MudDivider />
-                        @* Full page load: the logout endpoint must clear the auth cookie itself. *@
-                        <MudMenuItem Href="/api/auth/logout" ForceLoad="true"
-                                     Icon="@Icons.Material.Filled.Logout" IconColor="Color.Error">
-                            <MudText Typo="Typo.body2" Color="Color.Error">Sign out</MudText>
-                        </MudMenuItem>
-                    </ChildContent>
-                </MudMenu>
-            </div>
-        </div>
-    </MudDrawer>
-
-    <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+        @* flex rather than width:100%: as a flex item, 100% resolves against the whole row
+           including the 250px drawer, so the page was always that much too wide and the window
+           grew a horizontal scrollbar. min-width:0 lets it shrink past its content instead. *@
+        <FluentBodyContent Style="padding:24px; flex:1 1 auto; min-width:0;">
             @Body
-        </MudContainer>
-    </MudMainContent>
-</MudLayout>
+        </FluentBodyContent>
+    </FluentStack>
+</FluentLayout>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
@@ -215,6 +241,8 @@
 </div>
 
 @code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
@@ -234,10 +262,16 @@
     private List<ManagerDelegation> _availableDelegations = new();
     private bool _canSeeDelegationHistory;
     private bool _switchErrorShown;
+    private bool _switchMenuOpen;
+    private bool _profileMenuOpen;
 
-    private string AppBarStyle => _acting?.IsImpersonating == true
-        ? $"color:#fff; background:{ImpersonationTint};"
-        : "color:#fff;";
+    private string HeaderStyle => _acting?.IsImpersonating == true
+        ? $"background:{ImpersonationTint};"
+        : "";
+
+    // The person at the keyboard, which the FullName claim stops being the moment an account
+    // is borrowed — from then on every claim describes the borrowed account.
+    private string SignedInName => _acting?.IsImpersonating == true ? _acting.RealUserName : _name;
 
     // User info comes from the auth cookie's claims, never from the database:
     // the layout shares the page's scoped DbContext, and a second query in
@@ -278,7 +312,7 @@
             return;
 
         _switchErrorShown = true;
-        Snackbar.Add("That delegation is no longer available.", Severity.Warning);
+        Toast.ShowWarning("That delegation is no longer available.");
     }
 
     private async Task LoadAvailableDelegationsAsync()

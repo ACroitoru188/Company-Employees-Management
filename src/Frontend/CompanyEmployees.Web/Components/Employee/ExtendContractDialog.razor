@@ -1,85 +1,83 @@
 @using System.Globalization
+@implements IDialogContentComponent<ExtendContractDialog.Model>
 
-<MudDialog>
-    <DialogContent>
-        <MudText Typo="Typo.body1" Class="mb-3">
-            Extend fixed-term contract for <strong>@EmployeeName</strong>.
-        </MudText>
+<FluentDialogBody>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+        <FluentLabel Typo="Typography.Body">
+            Extend fixed-term contract for <strong>@Content.EmployeeName</strong>.
+        </FluentLabel>
 
-        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
-            Current period: @CurrentStartDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) – @(CurrentEndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
-        </MudAlert>
+        <FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false">
+            Current period:
+            @Content.CurrentStartDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) –
+            @(Content.CurrentEndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
+        </FluentMessageBar>
 
-        <MudDatePicker Label="New End Date"
-                       Date="@_newEndDate"
-                       DateChanged="@OnDateChanged"
-                       MinDate="@_minDate"
-                       Variant="Variant.Outlined"
-                       Margin="Margin.Dense"
-                       Required="true" />
+        <FluentDatePicker Label="New end date"
+                          Value="@Content.NewEndDate"
+                          ValueChanged="@OnDateChanged"
+                          Min="@Content.MinDate"
+                          Required="true"
+                          Style="width:100%;" />
 
-        @if (!string.IsNullOrEmpty(_errorMessage))
+        @if (!string.IsNullOrEmpty(Content.ErrorMessage))
         {
-            <MudText Color="Color.Error" Typo="Typo.caption" Class="mt-1">@_errorMessage</MudText>
+            <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">
+                @Content.ErrorMessage
+            </FluentMessageBar>
         }
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!IsValid)">
-            Extend Contract
-        </MudButton>
-    </DialogActions>
-</MudDialog>
+    </FluentStack>
+</FluentDialogBody>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter]
+    public Model Content { get; set; } = default!;
 
-    [Parameter] public string EmployeeName { get; set; } = "";
-    [Parameter] public DateOnly CurrentStartDate { get; set; }
-    [Parameter] public DateOnly? CurrentEndDate { get; set; }
-
-    private DateTime? _newEndDate;
-    private DateTime? _minDate;
-    private string _errorMessage = "";
-
-    protected override void OnInitialized()
-    {
-        var min = CurrentEndDate?.ToDateTime(TimeOnly.MinValue).AddDays(1)
-                  ?? CurrentStartDate.ToDateTime(TimeOnly.MinValue).AddDays(1);
-        _minDate = min;
-        _newEndDate = min.AddMonths(6);
-    }
+    // Fluent runs the primary action's validation outside this component's event loop, so a
+    // message written onto Content during it would never reach the screen without this.
+    protected override void OnInitialized() => Content.Refresh = () => InvokeAsync(StateHasChanged);
 
     private void OnDateChanged(DateTime? date)
     {
-        _newEndDate = date;
-        Validate();
+        Content.NewEndDate = date;
+        Content.Validate();
     }
 
-    private bool IsValid => _newEndDate.HasValue && (_minDate == null || _newEndDate >= _minDate);
-
-    private void Validate()
+    public class Model : DialogContentModel
     {
-        if (!_newEndDate.HasValue)
-        {
-            _errorMessage = "Please select a valid new end date.";
-        }
-        else if (_minDate.HasValue && _newEndDate < _minDate)
-        {
-            _errorMessage = "New end date must be strictly after the current end date.";
-        }
-        else
-        {
-            _errorMessage = "";
-        }
-    }
+        public string EmployeeName { get; set; } = "";
+        public DateOnly CurrentStartDate { get; set; }
+        public DateOnly? CurrentEndDate { get; set; }
 
-    private void Submit()
-    {
-        Validate();
-        if (!IsValid) return;
+        public DateTime? NewEndDate { get; set; }
+        public DateTime? MinDate { get; set; }
+        public string ErrorMessage { get; set; } = "";
 
-        var selectedDate = DateOnly.FromDateTime(_newEndDate!.Value);
-        MudDialog.Close(DialogResult.Ok(selectedDate));
+        // The caller builds the model, so the defaults are derived here rather than in an
+        // OnInitialized the dialog would have to own.
+        public void Initialise()
+        {
+            var min = CurrentEndDate?.ToDateTime(TimeOnly.MinValue).AddDays(1)
+                      ?? CurrentStartDate.ToDateTime(TimeOnly.MinValue).AddDays(1);
+            MinDate = min;
+            NewEndDate = min.AddMonths(6);
+        }
+
+        public bool IsValid => NewEndDate.HasValue && (MinDate is null || NewEndDate >= MinDate);
+
+        public void Validate()
+        {
+            ErrorMessage = NewEndDate switch
+            {
+                null => "Please select a valid new end date.",
+                _ when MinDate.HasValue && NewEndDate < MinDate =>
+                    "New end date must be strictly after the current end date.",
+                _ => ""
+            };
+
+            NotifyChanged();
+        }
+
+        public DateOnly SelectedDate => DateOnly.FromDateTime(NewEndDate!.Value);
     }
 }

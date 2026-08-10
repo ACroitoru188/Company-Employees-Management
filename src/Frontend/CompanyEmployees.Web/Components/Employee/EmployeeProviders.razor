@@ -1,32 +1,24 @@
-@* MudBlazor providers must live inside the interactive page, not EmployeeLayout:
-   with per-page render modes the layout stays statically rendered, so providers
-   placed there never register with the circuit's scoped services (popovers,
-   dialogs and snackbars would crash the circuit). Include this at the top of
-   every employee page. *@
+@* Fluent UI's providers, the counterpart of MudBlazor's. FluentDesignTheme emits the design
+   tokens every component reads, so it has to sit above them; the rest are the render hosts
+   for dialogs, toasts, tooltips and menus. Include this at the top of every layout. *@
 @using CompanyEmployees.Web.Services
 @inject ThemeState ThemeState
 @implements IDisposable
 
-<MudThemeProvider Theme="Theme" IsDarkMode="ThemeState.IsDarkMode" />
-<MudPopoverProvider />
-<MudDialogProvider />
-<MudSnackbarProvider />
-
+<FluentDesignTheme Mode="@(ThemeState.IsDarkMode ? DesignThemeModes.Dark : DesignThemeModes.Light)"
+                   CustomColor="@AccentColor"
+                   StorageName="companyemployees-theme" />
+<FluentToastProvider MaxToastCount="5" />
+<FluentDialogProvider />
+<FluentTooltipProvider />
+@* Sectioned on purpose: a provider without one also renders the bell's notification centre. *@
+<FluentMessageBarProvider Section="@MessageSections.Page" />
+<FluentMenuProvider />
 
 @code {
-    public static readonly MudTheme Theme = new()
-    {
-        PaletteLight = new PaletteLight
-        {
-            Primary = Colors.Blue.Darken1,
-            AppbarBackground = Colors.Blue.Darken1
-        },
-        PaletteDark = new PaletteDark
-        {
-            Primary = Colors.Blue.Darken1,
-            AppbarBackground = Colors.Blue.Darken1
-        }
-    };
+    // The blue the app was already built around, handed to Fluent as the accent it derives
+    // its whole token palette from.
+    public const string AccentColor = "#1E88E5";
 
     protected override void OnInitialized() => ThemeState.OnChange += StateHasChanged;
 

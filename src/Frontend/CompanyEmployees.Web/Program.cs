@@ -15,14 +15,14 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using MudBlazor.Services;
+using Microsoft.FluentUI.AspNetCore.Components;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-builder.Services.AddMudServices();
+builder.Services.AddFluentUIComponents();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<ThemeState>();
 builder.Services.AddScoped<EmployeeAccountService>();

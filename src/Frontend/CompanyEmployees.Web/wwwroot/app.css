@@ -1,267 +1,814 @@
 /* ---------------------------------------------------------------------------
-   Company Employees Management — design system
-   Light-teal→indigo scale as the accent family (colorhunt 170C79-EFE3CA-
-   56B6C6-8ACBD0). System font stack, one radius scale, light theme locked.
+   Company Employees Management — global stylesheet.
+
+   The app is built entirely from Microsoft Fluent UI Blazor components, so this
+   file deliberately stays small: it defines the design tokens Fluent expects to
+   find on the document, fixes the few places where a Fluent component's default
+   sizing does not suit how this app uses it, and styles the two bits of Blazor
+   framework UI that are not components at all.
+
+   It must NOT grow back into a second design system. Anything that styles app
+   markup belongs in the component, as a Fluent parameter or an inline Style.
 --------------------------------------------------------------------------- */
 
 /* Progressive enhancement: cross-document view transitions where supported. */
 @view-transition { navigation: auto; }
 
-:root {
-    /* raw palette (light teal → indigo; legacy token names kept) */
-    --celadon:      #8ACBD0;
-    --celadon-2:    #7EC4CB;
-    --mint-leaf:    #70BDC7;
-    --mint-leaf-2:  #63B9C4;
-    --seagrass:     #56B6C6;
-    --seagrass-2:   #45929E;
-    --jungle-teal:  #37788C;
-    --blue-spruce:  #2B5487;
-    --deep-ocean:   #1D3184;
-    --stormy-teal:  #170C79;
-
-    /* semantic */
-    --bg:            #F6EFDE;
-    --surface:       #ffffff;
-    --surface-2:     #F9F4E8;
-    --border:        #E5DAC1;
-    --border-strong: #D7CAAF;
-    --text:          #12093D;
-    --text-muted:    #45929E;
-    --text-subtle:   #7FB3BC;
-
-    --accent:        var(--deep-ocean);   /* AA on white for text/icons */
-    --accent-soft:   #DDEFF1;
-    --grad:          linear-gradient(135deg, var(--deep-ocean), var(--stormy-teal));
-    --grad-aside:    linear-gradient(155deg, var(--jungle-teal), var(--stormy-teal));
-
-    --warning:       #b45309;
-    --warning-soft:  #fbeede;
-    --neutral:       #475467;
-    --neutral-soft:  #eef1f4;
-
-    --radius:        12px;
-    --radius-sm:     9px;
-    --shadow-sm:     0 1px 2px rgba(18, 9, 61, .06), 0 1px 3px rgba(18, 9, 61, .05);
-    --shadow-md:     0 8px 24px rgba(18, 9, 61, .10);
-    --shadow-lg:     0 24px 60px rgba(18, 9, 61, .16);
-    --ease:          cubic-bezier(.16, 1, .3, 1);
-    --font:          system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-}
-
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+
+/* height:100% is what FluentLayout needs to work at all: it is a flex column that sizes
+   itself from its parent, so without it the whole shell collapses to the height of the
+   header and every page below renders at zero height. */
+html, body { margin: 0; padding: 0; height: 100%; }
 
 /* Always reserve the vertical scrollbar's width, even on pages short enough not to
-   need one. Without this, MudContainer's max-width:1280px + centered margins (see
-   MudBlazor.min.css .mud-container) shift left/right depending on whether THIS page's
-   content happens to be tall enough to trigger a scrollbar — e.g. the Calendar page's
-   month grid vs. the shorter Dashboard page, which otherwise renders visibly further
-   right since it never grows a scrollbar. scrollbar-gutter is the modern property;
-   overflow-y is the fallback for browsers that don't support it yet. */
+   need one. Without this, centred content shifts left/right depending on whether THIS
+   page happens to be tall enough to grow a scrollbar — e.g. the Calendar's month grid
+   versus the shorter Dashboard. scrollbar-gutter is the modern property; overflow-y is
+   the fallback for browsers that don't support it yet. */
 html {
     overflow-y: scroll;
     scrollbar-gutter: stable;
 }
 
-body {
-    font-family: var(--font);
-    background: var(--bg);
-    color: var(--text);
-    font-size: 15px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
+/* ---- Fluent design tokens ---------------------------------------------------------
+
+   The FAST runtime resolves these inside each web component's shadow DOM, but everything
+   Fluent renders into the light DOM — FluentHeader's background, FluentLabel colours, the
+   calendar's selection styling, plus our own var() references — reads them as ordinary
+   document-level custom properties, and nothing reliably defines them there. An undefined
+   var() fails silently: transparent header, invisible grays, no holiday red. These are the
+   author-level floor; if the runtime registers the real tokens (an adopted stylesheet,
+   later in the cascade) the runtime still wins.
+----------------------------------------------------------------------------------- */
+:root {
+    --design-unit: 4;
+    --control-corner-radius: 4;
+    --layer-corner-radius: 8;
+    --stroke-width: 1;
+    --focus-stroke-width: 2;
+    /* "Segoe UI Variable" — Fluent's own default, and what this file used to pass through — is
+       three families on Windows 11: Display, Text and Small, each drawn for a different size.
+       Asked for by the bare family name the browser resolves the *Small* optical size, which is
+       cut narrow and tight for 8–12px captions; used for the whole app at 14–24px it reads as
+       squeezed-together text everywhere. Naming the Text size, the one meant for UI copy at
+       these sizes, is the fix. Everything after it is for the platforms that have none of them,
+       and matches what the app used before the Fluent migration. */
+    --body-font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    --type-ramp-minus-2-font-size: 10px; --type-ramp-minus-2-line-height: 14px;
+    --type-ramp-minus-1-font-size: 12px; --type-ramp-minus-1-line-height: 16px;
+    --type-ramp-base-font-size: 14px;    --type-ramp-base-line-height: 20px;
+    --type-ramp-plus-1-font-size: 16px;  --type-ramp-plus-1-line-height: 22px;
+    --type-ramp-plus-2-font-size: 20px;  --type-ramp-plus-2-line-height: 26px;
+    --type-ramp-plus-3-font-size: 24px;  --type-ramp-plus-3-line-height: 32px;
+    --type-ramp-plus-4-font-size: 28px;  --type-ramp-plus-4-line-height: 36px;
+    --type-ramp-plus-5-font-size: 32px;  --type-ramp-plus-5-line-height: 40px;
+    --type-ramp-plus-6-font-size: 40px;  --type-ramp-plus-6-line-height: 52px;
+
+    /* #1E88E5 is the app's accent as a *fill* — white text sits on it in the header and on
+       accent buttons. As *text on white* it is only 3.7:1, so accent-coloured labels use the
+       darker foreground value instead. Two tokens, because one colour cannot do both jobs. */
+    --accent-fill-rest: #1E88E5;
+    --accent-fill-hover: #3D97E8;
+    --accent-fill-active: #1B7BD0;
+    --accent-foreground-rest: #0F6CBD;
+    --accent-foreground-hover: #115EA3;
+    --foreground-on-accent-rest: #FFFFFF;
+
+    --neutral-foreground-rest: #1A1A1A;
+    --neutral-foreground-hover: #1A1A1A;
+    --neutral-foreground-hint: #616161;
+    --neutral-fill-rest: #FFFFFF;
+    --neutral-fill-hover: #F5F5F5;
+    --neutral-fill-inverse-rest: #1A1A1A;
+    --neutral-fill-input-rest: #FFFFFF;
+    /* "Stealth" means a control carries no fill until you touch it, so at rest this has to be
+       transparent. Both fallbacks here were opaque greys, which is invisible in light mode —
+       #F7F7F7 against a white card reads as nothing — and obvious in dark, where #2E2E2E on the
+       #171717 canvas drew a grey box around every stealth control in the drawer. The hover and
+       active tokens below still give the control its feedback. */
+    --neutral-fill-stealth-rest: transparent;
+    --neutral-fill-stealth-hover: #EDEDED;
+    --neutral-fill-secondary-rest: #F0F0F0;
+    --neutral-layer-1: #FFFFFF;
+    --neutral-layer-2: #F5F5F5;
+    --neutral-layer-3: #EFEFEF;
+    --neutral-layer-4: #E8E8E8;
+    --neutral-layer-floating: #FFFFFF;
+    --neutral-layer-card-container: #FFFFFF;
+    --neutral-stroke-rest: #D1D1D1;
+    --neutral-stroke-hover: #C7C7C7;
+    --neutral-stroke-divider-rest: #E0E0E0;
+    --neutral-stroke-focus: #919191;
+    --neutral-stroke-layer-rest: #E0E0E0;
+    --fill-color: #FFFFFF;
+    --focus-stroke-outer: #000000;
+    --focus-stroke-inner: #FFFFFF;
+
+    --error: #C4314B;
+    --success: #107C10;
+    --warning: #995C00;
+    --info: #0B6DBB;
+
+    /* The page behind the cards. Cards are --neutral-layer-1 (white), so without a distinct
+       canvas the whole app is white-on-white and every card boundary disappears.
+       reboot.css is what actually paints it — `body { background-color:
+       var(--neutral-fill-layer-rest) }` — and it loads after this file, so setting the token
+       is the way to win; a `body { background }` rule here would just be overridden. */
+    --neutral-fill-layer-rest: #F5F5F5;
 }
 
-h1:not([class*="mud-"]), h2:not([class*="mud-"]), h3:not([class*="mud-"]), h4:not([class*="mud-"]) {
-    margin: 0; font-weight: 600; letter-spacing: -.01em; color: var(--text);
-}
-a { color: var(--accent); text-decoration: none; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* FluentDesignTheme stamps mode on its own element; :has() lets the light-DOM fallbacks
+   follow the theme toggle without any code. */
+body:has(fluent-design-theme[mode="dark"]) {
+    --neutral-foreground-rest: #FFFFFF;
+    --neutral-foreground-hover: #FFFFFF;
+    --neutral-foreground-hint: #A6A6A6;
+    --neutral-fill-rest: #292929;
+    --neutral-fill-hover: #323232;
+    --neutral-fill-inverse-rest: #FAFAFA;
+    --neutral-fill-input-rest: #282828;
+    --neutral-fill-stealth-rest: transparent;
+    --neutral-fill-stealth-hover: #383838;
+    --neutral-fill-secondary-rest: #333333;
+    --neutral-layer-1: #242424;
+    --neutral-layer-2: #1F1F1F;
+    --neutral-layer-3: #2E2E2E;
+    --neutral-layer-4: #333333;
+    --neutral-layer-floating: #2E2E2E;
+    --neutral-layer-card-container: #242424;
+    --neutral-stroke-rest: #565656;
+    --neutral-stroke-hover: #666666;
+    --neutral-stroke-divider-rest: #3D3D3D;
+    --neutral-stroke-focus: #767676;
+    --neutral-stroke-layer-rest: #3D3D3D;
+    --fill-color: #1F1F1F;
+    --focus-stroke-outer: #FFFFFF;
+    --focus-stroke-inner: #000000;
 
-@keyframes rise      { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@keyframes pop       { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
-@keyframes grow-bar  { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    --accent-foreground-rest: #62ABF5;
+    --accent-foreground-hover: #83BDF7;
 
-/* ---- Buttons -------------------------------------------------------------- */
-.btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-    height: 42px; padding: 0 1.15rem;
-    border: 1px solid transparent; border-radius: var(--radius-sm);
-    font-family: inherit; font-size: .925rem; font-weight: 600;
-    cursor: pointer; white-space: nowrap;
-    transition: filter .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease, transform .05s ease;
-}
-.btn:active { transform: translateY(1px); }
-.btn--block { width: 100%; }
-.btn--primary { background: var(--grad); color: #fff; box-shadow: 0 1px 2px rgba(23, 12, 121, .28); }
-.btn--primary:hover { filter: brightness(1.08); box-shadow: 0 6px 18px rgba(23, 12, 121, .30); }
-.btn--ghost { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
-.btn--ghost:hover { background: var(--surface-2); }
-.btn svg { width: 18px; height: 18px; }
+    --error: #E37D80;
+    --success: #54B054;
+    --warning: #E9A52F;
+    --info: #62ABF5;
 
-/* ---- Form fields ---------------------------------------------------------- */
-.field { display: flex; flex-direction: column; gap: .4rem; margin-bottom: 1.05rem; }
-.field label { font-size: .82rem; font-weight: 600; color: #2A2085; }
-.field input {
-    height: 44px; padding: 0 .85rem;
-    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-    font-family: inherit; font-size: .95rem; color: var(--text); background: var(--surface);
-    transition: border-color .15s ease, box-shadow .15s ease;
-}
-.field input::placeholder { color: var(--text-muted); }
-.field input:focus { outline: none; border-color: var(--seagrass-2); box-shadow: 0 0 0 3px var(--accent-soft); }
-
-.field-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; font-size: .85rem; }
-.check { display: inline-flex; align-items: center; gap: .5rem; color: var(--text-muted); user-select: none; }
-.check input { width: 16px; height: 16px; accent-color: var(--deep-ocean); }
-
-/* ---- Auth (split-panel login) --------------------------------------------- */
-.auth {
-    min-height: 100dvh; display: grid; place-items: center;
-    padding: clamp(1rem, 4vw, 2.5rem);
-    background:
-        radial-gradient(60% 55% at 15% 0%, #DCEFF1 0%, transparent 60%),
-        radial-gradient(50% 50% at 100% 100%, #E0F0F2 0%, transparent 55%),
-        var(--bg);
-}
-.auth-shell {
-    display: grid; grid-template-columns: 1.05fr .95fr;
-    width: 100%; max-width: 940px; min-height: 560px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 22px; overflow: hidden; box-shadow: var(--shadow-lg);
+    --neutral-fill-layer-rest: #171717;
 }
 
-.auth-aside {
-    position: relative; overflow: hidden; isolation: isolate;
-    padding: 2.75rem; color: #fff; background: var(--grad-aside);
-    display: flex; flex-direction: column; justify-content: space-between; gap: 2rem;
-}
-/* ::before follows the cursor (see pointer.js); ::after is a static blob. */
-.auth-aside::before {
-    content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
-    background: radial-gradient(280px circle at var(--mx, 26%) var(--my, 20%), rgba(138, 203, 208, .42), transparent 62%);
-    transition: background .12s linear;
-}
-.auth-aside::after {
-    content: ""; position: absolute; z-index: -1; border-radius: 50%; filter: blur(2px);
-    width: 300px; height: 300px; bottom: -110px; left: -80px;
-    background: radial-gradient(circle, rgba(86, 182, 198, .30), transparent 70%);
-}
-.auth-aside .brand-name { color: #fff; }
-.aside-lead h2 { color: #fff; font-size: 1.9rem; line-height: 1.15; letter-spacing: -.02em; }
-.aside-lead p { margin: .85rem 0 0; color: rgba(255, 255, 255, .82); font-size: .975rem; max-width: 30ch; }
-.aside-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .7rem; }
-.aside-list li { display: flex; align-items: center; gap: .65rem; font-size: .9rem; color: rgba(255, 255, 255, .92); }
-.aside-list .tick { width: 22px; height: 22px; flex: none; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .16); }
-.aside-list .tick svg { width: 13px; height: 13px; }
+/* ---- Responsive floor ---------------------------------------------------------------
 
-.auth-main { padding: clamp(1.75rem, 4vw, 3rem); display: flex; flex-direction: column; justify-content: center; }
-.auth-brand { display: flex; align-items: center; gap: .6rem; margin-bottom: 1.75rem; }
-.auth-head { margin-bottom: 1.5rem; }
-.auth-head h1 { font-size: 1.45rem; }
-.auth-head p { margin: .35rem 0 0; color: var(--text-muted); font-size: .925rem; }
-.auth-foot { margin-top: 1.5rem; text-align: center; font-size: .875rem; color: var(--text-muted); }
+   Nearly every "it overflows / it gets clipped / it moves when I resize" bug in this app has
+   had the same shape: a FluentStack laid out horizontally whose children refuse to shrink.
+   A flex item defaults to `min-width: auto`, meaning it will not go narrower than its own
+   content — so instead of shrinking, the last child is pushed past the container's edge, and
+   a FluentSpacer makes that worse by claiming the leftover space first. min-width:0 lets
+   them shrink, which is what keeps a row inside its container at any width.
 
-.brand-mark {
-    width: 34px; height: 34px; border-radius: 10px; flex: none;
-    background: var(--grad); color: #fff;
-    display: grid; place-items: center; font-weight: 700; font-size: .9rem;
-    box-shadow: 0 2px 6px rgba(23, 12, 121, .28);
-}
-.brand-name { font-weight: 700; font-size: 1rem; letter-spacing: -.01em; }
+   Paired with Wrap="true" on the page headers, controls now drop to a second line rather
+   than sliding out of view, and they land in the same place every time.
 
-/* ---- App shell: moved to Components/Layout/MainLayout.razor.css and
-   NavMenu.razor.css (CSS Isolation) — retro theme, thick-border content box. ---- */
-
-/* ---- Stat tiles ----------------------------------------------------------- */
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
-.stat {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem;
-    transition: transform .18s var(--ease), box-shadow .18s var(--ease), border-color .18s var(--ease);
-}
-.stat:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--border-strong); }
-.stat-top { display: flex; align-items: flex-start; justify-content: space-between; }
-.stat-icon { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; background: var(--grad); color: #fff; box-shadow: 0 3px 8px rgba(23, 12, 121, .22); }
-.stat-icon svg { width: 20px; height: 20px; }
-.spark { width: 74px; height: 30px; overflow: visible; }
-.spark path { fill: none; stroke: var(--seagrass-2); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.stat-label { color: var(--text-muted); font-size: .85rem; font-weight: 500; }
-.stat-value { font-size: 1.95rem; font-weight: 700; letter-spacing: -.02em; margin-top: .55rem; }
-.stat-note { margin-top: .35rem; font-size: .8rem; color: var(--text-muted); }
-.delta { font-weight: 600; }
-.delta.up { color: var(--seagrass-2); }
-.delta.down { color: var(--warning); }
-
-/* ---- Grid split for lower panels ------------------------------------------ */
-.grid-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1.25rem; margin-top: 1.5rem; align-items: start; }
-
-/* ---- Panel ---------------------------------------------------------------- */
-.panel {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
-    transition: box-shadow .18s var(--ease), border-color .18s var(--ease);
-}
-.panel:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
-.panel-head { display: flex; align-items: center; justify-content: space-between; padding: 1.05rem 1.25rem; border-bottom: 1px solid var(--border); }
-.panel-title { font-size: 1rem; font-weight: 600; }
-.panel-link { font-size: .85rem; font-weight: 600; }
-.panel-body { padding: 1.25rem; }
-
-/* ---- Department bars ------------------------------------------------------ */
-.bars { display: grid; gap: 1.05rem; }
-.bar-row { display: grid; gap: .45rem; }
-.bar-meta { display: flex; align-items: baseline; justify-content: space-between; font-size: .875rem; }
-.bar-meta .val { font-weight: 700; font-variant-numeric: tabular-nums; }
-.bar-track { height: 9px; border-radius: 999px; background: var(--neutral-soft); overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 999px; transform-origin: left; }
-
-/* ---- Table ---------------------------------------------------------------- */
-.table-wrap { overflow-x: auto; }
-table.emp { width: 100%; border-collapse: collapse; min-width: 560px; }
-.emp th { text-align: left; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-subtle); font-weight: 600; padding: .7rem 1.25rem; background: var(--surface-2); }
-.emp td { padding: .8rem 1.25rem; border-top: 1px solid var(--border); font-size: .9rem; vertical-align: middle; }
-.emp tbody tr { transition: background .12s ease; }
-.emp tbody tr:hover { background: var(--surface-2); }
-.person { display: flex; align-items: center; gap: .7rem; }
-.person .name { font-weight: 600; font-size: .9rem; }
-.person .email { font-size: .8rem; color: var(--text-muted); }
-
-/* ---- Badges --------------------------------------------------------------- */
-.badge { display: inline-flex; align-items: center; gap: .4rem; padding: .22rem .6rem; border-radius: 999px; font-size: .77rem; font-weight: 600; }
-.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.badge.active { background: var(--accent-soft); color: var(--deep-ocean); }
-.badge.leave  { background: var(--warning-soft); color: var(--warning); }
-.badge.remote { background: var(--neutral-soft); color: var(--neutral); }
-
-/* ---- Cursor-reactive spotlight (see pointer.js) --------------------------- */
-.stat, .panel { position: relative; isolation: isolate; }
-.stat::before, .panel::before {
-    content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit; pointer-events: none;
-    background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(86, 182, 198, .13), transparent 60%);
-    opacity: 0; transition: opacity .3s ease;
-}
-.stat:hover::before, .panel:hover::before { opacity: 1; }
-.stat > *, .panel > * { position: relative; z-index: 1; }
-
-/* ---- Motion (honors prefers-reduced-motion) ------------------------------- */
-@media (prefers-reduced-motion: no-preference) {
-    .auth-shell { animation: pop .55s var(--ease) both; }
-    .stats      { animation: rise .5s var(--ease) both; }
-    .grid-2     { animation: rise .5s .12s var(--ease) both; }
-    .bar-fill   { animation: grow-bar .7s .2s var(--ease) both; }
+   Horizontal rows only. A vertical stack has no horizontal competition to resolve, so the
+   same rule there buys nothing and costs plenty: it let the drawer's nav labels collapse to
+   "D…", "C…" instead of keeping their width.
+------------------------------------------------------------------------------------- */
+.stack-horizontal > * {
+    min-width: 0;
 }
 
-/* ---- Responsive ----------------------------------------------------------- */
-@media (max-width: 1080px) { .grid-2 { grid-template-columns: 1fr; } }
-@media (max-width: 1000px) { .stats { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 860px) {
-    .auth-shell { grid-template-columns: 1fr; max-width: 440px; min-height: 0; }
-    .auth-aside { display: none; }
+/* The app bar is a solid accent-blue surface, and every neutral token is wrong on it. A stealth
+   button there still paints the neutral stealth fill — and inside the header that value does not
+   come from this file at all: FluentDesignTheme writes its own tokens inline, so #fbfbfb wins
+   over the `transparent` set further down. A near-white chip on blue, with a white icon in it,
+   is the white square. On this bar a button carries no fill, and hover is a wash of the bar's
+   own white rather than a neutral grey. */
+header.header fluent-button::part(control) {
+    background: transparent;
+    border-color: transparent;
 }
-@media (max-width: 560px) { .stats { grid-template-columns: 1fr; } }
 
-/* ---- Blazor framework error UI -------------------------------------------- */
+header.header fluent-button:hover::part(control) {
+    background: rgb(255 255 255 / 18%);
+}
+
+/* A badge opts out of that. It is a label exactly the size of its own text, with no ellipsis,
+   and FluentBadge forces its inner span to `width: 100%` of the control and centres the text in
+   it — so squeezing a badge does not truncate the label, it cuts an equal sliver off each end.
+   That is how "pending" came to read as "bending" in the HR dashboard's request rows: measured
+   at 34px wide against 38px of text. */
+fluent-badge {
+    flex: 0 0 auto;
+}
+
+/* Long single-word content (an email, a department name) would otherwise widen its column
+   past the grid and reintroduce the same overflow from the inside. */
+.fluent-data-grid {
+    max-width: 100%;
+}
+
+.fluent-data-grid td {
+    overflow-wrap: anywhere;
+}
+
+/* The grid's own rule is `width: auto`, which fills a block container but collapses to the
+   content width inside a flex one — and a vertical FluentStack aligns its children to the
+   start. That is why the delegations table sat at 698px inside a 1837px card.
+
+   !important because the library's rule is `.fluent-data-grid[b-…]`, the same specificity as
+   this one, and its bundle is linked after app.css — a tie goes to whichever came last. */
+.stack-vertical > .fluent-data-grid {
+    width: 100% !important;
+}
+
+/* Rows are auto-sized from their cells, but a cell is `overflow: hidden`, which makes its
+   minimum contribution zero — so a row is sized by its plain-text cells (32px) and anything
+   taller is cut by the row divider: badges lost 2px, action buttons 13px. A floor tall enough
+   for a button lets the row size to what it actually holds. */
+.fluent-data-grid td {
+    min-height: 44px;
+}
+
+/* ---- Fluent component adjustments -------------------------------------------------- */
+
+/* fluent-card ships without padding, so content sits flush against its border, and its
+   default border is nearly invisible on the canvas. Cards that want something else say so
+   inline, which wins over this.
+
+   --card-height is the component's own escape hatch for its `height: var(--card-height, 100%)`
+   default. That default makes every card fill its container rather than its content, so an
+   "Active Outgoing Delegations" table with one row, an empty "Requests to approve", or the
+   impersonation banner in the drawer all stretched to the full height available. auto makes a
+   card hug its content and grow only as rows arrive. Cards that genuinely should fill — the
+   equal-height region cards on the org chart, its 75vh panels — set `height` inline, and an
+   inline style still beats this. */
+fluent-card {
+    --card-height: auto;
+    /* fluent-card also sets `content-visibility: auto` on its host as a rendering
+       optimisation. That applies *size containment*, which collapses the content box to zero
+       — harmless while the height was a fixed 100%, but with auto height the card shrinks to
+       just its padding and the content spills out below it. The card is never large enough
+       for the optimisation to be worth that. */
+    content-visibility: visible;
+    padding: 16px;
+    border: calc(var(--stroke-width) * 1px) solid var(--neutral-stroke-layer-rest);
+}
+
+/* Fluent has no type ramp step below Body (14px), but this app has two roles that need one:
+   metadata under a value, and the small all-caps label above a metric. Both stay FluentLabel
+   components — this only supplies the size the ramp is missing.
+
+   !important because FluentLabel's own rule is `.fluent-typography[typo='body'][b-…]`, three
+   selector parts against this one, in a stylesheet that loads after this file. Specificity
+   cannot be won here without either repeating the class three times or setting the size
+   inline on every label; a flag on two utilities is the smaller evil. */
+.app-caption {
+    font-size: var(--type-ramp-minus-1-font-size) !important;
+    line-height: var(--type-ramp-minus-1-line-height) !important;
+}
+
+.app-overline {
+    font-size: var(--type-ramp-minus-1-font-size) !important;
+    line-height: var(--type-ramp-minus-1-line-height) !important;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    font-weight: 600;
+}
+
+/* The drawer is a plain block, so its account footer sat directly under the last nav link,
+   floating mid-sidebar. A flex column lets that footer claim the leftover space with
+   margin-top:auto and settle into the bottom corner; overflow-y keeps a drawer with many
+   sections scrollable instead of spilling past the shell. */
+/* Two regions, and the drawer itself never scrolls. The links take the leftover space and
+   give way when there are more sections than the window is tall; the account footer is the
+   last flex child, so it sits in the bottom corner and stays there at any window size.
+
+   Deliberately no `margin-top: auto` on the footer: an auto margin inside a scroll container
+   is added to the *scrollable overflow* region, so the drawer reported ~700px of scrollable
+   content when only ~530px existed — a scrollbar over content that already fitted. Letting
+   the links region absorb the slack instead keeps the arithmetic honest.
+
+   overflow-x is stated explicitly wherever overflow-y is: CSS promotes a `visible` axis to
+   `auto` as soon as the other axis scrolls, which would add a sideways scrollbar, and that
+   bar then eats height and brings up the vertical one too. */
+.fluent-nav-menu {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* The drawer had no edge of its own, so on a page whose content starts flush against it —
+       the org chart, the calendar rail — there was nothing to say where navigation ended and
+       the page began. A hairline plus a shadow barely off the surface, which is what lifts it
+       without turning it into a panel. */
+    border-inline-end: 1px solid var(--neutral-stroke-divider-rest);
+    box-shadow: 1px 0 4px rgb(0 0 0 / 6%);
+    z-index: 1;
+}
+
+.fluent-nav-menu > .drawer-links {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+/* The account rows down here are FluentButtons wrapping a two-line FluentPersona. A button is
+   a fixed ~32px tall and its control does not grow, so a 32px avatar stacked with a name and a
+   role line was cut off at the bottom — the "squished" profile. Both the host and the inner
+   control have to give way; the host alone leaves the control clipping. */
+.drawer-footer fluent-button,
+.drawer-footer fluent-button::part(control) {
+    height: auto;
+}
+
+.drawer-footer fluent-button::part(control) {
+    padding: 8px 12px;
+    align-items: center;
+}
+
+/* Collapsed, the drawer is 40px wide and the account row is 146px of avatar plus two lines of
+   text — so it simply ran off the edge and was cut in half. Collapsed keeps the disc and drops
+   everything that needs the width: the name block, and the switch button's label, which is the
+   only thing inside its ::part(content) (the icon lives in a slot of its own). */
+.fluent-nav-menu.collapsed .drawer-footer .fluent-persona .name {
+    display: none;
+}
+
+.fluent-nav-menu.collapsed .drawer-footer .fluent-persona {
+    width: auto;
+}
+
+.fluent-nav-menu.collapsed .drawer-footer #switch-account::part(content) {
+    display: none;
+}
+
+.fluent-nav-menu.collapsed .drawer-footer fluent-button::part(control) {
+    padding: 6px 0;
+    justify-content: center;
+}
+
+.fluent-nav-menu.collapsed .drawer-footer fluent-card {
+    margin: 4px 2px !important;
+    padding: 2px !important;
+}
+
+/* FluentPersona sizes the initials disc from ImageSize but leaves the initials themselves at the
+   inherited size, so a two-letter monogram fills the disc edge to edge and a wide pair spills
+   outside it. Only the type is corrected here — an earlier version of this rule also pinned the
+   disc to 36px, which silently overrode every ImageSize in the app: the org chart asks for 28px
+   and was drawing 36, which is what made its rows read as heavy. */
+.fluent-persona .initials {
+    font-size: 12px;
+    line-height: 1;
+    letter-spacing: 0.02em;
+}
+
+.fluent-nav-menu > .drawer-footer {
+    flex: 0 0 auto;
+    /* Opaque so the scrolling links cannot show through underneath it, but in the drawer's own
+       colour: the drawer paints nothing, so what shows through it is the page canvas. This used
+       --neutral-layer-1, the card colour — the same as the canvas in light mode, which is why it
+       never showed, and #242424 against a #171717 canvas in dark, which drew a grey slab behind
+       the account row. */
+    background: var(--neutral-fill-layer-rest);
+}
+
+/* An editor dropped into a data-grid cell is sized for a form, not for a column: without
+   this the department combobox and the region select on /admin/users push ~140px past their
+   cell and overlap the next column. */
+.fluent-data-grid fluent-combobox,
+.fluent-data-grid fluent-select,
+.fluent-data-grid fluent-text-field {
+    width: 100%;
+    min-width: 0;
+}
+
+/* A dropdown opens *inside* its cell, and a cell is `overflow: hidden` — measured on
+   /admin/departments, the manager list is 1288px tall in a 44px cell, so picking a manager
+   showed a sliver of the first option and nothing else. The cells that hold a dropdown stop
+   clipping; the rest keep it, because that is what ellipsises long values. */
+.fluent-data-grid td:has(fluent-combobox),
+.fluent-data-grid td:has(fluent-select) {
+    overflow: visible;
+}
+
+/* And a ceiling on the list itself. The library's own rule is
+   `max-height: calc(var(--max-height) - …)`, but nothing ever defines --max-height, so the
+   calc is invalid and the max-height resolves to `none`: forty managers came to 1288px of
+   list, most of it below the window. The rule already carries `overflow-y: auto`, so a number
+   here is all that was missing and the rest scrolls. */
+fluent-combobox,
+fluent-select {
+    --max-height: 320px;
+}
+
+/* A tree item is one fixed 33px row, and the org chart puts a two-line FluentPersona in it —
+   a 28px avatar with a name and a role line under it, 40px in all. The row does not clip, so
+   every entry spilled 7px into the one below and the whole tree read as overlapping text.
+   The row grows to its content instead; the floor keeps the short ones even. */
+.org-tree fluent-tree-item::part(positioning-region) {
+    height: auto;
+    min-height: 44px;
+}
+
+/* ---- Notification centre -------------------------------------------------------------
+
+   FluentMessageBarProvider in Notification mode draws the cards themselves; these rules only
+   tame the popover they sit in. The library's scoped bundle is linked after app.css, so ties
+   go to it — hence !important on what it sets itself. */
+.notification-center {
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+/* The provider hard-codes `border-top: 1px solid lightgray` as an inline style on every card:
+   too heavy on the light theme, and a light line on near-black in the dark one. The first card
+   sits right under the popover header and needs no separator at all.
+
+   !important throughout this block on any property the library already sets on the same
+   element: its rules are `.fluent-messagebar-…[b-…]`, the same specificity as these, and its
+   bundle is linked after app.css. */
+.notification-center .fluent-messagebar-notification {
+    border-top-color: var(--neutral-stroke-divider-rest) !important;
+    padding: 4px 12px 10px !important;
+    line-height: normal;
+}
+
+.notification-center .fluent-messagebar-notification:first-child {
+    border-top: none !important;
+}
+
+/* Type hierarchy. The card gives the heading row a 12px/600 treatment and leaves the message
+   itself to inherit — which lands it at the document's 16px, larger than its own heading and
+   the wrong way round. The category is a caption here, and the message is the content. */
+.notification-center .fluent-messagebar-notification-message {
+    color: var(--neutral-foreground-hint);
+    letter-spacing: 0.02em;
+}
+
+.notification-center .fluent-messagebar-notification-content {
+    /* Column, so the action lands on its own line: as inline flow it followed the last word of
+       the message and wrapped into the paragraph. */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 0 0 4px !important;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 20px;
+}
+
+.notification-center .fluent-messagebar-notification-time {
+    color: var(--neutral-foreground-hint);
+    font-weight: 400;
+    padding: 0 !important;
+}
+
+/* The "see all" panel. Nothing in it may widen the panel: it is a fixed 440px, and a single
+   long message that refuses to break turns the whole panel into a horizontal scroller. */
+.notification-panel {
+    overflow-x: hidden;
+}
+
+/* Collapsed row: at most two lines, then an ellipsis. Clamped rather than a single nowrap
+   line — nowrap makes the row's *minimum* width the whole sentence, so the accordion's heading
+   track grew to fit it and the text was cut off square at the panel edge. Wrapping lets the
+   row shrink to the panel, and the clamp keeps it to two lines. */
+.notification-panel .notification-summary {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* Unread, without a marker inside the row: an accent edge plus a filled background. The
+   transparent border on read rows keeps every row's text on the same left edge. */
+.notification-panel .notification-item {
+    border-left: 3px solid transparent;
+}
+
+.notification-panel .notification-item.unread {
+    border-left-color: var(--accent-fill-rest);
+    background: var(--neutral-fill-secondary-rest);
+}
+
+/* Expanded: the opposite — wrap freely, and break inside a word rather than push the panel. */
+.notification-panel .notification-text {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* ---- Calendar page -------------------------------------------------------------------
+
+   The month and week surfaces are seven columns of FluentStack built in EmployeeCalendar.razor,
+   not FluentCalendar. The picker is still used, but only in the rail, at the size it was drawn
+   for — so nothing here fights a component's own sizing, which is what the previous version of
+   this block was almost entirely made of.
+------------------------------------------------------------------------------------- */
+.cal-page {
+    gap: 0;
+}
+
+/* The rail: month picker and the list of leave types, the "My calendars" column of the Teams
+   layout. A hairline, not a card — it is part of the same sheet as the surface. */
+.cal-rail {
+    flex: 0 0 264px;
+    width: 264px;
+    padding: 0 20px 0 0;
+    margin-inline-end: 20px;
+    border-inline-end: 1px solid var(--neutral-stroke-divider-rest);
+    overflow-y: auto;
+}
+
+.cal-rail-title {
+    padding: 0 4px 4px;
+}
+
+/* A leave type reads as a row, not a button: the control is the whole row, the colour tells you
+   which type it is, and the balance sits where Teams puts its checkbox. */
+.cal-rail fluent-button.cal-type,
+.cal-rail fluent-button.cal-type::part(control) {
+    width: 100%;
+    height: auto;
+}
+
+.cal-rail fluent-button.cal-type::part(control) {
+    padding: 6px 8px;
+    justify-content: flex-start;
+}
+
+.cal-rail fluent-button.cal-type.is-selected::part(control) {
+    background: var(--neutral-fill-secondary-rest);
+}
+
+.cal-swatch {
+    flex: 0 0 12px;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.cal-type-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Toolbar: controls sitting on the page, no filled strip behind them. */
+.cal-toolbar {
+    flex: 0 0 auto;
+    padding-bottom: 12px;
+}
+
+.cal-period {
+    padding-inline-start: 8px;
+}
+
+/* ---- The month and week surface ---- */
+
+.cal-grid {
+    border: 1px solid var(--neutral-stroke-divider-rest);
+    border-radius: calc(var(--control-corner-radius) * 1px);
+    background: var(--neutral-layer-1);
+    overflow: hidden;
+}
+
+.cal-row {
+    display: flex;
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+/* Day names: a plain line of text, the lightest thing on the surface. */
+.cal-row-head {
+    flex: 0 0 auto;
+}
+
+.cal-headcell {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 10px;
+    border-inline-start: 1px solid var(--neutral-stroke-divider-rest);
+    border-bottom: 1px solid var(--neutral-stroke-divider-rest);
+}
+
+.cal-headcell:first-child,
+.cal-cell:first-child {
+    border-inline-start: none;
+}
+
+/* One week of the week view is a single tall row. */
+.cal-row-week {
+    flex: 1 1 auto;
+}
+
+.cal-cell {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 8px;
+    border-inline-start: 1px solid var(--neutral-stroke-divider-rest);
+    border-top: 1px solid var(--neutral-stroke-divider-rest);
+    overflow: hidden;
+}
+
+.cal-row:nth-of-type(2) .cal-cell {
+    border-top: none;
+}
+
+/* Days of the neighbouring month, and days nobody works: recessed, so the month being looked at
+   reads as one block and a weekend is visibly not bookable. */
+.cal-cell.is-outside,
+.cal-cell.is-weekend {
+    background: var(--neutral-layer-2);
+}
+
+.cal-cell.is-outside .cal-daynum {
+    color: var(--neutral-foreground-hint);
+}
+
+/* Only a day that can actually be picked offers to be clicked. */
+.cal-cell.is-selectable {
+    cursor: pointer;
+}
+
+.cal-cell.is-selectable:hover {
+    background: var(--neutral-fill-stealth-hover);
+}
+
+/* The date: small and quiet, because the entries under it are what is being read. Today is that
+   same number in a filled circle, as in Teams. */
+.cal-daynum {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    font-size: 13px;
+}
+
+.cal-daynum.is-today {
+    width: 24px;
+    background: var(--accent-fill-rest);
+    color: var(--foreground-on-accent-rest) !important;
+    border-radius: 50%;
+    font-weight: 600;
+}
+
+/* A holiday shares the date's line rather than taking three red lines of its own below it,
+   which is what left no room for the day's entries. Full name on hover. */
+.cal-holiday {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    font-size: var(--type-ramp-minus-1-font-size);
+}
+
+.cal-holiday-block {
+    font-size: var(--type-ramp-minus-1-font-size);
+    line-height: 1.25;
+}
+
+/* An entry, across the whole cell. */
+.cal-entry {
+    width: 100%;
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+
+.cal-entry-block {
+    padding: 4px 6px;
+}
+
+.cal-entry-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--type-ramp-minus-1-font-size);
+    line-height: 18px;
+    font-weight: 600;
+}
+
+.cal-entry-wrap {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+}
+
+.cal-more {
+    cursor: default;
+    padding-inline-start: 2px;
+}
+
+/* The request bar, as the last row of the surface. */
+.cal-submit {
+    flex: 0 0 auto;
+    margin-top: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--neutral-stroke-divider-rest);
+    border-radius: calc(var(--control-corner-radius) * 1px);
+    background: var(--neutral-layer-1);
+}
+
+/* ---- Grid and List views ---- */
+
+/* FluentDataGrid's own rule is `flex: 1`, and the surface around it is a flex column with a
+   real height — so the grid grew to fill it and spread its handful of rows from the top of the
+   card to the bottom, header alone at the top. A table is as tall as its rows.
+
+   The `div` prefix is load-bearing: the library's rule is `.fluent-data-grid[b-…]`, one class
+   and an attribute, which a two-class selector only ties with — and a tie goes to the sheet that
+   loads last, which is theirs. */
+div.cal-surface .fluent-data-grid {
+    flex: 0 0 auto;
+}
+
+/* ---- Grid view: the month as a timeline ---- */
+
+/* The day columns. Their padding goes, because at roughly 25px per day the cell's own 16px side
+   padding leaves nothing to draw in — and because a bar has to reach both cell edges for
+   consecutive days to meet. */
+.cal-surface .fluent-data-grid td.leave-day,
+.cal-surface .fluent-data-grid th.leave-day {
+    padding-left: 0;
+    padding-right: 0;
+    text-align: center;
+}
+
+/* A day cell is about 25.4px wide, so cell edges land between pixels and consecutive bars were
+   measured 1px apart — a dotted seam down a period that should read as one bar. Each bar runs a
+   pixel into its neighbour to close it, which needs the cell to stop clipping. */
+.cal-surface .fluent-data-grid td.leave-day {
+    overflow: visible;
+}
+
+/* A guide down each day, so a bar can be read off against the date above it. An inset shadow
+   rather than a border: it is painted between the cell's background and its content, so a bar
+   crossing the day covers it and a period still reads as one unbroken run. */
+.cal-surface .fluent-data-grid td.leave-day,
+.cal-surface .fluent-data-grid th.leave-day {
+    box-shadow: inset 1px 0 0 var(--neutral-stroke-divider-rest);
+}
+
+/* The day headers went blank with the columns this narrow: the title keeps 16px of padding on
+   each side and is sized `calc(100% - 10px)` inline, which on a 25px track leaves a negative
+   content width, and the number was clipped away entirely. */
+.cal-surface .fluent-data-grid th.leave-day .col-title {
+    width: 100% !important;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* One period, one bar: square where it continues into the next cell, rounded only at the two
+   ends of the range. A range running past the edge of the month keeps its square end, which is
+   the honest way to show it carries on. */
+.leave-bar {
+    height: 18px;
+    width: calc(100% + 1px);
+    border-radius: 0;
+}
+
+.leave-bar.is-end {
+    width: 100%;
+}
+
+.leave-bar.is-start {
+    border-start-start-radius: 9px;
+    border-end-start-radius: 9px;
+    /* The label is written in the opening cell and runs along the bar past it, so it has to sit
+       above the days that follow — they come later in the document and would paint over it. */
+    position: relative;
+    z-index: 1;
+}
+
+.leave-bar.is-end {
+    border-start-end-radius: 9px;
+    border-end-end-radius: 9px;
+}
+
+.leave-bar-label {
+    /* The app's responsive floor gives every child of a horizontal stack `min-width: 0`, which
+       squeezed this box to the 25px of its own day. The inline max-width caps it at the range's
+       own span, and anything longer than that is cut here rather than across its neighbour. */
+    flex: 0 0 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-inline-start: 8px;
+    font-size: var(--type-ramp-minus-1-font-size);
+    line-height: 18px;
+    pointer-events: none;
+}
+
+/* ---- Blazor framework UI ------------------------------------------------------------
+   Not components and cannot become components: blazor.web.js finds these by id and class.
+------------------------------------------------------------------------------------- */
 #blazor-error-ui {
     color: #fff; background: #b91c1c; display: none;
     position: fixed; bottom: 0; left: 0; right: 0;
@@ -270,102 +817,5 @@ table.emp { width: 100%; border-collapse: collapse; min-width: 560px; }
 #blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 1rem; top: .75rem; }
 .blazor-error-boundary { background: #b91c1c; padding: 1rem; color: #fff; }
 
-/* ---------------------------------------------------------------------------
-   Leave Management design system (Login + Dashboard) — corporate redesign.
-   Siemens-authentic: white/cool-gray surfaces, deep-blue ink #000028, petrol
-   #007993 as the single accent. Scoped under .lm; the legacy system above
-   still backs MainLayout/Error/NotFound only.
---------------------------------------------------------------------------- */
-.lm {
-    --l-bg:        #F4F5F7;
-    --l-surface:   #ffffff;
-    --l-border:    #E4E7EC;
-    --l-hairline:  #EDEFF2;
-    --l-ink:       #000028;
-    --l-ink-2:     #4C4C68;
-    --l-muted:     #7A7A94;
-    --l-accent:    #007993;
-    --l-accent-hi: #00646E;
-    --l-accent-bg: #E5F3F5;
-    --l-green:     #0F7B3D;  --l-green-bg:  #E7F5EC;
-    --l-red:       #C4314B;  --l-red-bg:    #FBECEF;
-    --l-amber:     #B26205;  --l-amber-bg:  #FCF2E4;
-    --l-purple:    #7D5BA6;  --l-purple-bg: #F2EDF8;
-    --l-gray:      #5C5C74;  --l-gray-bg:   #EEF0F3;
-    --l-r:         10px;
-    --l-r-sm:      8px;
-    --l-pop:       0 12px 40px -12px rgba(0, 0, 40, .22);
-    --l-ease:      cubic-bezier(.16, 1, .3, 1);
-
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    color: var(--l-ink);
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-}
-.lm, .lm * { box-sizing: border-box; }
-.lm ::placeholder { color: var(--l-muted); }
-.lm input, .lm button, .lm select, .lm textarea { font-family: inherit; }
-/* headings inherit local color; drop the focus ring FocusOnNavigate adds. */
-.lm :is(h1, h2, h3, h4, h5, h6) { color: inherit; margin: 0; }
-.lm :is(h1, h2, h3, h4, h5, h6):focus, .lm :is(h1, h2, h3, h4, h5, h6):focus-visible { outline: none; }
-.lm :focus-visible { outline: 2px solid var(--l-accent); outline-offset: 2px; }
-
-/* GSAP layer (js/anim.js). Pre-hidden only when <head> script added .anim
-   (JS on + motion allowed) — no-JS / reduced-motion users see everything. */
-.anim .lm [data-reveal], .anim .lm [data-intro] { opacity: 0; }
-
-/* ---- primitives (Login only — Dashboard primitives live in Components/*.razor.css) ---- */
-.lm .microlabel { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--l-muted); }
-
-.lm .btn-pri {
-    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-    height: 38px; padding: 0 16px; border: 1px solid transparent; border-radius: var(--l-r-sm);
-    font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
-    transition: background .18s ease, border-color .18s ease, color .18s ease, transform .06s ease;
-    background: var(--l-accent); color: #fff;
-}
-.lm .btn-pri:hover { background: var(--l-accent-hi); }
-.lm .btn-pri:active { transform: scale(.98); }
-
-/* ---- login ---- */
-.lm.login-page {
-    min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 40px 24px; position: relative;
-    background-image: radial-gradient(#DCDFE5 1px, transparent 1px);
-    background-size: 26px 26px; background-color: var(--l-bg);
-}
-.lm .login-brand { position: absolute; top: 28px; left: 36px; display: flex; align-items: center; gap: 10px; }
-.lm .brand-sq { width: 28px; height: 28px; border-radius: 7px; background: var(--l-ink); display: flex; align-items: center; justify-content: center; flex: none; }
-.lm .brand-sq > div { width: 11px; height: 11px; border-radius: 3px; background: var(--l-accent); }
-.lm .brand-word { font-weight: 700; letter-spacing: .2em; font-size: 13px; color: var(--l-ink); }
-.lm .login-card {
-    width: 100%; max-width: 420px; background: var(--l-surface);
-    border: 1px solid var(--l-border); border-radius: 14px; padding: 40px 38px 34px;
-    box-shadow: 0 1px 2px rgba(0,0,40,.04), var(--l-pop);
-}
-.lm .login-card h1 { font-size: 22px; font-weight: 650; letter-spacing: -.02em; margin: 10px 0 6px; }
-.lm .login-sub { margin: 0 0 28px; font-size: 13.5px; color: var(--l-muted); }
-.lm .lfield { display: block; margin-bottom: 16px; font-size: 12.5px; font-weight: 600; color: var(--l-ink-2); }
-.lm .lfield input {
-    display: block; width: 100%; height: 42px; margin-top: 7px; padding: 0 12px;
-    border: 1px solid var(--l-border); border-radius: var(--l-r-sm);
-    background: var(--l-surface); font-size: 14px; color: var(--l-ink);
-    transition: border-color .18s ease, box-shadow .18s ease;
-}
-.lm .lfield input:focus { outline: none; border-color: var(--l-accent); box-shadow: 0 0 0 3px var(--l-accent-bg); }
-.lm .login-row { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 22px; font-size: 13px; }
-.lm .login-row .check { display: inline-flex; align-items: center; gap: 8px; color: var(--l-ink-2); cursor: pointer; font-weight: 500; }
-.lm .login-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--l-accent); margin: 0; }
-.lm .login-row a { color: var(--l-accent); font-weight: 600; text-decoration: none; }
-.lm .login-row a:hover { color: var(--l-accent-hi); }
-.lm .login-error { margin: -6px 0 16px; font-size: 13px; color: #C4314B; }
-.lm .btn-block { width: 100%; height: 42px; }
-.lm .login-foot { margin-top: 20px; font-size: 12px; color: var(--l-muted); text-align: center; }
-.lm .login-foot a { color: var(--l-accent); font-weight: 600; text-decoration: none; }
-.lm .login-foot a:hover { color: var(--l-accent-hi); }
-.lm .login-legal { position: absolute; bottom: 24px; font-size: 12px; color: var(--l-muted); display: flex; gap: 18px; }
-
-@media (prefers-reduced-motion: reduce) {
-    .lm, .lm *, .lm::before, .lm::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
-}
+/* Error.razor is a plain framework page outside the Fluent shell. */
+.text-danger { color: var(--error); }

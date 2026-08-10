@@ -8,75 +8,93 @@
 @using CompanyEmployees.Web.Security
 @inject EmployeeContext Employees
 @inject NavigationManager Nav
-@inject ISnackbar Snackbar
+@inject IToastService Toast
 
 <PageTitle>Departments · Admin</PageTitle>
 
 @if (!_authorized)
 {
-	<MudProgressCircular Indeterminate="true" />
+	<FluentProgressRing />
 }
 else
 {
-	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Departments</MudText>
+	<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" MarginBlock="0 16px">Departments</FluentLabel>
 
-	<MudDataGrid T="Department" Items="@_departments" QuickFilter="@_quickFilter"
-				 Filterable="true" SortMode="SortMode.Multiple"
-				 FilterMode="DataGridFilterMode.ColumnFilterRow"
-				 Hover="true" Dense="true" Elevation="1" Class="mb-6">
-		<ToolBarContent>
-			<MudTextField @bind-Value="_quickSearch" Placeholder="Search department..."
-						  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-						  IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
-						  Immediate="true" />
-			<MudSpacer />
-		</ToolBarContent>
-		<Columns>
-			<TemplateColumn T="Department" Title="Name" Sortable="true"
-							SortBy="@(d => d.Name)" Filterable="false">
-				<CellTemplate>
-					<MudTextField @bind-Value="context.Item.Name" Immediate="false"
-								  OnBlur="@(() => SaveDepartmentAsync(context.Item))" />
-				</CellTemplate>
-			</TemplateColumn>
-			<TemplateColumn T="Department" Title="Manager" Sortable="true"
-							SortBy="@(d => GetManagerName(d.ManagerId))" Filterable="false">
-				<CellTemplate>
-					<MudAutocomplete T="Guid?" Value="context.Item.ManagerId"
-									 ValueChanged="@(v => OnManagerChangedAsync(context.Item, v))"
-									 SearchFunc="@SearchManagers"
-									 ToStringFunc="@GetManagerName"
-									 ResetValueOnEmptyText="true"
-									 CoerceText="true" />
-				</CellTemplate>
-			</TemplateColumn>
-			<PropertyColumn Property="@(d => d.Members.Count)" Title="Members" />
-			<TemplateColumn T="Department" Sortable="false" Filterable="false">
-				<CellTemplate>
-					<MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
-								   OnClick="@(() => DeleteDepartmentAsync(context.Item))" />
-				</CellTemplate>
-			</TemplateColumn>
-		</Columns>
-		<PagerContent>
-			<MudDataGridPager T="Department" />
-		</PagerContent>
-	</MudDataGrid>
+	<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+				 HorizontalGap="12" Wrap="true" Width="100%">
+		<FluentSearch @bind-Value="_quickSearch" @bind-Value:after="StateHasChanged"
+					  Placeholder="Search department..." Style="width:280px;" />
+		<FluentSpacer />
+	</FluentStack>
 
-	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
-		<MudText Typo="Typo.subtitle2" Class="mb-2">New department</MudText>
-		<div class="d-flex align-center gap-3">
-			<MudTextField T="string" @bind-Value="_newName" Label="Name" />
-			<MudAutocomplete T="Guid?" @bind-Value="_newManagerId" Label="Manager" Style="min-width:200px;"
-							 SearchFunc="@SearchManagers"
-							 ToStringFunc="@GetManagerName"
-							 ResetValueOnEmptyText="true"
-							 CoerceText="true" />
-			<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateDepartmentAsync">
-				Add
-			</MudButton>
-		</div>
-	</MudPaper>
+	<FluentDataGrid Items="@FilteredDepartments" TGridItem="Department" ResizableColumns="true"
+					ShowHover="true" Pagination="@_pagination" Style="margin-top:12px;"
+					GridTemplateColumns="2fr 2fr 0.7fr 0.5fr">
+		<TemplateColumn Title="Name" Sortable="true" SortBy="@_byName"
+						Filtered="@(!string.IsNullOrWhiteSpace(_fName))">
+			<ColumnOptions>
+				<FluentSearch @bind-Value="_fName" @bind-Value:after="StateHasChanged"
+							  Placeholder="Filter by name" AutoFocus="true" />
+			</ColumnOptions>
+			<ChildContent>
+			@* Immediate binding would save on every keystroke, so the value is written to the
+			   model as you type and only persisted when the field loses focus — as before.
+			   focusout rather than blur: blur does not bubble out of the web component. *@
+			<FluentTextField Value="@context.Name"
+							 ValueChanged="@(value => context.Name = value ?? string.Empty)"
+							 @onfocusout="@(() => SaveDepartmentAsync(context))" />
+			</ChildContent>
+		</TemplateColumn>
+
+		<TemplateColumn Title="Manager" Sortable="true" SortBy="@_byManager"
+						Filtered="@(!string.IsNullOrWhiteSpace(_fManager))">
+			<ColumnOptions>
+				<FluentSearch @bind-Value="_fManager" @bind-Value:after="StateHasChanged"
+							  Placeholder="Filter by manager" AutoFocus="true" />
+			</ColumnOptions>
+			<ChildContent>
+			<FluentCombobox TOption="ManagerOption"
+							Items="@_managerOptions"
+							OptionValue="@(option => option.Id.ToString())"
+							OptionText="@(option => option.Name)"
+							Autocomplete="ComboboxAutocomplete.Both"
+							SelectedOption="@OptionFor(context.ManagerId)"
+							SelectedOptionChanged="@(option => OnManagerChangedAsync(context, option))" />
+			</ChildContent>
+		</TemplateColumn>
+
+		<PropertyColumn Title="Members" Property="@(d => d.Members.Count)" />
+
+		<TemplateColumn Sortable="false" Align="Align.End">
+			<FluentButton Appearance="Appearance.Stealth" Title="Delete department"
+						  IconStart="@(new Icons.Regular.Size20.Delete().WithColor("var(--error)"))"
+						  OnClick="@(() => DeleteDepartmentAsync(context))" />
+		</TemplateColumn>
+	</FluentDataGrid>
+
+	<FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center"
+				 Width="100%">
+		<FluentPaginator State="@_pagination" />
+	</FluentStack>
+
+	<FluentCard Style="margin-top:24px; padding:16px;">
+		<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+			<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">New department</FluentLabel>
+			<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+						 VerticalAlignment="VerticalAlignment.Bottom">
+				<FluentTextField @bind-Value="_newName" Label="Name" />
+				<FluentCombobox TOption="ManagerOption" Label="Manager"
+								Items="@_managerOptions"
+								OptionValue="@(option => option.Id.ToString())"
+								OptionText="@(option => option.Name)"
+								Autocomplete="ComboboxAutocomplete.Both"
+								SelectedOption="@OptionFor(_newManagerId)"
+								SelectedOptionChanged="@(option => _newManagerId = ToManagerId(option))"
+								Style="min-width:200px;" />
+				<FluentButton Appearance="Appearance.Accent" OnClick="CreateDepartmentAsync">Add</FluentButton>
+			</FluentStack>
+		</FluentStack>
+	</FluentCard>
 }
 
 @code {
@@ -93,12 +111,36 @@ else
 
 	private string _quickSearch = "";
 
-	private Func<Department, bool> _quickFilter => d =>
-	{
-		if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
-		return d.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-			|| GetManagerName(d.ManagerId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase);
-	};
+	private readonly PaginationState _pagination = new() { ItemsPerPage = 10 };
+
+	// Fluent's combobox picks from a list of objects rather than from a search callback, so
+	// "no manager" needs a real entry: Guid.Empty stands in for null on the way in and out.
+	private sealed record ManagerOption(Guid Id, string Name);
+
+	private static readonly ManagerOption NoManager = new(Guid.Empty, "None");
+	private List<ManagerOption> _managerOptions = [NoManager];
+
+	// SortBy on a TemplateColumn needs the comparer up front; both are stable across renders.
+	private readonly GridSort<Department> _byName = GridSort<Department>.ByAscending(d => d.Name);
+	private GridSort<Department> _byManager => GridSort<Department>.ByAscending(d => GetManagerName(d.ManagerId));
+
+	// Per-column filters, opened from each column's options icon; they stack with the
+	// toolbar search rather than replacing it.
+	private string _fName = "";
+	private string _fManager = "";
+
+	private static bool Has(string filter, string? value) =>
+		string.IsNullOrWhiteSpace(filter)
+		|| (value ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+	private IQueryable<Department> FilteredDepartments =>
+		_departments.Where(d =>
+			(string.IsNullOrWhiteSpace(_quickSearch)
+			 || d.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+			 || GetManagerName(d.ManagerId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase))
+			&& Has(_fName, d.Name)
+			&& Has(_fManager, GetManagerName(d.ManagerId)))
+		.AsQueryable();
 
 	// The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
 	// so non-admins are redirected without a database query.
@@ -123,18 +165,22 @@ else
 	{
 		_departments = await Employees.GetDepartmentsAsync();
 		_users = await Employees.GetAllUsersAsync();
+		_managerOptions = _lineManagers
+			.Select(manager => new ManagerOption(manager.Id, manager.Name))
+			.Prepend(NoManager)
+			.ToList();
 	}
 
 	private async Task SaveDepartmentAsync(Department dept)
 	{
 		await Employees.UpdateDepartmentAsync(dept.Id, dept.Name, dept.ManagerId);
-		Snackbar.Add("Department updated.", Severity.Success);
+		Toast.ShowSuccess("Department updated.");
 		await LoadAsync();
 	}
 
-	private async Task OnManagerChangedAsync(Department dept, Guid? managerId)
+	private async Task OnManagerChangedAsync(Department dept, ManagerOption? option)
 	{
-		dept.ManagerId = managerId;
+		dept.ManagerId = ToManagerId(option);
 		await SaveDepartmentAsync(dept);
 	}
 
@@ -142,11 +188,11 @@ else
 	{
 		if (string.IsNullOrWhiteSpace(_newName))
 		{
-			Snackbar.Add("Name is required.", Severity.Warning);
+			Toast.ShowWarning("Name is required.");
 			return;
 		}
 		await Employees.CreateDepartmentAsync(_newName, _newManagerId);
-		Snackbar.Add("Department created.", Severity.Success);
+		Toast.ShowSuccess("Department created.");
 		_newName = "";
 		_newManagerId = null;
 		await LoadAsync();
@@ -155,26 +201,16 @@ else
 	private async Task DeleteDepartmentAsync(Department dept)
 	{
 		await Employees.DeleteDepartmentAsync(dept.Id);
-		Snackbar.Add("Department deleted.", Severity.Success);
+		Toast.ShowSuccess("Department deleted.");
 		await LoadAsync();
 	}
 
 	private string GetManagerName(Guid? id) =>
 		id == null ? "None" : _lineManagers.FirstOrDefault(m => m.Id == id)?.Name ?? "";
 
-	private Task<IEnumerable<Guid?>> SearchManagers(string value, CancellationToken token)
-	{
-		var allIds = _lineManagers.Select(m => (Guid?)m.Id).Prepend(null);
-		
-		// Daca textul e gol, SAU e "None", SAU textul este fix numele deja selectat, afisam toata lista
-		if (string.IsNullOrEmpty(value) || value.Equals("None", StringComparison.InvariantCultureIgnoreCase) || _lineManagers.Any(m => m.Name.Equals(value, StringComparison.InvariantCultureIgnoreCase)))
-		{
-			return Task.FromResult(allIds);
-		}
-		
-		var matches = _lineManagers
-			.Where(m => m.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase))
-			.Select(m => (Guid?)m.Id);
-		return Task.FromResult(matches);
-	}
+	private ManagerOption OptionFor(Guid? id) =>
+		id is null ? NoManager : _managerOptions.FirstOrDefault(option => option.Id == id) ?? NoManager;
+
+	private static Guid? ToManagerId(ManagerOption? option) =>
+		option is null || option.Id == Guid.Empty ? null : option.Id;
 }

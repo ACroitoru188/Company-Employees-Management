@@ -9,37 +9,36 @@
 
 <PageTitle>My Requests · Time Off Management</PageTitle>
 
-<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">My Requests</MudText>
+<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" MarginBlock="0 16px">My Requests</FluentLabel>
 
-<MudTable T="TimeOffRequest" Items="@_requests" Hover="true" Elevation="1"
-          OnRowClick="@(args => OpenDetails(args.Item))">
-    <HeaderContent>
-        <MudTh>Type</MudTh>
-        <MudTh>Dates</MudTh>
-        <MudTh>Status</MudTh>
-        <MudTh>Submitted</MudTh>
-    </HeaderContent>
-    <RowTemplate>
-        <MudTd DataLabel="Type">
-            @LeaveTypePalette.Label(context.Type)
-        </MudTd>
-        <MudTd DataLabel="Dates">
-            @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-            @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+<FluentDataGrid Items="@_requests.AsQueryable()" TGridItem="TimeOffRequest"
+                ShowHover="true" OnRowClick="@(row => OpenDetailsAsync(row.Item!))">
+    <PropertyColumn Title="Type" Property="@(r => LeaveTypePalette.Label(r.Type))" />
+
+    <TemplateColumn Title="Dates">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+            <FluentLabel Typo="Typography.Body">
+                @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
+                @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+            </FluentLabel>
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
                 @context.Days @(context.Days == 1 ? "day" : "days")
-            </MudText>
-        </MudTd>
-        <MudTd DataLabel="Status">
-            <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">
-                @context.Status
-            </MudChip>
-        </MudTd>
-        <MudTd DataLabel="Submitted">
-            @context.SubmittedAt.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-        </MudTd>
-    </RowTemplate>
-</MudTable>
+            </FluentLabel>
+        </FluentStack>
+    </TemplateColumn>
+
+    <TemplateColumn Title="Status">
+        @* Amber / green / red, as before: FluentBadge's three appearances cannot tell
+           approved from rejected, and that is the one distinction this column exists for. *@
+        <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(context.Status)" Color="white">
+            @context.Status
+        </FluentBadge>
+    </TemplateColumn>
+
+    <PropertyColumn Title="Submitted"
+                    Property="@(r => r.SubmittedAt)"
+                    Format="MMM d, yyyy" />
+</FluentDataGrid>
 
 @code {
     [CascadingParameter]
@@ -55,20 +54,19 @@
         _requests = await TimeOff.GetMyRequestsAsync();
     }
 
-    private static Color StatusColor(RequestStatus status) => status switch
+    private static string StatusColor(RequestStatus status) => status switch
     {
-        RequestStatus.Pending => Color.Warning,
-        RequestStatus.Approved => Color.Success,
-        RequestStatus.Rejected => Color.Error,
-        _ => Color.Default
+        RequestStatus.Approved => "var(--success)",
+        RequestStatus.Rejected => "var(--error)",
+        _ => "var(--warning)"
     };
 
-    private Task OpenDetails(TimeOffRequest request)
-    {
-        var parameters = new DialogParameters<RequestDetailsDialog>
+    private Task OpenDetailsAsync(TimeOffRequest request) =>
+        DialogService.ShowDialogAsync<RequestDetailsDialog>(request, new DialogParameters
         {
-            { d => d.Request, request }
-        };
-        return DialogService.ShowAsync<RequestDetailsDialog>("Request details", parameters);
-    }
+            Title = "Request details",
+            PrimaryAction = "Close",
+            SecondaryAction = null,
+            Width = "480px"
+        });
 }

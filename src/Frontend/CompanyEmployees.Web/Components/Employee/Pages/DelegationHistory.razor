@@ -14,80 +14,77 @@
 
 <PageTitle>Delegation history · Time Off Management</PageTitle>
 
-<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-1">Delegation history</MudText>
-<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">Delegation history</FluentLabel>
+<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" MarginBlock="4px 16px">
     Actions taken from a borrowed account, and who was behind them.
-</MudText>
+</FluentLabel>
 
-<MudTabs Elevation="0" Rounded="true" ActivePanelIndex="@_tab" ActivePanelIndexChanged="OnTabChangedAsync">
-    <MudTabPanel Text="Done in my name" Icon="@Icons.Material.Filled.Inbox" />
-    <MudTabPanel Text="Done by me as delegate" Icon="@Icons.Material.Filled.SwapHoriz" />
+<FluentTabs ActiveTabId="@_activeTabId" ActiveTabIdChanged="OnTabChangedAsync">
+    <FluentTab Id="mine" Label="Done in my name" Icon="@(new Icons.Regular.Size20.Mail())" />
+    <FluentTab Id="byme" Label="Done by me as delegate" Icon="@(new Icons.Regular.Size20.ArrowSwap())" />
     @if (_isAdmin)
     {
         @* Oversight, not personal history — hence admins only. The backend refuses the
            scope regardless, so hiding the tab is convenience, not the control. *@
-        <MudTabPanel Text="@($"Everyone in {RegionLabel}")" Icon="@Icons.Material.Filled.Policy" />
+        <FluentTab Id="region" Label="@($"Everyone in {RegionLabel}")"
+                   Icon="@(new Icons.Regular.Size20.ShieldTask())" />
     }
-</MudTabs>
+</FluentTabs>
 
 @if (_loading)
 {
-    <MudProgressCircular Indeterminate="true" Class="mt-4" />
+    <FluentProgressRing />
 }
 else if (_failed)
 {
-    <MudAlert Severity="Severity.Error" Class="mt-4">
+    <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">
         The history could not be loaded. Please refresh the page.
-    </MudAlert>
+    </FluentMessageBar>
 }
 else if (_result.Total == 0)
 {
-    <MudPaper Class="pa-8 mt-4 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
-        <MudIcon Icon="@Icons.Material.Outlined.HistoryToggleOff" Size="Size.Large"
-                 Style="color:var(--mud-palette-text-disabled);" />
-        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-            @(Scope switch
-            {
-                DelegationHistoryScope.DoneInMyName => "Nobody has acted on your behalf yet.",
-                DelegationHistoryScope.DoneByMe => "You have not acted for anyone else yet.",
-                _ => "Nothing has been done from a borrowed account in this region yet."
-            })
-        </MudText>
-    </MudPaper>
+    <FluentCard Style="margin-top:16px;">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="8"
+                     HorizontalAlignment="HorizontalAlignment.Center">
+            <FluentIcon Value="@(new Icons.Regular.Size24.History())" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" />
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                @(Scope switch
+                {
+                    DelegationHistoryScope.DoneInMyName => "Nobody has acted on your behalf yet.",
+                    DelegationHistoryScope.DoneByMe => "You have not acted for anyone else yet.",
+                    _ => "Nothing has been done from a borrowed account in this region yet."
+                })
+            </FluentLabel>
+        </FluentStack>
+    </FluentCard>
 }
 else
 {
-    <MudTable T="DelegationHistoryEntry" Items="@_result.Items" Hover="true" Elevation="1" Class="mt-4">
-        <HeaderContent>
-            <MudTh>When</MudTh>
-            <MudTh>Action</MudTh>
-            <MudTh>Employee</MudTh>
-            <MudTh>Performed by</MudTh>
-            <MudTh>Acting as</MudTh>
-            <MudTh>Details</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="When">
-                @context.When.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
-            </MudTd>
-            <MudTd DataLabel="Action">
-                <MudChip T="string" Size="Size.Small" Color="@ActionColor(context.ActionType)">
-                    @ActionLabel(context.ActionType)
-                </MudChip>
-            </MudTd>
-            <MudTd DataLabel="Employee">@context.TargetName</MudTd>
-            <MudTd DataLabel="Performed by">@context.RealUserName</MudTd>
-            <MudTd DataLabel="Acting as">@context.ActedAsName</MudTd>
-            <MudTd DataLabel="Details">@(string.IsNullOrWhiteSpace(context.Details) ? "—" : context.Details)</MudTd>
-        </RowTemplate>
-    </MudTable>
+    <FluentDataGrid Items="@_result.Items.AsQueryable()" TGridItem="DelegationHistoryEntry"
+                    ShowHover="true" Style="margin-top:16px;">
+        <PropertyColumn Title="When" Property="@(e => e.When)" Format="MMM d, yyyy HH:mm" />
+
+        <TemplateColumn Title="Action">
+            <FluentBadge Appearance="@ActionAppearance(context.ActionType)">
+                @ActionLabel(context.ActionType)
+            </FluentBadge>
+        </TemplateColumn>
+
+        <PropertyColumn Title="Employee" Property="@(e => e.TargetName)" />
+        <PropertyColumn Title="Performed by" Property="@(e => e.RealUserName)" />
+        <PropertyColumn Title="Acting as" Property="@(e => e.ActedAsName)" />
+
+        <TemplateColumn Title="Details">
+            @(string.IsNullOrWhiteSpace(context.Details) ? "—" : context.Details)
+        </TemplateColumn>
+    </FluentDataGrid>
 
     @if (PageCount > 1)
     {
-        <div class="d-flex justify-center mt-4">
-            <MudPagination Count="@PageCount" Selected="@_page" SelectedChanged="OnPageChangedAsync"
-                           Color="Color.Primary" ShowFirstButton="true" ShowLastButton="true" />
-        </div>
+        <FluentStack Orientation="Orientation.Horizontal"
+                     HorizontalAlignment="HorizontalAlignment.Center" Width="100%">
+            <FluentPaginator State="@_pagination" />
+        </FluentStack>
     }
 }
 
@@ -98,12 +95,14 @@ else
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
     private Guid _userId;
-    private int _tab;
+    private string _activeTabId = "mine";
     private int _page = 1;
     private bool _loading = true;
     private bool _failed;
     private bool _isAdmin;
     private DelegationHistoryResult _result = new();
+
+    private readonly PaginationState _pagination = new() { ItemsPerPage = PageSize };
 
     // The name comes back with the rows, resolved from the same record they were filtered
     // by; the Region claim is fixed at sign-in and would still name the old one after a
@@ -111,18 +110,18 @@ else
     private string RegionLabel => _result.RegionName ?? _claimRegionName;
     private string _claimRegionName = "my region";
 
-    private DelegationHistoryScope Scope => _tab switch
+    private DelegationHistoryScope Scope => _activeTabId switch
     {
-        0 => DelegationHistoryScope.DoneInMyName,
-        1 => DelegationHistoryScope.DoneByMe,
+        "mine" => DelegationHistoryScope.DoneInMyName,
+        "byme" => DelegationHistoryScope.DoneByMe,
         _ => DelegationHistoryScope.EveryoneInRegion
     };
 
     private int PageCount => (_result.Total + PageSize - 1) / PageSize;
 
-    // No role check: both queries are filtered to this user, so the page can only ever show
-    // your own two sides of it. Gating on LineManager would just hide history from someone
-    // whose role changed after the fact.
+    // No role check: both personal queries are filtered to this user, so the page can only
+    // ever show your own two sides of it. Gating on LineManager would just hide history from
+    // someone whose role changed after the fact.
     protected override async Task OnInitializedAsync()
     {
         if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
@@ -147,8 +146,10 @@ else
     {
         try
         {
+            _page = _pagination.CurrentPageIndex + 1;
             _result = await Manager.GetDelegationHistoryAsync(
                 _userId, Scope, (_page - 1) * PageSize, PageSize);
+            await _pagination.SetTotalItemCountAsync(_result.Total);
         }
         catch (Exception ex)
         {
@@ -157,18 +158,12 @@ else
         }
     }
 
-    private Task OnPageChangedAsync(int page)
-    {
-        _page = page;
-        return LoadAsync();
-    }
-
     // Switching perspective is a different list, so paging starts over.
-    private Task OnTabChangedAsync(int tab)
+    private async Task OnTabChangedAsync(string tabId)
     {
-        _tab = tab;
-        _page = 1;
-        return LoadAsync();
+        _activeTabId = tabId;
+        await _pagination.SetCurrentPageIndexAsync(0);
+        await LoadAsync();
     }
 
     private static string ActionLabel(DelegatedActionType type) => type switch
@@ -180,12 +175,10 @@ else
         _ => type.ToString()
     };
 
-    private static Color ActionColor(DelegatedActionType type) => type switch
+    private static Appearance ActionAppearance(DelegatedActionType type) => type switch
     {
-        DelegatedActionType.LeaveApproved => Color.Success,
-        DelegatedActionType.LeaveRejected => Color.Warning,
-        DelegatedActionType.ContractExtended => Color.Info,
-        DelegatedActionType.ContractTerminated => Color.Error,
-        _ => Color.Default
+        DelegatedActionType.LeaveApproved => Appearance.Accent,
+        DelegatedActionType.ContractTerminated => Appearance.Neutral,
+        _ => Appearance.Lightweight
     };
 }

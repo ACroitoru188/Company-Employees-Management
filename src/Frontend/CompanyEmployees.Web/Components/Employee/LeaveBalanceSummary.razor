@@ -2,43 +2,51 @@
 @using CompanyEmployees.Web.Services
 @inject ThemeState ThemeState
 
-<div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
-    <div>
-        <MudText Typo="Typo.h5" Style="font-weight:600;">Good morning, @FirstName</MudText>
-        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">@Subtitle</MudText>
-    </div>
+<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+             HorizontalGap="16" Wrap="true" Width="100%">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+        <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">Good morning, @FirstName</FluentLabel>
+        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Subtitle</FluentLabel>
+    </FluentStack>
+    <FluentSpacer />
     @if (Actions is not null)
     {
-        <div>@Actions</div>
+        @Actions
     }
-</div>
+</FluentStack>
 
-<MudGrid Spacing="3">
+<FluentGrid Spacing="3" Style="margin-top:16px;">
     @foreach (var balance in Balances)
     {
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="1">
-                <MudCardContent>
-                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+        <FluentGridItem xs="12" sm="6" md="3">
+            <FluentCard>
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-overline">
                         @balance.Type.ToString().ToUpperInvariant()
-                    </MudText>
-                    <div class="d-flex align-baseline gap-1 mb-2">
-                        <MudText Typo="Typo.h4" Style="font-weight:700;">@balance.Remaining</MudText>
-                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                    </FluentLabel>
+
+                    <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="4"
+                                 VerticalAlignment="VerticalAlignment.Bottom">
+                        <FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@balance.Remaining</FluentLabel>
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
                             / @balance.DaysTotal days
-                        </MudText>
-                    </div>
-                    <MudProgressLinear Value="@(100.0 * balance.Remaining / balance.DaysTotal)"
-                                       Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mb-2"
-                                       Style="@($"--mud-palette-primary:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
-                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                        </FluentLabel>
+                    </FluentStack>
+
+                    @* The leave-type colour is per category, which Fluent's single-accent
+                       palette has no slot for — hence the local custom colour. *@
+                    <FluentProgress Min="0" Max="@balance.DaysTotal" Value="@balance.Remaining"
+                                    Stroke="ProgressStroke.Normal"
+                                    Style="@($"--accent-fill-rest:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
+
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
                         @balance.DaysUsed used this year
-                    </MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
+                    </FluentLabel>
+                </FluentStack>
+            </FluentCard>
+        </FluentGridItem>
     }
-</MudGrid>
+</FluentGrid>
 
 @code {
     [Parameter, EditorRequired] public string UserName { get; set; } = "";

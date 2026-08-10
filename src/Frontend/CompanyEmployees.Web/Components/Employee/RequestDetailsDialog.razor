@@ -1,54 +1,58 @@
 @using System.Globalization
+@implements IDialogContentComponent<TimeOffRequest>
 
-<MudDialog>
-    <DialogContent>
-        <div class="d-flex align-center gap-2 mb-3">
-            <MudChip T="string" Size="Size.Small"
-                     Style="@($"background:{LeaveTypePalette.Hex(Request.Type)}; color:white;")">
-                @LeaveTypePalette.Label(Request.Type)
-            </MudChip>
-            <MudChip T="string" Size="Size.Small" Color="@StatusColor(Request.Status)">
-                @Request.Status
-            </MudChip>
-        </div>
+<FluentDialogBody>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                     VerticalAlignment="VerticalAlignment.Center">
+            @* Per-category colour, which Fluent's single-accent palette has no slot for. *@
+            <FluentBadge Fill="highlight"
+                         BackgroundColor="@LeaveTypePalette.Hex(Content.Type)"
+                         Color="white">
+                @LeaveTypePalette.Label(Content.Type)
+            </FluentBadge>
+            <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(Content.Status)" Color="white">
+                @Content.Status
+            </FluentBadge>
+        </FluentStack>
 
-        <MudText Typo="Typo.subtitle1" Style="font-weight:600;">
-            @Request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-            @Request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-            (@Request.Days @(Request.Days == 1 ? "day" : "days"))
-        </MudText>
+        <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">
+            @Content.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
+            @Content.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+            (@Content.Days @(Content.Days == 1 ? "day" : "days"))
+        </FluentLabel>
 
-        <MudText Typo="Typo.body2" Class="mt-3" Style="color:var(--mud-palette-text-secondary);">Reason</MudText>
-        <MudText Typo="Typo.body1">@(string.IsNullOrWhiteSpace(Request.Reason) ? "—" : Request.Reason)</MudText>
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Reason</FluentLabel>
+            <FluentLabel Typo="Typography.Body">
+                @(string.IsNullOrWhiteSpace(Content.Reason) ? "—" : Content.Reason)
+            </FluentLabel>
+        </FluentStack>
 
-        <MudDivider Class="my-3" />
+        <FluentDivider Role="DividerRole.Presentation" />
 
-        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-            Submitted @Request.SubmittedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
-        </MudText>
-        @if (Request.Status is RequestStatus.Approved or RequestStatus.Rejected)
+        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+            Submitted @Content.SubmittedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
+        </FluentLabel>
+
+        @if (Content.Status is RequestStatus.Approved or RequestStatus.Rejected)
         {
-            <br />
-            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                Decided by @(Request.DecidedBy ?? "D. Novak")@(Request.DecidedAt is { } decided
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                Decided by @(Content.DecidedBy ?? "D. Novak")@(Content.DecidedAt is { } decided
                     ? $" · {decided.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)}" : "")
-            </MudText>
+            </FluentLabel>
         }
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="@(() => MudDialog.Close())">Close</MudButton>
-    </DialogActions>
-</MudDialog>
+    </FluentStack>
+</FluentDialogBody>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [Parameter, EditorRequired] public TimeOffRequest Request { get; set; } = default!;
+    [Parameter]
+    public TimeOffRequest Content { get; set; } = default!;
 
-    private static Color StatusColor(RequestStatus status) => status switch
+    private static string StatusColor(RequestStatus status) => status switch
     {
-        RequestStatus.Pending => Color.Warning,
-        RequestStatus.Approved => Color.Success,
-        RequestStatus.Rejected => Color.Error,
-        _ => Color.Default
+        RequestStatus.Approved => "var(--success)",
+        RequestStatus.Rejected => "var(--error)",
+        _ => "var(--warning)"
     };
 }

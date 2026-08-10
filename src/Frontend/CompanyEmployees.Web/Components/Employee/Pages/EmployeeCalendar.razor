@@ -7,7 +7,7 @@
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inject ITimeOffService TimeOff
-@inject ISnackbar Snackbar
+@inject IToastService Toast
 @inject NavigationManager Nav
 @inject ThemeState ThemeState
 @* Admin-only path: submitting leave has to create a stand-in first, which ITimeOffService
@@ -19,265 +19,384 @@
 
 <PageTitle>Calendar · Time Off Management</PageTitle>
 
-<div class="@(ShowSubmitBar ? "cal-page-with-footer" : "")">
+@* Laid out like the Teams calendar: a narrow rail on the left with the month picker and the
+   list of calendars — here, the leave types — and the surface itself taking the rest.
 
-<LeaveBalanceSummary UserName="@_userName" Balances="@_balances" />
+   The month grid below is built here rather than with FluentCalendar. FluentCalendar is a date
+   picker: it sizes itself as eight fixed square cells, wraps its grid in an unnamed div, and
+   owns its own selection model. Every one of those had to be overridden to make it behave as a
+   month surface, and the overrides were most of this page's CSS. Seven columns of our own are
+   less code and answer to us. The picker stays in the rail, doing the job it was written for. *@
+<FluentStack Class="cal-page" Orientation="Orientation.Horizontal" HorizontalGap="0"
+             VerticalAlignment="VerticalAlignment.Stretch" Style="height:100%;">
 
-<div class="d-flex align-center flex-wrap gap-2 mt-6 mb-2">
-    @foreach (var balance in _balances)
-    {
-        var isSelected = _selectedType == balance.Type;
-        <MudChip T="LeaveType" Value="@balance.Type"
-                 Disabled="@(balance.Remaining <= 0)"
-                 Variant="@(isSelected ? Variant.Filled : Variant.Outlined)"
-                 Style="@TypeChipStyle(balance.Type, isSelected)"
-                 OnClick="@(() => SelectType(balance.Type))">
-            @LeaveTypePalette.Label(balance.Type)
-        </MudChip>
-    }
-</div>
+    <FluentStack Class="cal-rail" Orientation="Orientation.Vertical" VerticalGap="20"
+                 HorizontalAlignment="HorizontalAlignment.Stretch">
 
-@if (_selectedType is null)
-{
-    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
-        Select a leave type to filter the calendar and submit a request.
-    </MudAlert>
-}
+        <FluentCalendar Class="cal-mini" Culture="@CalendarCulture"
+                        Value="@_anchor.ToDateTime(TimeOnly.MinValue)" ValueChanged="OnMiniPick"
+                        PickerMonth="@VisibleMonth.ToDateTime(TimeOnly.MinValue)"
+                        PickerMonthChanged="OnPickerMonthChanged" />
 
-<div class="cal-card">
-    <div class="cal-head">
-        <div class="cal-head-left">
-            <button class="cal-nav" @onclick="() => Navigate(-1)" aria-label="Previous">‹</button>
-            <span class="cal-label">@HeaderLabel</span>
-            <button class="cal-nav" @onclick="() => Navigate(1)" aria-label="Next">›</button>
-            <button class="cal-today" @onclick="GoToday">TODAY</button>
-        </div>
-        <div class="cal-seg" role="tablist">
-            @foreach (var view in Enum.GetValues<CalView>())
+        @* The "My calendars" column of the reference: one row per leave type, each with its
+           colour, and the balance where Teams puts the checkbox. Clicking one filters the
+           surface and arms the day picking — the same control the chips used to be. *@
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="2"
+                     HorizontalAlignment="HorizontalAlignment.Stretch">
+            <FluentLabel Typo="Typography.Body" Class="cal-rail-title app-overline"
+                         Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                Leave types
+            </FluentLabel>
+
+            @foreach (var balance in _balances)
             {
-                var v = view;
-                <button class="cal-seg-btn @(_view == v ? "active" : "")" @onclick="() => SetView(v)">@v</button>
+                var isSelected = _selectedType == balance.Type;
+                <FluentButton Appearance="Appearance.Stealth"
+                              Class="@(isSelected ? "cal-type is-selected" : "cal-type")"
+                              Disabled="@(balance.Remaining <= 0)"
+                              OnClick="@(() => SelectType(balance.Type))">
+                    <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                                 VerticalAlignment="VerticalAlignment.Center" Width="100%">
+                        <FluentStack Class="cal-swatch" HorizontalGap="0"
+                                     Style="@($"background:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
+                        <FluentLabel Typo="Typography.Body" Class="cal-type-name">
+                            @LeaveTypePalette.Label(balance.Type)
+                        </FluentLabel>
+                        <FluentSpacer />
+                        <FluentLabel Typo="Typography.Body" Class="app-caption"
+                                     Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                            @balance.Remaining / @balance.DaysTotal
+                        </FluentLabel>
+                    </FluentStack>
+                </FluentButton>
             }
-        </div>
-    </div>
+        </FluentStack>
+    </FluentStack>
 
-    <div class="cal-holiday-note" role="note">
-        <span class="cal-holiday-note-square" aria-hidden="true"></span>
-        <span><strong>Red dates are national public holidays</strong> — they are non-working days, so you do not need to request leave.</span>
-    </div>
+    <FluentStack Class="cal-main" Orientation="Orientation.Vertical" VerticalGap="0"
+                 HorizontalAlignment="HorizontalAlignment.Stretch"
+                 Style="flex:1 1 auto; min-width:0;">
 
-    @if (_view == CalView.Month)
-    {
-        <div class="cal-body">
-            <div class="cal-grid cal-header">
-                @foreach (var name in new[] { "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN" })
-                {
-                    <div class="cal-dow">@name</div>
-                }
-            </div>
+        @* Teams' order exactly: Today, the two arrows, then the period; the view picker sits on
+           the far right as a dropdown rather than a row of tabs. *@
+        <FluentStack Class="cal-toolbar" Orientation="Orientation.Horizontal" HorizontalGap="4"
+                     VerticalAlignment="VerticalAlignment.Center" Width="100%">
+            <FluentButton Appearance="Appearance.Stealth" Class="cal-today" OnClick="GoToday">Today</FluentButton>
+            <FluentButton Appearance="Appearance.Stealth" Title="Previous"
+                          IconStart="@(new Icons.Regular.Size20.ChevronLeft())"
+                          OnClick="@(() => Navigate(-1))" />
+            <FluentButton Appearance="Appearance.Stealth" Title="Next"
+                          IconStart="@(new Icons.Regular.Size20.ChevronRight())"
+                          OnClick="@(() => Navigate(1))" />
+            <FluentLabel Typo="Typography.Header" Weight="FontWeight.Bold" Class="cal-period">
+                @HeaderLabel
+            </FluentLabel>
+            <FluentSpacer />
+            <FluentSelect TOption="string" Items="@ViewNames" Value="@_view.ToString()"
+                          ValueChanged="SetView" Width="120px" Class="cal-viewpicker" />
+        </FluentStack>
 
-            <div class="cal-grid">
-                @foreach (var day in _days)
-                {
-                    var inMonth = day.Month == VisibleMonth.Month;
-                    var isPast = day < _today;
-                    var selected = IsSelected(day);
-                    var isEndpoint = IsRangeEndpoint(day);
-                    var canSelect = CanSelectDay(day);
-                    <div class="cal-cell @(inMonth ? "" : "cal-other") @(IsWeekend(day) ? "cal-weekend" : "") @(IsHoliday(day) ? "cal-holiday" : "") @(isPast ? "cal-past" : "") @(selected ? "cal-selected" : "") @(isEndpoint ? "cal-range-endpoint" : "") @(canSelect ? "cal-selectable" : "cal-disabled") @(day == _today ? "cal-today-cell" : "")"
-                         style="@SelectionStyle(day)"
-                         data-date="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
-                         aria-disabled="@(!canSelect)"
-                         title="@UnavailableDateHint(day)"
-                         @onclick="DayClickCallback(day)">
-                        <span class="cal-daynum">@day.Day</span>
-                        @if (_holidays.TryGetValue(day, out var holiday))
+        <FluentStack Class="cal-surface" Orientation="Orientation.Vertical" VerticalGap="0"
+                     HorizontalAlignment="HorizontalAlignment.Stretch"
+                     Style="flex:1 1 auto; min-height:0;">
+
+            @if (_view == CalView.Month)
+            {
+                <FluentStack Class="cal-grid" Orientation="Orientation.Vertical" VerticalGap="0"
+                             HorizontalAlignment="HorizontalAlignment.Stretch"
+                             Style="flex:1 1 auto; min-height:0;">
+
+                    <FluentStack Class="cal-row cal-row-head" Orientation="Orientation.Horizontal" HorizontalGap="0"
+                                 VerticalAlignment="VerticalAlignment.Stretch">
+                        @foreach (var name in WeekdayHeaders)
                         {
-                            <span class="cal-holiday-name">@holiday.Name</span>
+                            <FluentStack Class="cal-headcell" Orientation="Orientation.Horizontal" HorizontalGap="0">
+                                <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                                             CustomColor="var(--neutral-foreground-hint)">@name</FluentLabel>
+                            </FluentStack>
                         }
-                        @if (_teamByDay.TryGetValue(day, out var absences))
-                        {
-                            var visible = absences.Where(a => PassesFilter(a.Type)).ToList();
-                            @foreach (var absence in visible.Take(3))
+                    </FluentStack>
+
+                    @foreach (var week in MonthWeeks())
+                    {
+                        <FluentStack Class="cal-row" Orientation="Orientation.Horizontal" HorizontalGap="0"
+                                     VerticalAlignment="VerticalAlignment.Stretch">
+                            @foreach (var date in week)
                             {
-                                <MudTooltip Text="@($"{absence.MemberName} · {LeaveTypePalette.Label(absence.Type)}")">
-                                    <span class="cal-chip" style="background:@LeaveTypePalette.Hex(absence.Type);">
-                                        @ShortName(absence.MemberName)
-                                    </span>
-                                </MudTooltip>
+                                var holiday = _holidays.GetValueOrDefault(date);
+                                @* title says why a day cannot be picked; the greying alone
+                                   leaves "why not?" unanswered. *@
+                                <FluentStack Class="@CellClasses(date)" Orientation="Orientation.Vertical"
+                                             VerticalGap="3" HorizontalAlignment="HorizontalAlignment.Stretch"
+                                             Style="@SelectionStyle(date)"
+                                             Title="@UnavailableDateHint(date)"
+                                             @onclick="@(() => OnDayClick(date))">
+
+                                    <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="4"
+                                                 VerticalAlignment="VerticalAlignment.Center" Width="100%">
+                                        <FluentLabel Typo="Typography.Body"
+                                                     Class="@(date == _today ? "cal-daynum is-today" : "cal-daynum")"
+                                                     Color="@(holiday is not null ? Color.Error : Color.Neutral)">
+                                            @date.Day
+                                        </FluentLabel>
+                                        <FluentSpacer />
+                                        @if (holiday is not null)
+                                        {
+                                            <FluentLabel Typo="Typography.Body" Class="cal-holiday"
+                                                         Color="Color.Error" Title="@holiday.Name">
+                                                @holiday.Name
+                                            </FluentLabel>
+                                        }
+                                    </FluentStack>
+
+                                    @if (_teamByDay.TryGetValue(date, out var absences))
+                                    {
+                                        var visible = absences.Where(a => PassesFilter(a.Type)).ToList();
+                                        @foreach (var absence in visible.Take(VisibleEntriesPerDay))
+                                        {
+                                            @* An entry as Teams draws one: a pale wash of its
+                                               colour, the full-strength colour as a bar down the
+                                               leading edge, ordinary dark text. *@
+                                            <FluentStack Class="cal-entry" Orientation="Orientation.Horizontal"
+                                                         HorizontalGap="0" Style="@EntryTint(absence.Type)"
+                                                         Title="@($"{absence.MemberName} · {LeaveTypePalette.Label(absence.Type)}")">
+                                                <FluentLabel Typo="Typography.Body" Class="cal-entry-text">
+                                                    @absence.MemberName
+                                                </FluentLabel>
+                                            </FluentStack>
+                                        }
+
+                                        @if (visible.Count > VisibleEntriesPerDay)
+                                        {
+                                            @* Hover, not click: this sits inside the day, and a
+                                               click here would also land on the day and move the
+                                               selection. *@
+                                            var moreId = $"more-{date:yyyyMMdd}";
+                                            <FluentLabel Id="@moreId" Typo="Typography.Body" Class="cal-more app-caption"
+                                                         Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                                                @(visible.Count - VisibleEntriesPerDay) more
+                                            </FluentLabel>
+                                            <FluentTooltip Anchor="@moreId" Position="TooltipPosition.Bottom">
+                                                @foreach (var absence in visible.Skip(VisibleEntriesPerDay))
+                                                {
+                                                    <FluentLabel Typo="Typography.Body">
+                                                        @absence.MemberName · @LeaveTypePalette.Label(absence.Type)
+                                                    </FluentLabel>
+                                                }
+                                            </FluentTooltip>
+                                        }
+                                    }
+                                </FluentStack>
                             }
-                            @if (visible.Count > 3)
-                            {
-                                <span class="cal-more">+@(visible.Count - 3) more</span>
-                            }
-                        }
-                    </div>
-                }
-            </div>
-        </div>
-    }
-    else if (_view == CalView.Week)
-    {
-        <div class="wv">
-            @for (var i = 0; i < 7; i++)
-            {
-                var day = WeekStart.AddDays(i);
-                var isToday = day == _today;
-                var isPast = day < _today;
-                var isWeekend = IsWeekend(day);
-                var selected = IsSelected(day);
-                var isEndpoint = IsRangeEndpoint(day);
-                var canSelect = CanSelectDay(day);
-                <div class="wv-col">
-                    <div class="wv-head @(isPast ? "wv-head-past" : "") @(isWeekend ? "wv-head-weekend" : "") @(IsHoliday(day) ? "wv-head-holiday" : "")">
-                        <span class="wv-dow">@(day.ToString("ddd", CultureInfo.InvariantCulture).ToUpperInvariant())</span>
-                        <span class="wv-num @(isToday ? "wv-num-today" : "")">@day.Day</span>
-                        @if (_holidays.TryGetValue(day, out var weekHoliday))
-                        {
-                            <span class="wv-holiday-name">@weekHoliday.Name</span>
-                        }
-                    </div>
-                    <div class="wv-cell @(isToday ? "wv-cell-today" : "") @(isWeekend ? "wv-cell-weekend" : "") @(IsHoliday(day) ? "wv-cell-holiday" : "") @(isPast ? "wv-cell-past" : "") @(selected ? "wv-cell-selected" : "") @(isEndpoint ? "wv-range-endpoint" : "") @(canSelect ? "wv-cell-selectable" : "wv-cell-disabled")"
-                         style="@SelectionStyle(day)"
-                         data-date="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
-                         aria-disabled="@(!canSelect)"
-                         title="@UnavailableDateHint(day)"
-                         @onclick="DayClickCallback(day)">
-                        @foreach (var item in FilteredRanges.Where(r => r.StartDate <= day && r.EndDate >= day))
-                        {
-                            <div class="wv-card" style="background:@LeaveTypePalette.Hex(item.Type);">
-                                <div class="wv-name">@item.MemberName</div>
-                                <div class="wv-sub">@LeaveTypePalette.Label(item.Type) · @item.Department</div>
-                            </div>
-                        }
-                    </div>
-                </div>
+                        </FluentStack>
+                    }
+                </FluentStack>
             }
-        </div>
-    }
-    else if (_view == CalView.Grid)
-    {
-        var daysInMonth = DateTime.DaysInMonth(VisibleMonth.Year, VisibleMonth.Month);
-        var rows = GridRows();
-        <div class="gv" style="grid-template-columns:210px 92px repeat(@daysInMonth, minmax(0, 1fr));">
-            <div class="gv-hcell gv-fixed">EMPLOYEE</div>
-            <div class="gv-hcell gv-fixed gv-sep">TYPE</div>
-            @for (var d = 1; d <= daysInMonth; d++)
+            else if (_view == CalView.Week)
             {
-                var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
-                var selected = IsSelected(date);
-                var isEndpoint = IsRangeEndpoint(date);
-                <div class="gv-hday @(IsWeekend(date) ? "gv-hwend gv-hdisabled" : "") @(IsHoliday(date) ? "gv-hholiday gv-hdisabled" : "") @(date == _today ? "gv-htoday" : "") @(selected ? "gv-range-selected" : "") @(isEndpoint ? "gv-range-endpoint" : "")"
-                     style="@SelectionStyle(date)"
-                     aria-disabled="@(!CanSelectDay(date))"
-                     title="@UnavailableDateHint(date)"
-                     @onclick="() => OnDayClick(date)">
-                    <span class="gv-hdow">@(date.ToString("ddd", CultureInfo.InvariantCulture)[..2].ToUpperInvariant())</span>
-                    <span class="gv-hnum">@d</span>
-                </div>
+                @* The same surface as the month, seven columns wide: one sheet divided by
+                   hairlines, not seven cards floating apart. *@
+                <FluentStack Class="cal-grid" Orientation="Orientation.Vertical" VerticalGap="0"
+                             HorizontalAlignment="HorizontalAlignment.Stretch"
+                             Style="flex:1 1 auto; min-height:0;">
+
+                    <FluentStack Class="cal-row cal-row-head" Orientation="Orientation.Horizontal" HorizontalGap="0"
+                                 VerticalAlignment="VerticalAlignment.Stretch">
+                        @for (var i = 0; i < 7; i++)
+                        {
+                            var day = WeekStart.AddDays(i);
+                            <FluentStack Class="cal-headcell" Orientation="Orientation.Horizontal"
+                                         HorizontalGap="6" VerticalAlignment="VerticalAlignment.Center">
+                                <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                                             CustomColor="var(--neutral-foreground-hint)">
+                                    @day.ToString("ddd", CalendarCulture)
+                                </FluentLabel>
+                                <FluentLabel Typo="Typography.Body"
+                                             Class="@(day == _today ? "cal-daynum is-today" : "cal-daynum")">
+                                    @day.Day
+                                </FluentLabel>
+                            </FluentStack>
+                        }
+                    </FluentStack>
+
+                    <FluentStack Class="cal-row cal-row-week" Orientation="Orientation.Horizontal" HorizontalGap="0"
+                                 VerticalAlignment="VerticalAlignment.Stretch">
+                        @for (var i = 0; i < 7; i++)
+                        {
+                            var day = WeekStart.AddDays(i);
+                            var holiday = _holidays.GetValueOrDefault(day);
+                            <FluentStack Class="@CellClasses(day)" Orientation="Orientation.Vertical"
+                                         VerticalGap="4" HorizontalAlignment="HorizontalAlignment.Stretch"
+                                         Style="@SelectionStyle(day)"
+                                         Title="@UnavailableDateHint(day)"
+                                         @onclick="@(() => OnDayClick(day))">
+                                @if (holiday is not null)
+                                {
+                                    <FluentLabel Typo="Typography.Body" Class="cal-holiday-block"
+                                                 Color="Color.Error" Title="@holiday.Name">
+                                        @holiday.Name
+                                    </FluentLabel>
+                                }
+
+                                @foreach (var item in FilteredRanges.Where(r => r.StartDate <= day && r.EndDate >= day))
+                                {
+                                    <FluentStack Class="cal-entry cal-entry-block" Orientation="Orientation.Vertical"
+                                                 VerticalGap="0" Style="@EntryTint(item.Type)"
+                                                 Title="@($"{item.MemberName} · {LeaveTypePalette.Label(item.Type)}")">
+                                        <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold" Class="cal-entry-wrap">
+                                            @item.MemberName
+                                        </FluentLabel>
+                                        <FluentLabel Typo="Typography.Body" Class="cal-entry-wrap app-caption"
+                                                     Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                                            @LeaveTypePalette.Label(item.Type)
+                                        </FluentLabel>
+                                    </FluentStack>
+                                }
+                            </FluentStack>
+                        }
+                    </FluentStack>
+                </FluentStack>
             }
-            @foreach (var row in rows)
+            else if (_view == CalView.Grid)
             {
-                <div class="gv-cell gv-emp">
-                    <span class="gv-avatar" style="background:@AvatarColor(row.Name);">@row.Initials</span>
-                    <span class="gv-emp-text">
-                        <span class="gv-emp-name">@row.Name</span>
-                        <span class="gv-emp-sub">@row.Department@(row.Team is null ? "" : $" · {row.Team}")</span>
-                    </span>
-                </div>
-                <div class="gv-cell gv-sep gv-type">
-                    <span class="gv-pill" style="color:@LeaveTypePalette.Hex(row.Type, ThemeState.IsDarkMode); background:@(LeaveTypePalette.Hex(row.Type, ThemeState.IsDarkMode) + "1F");">
-                        @(LeaveTypePalette.Label(row.Type).Split(' ')[0])
-                    </span>
-                </div>
-                @for (var d = 1; d <= daysInMonth; d++)
+                var daysInMonth = DateTime.DaysInMonth(VisibleMonth.Year, VisibleMonth.Month);
+                var rows = GridRows();
+
+                @if (rows.Count == 0)
                 {
-                    var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
-                    var seg = row.Items.FirstOrDefault(r => r.StartDate <= date && r.EndDate >= date);
-                    <div class="gv-cell gv-day @(IsWeekend(date) ? "gv-wend" : "") @(IsHoliday(date) ? "gv-holiday" : "") @(date == _today ? "gv-today" : "")">
-                        @if (seg is not null)
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                        No approved team leave this month.
+                    </FluentLabel>
+                }
+                else
+                {
+                    @* One column per day of the month: a timeline, drawn by the grid. *@
+                    <FluentDataGrid Items="@rows.AsQueryable()" TGridItem="GridRow" ShowHover="true"
+                                    GridTemplateColumns="@($"210px 92px repeat({daysInMonth}, minmax(0, 1fr))")">
+                        <TemplateColumn Title="EMPLOYEE">
+                            <FluentPersona Name="@context.Name" Initials="@context.Initials"
+                                           ImageSize="28px" TextPosition="TextPosition.End">
+                                @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
+                                   rendered here explicitly above the secondary line. *@
+                                <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@context.Name</FluentLabel>
+                                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                                    @context.Department@(context.Team is null ? "" : $" · {context.Team}")
+                                </FluentLabel>
+                            </FluentPersona>
+                        </TemplateColumn>
+
+                        <TemplateColumn Title="TYPE">
+                            <FluentBadge Fill="highlight"
+                                         BackgroundColor="@LeaveTypePalette.Hex(context.Type, ThemeState.IsDarkMode)"
+                                         Color="white">
+                                @LeaveTypePalette.Label(context.Type).Split(' ')[0]
+                            </FluentBadge>
+                        </TemplateColumn>
+
+                        @* MinWidth="0px": a column defaults to a 100px floor, set inline on the cell.
+                           With 31 day columns sharing the width their tracks are about 25px, so every
+                           cell overflowed its own track and the page scrolled sideways. *@
+                        @for (var d = 1; d <= daysInMonth; d++)
                         {
-                            <div class="gv-bar @(date == seg.StartDate ? "gv-bar-s" : "") @(date == seg.EndDate ? "gv-bar-e" : "")"
-                                 style="background:@LeaveTypePalette.Hex(seg.Type);"></div>
+                            var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
+                            <TemplateColumn Title="@d.ToString(CultureInfo.InvariantCulture)"
+                                            Class="leave-day" MinWidth="0px" Align="Align.Center">
+                                @{
+                                    var segment = context.Items.FirstOrDefault(r => r.StartDate <= date && r.EndDate >= date);
+                                }
+                                @if (segment is not null)
+                                {
+                                    @* One bar per day filling its cell edge to edge, so consecutive days
+                                       meet and read as a single period; only the two ends are rounded. *@
+                                    var edges = (segment.StartDate == date ? " is-start" : string.Empty)
+                                              + (segment.EndDate == date ? " is-end" : string.Empty);
+                                    var period = $"{segment.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)} – {segment.EndDate.ToString("MMM d", CultureInfo.InvariantCulture)}";
+
+                                    <FluentStack Class="@($"leave-bar{edges}")"
+                                                 VerticalAlignment="VerticalAlignment.Center" HorizontalGap="0"
+                                                 Style="@($"background:{LeaveTypePalette.Hex(segment.Type, ThemeState.IsDarkMode)};")"
+                                                 Title="@($"{LeaveTypePalette.Label(segment.Type)} · {period}")">
+                                        @* Named once, on the day the range opens, and running along the bar
+                                           from there — a cell is ~25px wide, so a label repeated per day
+                                           would show nothing. max-width is the range's own span in cells,
+                                           which is what stops one period's label from running across the
+                                           next one; the dates are on the bar's tooltip. *@
+                                        @if (segment.StartDate == date || d == 1)
+                                        {
+                                            var span = Math.Min(segment.EndDate.DayNumber, MonthEnd.DayNumber)
+                                                       - date.DayNumber + 1;
+                                            <FluentLabel Class="leave-bar-label" Typo="Typography.Body"
+                                                         Style="@($"max-width:{span * 100}%;")"
+                                                         Color="Color.Custom" CustomColor="#FFFFFF">
+                                                @LeaveTypePalette.Label(segment.Type)
+                                            </FluentLabel>
+                                        }
+                                    </FluentStack>
+                                }
+                            </TemplateColumn>
                         }
-                    </div>
+                    </FluentDataGrid>
                 }
             }
-        </div>
-        @if (rows.Count == 0)
-        {
-            <div class="cal-empty">No approved team leave this month.</div>
-        }
-        <div class="gv-legend">
-            @foreach (var leaveType in Enum.GetValues<LeaveType>())
+            else
             {
-                <span class="gv-legend-item">
-                    <span class="gv-swatch" style="background:@LeaveTypePalette.Hex(leaveType);"></span>@(LeaveTypePalette.Label(leaveType).Split(' ')[0])
-                </span>
+                var listRows = FilteredRanges.OrderBy(r => r.StartDate).ToList();
+
+                @if (listRows.Count == 0)
+                {
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                        No approved team leave this month.
+                    </FluentLabel>
+                }
+                else
+                {
+                    <FluentDataGrid Items="@listRows.AsQueryable()" TGridItem="TeamTimeOff" ShowHover="true">
+                        <TemplateColumn Title="EMPLOYEE">
+                            <FluentPersona Name="@context.MemberName" Initials="@context.Initials"
+                                           ImageSize="28px" TextPosition="TextPosition.End" />
+                        </TemplateColumn>
+                        <PropertyColumn Title="DEPARTMENT" Property="@(r => r.Department)" Sortable="true" />
+                        <TemplateColumn Title="TEAM">@(context.Team ?? "—")</TemplateColumn>
+                        <TemplateColumn Title="LEAVE TYPE">
+                            <FluentBadge Fill="highlight"
+                                         BackgroundColor="@LeaveTypePalette.Hex(context.Type, ThemeState.IsDarkMode)"
+                                         Color="white">
+                                @LeaveTypePalette.Label(context.Type).Split(' ')[0]
+                            </FluentBadge>
+                        </TemplateColumn>
+                        <TemplateColumn Title="PERIOD">
+                            @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
+                            @context.EndDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                        </TemplateColumn>
+                        <TemplateColumn Title="DAYS">
+                            @WorkingDays(context.StartDate, context.EndDate)
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                }
             }
-            <span class="gv-legend-item"><span class="gv-square gv-square-wend"></span>Weekend</span>
-            <span class="gv-legend-item"><span class="gv-square gv-square-holiday"></span>National public holiday — non-working day</span>
-            <span class="gv-legend-item"><span class="gv-square gv-square-today"></span>Today</span>
-        </div>
-    }
-    else
-    {
-        var rows = FilteredRanges.OrderBy(r => r.StartDate).ToList();
-        <div class="lv">
-            <div class="lv-hcell">EMPLOYEE</div>
-            <div class="lv-hcell">DEPARTMENT</div>
-            <div class="lv-hcell">TEAM</div>
-            <div class="lv-hcell">LEAVE TYPE</div>
-            <div class="lv-hcell">PERIOD</div>
-            <div class="lv-hcell">DAYS</div>
-            @foreach (var item in rows)
-            {
-                <div class="lv-cell lv-emp">
-                    <span class="gv-avatar" style="background:@AvatarColor(item.MemberName);">@item.Initials</span>
-                    <span class="lv-name">@item.MemberName</span>
-                </div>
-                <div class="lv-cell">@item.Department</div>
-                <div class="lv-cell">@(item.Team ?? "—")</div>
-                <div class="lv-cell">
-                    <span class="gv-pill" style="color:@LeaveTypePalette.Hex(item.Type, ThemeState.IsDarkMode); background:@(LeaveTypePalette.Hex(item.Type, ThemeState.IsDarkMode) + "1F");">
-                        @(LeaveTypePalette.Label(item.Type).Split(' ')[0])
-                    </span>
-                </div>
-                <div class="lv-cell">
-                    @item.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-                    @item.EndDate.ToString("MMM d", CultureInfo.InvariantCulture)
-                </div>
-                <div class="lv-cell">@WorkingDays(item.StartDate, item.EndDate)</div>
-            }
-        </div>
-        @if (rows.Count == 0)
+        </FluentStack>
+
+        @if (ShowSubmitBar && _range is { } range && _selectedType is { } type)
         {
-            <div class="cal-empty">No approved team leave this month.</div>
+            @* Last row of the surface rather than pinned to the viewport: fixed, it covered the
+               final week of the month and needed a 120px margin to clear it, which put the page
+               back to scrolling. *@
+            <FluentStack Class="cal-submit" Orientation="Orientation.Horizontal" HorizontalGap="16"
+                         Wrap="true" VerticalAlignment="VerticalAlignment.Center" Width="100%">
+                <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">
+                    @LeaveTypePalette.Label(type) ·
+                    @range.Start.ToString("MMM d", CultureInfo.InvariantCulture) –
+                    @range.End.ToString("MMM d", CultureInfo.InvariantCulture)
+                    (@RangeDays(range) @(RangeDays(range) == 1 ? "day" : "days"))
+                </FluentLabel>
+                <FluentTextField @bind-Value="_reason" Label="Reason (optional)" Style="min-width:220px;" />
+                <FluentSpacer />
+                <FluentButton Appearance="Appearance.Stealth" OnClick="CancelSelection">Cancel selection</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" OnClick="Submit">Submit request</FluentButton>
+            </FluentStack>
         }
-    }
-</div>
-
-@* The submit bar must stay nested inside this wrapping div (not a sibling after it):
-   its ::deep CSS rule compiles to "[scope] .cal-submitbar", which only matches
-   descendants of a scoped element — position:fixed still pins it to the viewport
-   regardless of DOM nesting, so this doesn't change where it renders. *@
-@if (ShowSubmitBar && _range is { } range && _selectedType is { } type)
-{
-    <MudPaper Elevation="4" Class="pa-4 d-flex align-center flex-wrap gap-4 cal-submitbar">
-        <MudText Typo="Typo.subtitle1" Style="font-weight:600;">
-            @LeaveTypePalette.Label(type) ·
-            @range.Start.ToString("MMM d", CultureInfo.InvariantCulture) –
-            @range.End.ToString("MMM d", CultureInfo.InvariantCulture)
-            (@RangeDays(range) @(RangeDays(range) == 1 ? "day" : "days"))
-        </MudText>
-        <MudTextField @bind-Value="_reason" Label="Reason (optional)" Variant="Variant.Outlined"
-                      Margin="Margin.Dense" Class="flex-grow-1" Style="min-width:220px;" />
-        <MudButton Variant="Variant.Text" OnClick="CancelSelection">Cancel selection</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Submit request</MudButton>
-    </MudPaper>
-}
-
-</div>
+    </FluentStack>
+</FluentStack>
 
 @code {
     [CascadingParameter]
@@ -285,15 +404,22 @@
 
     private enum CalView { Month, Week, Grid, List }
 
-    private static readonly string[] AvatarPalette =
-    [
-        "#1e88e5", "#8e24aa", "#fb8c00", "#43a047", "#e53935",
-        "#00897b", "#5e35b1", "#f4511e", "#3949ab", "#00acc1"
-    ];
+    // Entries drawn in a day cell before the rest collapse into "N more".
+    private const int VisibleEntriesPerDay = 3;
+
+    private static readonly string[] ViewNames = Enum.GetNames<CalView>();
+
+    // Weeks start on Monday, as the grid does; InvariantCulture would put Sunday first. Only the
+    // day headers use this — dates printed anywhere on the page go through InvariantCulture.
+    private static readonly CultureInfo CalendarCulture = CultureInfo.GetCultureInfo("en-GB");
+
+    private static readonly string[] WeekdayHeaders =
+        Enumerable.Range(0, 7)
+            .Select(i => CalendarCulture.DateTimeFormat.AbbreviatedDayNames[((int)DayOfWeek.Monday + i) % 7])
+            .ToArray();
 
     private IReadOnlyList<LeaveBalance> _balances = [];
     private Dictionary<DateOnly, List<TeamAbsence>> _teamByDay = [];
-    private List<DateOnly> _days = [];
     private IReadOnlyList<TeamTimeOff> _ranges = [];
     private Dictionary<DateOnly, RegionalHoliday> _holidays = [];
 
@@ -312,14 +438,11 @@
 
     private bool ShowSubmitBar => _range is not null && _selectedType is not null;
 
-    private string _userName = "";
-
     protected override async Task OnInitializedAsync()
     {
         if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
             return;
 
-        _userName = (await TimeOff.GetCurrentUserAsync()).Name;
         _balances = await TimeOff.GetMyBalancesAsync();
         _anchor = _today;
         await LoadAsync();
@@ -333,9 +456,9 @@
                 .GroupBy(a => a.Date)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
-            var gridStart = VisibleMonth.AddDays(-(((int)VisibleMonth.DayOfWeek + 6) % 7));
-            _days = Enumerable.Range(0, 42).Select(gridStart.AddDays).ToList();
-            await LoadHolidaysAsync(_days[0], _days[^1]);
+            // The grid draws six weeks around the month, so holidays are loaded for the same
+            // span rather than for the month alone.
+            await LoadHolidaysAsync(MonthGridStart, MonthGridStart.AddDays(41));
         }
         else
         {
@@ -358,11 +481,67 @@
             .ToDictionary(group => group.Key, group => group.First());
     }
 
+    // The Monday on or before the 1st: the grid always shows six whole weeks, so a month can
+    // open with days of the previous one and close with days of the next.
+    private DateOnly MonthGridStart =>
+        VisibleMonth.AddDays(-(((int)VisibleMonth.DayOfWeek + 6) % 7));
+
+    private DateOnly MonthEnd => VisibleMonth.AddMonths(1).AddDays(-1);
+
+    private IEnumerable<DateOnly[]> MonthWeeks()
+    {
+        for (var week = 0; week < 6; week++)
+            yield return Enumerable.Range(0, 7)
+                .Select(day => MonthGridStart.AddDays(week * 7 + day))
+                .ToArray();
+    }
+
+    // Everything a day cell can be, as classes; the range's own colour arrives separately as an
+    // inline style, because it depends on the leave type being booked.
+    private string CellClasses(DateOnly day)
+    {
+        var classes = "cal-cell";
+
+        if (_view == CalView.Month && day.Month != VisibleMonth.Month)
+            classes += " is-outside";
+        if (IsWeekend(day))
+            classes += " is-weekend";
+        if (day == _today)
+            classes += " is-today";
+        if (IsSelected(day))
+            classes += " is-selected";
+        if (CanSelectDay(day))
+            classes += " is-selectable";
+
+        return classes;
+    }
+
     private async Task Navigate(int delta)
     {
         _anchor = _view == CalView.Week
             ? _anchor.AddDays(7 * delta)
             : VisibleMonth.AddMonths(delta);
+        await LoadAsync();
+    }
+
+    // The rail's picker moves the surface, which is the only thing it is there for.
+    private async Task OnMiniPick(DateTime? picked)
+    {
+        if (picked is not { } value)
+            return;
+
+        _anchor = DateOnly.FromDateTime(value);
+        await LoadAsync();
+    }
+
+    // Fired by the rail picker's own arrows; without this they move its month but leave the
+    // surface on the old one.
+    private async Task OnPickerMonthChanged(DateTime month)
+    {
+        if (month.Year == _anchor.Year && month.Month == _anchor.Month)
+            return;
+
+        _anchor = new DateOnly(month.Year, month.Month, 1);
         await LoadAsync();
     }
 
@@ -372,10 +551,11 @@
         await LoadAsync();
     }
 
-    private async Task SetView(CalView view)
+    private async Task SetView(string? name)
     {
-        if (_view == view)
+        if (!Enum.TryParse<CalView>(name, out var view) || _view == view)
             return;
+
         _view = view;
         await LoadAsync();
     }
@@ -396,7 +576,7 @@
         return $"{start.ToString("MMM d", inv)} – {end.Day}, {end.Year}";
     }
 
-    // The selected type chip doubles as a content filter; no selection shows everything.
+    // The selected type doubles as a content filter; no selection shows everything.
     private bool PassesFilter(LeaveType type) => _selectedType is null || _selectedType == type;
 
     private IEnumerable<TeamTimeOff> FilteredRanges => _ranges.Where(r => PassesFilter(r.Type));
@@ -426,14 +606,6 @@
         return count;
     }
 
-    private static string AvatarColor(string name)
-    {
-        var hash = 0;
-        foreach (var ch in name)
-            hash = (hash * 31 + ch) & 0x7fffffff;
-        return AvatarPalette[hash % AvatarPalette.Length];
-    }
-
     private void SelectType(LeaveType type)
     {
         if (_selectedType == type)
@@ -453,6 +625,8 @@
     private bool IsRangeEndpoint(DateOnly day) =>
         _range is { } r && (day == r.Start || day == r.End);
 
+    // The range is tinted with the leave type being booked rather than the app accent, so the
+    // surface answers "what am I booking" as well as "when".
     private string SelectionStyle(DateOnly day)
     {
         if (!IsSelected(day) || _selectedType is not { } type)
@@ -460,8 +634,30 @@
 
         var color = LeaveTypePalette.Hex(type, ThemeState.IsDarkMode);
         return IsRangeEndpoint(day)
-            ? $"background:{color}; color:#fff; border-color:{color};"
-            : $"background:{LeaveTypePalette.HighlightHex(type, ThemeState.IsDarkMode)}; border-color:{color}66;";
+            ? $"background:{color}1F; box-shadow: inset 0 0 0 2px {color};"
+            : $"background:{color}14;";
+    }
+
+    // A calendar entry, coloured the way Teams colours one: the leave type washed over the
+    // background at low opacity, the full-strength colour as a bar down the leading edge. The
+    // hex suffix is the alpha channel — "24" is about 14%.
+    private string EntryTint(LeaveType type)
+    {
+        var hex = LeaveTypePalette.Hex(type, ThemeState.IsDarkMode);
+        return $"background:{hex}24; border-inline-start:3px solid {hex};";
+    }
+
+    private string? UnavailableDateHint(DateOnly day)
+    {
+        if (_selectedType is null)
+            return "Select a leave type first.";
+        if (day < _today)
+            return "Past dates cannot be selected.";
+        if (_holidays.TryGetValue(day, out var holiday))
+            return $"{holiday.Name} is a public holiday.";
+        if (IsWeekend(day))
+            return "Weekends are already non-working days.";
+        return null;
     }
 
     private bool CanSelectDay(DateOnly day) =>
@@ -469,22 +665,7 @@
 
     private bool IsHoliday(DateOnly day) => _holidays.ContainsKey(day);
 
-    private EventCallback<MouseEventArgs> DayClickCallback(DateOnly day) =>
-        CanSelectDay(day)
-            ? EventCallback.Factory.Create<MouseEventArgs>(this, () => OnDayClick(day))
-            : default;
-
-    private string? UnavailableDateHint(DateOnly day)
-    {
-        if (day < _today)
-            return "Past dates cannot be selected.";
-        if (_holidays.TryGetValue(day, out var holiday))
-            return $"{holiday.Name} is a public holiday.";
-        if (IsWeekend(day))
-            return "Weekends are already non-working days.";
-        return _selectedType is null ? "Select a leave type first." : null;
-    }
-
+    // Click the first day, then the last; clicking inside the range clears it.
     private void OnDayClick(DateOnly day)
     {
         if (!CanSelectDay(day))
@@ -527,9 +708,10 @@
         try
         {
             await TimeOff.SubmitRequestAsync(type, range.Start, range.End, _reason);
-            Snackbar.Add("Time off request submitted", Severity.Success);
+            Toast.ShowSuccess("Time off request submitted");
             CancelSelection();
             _selectedType = null;
+            await LoadAsync();
         }
         catch (DelegationRequiredException ex)
         {
@@ -538,13 +720,12 @@
             if (offerDelegation && await OfferDelegationAsync(range))
                 await SubmitAsync(offerDelegation: false);
             else if (!offerDelegation)
-                Snackbar.Add($"{ex.Message} The delegation you created does not cover these dates.",
-                    Severity.Error);
+                Toast.ShowError($"{ex.Message} The delegation you created does not cover these dates.");
         }
         catch (Exception ex)
         {
             // Business validations (overlap, balance, past dates) surface here.
-            Snackbar.Add(ex.Message, Severity.Error);
+            Toast.ShowError(ex.Message);
         }
     }
 
@@ -559,7 +740,7 @@
         // enforces, said before the dialog rather than after it.
         if (acting.IsImpersonating)
         {
-            Snackbar.Add("Only the owner of this account can choose who covers for them.", Severity.Error);
+            Toast.ShowError("Only the owner of this account can choose who covers for them.");
             return false;
         }
 
@@ -570,26 +751,37 @@
 
         if (candidates.Count == 0)
         {
-            Snackbar.Add("There is nobody in your region who could take over.", Severity.Error);
+            Toast.ShowError("There is nobody in your region who could take over.");
             return false;
         }
 
-        var parameters = new DialogParameters<CreateDelegationDialog>
+        var content = new CreateDelegationDialog.Model
         {
-            { x => x.AvailableUsers, candidates },
-            { x => x.InitialStartDate, range.Start },
-            { x => x.InitialEndDate, range.End },
-            { x => x.Intro, "Your leave is approved automatically, so somebody has to cover your "
-                          + "responsibilities while you are away. The dates match your request — "
-                          + "shorten them if the handover is shorter." }
+            AvailableUsers = candidates,
+            StartDate = range.Start.ToDateTime(TimeOnly.MinValue),
+            EndDate = range.End.ToDateTime(TimeOnly.MinValue),
+            Intro = "Your leave is approved automatically, so somebody has to cover your "
+                  + "responsibilities while you are away. The dates match your request — "
+                  + "shorten them if the handover is shorter."
         };
 
-        var dialog = await DialogService.ShowAsync<CreateDelegationDialog>(
-            "Who takes over while you are away?", parameters,
-            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var parameters = new DialogParameters
+        {
+            Title = "Who takes over while you are away?",
+            PrimaryAction = "Delegate",
+            SecondaryAction = "Cancel",
+            Width = "520px",
+            ValidateDialogAsync = () => Task.FromResult(content.Validate())
+        };
 
-        if ((await dialog.Result) is not { Canceled: false, Data: CreateDelegationDialog.DelegationResult result })
+        var dialog = await DialogService.ShowDialogAsync<CreateDelegationDialog, CreateDelegationDialog.Model>(
+            content, parameters);
+
+        var dialogResult = await dialog.Result;
+        if (dialogResult.Cancelled || !content.IsValid)
             return false;
+
+        var result = content.ToResult();
 
         try
         {
@@ -599,25 +791,11 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            Toast.ShowError(ex.Message);
             return false;
         }
     }
 
     private int RangeDays((DateOnly Start, DateOnly End) range) =>
         WorkingDays(range.Start, range.End);
-
-    private string TypeChipStyle(LeaveType type, bool isSelected)
-    {
-        var hex = LeaveTypePalette.Hex(type);
-        return isSelected
-            ? $"background:{hex}; color:white;"
-            : $"color:{hex}; border-color:{hex};";
-    }
-
-    private static string ShortName(string fullName)
-    {
-        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length > 1 ? $"{parts[0]} {parts[^1][0]}." : fullName;
-    }
 }
