@@ -242,6 +242,36 @@ namespace CompanyEmployees.Persistence.Migrations
                     b.ToTable("Notifications");
                 });
 
+            modelBuilder.Entity("CompanyEmployees.Domain.Entities.Region", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Regions");
+                });
+
             modelBuilder.Entity("CompanyEmployees.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -298,6 +328,13 @@ namespace CompanyEmployees.Persistence.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<string>("PreferredCulture")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("RegionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("Role")
                         .HasColumnType("int");
 
@@ -330,6 +367,8 @@ namespace CompanyEmployees.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
+
+                    b.HasIndex("RegionId");
 
                     b.ToTable("AspNetUsers", (string)null);
                 });
@@ -569,9 +608,17 @@ namespace CompanyEmployees.Persistence.Migrations
                         .HasForeignKey("ManagerId")
                         .OnDelete(DeleteBehavior.NoAction);
 
+                    b.HasOne("CompanyEmployees.Domain.Entities.Region", "Region")
+                        .WithMany("Users")
+                        .HasForeignKey("RegionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Department");
 
                     b.Navigation("Manager");
+
+                    b.Navigation("Region");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -633,6 +680,11 @@ namespace CompanyEmployees.Persistence.Migrations
             modelBuilder.Entity("CompanyEmployees.Domain.Entities.LeaveRequest", b =>
                 {
                     b.Navigation("Approvals");
+                });
+
+            modelBuilder.Entity("CompanyEmployees.Domain.Entities.Region", b =>
+                {
+                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("CompanyEmployees.Domain.Entities.User", b =>

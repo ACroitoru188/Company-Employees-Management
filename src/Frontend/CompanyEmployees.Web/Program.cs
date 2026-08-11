@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Localization;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,10 +22,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddMudServices();
+builder.Services.AddMudLocalization();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<ThemeState>();
 builder.Services.AddScoped<EmployeeAccountService>();
 builder.Services.AddScoped<EmployeeCsvExportService>();
+builder.Services.AddScoped<LanguagePreferenceService>();
+builder.Services.AddSingleton<AppLocalizer>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IAccountEmailSender, SmtpAccountEmailSender>();
 builder.Services.AddControllers();
@@ -67,6 +71,21 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 var app = builder.Build();
 
+var supportedCultures = SupportedLanguages.All
+    .Select(language => new System.Globalization.CultureInfo(language.Culture))
+    .ToArray();
+
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture(SupportedLanguages.DefaultCulture),
+    SupportedCultures = supportedCultures,
+    SupportedUICultures = supportedCultures,
+    RequestCultureProviders =
+    [
+        new CookieRequestCultureProvider()
+    ]
+});
+
 if (app.Environment.IsDevelopment())
 {
     // Applies any pending migrations (creating the database if it does not exist yet).
@@ -100,19 +119,38 @@ app.MapRazorComponents<App>()
 app.MapPost("/api/auth/login", async (HttpContext context,
     [Microsoft.AspNetCore.Mvc.FromForm] string email,
     [Microsoft.AspNetCore.Mvc.FromForm] string password,
+    [Microsoft.AspNetCore.Mvc.FromForm] Guid? regionId,
     [Microsoft.AspNetCore.Mvc.FromForm] string? returnUrl,
     SignInManager<User> signInManager,
     UserManager<User> userManager) =>
 {
-    var result = await signInManager.PasswordSignInAsync(
-        userName: email,
-        password: password,
-        isPersistent: true,
-        lockoutOnFailure: false);
+    var account = await userManager.FindByNameAsync(email);
+    var result = account == null
+        ? Microsoft.AspNetCore.Identity.SignInResult.Failed
+        : await signInManager.CheckPasswordSignInAsync(account, password, lockoutOnFailure: false);
 
-    if(result.Succeeded)
+    var regionMatches = result.Succeeded
+        && regionId.HasValue
+        && account!.RegionId == regionId.Value
+        && await userManager.Users.AnyAsync(user =>
+            user.Id == account.Id && user.RegionId == regionId.Value && user.Region.IsActive);
+
+    if(regionMatches)
     {
-        var account = await userManager.Users
+        await signInManager.SignInAsync(account!, isPersistent: true);
+
+        var culture = SupportedLanguages.Normalize(account!.PreferredCulture);
+        context.Response.Cookies.Append(
+            CookieRequestCultureProvider.DefaultCookieName,
+            CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(culture)),
+            new CookieOptions
+            {
+                Expires = DateTimeOffset.UtcNow.AddYears(1),
+                IsEssential = true,
+                SameSite = SameSiteMode.Lax
+            });
+
+        var destination = await userManager.Users
             .Where(u => u.NormalizedUserName == email.ToUpperInvariant())
             .Select(u => new
             {
@@ -124,7 +162,7 @@ app.MapPost("/api/auth/login", async (HttpContext context,
         if (returnUrl is not null && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//"))
             return Results.Redirect(returnUrl);
 
-        return Results.Redirect(HomeRouteResolver.Resolve(account?.Role, account?.Department));
+        return Results.Redirect(HomeRouteResolver.Resolve(destination?.Role, destination?.Department));
     }
     else
     {
@@ -141,10 +179,23 @@ app.MapGet("/api/auth/logout", async (SignInManager<User> signInManager) =>
 });
 
 app.MapGet("/api/employees/export.csv", async (
+    HttpContext httpContext,
     EmployeeCsvExportService csvExporter,
+    UserManager<User> userManager,
     CancellationToken cancellationToken) =>
 {
-    var export = await csvExporter.GenerateAsync(cancellationToken);
+    // Export scope always comes from the authenticated account in the database.
+    // A UI preview selection must never expose another region's employee data.
+    var email = httpContext.User.Identity?.Name;
+    var regionId = await userManager.Users
+        .Where(user => user.Email == email)
+        .Select(user => (Guid?)user.RegionId)
+        .FirstOrDefaultAsync(cancellationToken);
+
+    if (!regionId.HasValue)
+        return Results.NotFound();
+
+    var export = await csvExporter.GenerateAsync(regionId.Value, cancellationToken);
     return Results.File(export.Content, "text/csv; charset=utf-8", export.FileName);
 }).RequireAuthorization(policy => policy.RequireAssertion(context =>
     context.User.IsInRole(UserRole.Admin.ToString())

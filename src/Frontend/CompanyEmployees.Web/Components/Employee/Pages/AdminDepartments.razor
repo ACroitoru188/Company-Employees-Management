@@ -10,8 +10,9 @@
 @inject ManagerContext Manager
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject AppLocalizer Text
 
-<PageTitle>Departments · Admin</PageTitle>
+<PageTitle>@Text["Departments"] · @Text["Admin"]</PageTitle>
 
 @if (!_authorized)
 {
@@ -31,28 +32,28 @@ else
 		</MudAlert>
 	}
 
-	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">Departments</MudText>
+	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">@Text["Departments"]</MudText>
 
 	<MudDataGrid T="Department" Items="@_departments" QuickFilter="@_quickFilter"
 				 Filterable="true" SortMode="SortMode.Multiple"
 				 FilterMode="DataGridFilterMode.ColumnFilterRow"
 				 Hover="true" Dense="true" Elevation="1" Class="mb-6">
 		<ToolBarContent>
-			<MudTextField @bind-Value="_quickSearch" Placeholder="Search department..."
+			<MudTextField @bind-Value="_quickSearch" Placeholder="@(Text["Search department..."])"
 						  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
 						  IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
 						  Immediate="true" />
 			<MudSpacer />
 		</ToolBarContent>
 		<Columns>
-			<TemplateColumn T="Department" Title="Name" Sortable="true"
+			<TemplateColumn T="Department" Title="@(Text["Name"])" Sortable="true"
 							SortBy="@(d => d.Name)" Filterable="false">
 				<CellTemplate>
 					<MudTextField @bind-Value="context.Item.Name" Immediate="false"
 								  OnBlur="@(() => SaveDepartmentAsync(context.Item))" />
 				</CellTemplate>
 			</TemplateColumn>
-			<TemplateColumn T="Department" Title="Manager" Sortable="true"
+			<TemplateColumn T="Department" Title="@(Text["Manager"])" Sortable="true"
 							SortBy="@(d => GetManagerName(d.ManagerId))" Filterable="false">
 				<CellTemplate>
 					<MudAutocomplete T="Guid?" Value="context.Item.ManagerId"
@@ -63,7 +64,7 @@ else
 									 CoerceText="true" />
 				</CellTemplate>
 			</TemplateColumn>
-			<PropertyColumn Property="@(d => d.Members.Count)" Title="Members" />
+			<PropertyColumn Property="@(d => d.Members.Count)" Title="@(Text["Members"])" />
 			<TemplateColumn T="Department" Sortable="false" Filterable="false">
 				<CellTemplate>
 					<MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
@@ -77,16 +78,16 @@ else
 	</MudDataGrid>
 
 	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
-		<MudText Typo="Typo.subtitle2" Class="mb-2">New department</MudText>
+		<MudText Typo="Typo.subtitle2" Class="mb-2">@Text["New department"]</MudText>
 		<div class="d-flex align-center gap-3">
-			<MudTextField T="string" @bind-Value="_newName" Label="Name" />
-			<MudAutocomplete T="Guid?" @bind-Value="_newManagerId" Label="Manager" Style="min-width:200px;"
+			<MudTextField T="string" @bind-Value="_newName" Label="@(Text["Name"])" />
+			<MudAutocomplete T="Guid?" @bind-Value="_newManagerId" Label="@(Text["Manager"])" Style="min-width:200px;"
 							 SearchFunc="@SearchManagers"
 							 ToStringFunc="@GetManagerName"
 							 ResetValueOnEmptyText="true"
 							 CoerceText="true" />
 			<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateDepartmentAsync">
-				Add
+				@Text["Add"]
 			</MudButton>
 		</div>
 	</MudPaper>
@@ -160,7 +161,7 @@ else
 	private async Task SaveDepartmentAsync(Department dept)
 	{
 		await Employees.UpdateDepartmentAsync(dept.Id, dept.Name, dept.ManagerId);
-		Snackbar.Add("Department updated.", Severity.Success);
+		Snackbar.Add(Text["Department updated."], Severity.Success);
 		await LoadAsync();
 	}
 
@@ -174,11 +175,11 @@ else
 	{
 		if (string.IsNullOrWhiteSpace(_newName))
 		{
-			Snackbar.Add("Name is required.", Severity.Warning);
+			Snackbar.Add(Text["Name is required."], Severity.Warning);
 			return;
 		}
 		await Employees.CreateDepartmentAsync(_newName, _newManagerId);
-		Snackbar.Add("Department created.", Severity.Success);
+		Snackbar.Add(Text["Department created."], Severity.Success);
 		_newName = "";
 		_newManagerId = null;
 		await LoadAsync();
@@ -187,19 +188,19 @@ else
 	private async Task DeleteDepartmentAsync(Department dept)
 	{
 		await Employees.DeleteDepartmentAsync(dept.Id);
-		Snackbar.Add("Department deleted.", Severity.Success);
+		Snackbar.Add(Text["Department deleted."], Severity.Success);
 		await LoadAsync();
 	}
 
 	private string GetManagerName(Guid? id) =>
-		id == null ? "None" : _lineManagers.FirstOrDefault(m => m.Id == id)?.Name ?? "";
+		id == null ? Text["None"] : _lineManagers.FirstOrDefault(m => m.Id == id)?.Name ?? "";
 
 	private Task<IEnumerable<Guid?>> SearchManagers(string value, CancellationToken token)
 	{
 		var allIds = _lineManagers.Select(m => (Guid?)m.Id).Prepend(null);
 		
 		// Daca textul e gol, SAU e "None", SAU textul este fix numele deja selectat, afisam toata lista
-		if (string.IsNullOrEmpty(value) || value.Equals("None", StringComparison.InvariantCultureIgnoreCase) || _lineManagers.Any(m => m.Name.Equals(value, StringComparison.InvariantCultureIgnoreCase)))
+		if (string.IsNullOrEmpty(value) || value.Equals(Text["None"], StringComparison.CurrentCultureIgnoreCase) || _lineManagers.Any(m => m.Name.Equals(value, StringComparison.CurrentCultureIgnoreCase)))
 		{
 			return Task.FromResult(allIds);
 		}

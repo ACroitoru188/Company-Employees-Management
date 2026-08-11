@@ -14,8 +14,9 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject AppLocalizer Text
 
-<PageTitle>Users · Admin</PageTitle>
+<PageTitle>@Text["Users"] · @Text["Admin"]</PageTitle>
 
 @if (!_authorized)
 {
@@ -37,15 +38,22 @@ else
 	}
 
 	<div class="d-flex justify-space-between align-center gap-3 flex-wrap mb-4">
-		<MudText Typo="Typo.h5" Style="font-weight:600;">Users & Contracts</MudText>
-		<div class="d-flex gap-2">
-
-			<MudButton Href="/api/employees/export.csv"
-					   Variant="Variant.Outlined" Color="Color.Primary"
-					   StartIcon="@Icons.Material.Filled.Download">
-				Download latest CSV
-			</MudButton>
-		</div>
+		<MudText Typo="Typo.h5" Style="font-weight:600;">@Text["Users & Contracts"]</MudText>
+		<MudSelect T="Guid?" Value="_regionFilterId"
+				   ValueChanged="OnViewingRegionChanged"
+				   Label="@(Text["Preview region"])" Variant="Variant.Outlined"
+				   Dense="true" Style="min-width:220px;">
+			<MudSelectItem T="Guid?" Value="@((Guid?)null)">@Text["All regions"]</MudSelectItem>
+			@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
+			{
+				<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
+			}
+		</MudSelect>
+		<MudButton Href="/api/employees/export.csv"
+				   Variant="Variant.Outlined" Color="Color.Primary"
+				   StartIcon="@Icons.Material.Filled.Download">
+			@Text["Download latest CSV"]
+		</MudButton>
 	</div>
 
 	@if (_activeDelegationsGiven.Count > 0)
@@ -79,23 +87,29 @@ else
 
 	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
 		<MudText Typo="Typo.subtitle1" Style="font-weight:600;" Class="mb-1">
-			Create employee account
+			@Text["Create employee account"]
 		</MudText>
 		<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-			Enter the employee's name, real email address, and department. Their Siemens login is generated automatically.
+			@Text["Create employees in your assigned region. Their Siemens login and employee ID are generated automatically."]
 		</MudText>
+		@if (!CanManageSelectedRegion)
+		{
+			<MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+				@Text.Format("This regional preview is read-only. Return to {0} to create an account.", GetRegionName(_adminRegionId))
+			</MudAlert>
+		}
 
 		<div class="d-flex align-end gap-3 flex-wrap">
 			<MudTextField T="string" @bind-Value="_newEmployeeName"
-						  Label="Full name" Variant="Variant.Outlined"
-						  Style="min-width:260px;" Disabled="@_creating" />
+						  Label="@(Text["Full name"])" Variant="Variant.Outlined"
+						  Style="min-width:260px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
 			<MudTextField T="string" @bind-Value="_newEmployeeInvitationEmail"
-						  Label="Real email address" Variant="Variant.Outlined"
+						  Label="@(Text["Real email address"])" Variant="Variant.Outlined"
 						  InputType="InputType.Email" Style="min-width:300px;"
-						  Disabled="@_creating" />
+						  Disabled="@(_creating || !CanManageSelectedRegion)" />
 			<MudSelect T="Guid?" @bind-Value="_newEmployeeDepartmentId"
-					   Label="Department" Variant="Variant.Outlined"
-					   Style="min-width:220px;" Disabled="@_creating">
+					   Label="@(Text["Department"])" Variant="Variant.Outlined"
+					   Style="min-width:220px;" Disabled="@(_creating || !CanManageSelectedRegion)">
 				@foreach (var department in _departments.OrderBy(d => d.Name))
 				{
 					<MudSelectItem T="Guid?" Value="@((Guid?)department.Id)">
@@ -103,51 +117,87 @@ else
 					</MudSelectItem>
 				}
 			</MudSelect>
+			<MudSelect T="Guid?" @bind-Value="_newEmployeeRegionId"
+					   Label="@(Text["Region"])" Variant="Variant.Outlined"
+					   Style="min-width:200px;" Disabled="true">
+				@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
+				{
+					<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
+				}
+			</MudSelect>
 			<MudButton Variant="Variant.Filled" Color="Color.Primary"
 					   StartIcon="@Icons.Material.Filled.PersonAdd"
 					   Style="height:44px; align-self:center; transform:translateY(2px);"
-					   OnClick="CreateEmployeeAsync" Disabled="@_creating">
-				@(_creating ? "Creating..." : "Create account")
+					   OnClick="CreateEmployeeAsync" Disabled="@(_creating || !CanManageSelectedRegion)">
+				@(_creating ? Text["Creating..."] : Text["Create account"])
 			</MudButton>
 		</div>
 
 		@if (_createdAccount != null)
 		{
 			<MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mt-4">
-				<MudText Typo="Typo.subtitle2" Style="font-weight:600;">Account created</MudText>
-				<MudText Typo="Typo.body2">Name: @_createdAccount.Name</MudText>
-				<MudText Typo="Typo.body2">Department: @_createdAccount.Department</MudText>
-				<MudText Typo="Typo.body2">Siemens login: @_createdAccount.Email</MudText>
-				<MudText Typo="Typo.body2">Invitation email: @_createdAccount.InvitationEmail</MudText>
+				<MudText Typo="Typo.subtitle2" Style="font-weight:600;">@Text["Account created"]</MudText>
+				<MudText Typo="Typo.body2">@Text.Format("Name: {0}", _createdAccount.Name)</MudText>
+				<MudText Typo="Typo.body2">@Text.Format("Department: {0}", _createdAccount.Department)</MudText>
+				<MudText Typo="Typo.body2">@Text.Format("Region: {0}", _createdAccount.Region)</MudText>
+				<MudText Typo="Typo.body2">@Text.Format("Siemens login: {0}", _createdAccount.Email)</MudText>
+				<MudText Typo="Typo.body2">@Text.Format("Invitation email: {0}", _createdAccount.InvitationEmail)</MudText>
 				@if (_createdAccount.EmailDelivered)
 				{
-					<MudText Typo="Typo.body2">A password setup email was sent to the employee.</MudText>
+					<MudText Typo="Typo.body2">@Text["A password setup email was sent to the employee."]</MudText>
 				}
 				else
 				{
-					<MudText Typo="Typo.body2">SMTP is not configured. Use this development-only setup link:</MudText>
-					<MudLink Href="@_createdAccount.DevelopmentSetupLink">Set password</MudLink>
+					<MudText Typo="Typo.body2">@Text["SMTP is not configured. Use this development-only setup link:"]</MudText>
+					<MudLink Href="@_createdAccount.DevelopmentSetupLink">@Text["Set password"]</MudLink>
 				}
 			</MudAlert>
 		}
 	</MudPaper>
 
-	<MudDataGrid T="User" Items="@_users" QuickFilter="@_quickFilter"
+	@if (_regionFilterId.HasValue)
+	{
+		@if (CanManageSelectedRegion)
+		{
+			<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+				@Text.Format("Managing your assigned region, {0}.", GetRegionName(_adminRegionId))
+			</MudAlert>
+		}
+		else
+		{
+			<MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+				@Text.Format("Previewing {0} in read-only mode.", GetRegionName(_regionFilterId.Value))
+				@Text["Only an administrator assigned to that region can make changes."]
+			</MudAlert>
+		}
+	}
+	else
+	{
+		<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+			@Text.Format("Previewing all regions. Employees outside {0} are read-only.", GetRegionName(_adminRegionId))
+		</MudAlert>
+	}
+
+	<MudDataGrid T="User" Items="@FilteredUsers" QuickFilter="@_quickFilter"
 				 Filterable="true" SortMode="SortMode.Multiple"
 				 FilterMode="DataGridFilterMode.ColumnFilterRow"
 				 Hover="true" Dense="true" Elevation="1">
 		<ToolBarContent>
-			<MudTextField @bind-Value="_quickSearch" Placeholder="Search users or contracts..."
+			<MudTextField @bind-Value="_quickSearch" Placeholder="@(Text["Search users or contracts..."])"
 						  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
 						  IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
 						  Immediate="true" />
 			<MudSpacer />
 		</ToolBarContent>
 		<Columns>
-			<PropertyColumn Property="@(u => u.Name)" Title="Name" />
-			<PropertyColumn Property="@(u => u.Email)" Title="Email" />
-			<PropertyColumn Property="@(u => u.Role)" Title="Role" />
-			<TemplateColumn T="User" Title="Contract Type" Sortable="true"
+			<PropertyColumn Property="@(u => u.Name)" Title="@(Text["Name"])" />
+			<PropertyColumn Property="@(u => u.Email)" Title="@(Text["Email"])" />
+			<TemplateColumn T="User" Title="@(Text["Role"])" Sortable="true" SortBy="@(u => u.Role)">
+				<CellTemplate>
+					@Text[context.Item.Role == UserRole.Employee ? "Employee role" : context.Item.Role.ToString()]
+				</CellTemplate>
+			</TemplateColumn>
+			<TemplateColumn T="User" Title="@(Text["Contract Type"])" Sortable="true"
 							SortBy="@(u => GetActiveContract(u)?.Type.ToString() ?? "None")" Filterable="false">
 				<CellTemplate>
 					@{
@@ -155,19 +205,19 @@ else
 					}
 					@if (contract == null)
 					{
-						<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">No Contract</MudChip>
+						<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">@Text["No Contract"]</MudChip>
 					}
 					else if (contract.Type == ContractType.Determinate)
 					{
-						<MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Determinate</MudChip>
+						<MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">@Text["Determinate"]</MudChip>
 					}
 					else
 					{
-						<MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">Indeterminate</MudChip>
+						<MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">@Text["Indeterminate"]</MudChip>
 					}
 				</CellTemplate>
 			</TemplateColumn>
-			<TemplateColumn T="User" Title="Contract Period & Status" Sortable="true"
+			<TemplateColumn T="User" Title="@(Text["Contract Period & Status"])" Sortable="true"
 							SortBy="@(u => GetActiveContract(u)?.Status.ToString() ?? "")" Filterable="false">
 				<CellTemplate>
 					@{
@@ -178,10 +228,10 @@ else
 						<div class="d-flex flex-column">
 							<div class="d-flex align-center gap-1">
 								<MudChip T="string" Size="Size.Small" Color="@GetStatusColor(contract.Status)" Variant="Variant.Text" Class="pa-0 ma-0">
-									@contract.Status
+									@Text[contract.Status.ToString()]
 								</MudChip>
 								<MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-									@contract.StartDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) – @(contract.EndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
+									@contract.StartDate.ToString("d", CultureInfo.CurrentCulture) – @(contract.EndDate?.ToString("d", CultureInfo.CurrentCulture) ?? Text["Indefinite"])
 								</MudText>
 							</div>
 						</div>
@@ -192,7 +242,7 @@ else
 					}
 				</CellTemplate>
 			</TemplateColumn>
-			<TemplateColumn T="User" Title="Department" Sortable="true"
+			<TemplateColumn T="User" Title="@(Text["Department"])" Sortable="true"
 							 SortBy="@(u => GetDepartmentName(u.DepartmentId))" Filterable="false">
 				<CellTemplate>
 					<MudAutocomplete T="Guid?" Value="context.Item.DepartmentId"
@@ -200,14 +250,28 @@ else
 									 SearchFunc="@SearchDepartments"
 									 ToStringFunc="@GetDepartmentName"
 									 ResetValueOnEmptyText="true"
-									 CoerceText="true" Dense="true" />
+									 CoerceText="true" Dense="true" Disabled="@(!CanEditUser(context.Item))" />
 				</CellTemplate>
 			</TemplateColumn>
-			<TemplateColumn T="User" Title="Actions" Filterable="false" Sortable="false">
+			<TemplateColumn T="User" Title="@(Text["Region"])" Sortable="true"
+							 SortBy="@(u => GetRegionName(u.RegionId))" Filterable="false">
 				<CellTemplate>
-					<MudTooltip Text="Manage Contract">
+					<MudSelect T="Guid" Value="context.Item.RegionId"
+							   ValueChanged="@(value => OnUserRegionChangedAsync(context.Item, value))"
+							   Dense="true" Variant="Variant.Text" Disabled="@(!CanEditUser(context.Item))">
+						@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
+						{
+							<MudSelectItem T="Guid" Value="@region.Id">@region.Name</MudSelectItem>
+						}
+					</MudSelect>
+				</CellTemplate>
+			</TemplateColumn>
+			<TemplateColumn T="User" Title="@(Text["Actions"])" Filterable="false" Sortable="false">
+				<CellTemplate>
+					<MudTooltip Text="@(Text["Manage Contract"])" >
 						<MudIconButton Icon="@Icons.Material.Filled.Assignment" Size="Size.Small" Color="Color.Primary"
-									   OnClick="@(() => OpenEditContractDialog(context.Item))" />
+									   OnClick="@(() => OpenEditContractDialog(context.Item))"
+									   Disabled="@(!CanEditUser(context.Item))" />
 					</MudTooltip>
 				</CellTemplate>
 			</TemplateColumn>
@@ -232,10 +296,14 @@ else
 	private bool _authorized;
 	private List<User> _users = new();
 	private List<Department> _departments = new();
+	private List<Region> _regions = new();
 	private string _quickSearch = "";
 	private string _newEmployeeName = "";
 	private string _newEmployeeInvitationEmail = "";
 	private Guid? _newEmployeeDepartmentId;
+	private Guid? _newEmployeeRegionId;
+	private Guid? _regionFilterId;
+	private Guid _adminRegionId;
 	private bool _creating;
 	private EmployeeAccountResult? _createdAccount;
 
@@ -247,9 +315,17 @@ else
 			|| (u.Email ?? "").Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
 			|| u.Role.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
 			|| GetDepartmentName(u.DepartmentId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+			|| GetRegionName(u.RegionId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
 			|| (contract != null && contract.Type.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase))
 			|| (contract != null && contract.Status.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase));
 	};
+
+	private IEnumerable<User> FilteredUsers => _regionFilterId.HasValue
+		? _users.Where(user => user.RegionId == _regionFilterId.Value)
+		: _users;
+
+	private bool CanManageSelectedRegion => _regionFilterId == _adminRegionId;
+	private bool CanEditUser(User user) => user.RegionId == _adminRegionId;
 
 	protected override async Task OnInitializedAsync()
 	{
@@ -283,6 +359,12 @@ else
 
 		_authorized = true;
 		await LoadAsync();
+
+		var currentAdmin = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
+		_adminId = currentAdmin.Id;
+		_adminRegionId = currentAdmin.RegionId;
+		_regionFilterId = currentAdmin.RegionId;
+		_newEmployeeRegionId = currentAdmin.RegionId;
 	}
 
 	private async Task LoadAsync()
@@ -300,6 +382,7 @@ else
 		_activeDelegationsReceived = allDelegationsReceived
 			.Where(d => d.Manager.Role == UserRole.Admin)
 			.ToList();
+		_regions = await Employees.GetRegionsAsync();
 	}
 
 	private Contract? GetActiveContract(User user)
@@ -319,6 +402,12 @@ else
 
 	private async Task OpenEditContractDialog(User user)
 	{
+		if (!CanEditUser(user))
+		{
+			Snackbar.Add(Text["Other regions are read-only."], Severity.Warning);
+			return;
+		}
+
 		var contract = GetActiveContract(user);
 		var parameters = new DialogParameters<EditContractDialog>
 		{
@@ -326,41 +415,90 @@ else
 			{ x => x.ExistingContract, contract }
 		};
 
-		var dialog = await DialogService.ShowAsync<EditContractDialog>("Manage Contract", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+		var dialog = await DialogService.ShowAsync<EditContractDialog>(Text["Manage Contract"], parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
 		var result = await dialog.Result;
 
 		if (result != null && !result.Canceled && result.Data is EditContractDialog.ContractEditResult res)
 		{
-			await Employees.SaveUserContractAsync(user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes);
-			Snackbar.Add($"Contract updated for {user.Name}.", Severity.Success);
+			await Employees.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes);
+			Snackbar.Add(Text.Format("Contract updated for {0}.", user.Name), Severity.Success);
 			await LoadAsync();
 		}
 	}
 
 	private async Task OnUserDepartmentChangedAsync(User user, Guid? departmentId)
 	{
-		await Employees.AssignUserToDepartmentAsync(user.Id, departmentId);
-		Snackbar.Add($"{user.Name} moved.", Severity.Success);
+		if (!CanEditUser(user))
+			return;
+
+		await Employees.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId);
+		Snackbar.Add(Text.Format("{0} moved.", user.Name), Severity.Success);
 		await LoadAsync();
+	}
+
+	private async Task OnUserRegionChangedAsync(User user, Guid regionId)
+	{
+		if (!CanEditUser(user))
+			return;
+
+		if (user.RegionId == regionId)
+			return;
+
+		var sourceRegion = GetRegionName(user.RegionId);
+		var destinationRegion = GetRegionName(regionId);
+		var confirmed = await DialogService.ShowMessageBoxAsync(
+			Text["Confirm region transfer"],
+			Text.Format("Are you sure you want to move {0} from {1} to {2}? They will no longer appear in the source region's employee lists, and cross-region manager links will be removed.", user.Name, sourceRegion, destinationRegion),
+			yesText: Text["Yes, transfer"],
+			cancelText: Text["Cancel"]);
+
+		if (confirmed != true)
+		{
+			StateHasChanged();
+			return;
+		}
+
+		try
+		{
+			await Employees.AssignUserToRegionAsync(_adminId, user.Id, regionId);
+			Snackbar.Add(Text.Format("{0} moved from {1} to {2}.", user.Name, sourceRegion, destinationRegion), Severity.Success);
+			await LoadAsync();
+		}
+		catch (Exception exception)
+		{
+			Snackbar.Add(exception.Message, Severity.Error);
+		}
+	}
+
+	private Task OnViewingRegionChanged(Guid? regionId)
+	{
+		_regionFilterId = regionId;
+		return Task.CompletedTask;
 	}
 
 	private async Task CreateEmployeeAsync()
 	{
 		if (string.IsNullOrWhiteSpace(_newEmployeeName))
 		{
-			Snackbar.Add("Employee name is required.", Severity.Warning);
+			Snackbar.Add(Text["Employee name is required."], Severity.Warning);
 			return;
 		}
 
 		if (string.IsNullOrWhiteSpace(_newEmployeeInvitationEmail))
 		{
-			Snackbar.Add("Employee email is required.", Severity.Warning);
+			Snackbar.Add(Text["Employee email is required."], Severity.Warning);
 			return;
 		}
 
 		if (_newEmployeeDepartmentId == null)
 		{
-			Snackbar.Add("Select a department.", Severity.Warning);
+			Snackbar.Add(Text["Select a department."], Severity.Warning);
+			return;
+		}
+
+		if (_newEmployeeRegionId == null)
+		{
+			Snackbar.Add(Text["Select a region."], Severity.Warning);
 			return;
 		}
 
@@ -370,19 +508,22 @@ else
 		try
 		{
 			_createdAccount = await Accounts.CreateAsync(
+				_adminId,
 				_newEmployeeName,
 				_newEmployeeInvitationEmail,
 				_newEmployeeDepartmentId.Value,
+				_newEmployeeRegionId.Value,
 				Nav.BaseUri);
 
 			_newEmployeeName = "";
 			_newEmployeeInvitationEmail = "";
 			_newEmployeeDepartmentId = null;
+			_newEmployeeRegionId = _adminRegionId;
 			await LoadAsync();
 			Snackbar.Add(
 				_createdAccount.EmailDelivered
-					? "Employee account created and setup email sent."
-					: "Employee account created; SMTP is not configured.",
+					? Text["Employee account created and setup email sent."]
+					: Text["Employee account created; SMTP is not configured."],
 				_createdAccount.EmailDelivered ? Severity.Success : Severity.Warning);
 		}
 		catch (Exception exception)
@@ -396,13 +537,16 @@ else
 	}
 
 	private string GetDepartmentName(Guid? id) =>
-		id == null ? "None" : _departments.FirstOrDefault(d => d.Id == id)?.Name ?? "";
+		id == null ? Text["None"] : _departments.FirstOrDefault(d => d.Id == id)?.Name ?? "";
+
+	private string GetRegionName(Guid id) =>
+		_regions.FirstOrDefault(region => region.Id == id)?.Name ?? Text["Unknown"];
 
 	private Task<IEnumerable<Guid?>> SearchDepartments(string value, CancellationToken token)
 	{
 		var allIds = _departments.Select(d => (Guid?)d.Id).Prepend(null);
 
-		if (string.IsNullOrEmpty(value) || value.Equals("None", StringComparison.InvariantCultureIgnoreCase) || _departments.Any(d => d.Name.Equals(value, StringComparison.InvariantCultureIgnoreCase)))
+		if (string.IsNullOrEmpty(value) || value.Equals(Text["None"], StringComparison.CurrentCultureIgnoreCase) || _departments.Any(d => d.Name.Equals(value, StringComparison.CurrentCultureIgnoreCase)))
 		{
 			return Task.FromResult(allIds);
 		}

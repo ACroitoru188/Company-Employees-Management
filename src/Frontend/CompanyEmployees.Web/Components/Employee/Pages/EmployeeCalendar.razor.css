@@ -16,6 +16,28 @@
     padding: 18px 22px;
 }
 
+.cal-holiday-note {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 22px 14px;
+    padding: 9px 12px;
+    border: 1px solid color-mix(in srgb, var(--mud-palette-error, #d32f2f) 42%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--mud-palette-error, #d32f2f) 8%, var(--mud-palette-surface, #fff));
+    color: var(--mud-palette-text-primary);
+    font-size: 0.78rem;
+}
+
+.cal-holiday-note-square {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    border: 1px solid var(--mud-palette-error, #d32f2f);
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--mud-palette-error, #d32f2f) 24%, var(--mud-palette-surface, #fff));
+}
+
 .cal-head-left {
     display: flex;
     align-items: center;
@@ -173,6 +195,27 @@
 .cal-daynum {
     font-size: 0.8rem;
     font-weight: 600;
+}
+
+.cal-holiday {
+    background: color-mix(in srgb, var(--mud-palette-error, #d32f2f) 13%, var(--mud-palette-surface));
+    border-color: color-mix(in srgb, var(--mud-palette-error, #d32f2f) 55%, var(--mud-palette-lines-default));
+    cursor: not-allowed;
+}
+
+.cal-holiday .cal-daynum {
+    color: var(--mud-palette-error, #d32f2f);
+}
+
+.cal-holiday-name {
+    display: block;
+    color: var(--mud-palette-error-darken, #b71c1c);
+    font-size: 0.64rem;
+    font-weight: 700;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .cal-other {
@@ -337,10 +380,32 @@
     opacity: 0.58;
 }
 
+.wv-head-holiday {
+    color: var(--mud-palette-error-darken, #b71c1c);
+    background: color-mix(in srgb, var(--mud-palette-error, #d32f2f) 10%, var(--mud-palette-surface, #fff));
+}
+
+.wv-holiday-name {
+    max-width: 100%;
+    color: var(--mud-palette-error-darken, #b71c1c);
+    font-size: 9px;
+    font-weight: 700;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .wv-cell-weekend {
     background: color-mix(in srgb, var(--mud-palette-background) 72%, #9aa0a6);
     cursor: not-allowed;
     opacity: 0.68;
+}
+
+.wv-cell-holiday {
+    background: color-mix(in srgb, var(--mud-palette-error, #d32f2f) 13%, var(--mud-palette-surface));
+    border-color: color-mix(in srgb, var(--mud-palette-error, #d32f2f) 55%, #e8eaed);
+    cursor: not-allowed;
 }
 
 .wv-cell-weekend.wv-cell-selected {
@@ -468,6 +533,15 @@
     background: #f5f6f8;
 }
 
+.gv-hholiday,
+.gv-holiday {
+    background: color-mix(in srgb, var(--mud-palette-error, #d32f2f) 15%, #fbfcfd);
+}
+
+.gv-hholiday {
+    color: var(--mud-palette-error-darken, #b71c1c);
+}
+
 .gv-hwend .gv-hnum {
     color: #9aa0a6;
 }
@@ -496,6 +570,11 @@
 
 .gv-htoday .gv-hnum {
     color: var(--mud-palette-primary, #1e88e5);
+}
+
+.gv-square-holiday {
+    background: color-mix(in srgb, var(--mud-palette-error, #d32f2f) 24%, var(--mud-palette-surface));
+    border: 1px solid var(--mud-palette-error, #d32f2f);
 }
 
 .gv-cell {

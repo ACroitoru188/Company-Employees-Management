@@ -8,8 +8,9 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 @inject ThemeState ThemeState
+@inject AppLocalizer Text
 
-<PageTitle>Calendar · Time Off Management</PageTitle>
+<PageTitle>@Text["Calendar"] · @Text["Time Off Management"]</PageTitle>
 
 <div class="@(ShowSubmitBar ? "cal-page-with-footer" : "")">
 
@@ -24,7 +25,7 @@
                  Variant="@(isSelected ? Variant.Filled : Variant.Outlined)"
                  Style="@TypeChipStyle(balance.Type, isSelected)"
                  OnClick="@(() => SelectType(balance.Type))">
-            @LeaveTypePalette.Label(balance.Type)
+            @Text[balance.Type.ToString()]
         </MudChip>
     }
 </div>
@@ -32,40 +33,37 @@
 @if (_selectedType is null)
 {
     <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
-        Select a leave type to filter the calendar and submit a request.
+        @Text["Select a leave type to filter the calendar and submit a request."]
     </MudAlert>
 }
 
 <div class="cal-card">
     <div class="cal-head">
         <div class="cal-head-left">
-            <button class="cal-nav" @onclick="() => Navigate(-1)" aria-label="Previous">‹</button>
+            <button class="cal-nav" @onclick="() => Navigate(-1)" aria-label="@(Text["Previous"])" >‹</button>
             <span class="cal-label">@HeaderLabel</span>
-            <button class="cal-nav" @onclick="() => Navigate(1)" aria-label="Next">›</button>
-            <button class="cal-today" @onclick="GoToday">TODAY</button>
+            <button class="cal-nav" @onclick="() => Navigate(1)" aria-label="@(Text["Next"])" >›</button>
+            <button class="cal-today" @onclick="GoToday">@(Text["Today"].ToUpper(CultureInfo.CurrentCulture))</button>
         </div>
         <div class="cal-seg" role="tablist">
             @foreach (var view in Enum.GetValues<CalView>())
             {
                 var v = view;
-                <button class="cal-seg-btn @(_view == v ? "active" : "")" @onclick="() => SetView(v)">@v</button>
+                <button class="cal-seg-btn @(_view == v ? "active" : "")" @onclick="() => SetView(v)">@Text[v.ToString()]</button>
             }
         </div>
     </div>
 
-    @if (VisibleMonthHolidays.Count > 0)
-    {
-        <div class="cal-holiday-notice" role="note">
-            <span class="cal-holiday-swatch" aria-hidden="true"></span>
-            <span><strong>Red days</strong> are Romanian public holidays (statutory days off).</span>
-        </div>
-    }
+    <div class="cal-holiday-note" role="note">
+        <span class="cal-holiday-note-square" aria-hidden="true"></span>
+        <span><strong>@Text["Red dates are national public holidays"]</strong> — @Text["They are non-working days, so you do not need to request leave."]</span>
+    </div>
 
     @if (_view == CalView.Month)
     {
         <div class="cal-body">
             <div class="cal-grid cal-header">
-                @foreach (var name in new[] { "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN" })
+                @foreach (var name in LocalizedWeekdayNames)
                 {
                     <div class="cal-dow">@name</div>
                 }
@@ -79,24 +77,23 @@
                     var selected = IsSelected(day);
                     var isEndpoint = IsRangeEndpoint(day);
                     var canSelect = CanSelectDay(day);
-                    var holidayName = RomanianPublicHolidays.GetName(day);
-                    <div class="cal-cell @(inMonth ? "" : "cal-other") @(IsWeekend(day) ? "cal-weekend" : "") @(holidayName is not null ? "cal-holiday" : "") @(isPast ? "cal-past" : "") @(selected ? "cal-selected" : "") @(isEndpoint ? "cal-range-endpoint" : "") @(canSelect ? "cal-selectable" : "cal-disabled") @(day == _today ? "cal-today-cell" : "")"
+                    <div class="cal-cell @(inMonth ? "" : "cal-other") @(IsWeekend(day) ? "cal-weekend" : "") @(IsHoliday(day) ? "cal-holiday" : "") @(isPast ? "cal-past" : "") @(selected ? "cal-selected" : "") @(isEndpoint ? "cal-range-endpoint" : "") @(canSelect ? "cal-selectable" : "cal-disabled") @(day == _today ? "cal-today-cell" : "")"
                          style="@SelectionStyle(day)"
                          data-date="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
                          aria-disabled="@(!canSelect)"
                          title="@UnavailableDateHint(day)"
                          @onclick="DayClickCallback(day)">
                         <span class="cal-daynum">@day.Day</span>
-                        @if (holidayName is not null)
+                        @if (_holidays.TryGetValue(day, out var holiday))
                         {
-                            <span class="cal-holiday-name">@holidayName</span>
+                            <span class="cal-holiday-name">@holiday.Name</span>
                         }
                         @if (_teamByDay.TryGetValue(day, out var absences))
                         {
                             var visible = absences.Where(a => PassesFilter(a.Type)).ToList();
                             @foreach (var absence in visible.Take(3))
                             {
-                                <MudTooltip Text="@($"{absence.MemberName} · {LeaveTypePalette.Label(absence.Type)}")">
+                                <MudTooltip Text="@($"{absence.MemberName} · {Text[absence.Type.ToString()]}")">
                                     <span class="cal-chip" style="background:@LeaveTypePalette.Hex(absence.Type);">
                                         @ShortName(absence.MemberName)
                                     </span>
@@ -104,7 +101,7 @@
                             }
                             @if (visible.Count > 3)
                             {
-                                <span class="cal-more">+@(visible.Count - 3) more</span>
+                                <span class="cal-more">+@Text.Format("{0} more", visible.Count - 3)</span>
                             }
                         }
                     </div>
@@ -124,17 +121,16 @@
                 var selected = IsSelected(day);
                 var isEndpoint = IsRangeEndpoint(day);
                 var canSelect = CanSelectDay(day);
-                var holidayName = RomanianPublicHolidays.GetName(day);
                 <div class="wv-col">
-                    <div class="wv-head @(isPast ? "wv-head-past" : "") @(isWeekend ? "wv-head-weekend" : "") @(holidayName is not null ? "wv-head-holiday" : "")">
-                        <span class="wv-dow">@(day.ToString("ddd", CultureInfo.InvariantCulture).ToUpperInvariant())</span>
+                    <div class="wv-head @(isPast ? "wv-head-past" : "") @(isWeekend ? "wv-head-weekend" : "") @(IsHoliday(day) ? "wv-head-holiday" : "")">
+                        <span class="wv-dow">@(day.ToString("ddd", CultureInfo.CurrentCulture).ToUpper(CultureInfo.CurrentCulture))</span>
                         <span class="wv-num @(isToday ? "wv-num-today" : "")">@day.Day</span>
-                        @if (holidayName is not null)
+                        @if (_holidays.TryGetValue(day, out var weekHoliday))
                         {
-                            <span class="wv-holiday-name">@holidayName</span>
+                            <span class="wv-holiday-name">@weekHoliday.Name</span>
                         }
                     </div>
-                    <div class="wv-cell @(isToday ? "wv-cell-today" : "") @(isWeekend ? "wv-cell-weekend" : "") @(holidayName is not null ? "wv-cell-holiday" : "") @(isPast ? "wv-cell-past" : "") @(selected ? "wv-cell-selected" : "") @(isEndpoint ? "wv-range-endpoint" : "") @(canSelect ? "wv-cell-selectable" : "wv-cell-disabled")"
+                    <div class="wv-cell @(isToday ? "wv-cell-today" : "") @(isWeekend ? "wv-cell-weekend" : "") @(IsHoliday(day) ? "wv-cell-holiday" : "") @(isPast ? "wv-cell-past" : "") @(selected ? "wv-cell-selected" : "") @(isEndpoint ? "wv-range-endpoint" : "") @(canSelect ? "wv-cell-selectable" : "wv-cell-disabled")"
                          style="@SelectionStyle(day)"
                          data-date="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
                          aria-disabled="@(!canSelect)"
@@ -144,7 +140,7 @@
                         {
                             <div class="wv-card" style="background:@LeaveTypePalette.Hex(item.Type);">
                                 <div class="wv-name">@item.MemberName</div>
-                                <div class="wv-sub">@LeaveTypePalette.Label(item.Type) · @item.Department</div>
+                                <div class="wv-sub">@Text[item.Type.ToString()] · @item.Department</div>
                             </div>
                         }
                     </div>
@@ -157,20 +153,19 @@
         var daysInMonth = DateTime.DaysInMonth(VisibleMonth.Year, VisibleMonth.Month);
         var rows = GridRows();
         <div class="gv" style="grid-template-columns:210px 92px repeat(@daysInMonth, minmax(0, 1fr));">
-            <div class="gv-hcell gv-fixed">EMPLOYEE</div>
-            <div class="gv-hcell gv-fixed gv-sep">TYPE</div>
+            <div class="gv-hcell gv-fixed">@(Text["Employee"].ToUpper(CultureInfo.CurrentCulture))</div>
+            <div class="gv-hcell gv-fixed gv-sep">@(Text["Type"].ToUpper(CultureInfo.CurrentCulture))</div>
             @for (var d = 1; d <= daysInMonth; d++)
             {
                 var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
                 var selected = IsSelected(date);
                 var isEndpoint = IsRangeEndpoint(date);
-                var isHoliday = RomanianPublicHolidays.IsHoliday(date);
-                <div class="gv-hday @(IsWeekend(date) ? "gv-hwend gv-hdisabled" : "") @(isHoliday ? "gv-hholiday gv-hdisabled" : "") @(date == _today ? "gv-htoday" : "") @(selected ? "gv-range-selected" : "") @(isEndpoint ? "gv-range-endpoint" : "")"
+                <div class="gv-hday @(IsWeekend(date) ? "gv-hwend gv-hdisabled" : "") @(IsHoliday(date) ? "gv-hholiday gv-hdisabled" : "") @(date == _today ? "gv-htoday" : "") @(selected ? "gv-range-selected" : "") @(isEndpoint ? "gv-range-endpoint" : "")"
                      style="@SelectionStyle(date)"
                      aria-disabled="@(!CanSelectDay(date))"
                      title="@UnavailableDateHint(date)"
                      @onclick="() => OnDayClick(date)">
-                    <span class="gv-hdow">@(date.ToString("ddd", CultureInfo.InvariantCulture)[..2].ToUpperInvariant())</span>
+                    <span class="gv-hdow">@(date.ToString("ddd", CultureInfo.CurrentCulture)[..2].ToUpper(CultureInfo.CurrentCulture))</span>
                     <span class="gv-hnum">@d</span>
                 </div>
             }
@@ -185,14 +180,14 @@
                 </div>
                 <div class="gv-cell gv-sep gv-type">
                     <span class="gv-pill" style="color:@LeaveTypePalette.Hex(row.Type, ThemeState.IsDarkMode); background:@(LeaveTypePalette.Hex(row.Type, ThemeState.IsDarkMode) + "1F");">
-                        @(LeaveTypePalette.Label(row.Type).Split(' ')[0])
+                        @Text[row.Type.ToString()]
                     </span>
                 </div>
                 @for (var d = 1; d <= daysInMonth; d++)
                 {
                     var date = new DateOnly(VisibleMonth.Year, VisibleMonth.Month, d);
                     var seg = row.Items.FirstOrDefault(r => r.StartDate <= date && r.EndDate >= date);
-                    <div class="gv-cell gv-day @(IsWeekend(date) ? "gv-wend" : "") @(RomanianPublicHolidays.IsHoliday(date) ? "gv-holiday" : "") @(date == _today ? "gv-today" : "")">
+                    <div class="gv-cell gv-day @(IsWeekend(date) ? "gv-wend" : "") @(IsHoliday(date) ? "gv-holiday" : "") @(date == _today ? "gv-today" : "")">
                         @if (seg is not null)
                         {
                             <div class="gv-bar @(date == seg.StartDate ? "gv-bar-s" : "") @(date == seg.EndDate ? "gv-bar-e" : "")"
@@ -204,29 +199,30 @@
         </div>
         @if (rows.Count == 0)
         {
-            <div class="cal-empty">No approved team leave this month.</div>
+            <div class="cal-empty">@Text["No approved team leave this month."]</div>
         }
         <div class="gv-legend">
             @foreach (var leaveType in Enum.GetValues<LeaveType>())
             {
                 <span class="gv-legend-item">
-                    <span class="gv-swatch" style="background:@LeaveTypePalette.Hex(leaveType);"></span>@(LeaveTypePalette.Label(leaveType).Split(' ')[0])
+                    <span class="gv-swatch" style="background:@LeaveTypePalette.Hex(leaveType);"></span>@Text[leaveType.ToString()]
                 </span>
             }
-            <span class="gv-legend-item"><span class="gv-square gv-square-wend"></span>Weekend</span>
-            <span class="gv-legend-item"><span class="gv-square gv-square-today"></span>Today</span>
+            <span class="gv-legend-item"><span class="gv-square gv-square-wend"></span>@Text["Weekend"]</span>
+            <span class="gv-legend-item"><span class="gv-square gv-square-holiday"></span>@Text["National public holiday — non-working day"]</span>
+            <span class="gv-legend-item"><span class="gv-square gv-square-today"></span>@Text["Today"]</span>
         </div>
     }
     else
     {
         var rows = FilteredRanges.OrderBy(r => r.StartDate).ToList();
         <div class="lv">
-            <div class="lv-hcell">EMPLOYEE</div>
-            <div class="lv-hcell">DEPARTMENT</div>
-            <div class="lv-hcell">TEAM</div>
-            <div class="lv-hcell">LEAVE TYPE</div>
-            <div class="lv-hcell">PERIOD</div>
-            <div class="lv-hcell">DAYS</div>
+            <div class="lv-hcell">@(Text["Employee"].ToUpper(CultureInfo.CurrentCulture))</div>
+            <div class="lv-hcell">@(Text["Department"].ToUpper(CultureInfo.CurrentCulture))</div>
+            <div class="lv-hcell">@(Text["Team"].ToUpper(CultureInfo.CurrentCulture))</div>
+            <div class="lv-hcell">@(Text["Leave Type"].ToUpper(CultureInfo.CurrentCulture))</div>
+            <div class="lv-hcell">@(Text["Period"].ToUpper(CultureInfo.CurrentCulture))</div>
+            <div class="lv-hcell">@(Text["Days heading"].ToUpper(CultureInfo.CurrentCulture))</div>
             @foreach (var item in rows)
             {
                 <div class="lv-cell lv-emp">
@@ -237,19 +233,19 @@
                 <div class="lv-cell">@(item.Team ?? "—")</div>
                 <div class="lv-cell">
                     <span class="gv-pill" style="color:@LeaveTypePalette.Hex(item.Type, ThemeState.IsDarkMode); background:@(LeaveTypePalette.Hex(item.Type, ThemeState.IsDarkMode) + "1F");">
-                        @(LeaveTypePalette.Label(item.Type).Split(' ')[0])
+                        @Text[item.Type.ToString()]
                     </span>
                 </div>
                 <div class="lv-cell">
-                    @item.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-                    @item.EndDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                    @item.StartDate.ToString("d", CultureInfo.CurrentCulture) –
+                    @item.EndDate.ToString("d", CultureInfo.CurrentCulture)
                 </div>
                 <div class="lv-cell">@WorkingDays(item.StartDate, item.EndDate)</div>
             }
         </div>
         @if (rows.Count == 0)
         {
-            <div class="cal-empty">No approved team leave this month.</div>
+            <div class="cal-empty">@Text["No approved team leave this month."]</div>
         }
     }
 </div>
@@ -262,15 +258,15 @@
 {
     <MudPaper Elevation="4" Class="pa-4 d-flex align-center flex-wrap gap-4 cal-submitbar">
         <MudText Typo="Typo.subtitle1" Style="font-weight:600;">
-            @LeaveTypePalette.Label(type) ·
-            @range.Start.ToString("MMM d", CultureInfo.InvariantCulture) –
-            @range.End.ToString("MMM d", CultureInfo.InvariantCulture)
-            (@RangeDays(range) @(RangeDays(range) == 1 ? "day" : "days"))
+            @Text[type.ToString()] ·
+            @range.Start.ToString("d", CultureInfo.CurrentCulture) –
+            @range.End.ToString("d", CultureInfo.CurrentCulture)
+            (@RangeDays(range) @Text[RangeDays(range) == 1 ? "day" : "days"])
         </MudText>
-        <MudTextField @bind-Value="_reason" Label="Reason (optional)" Variant="Variant.Outlined"
+        <MudTextField @bind-Value="_reason" Label="@(Text["Reason (optional)"])" Variant="Variant.Outlined"
                       Margin="Margin.Dense" Class="flex-grow-1" Style="min-width:220px;" />
-        <MudButton Variant="Variant.Text" OnClick="CancelSelection">Cancel selection</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Submit request</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="CancelSelection">@Text["Cancel selection"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">@Text["Submit request"]</MudButton>
     </MudPaper>
 }
 
@@ -292,6 +288,7 @@
     private Dictionary<DateOnly, List<TeamAbsence>> _teamByDay = [];
     private List<DateOnly> _days = [];
     private IReadOnlyList<TeamTimeOff> _ranges = [];
+    private Dictionary<DateOnly, RegionalHoliday> _holidays = [];
 
     private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Today);
     private CalView _view = CalView.Month;
@@ -300,8 +297,6 @@
     private DateOnly _anchor;
     private DateOnly VisibleMonth => new(_anchor.Year, _anchor.Month, 1);
     private DateOnly WeekStart => _anchor.AddDays(-(((int)_anchor.DayOfWeek + 6) % 7));
-    private IReadOnlyDictionary<DateOnly, string> VisibleMonthHolidays =>
-        RomanianPublicHolidays.ForMonth(VisibleMonth);
 
     private LeaveType? _selectedType;
     private DateOnly? _anchorDay;
@@ -311,6 +306,12 @@
     private bool ShowSubmitBar => _range is not null && _selectedType is not null;
 
     private string _userName = "";
+
+    private string[] LocalizedWeekdayNames => Enumerable.Range(0, 7)
+        .Select(offset => DateTimeFormatInfo.CurrentInfo!
+            .GetAbbreviatedDayName((DayOfWeek)((offset + 1) % 7))
+            .ToUpper(CultureInfo.CurrentCulture))
+        .ToArray();
 
     protected override async Task OnInitializedAsync()
     {
@@ -333,6 +334,7 @@
 
             var gridStart = VisibleMonth.AddDays(-(((int)VisibleMonth.DayOfWeek + 6) % 7));
             _days = Enumerable.Range(0, 42).Select(gridStart.AddDays).ToList();
+            await LoadHolidaysAsync(_days[0], _days[^1]);
         }
         else
         {
@@ -340,7 +342,19 @@
                 ? (WeekStart, WeekStart.AddDays(6))
                 : (VisibleMonth, VisibleMonth.AddMonths(1).AddDays(-1));
             _ranges = await TimeOff.GetTeamTimeOffForRangeAsync(from, to);
+            await LoadHolidaysAsync(from, to);
         }
+    }
+
+    private async Task LoadHolidaysAsync(DateOnly from, DateOnly to)
+    {
+        var holidays = new List<RegionalHoliday>();
+        for (var year = from.Year; year <= to.Year; year++)
+            holidays.AddRange(await TimeOff.GetRegionalHolidaysAsync(year));
+
+        _holidays = holidays
+            .GroupBy(holiday => holiday.Date)
+            .ToDictionary(group => group.Key, group => group.First());
     }
 
     private async Task Navigate(int delta)
@@ -367,18 +381,18 @@
 
     private string HeaderLabel => _view == CalView.Week
         ? WeekLabel()
-        : VisibleMonth.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+        : VisibleMonth.ToString("MMMM yyyy", CultureInfo.CurrentCulture);
 
     private string WeekLabel()
     {
         var start = WeekStart;
         var end = start.AddDays(6);
-        var inv = CultureInfo.InvariantCulture;
+        var culture = CultureInfo.CurrentCulture;
         if (start.Year != end.Year)
-            return $"{start.ToString("MMM d, yyyy", inv)} – {end.ToString("MMM d, yyyy", inv)}";
+            return $"{start.ToString("d", culture)} – {end.ToString("d", culture)}";
         if (start.Month != end.Month)
-            return $"{start.ToString("MMM d", inv)} – {end.ToString("MMM d", inv)}, {end.Year}";
-        return $"{start.ToString("MMM d", inv)} – {end.Day}, {end.Year}";
+            return $"{start.ToString("d", culture)} – {end.ToString("d", culture)}";
+        return $"{start.ToString("d", culture)} – {end.ToString("d", culture)}";
     }
 
     // The selected type chip doubles as a content filter; no selection shows everything.
@@ -402,11 +416,11 @@
     private static bool IsWeekend(DateOnly day) =>
         day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
 
-    private static int WorkingDays(DateOnly start, DateOnly end)
+    private int WorkingDays(DateOnly start, DateOnly end)
     {
         var count = 0;
         for (var day = start; day <= end; day = day.AddDays(1))
-            if (!IsWeekend(day) && !RomanianPublicHolidays.IsHoliday(day))
+            if (!IsWeekend(day) && !IsHoliday(day))
                 count++;
         return count;
     }
@@ -450,10 +464,9 @@
     }
 
     private bool CanSelectDay(DateOnly day) =>
-        _selectedType is not null
-        && day >= _today
-        && !IsWeekend(day)
-        && !RomanianPublicHolidays.IsHoliday(day);
+        _selectedType is not null && day >= _today && !IsWeekend(day) && !IsHoliday(day);
+
+    private bool IsHoliday(DateOnly day) => _holidays.ContainsKey(day);
 
     private EventCallback<MouseEventArgs> DayClickCallback(DateOnly day) =>
         CanSelectDay(day)
@@ -463,12 +476,12 @@
     private string? UnavailableDateHint(DateOnly day)
     {
         if (day < _today)
-            return "Past dates cannot be selected.";
-        if (RomanianPublicHolidays.GetName(day) is { } holidayName)
-            return $"{holidayName} is a Romanian public holiday.";
+            return Text["Past dates cannot be selected."];
+        if (_holidays.TryGetValue(day, out var holiday))
+            return Text.Format("{0} is a public holiday.", holiday.Name);
         if (IsWeekend(day))
-            return "Weekends are already non-working days.";
-        return _selectedType is null ? "Select a leave type first." : null;
+            return Text["Weekends are already non-working days."];
+        return _selectedType is null ? Text["Select a leave type first."] : null;
     }
 
     private void OnDayClick(DateOnly day)
@@ -508,7 +521,7 @@
         try
         {
             await TimeOff.SubmitRequestAsync(type, range.Start, range.End, _reason);
-            Snackbar.Add("Time off request submitted", Severity.Success);
+            Snackbar.Add(Text["Time off request submitted"], Severity.Success);
             CancelSelection();
             _selectedType = null;
         }
@@ -519,7 +532,7 @@
         }
     }
 
-    private static int RangeDays((DateOnly Start, DateOnly End) range) =>
+    private int RangeDays((DateOnly Start, DateOnly End) range) =>
         WorkingDays(range.Start, range.End);
 
     private string TypeChipStyle(LeaveType type, bool isSelected)

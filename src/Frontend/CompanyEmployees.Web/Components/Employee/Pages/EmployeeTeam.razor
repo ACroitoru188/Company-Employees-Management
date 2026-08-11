@@ -5,12 +5,13 @@
 @using CompanyEmployees.Web.Security
 @inject ITimeOffService TimeOff
 @inject NavigationManager Nav
+@inject AppLocalizer Text
 
 <PageTitle>Team · Time Off Management</PageTitle>
 
-<MudText Typo="Typo.h5" Style="font-weight:600;">My Team</MudText>
+<MudText Typo="Typo.h5" Style="font-weight:600;">@Text["My Team"]</MudText>
 <MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
-    Your manager and the colleagues who share them, with their time off.
+    @Text["Your manager and the colleagues who share them, with their time off."]
 </MudText>
 
 <MudCard Elevation="1">
@@ -18,7 +19,7 @@
         @if (_team.Count == 0)
         {
             <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-                You are not part of a team yet.
+                @Text["You are not part of a team yet."]
             </MudText>
         }
         else
@@ -34,33 +35,33 @@
                             @if (member.IsManager)
                             {
                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                                         Color="Color.Primary">Manager</MudChip>
+                                         Color="Color.Primary">@Text["Manager"]</MudChip>
                             }
                         </div>
                         <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                            @member.RoleLabel
+                            @LocalizedRoleLabel(member.RoleLabel)
                         </MudText>
                     </div>
                     @if (member.Type is { } type && member.Start is { } start && member.End is { } end)
                     {
                         <MudChip T="string" Size="Size.Small"
                                  Style="@($"background:{LeaveTypePalette.Hex(type)}; color:white;")">
-                            @LeaveTypePalette.Label(type)
+                            @Text[type.ToString()]
                         </MudChip>
                         <div style="text-align:right; min-width:150px;">
                             <MudText Typo="Typo.body2">
-                                @start.ToString("MMM d", CultureInfo.InvariantCulture) –
-                                @end.ToString("MMM d", CultureInfo.InvariantCulture)
+                                @start.ToString("d", CultureInfo.CurrentCulture) –
+                                @end.ToString("d", CultureInfo.CurrentCulture)
                             </MudText>
                             <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                                @(start <= _today ? "On leave now" : "Upcoming leave")
+                                @(start <= _today ? Text["On leave now"] : Text["Upcoming leave"])
                             </MudText>
                         </div>
                     }
                     else
                     {
                         <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary); min-width:150px; text-align:right;">
-                            Available
+                            @Text["Available"]
                         </MudText>
                     }
                 </div>
@@ -82,5 +83,12 @@
             return;
 
         _team = await TimeOff.GetTeamRosterAsync();
+    }
+
+    private string LocalizedRoleLabel(string label)
+    {
+        var parts = label.Split(" · ", 2, StringSplitOptions.None);
+        var roleKey = parts[0] == "Employee" ? "Employee role" : parts[0];
+        return parts.Length == 1 ? Text[roleKey] : $"{Text[roleKey]} · {parts[1]}";
     }
 }

@@ -19,6 +19,7 @@ public sealed class EmployeeCsvExportService
         "employee_status",
         "manager_name",
         "department",
+        "region",
         "contract_type",
         "contract_start_date",
         "contract_end_date"
@@ -31,13 +32,17 @@ public sealed class EmployeeCsvExportService
         _db = db;
     }
 
-    public async Task<EmployeeCsvExport> GenerateAsync(CancellationToken cancellationToken = default)
+    public async Task<EmployeeCsvExport> GenerateAsync(Guid regionId, CancellationToken cancellationToken = default)
     {
-        var users = await _db.Users
+        var query = _db.Users
             .Include(user => user.Manager)
             .Include(user => user.Department)
+            .Include(user => user.Region)
             .Include(user => user.Contracts)
             .AsNoTracking()
+            .Where(user => user.RegionId == regionId);
+
+        var users = await query
             .OrderBy(user => user.Name)
             .ThenBy(user => user.Id)
             .ToListAsync(cancellationToken);
@@ -59,6 +64,7 @@ public sealed class EmployeeCsvExportService
                 user.Status.ToString(),
                 user.Manager?.Name,
                 user.Department?.Name,
+                user.Region.Name,
                 contract?.Type.ToString(),
                 contract?.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 contract?.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)

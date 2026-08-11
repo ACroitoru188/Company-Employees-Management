@@ -22,6 +22,15 @@ namespace CompanyEmployees.Persistence.Configurations
                    .WithMany(d => d.Members)
                    .HasForeignKey(u => u.DepartmentId)
                    .OnDelete(DeleteBehavior.SetNull);
+
+            // A region cannot be deleted while it is the security scope of an account.
+            builder.HasOne(u => u.Region)
+                   .WithMany(r => r.Users)
+                   .HasForeignKey(u => u.RegionId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Property(u => u.PreferredCulture)
+                   .HasMaxLength(16);
         }
     }
 }

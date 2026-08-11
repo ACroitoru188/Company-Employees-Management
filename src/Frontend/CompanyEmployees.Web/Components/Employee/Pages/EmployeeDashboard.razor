@@ -5,26 +5,27 @@
 @using CompanyEmployees.Web.Security
 @inject ITimeOffService TimeOff
 @inject NavigationManager Nav
+@inject AppLocalizer Text
 
-<PageTitle>Dashboard · Time Off Management</PageTitle>
+<PageTitle>@Text["Dashboard"] · @Text["Time Off Management"]</PageTitle>
 
 <LeaveBalanceSummary UserName="@_userName" Balances="@_balances">
     <Actions>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.Add"
                    OnClick="@(() => Nav.NavigateTo("/employee/calendar"))">
-            Request time off
+            @Text["Request time off"]
         </MudButton>
     </Actions>
 </LeaveBalanceSummary>
 
 <MudCard Elevation="1" Class="mt-6">
     <MudCardContent>
-        <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Team time off</MudText>
+        <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">@Text["Team time off"]</MudText>
         @if (_teamTimeOff.Count == 0)
         {
             <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-                No upcoming time off in your team.
+                @Text["No upcoming time off in your team."]
             </MudText>
         }
         else
@@ -45,15 +46,15 @@
                     </div>
                     <MudChip T="string" Size="Size.Small"
                              Style="@($"background:{LeaveTypePalette.Hex(entry.Type)}; color:white;")">
-                        @LeaveTypePalette.Label(entry.Type)
+                        @Text[entry.Type.ToString()]
                     </MudChip>
                     <div style="text-align:right; min-width:150px;">
                         <MudText Typo="Typo.body2">
-                            @entry.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-                            @entry.EndDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                            @entry.StartDate.ToString("MMM d", CultureInfo.CurrentCulture) –
+                            @entry.EndDate.ToString("MMM d", CultureInfo.CurrentCulture)
                         </MudText>
                         <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                            @entry.Days @(entry.Days == 1 ? "day" : "days")@(IsOngoing(entry) ? " · away now" : "")
+                            @entry.Days @Text[entry.Days == 1 ? "day" : "days"]@(IsOngoing(entry) ? $" · {Text["away now"]}" : "")
                         </MudText>
                     </div>
                 </div>

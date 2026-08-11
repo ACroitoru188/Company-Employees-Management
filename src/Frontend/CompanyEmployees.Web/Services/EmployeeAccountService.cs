@@ -29,9 +29,11 @@ public sealed class EmployeeAccountService
     }
 
     public async Task<EmployeeAccountResult> CreateAsync(
+        Guid adminId,
         string name,
         string invitationEmail,
         Guid departmentId,
+        Guid regionId,
         string applicationBaseUri)
     {
         var normalizedName = NormalizeDisplayName(name);
@@ -46,10 +48,23 @@ public sealed class EmployeeAccountService
         }
 
         var department = await _db.Departments
+            .Include(candidate => candidate.Manager)
             .AsNoTracking()
             .SingleOrDefaultAsync(d => d.Id == departmentId);
         if (department == null)
             throw new InvalidOperationException("Select a valid department.");
+
+        var region = await _db.Regions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(candidate => candidate.Id == regionId && candidate.IsActive);
+        if (region == null)
+            throw new InvalidOperationException("Select a valid active region.");
+
+        var admin = await _userManager.FindByIdAsync(adminId.ToString());
+        if (admin == null || admin.Role != UserRole.Admin)
+            throw new InvalidOperationException("Only administrators can create employee accounts.");
+        if (admin.RegionId != region.Id)
+            throw new InvalidOperationException("You can only create accounts in your own region.");
 
         var email = await GenerateUniqueEmailAsync(normalizedName);
         var employeeId = await GenerateNumericEmployeeIdAsync();
@@ -63,7 +78,9 @@ public sealed class EmployeeAccountService
             Email = email,
             EmailConfirmed = false,
             DepartmentId = department.Id,
-            ManagerId = department.ManagerId,
+            RegionId = region.Id,
+            // Do not create a reporting line across regional security boundaries.
+            ManagerId = department.Manager?.RegionId == region.Id ? department.ManagerId : null,
             Role = UserRole.Employee,
             Status = UserStatus.Active,
             CreatedAt = now,
@@ -94,6 +111,7 @@ public sealed class EmployeeAccountService
                 email,
                 invitationEmail,
                 department.Name,
+                region.Name,
                 delivery.Delivered,
                 delivery.Delivered ? null : setupLink);
         }
@@ -233,5 +251,6 @@ public sealed record EmployeeAccountResult(
     string Email,
     string InvitationEmail,
     string Department,
+    string Region,
     bool EmailDelivered,
     string? DevelopmentSetupLink);

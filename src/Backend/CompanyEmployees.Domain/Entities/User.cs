@@ -6,7 +6,7 @@ namespace CompanyEmployees.Domain.Entities;
 public class User : IdentityUser<Guid>
 {
     //inf. comune
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     //rol si status
     public UserRole Role { get; set; } = UserRole.Guest;
@@ -21,6 +21,15 @@ public class User : IdentityUser<Guid>
     //departamentul din care face parte (echipa)
     public Guid? DepartmentId { get; set; }
     public Department? Department { get; set; }
+
+    // Current employment region. This is the authorization boundary used when
+    // showing employees, leave requests, dashboards and exports.
+    public Guid RegionId { get; set; }
+    public Region Region { get; set; } = null!;
+
+    // UI language chosen by the employee. Null means the application default (English).
+    // This preference is deliberately independent from the employee's security region.
+    public string? PreferredCulture { get; set; }
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
