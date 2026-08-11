@@ -45,7 +45,7 @@ builder.Services.AddScoped<ITimeOffService, DbTimeOffService>();
 builder.Services.AddPersistenceLayer(builder.Configuration);
 builder.Services.AddGatewayLayer();
 builder.Services.AddApplicationLayer();
-builder.Services.AddInfrastructureLayer();
+builder.Services.AddInfrastructureLayer(builder.Configuration);
 
 builder.Services.AddIdentity<User, IdentityRole<Guid>>()
     .AddEntityFrameworkStores<CompanyEmployeesDbContext>()
