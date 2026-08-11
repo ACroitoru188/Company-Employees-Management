@@ -9,4 +9,8 @@
   <Folder Name="/src/Frontend/">
     <Project Path="src/Frontend/CompanyEmployees.Web/CompanyEmployees.Web.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CompanyEmployees.Application.Tests/CompanyEmployees.Application.Tests.csproj" />
+    <Project Path="tests/CompanyEmployees.Domain.Tests/CompanyEmployees.Domain.Tests.csproj" />
+  </Folder>
 </Solution>
