@@ -737,11 +737,11 @@ namespace CompanyEmployees.Application.Contexts
                         {
                             if (currentUser.Department != null && node.Department == currentUser.Department.Name)
                             {
-                                node.IsFocusNode = true;
+                                // node.IsFocusNode = true;
                             }
                             else if (focusIds.Contains(node.UserId))
                             {
-                                node.IsFocusNode = true;
+                                // node.IsFocusNode = true;
                             }
                             else
                             {
@@ -826,7 +826,7 @@ namespace CompanyEmployees.Application.Contexts
         {
             if (targetDepartment == null) 
             {
-                node.IsFocusNode = true;
+                // node.IsFocusNode = true;
             }
             else
             {

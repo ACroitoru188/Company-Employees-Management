@@ -1327,7 +1327,7 @@
         @if (_currentLevel == HierarchyLevel.SiteOrgChart)
         {
             <div class="viewport-controls-toolbar">
-                <MudPaper Class="d-flex flex-column pa-1 gap-1" Style="background-color: rgba(26, 32, 44, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;">
+                <MudPaper Class="d-flex flex-column pa-1 gap-1" Style="background-color: rgba(26, 32, 44, 0.85); color: #ffffff; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;">
                     <MudTooltip Text="Zoom In" Placement="Placement.Right">
                         <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Inherit" OnClick="ZoomIn" />
                     </MudTooltip>
@@ -1700,6 +1700,7 @@
 
     private void SwitchLevel(HierarchyLevel level)
     {
+        Snackbar.Clear();
         _currentLevel = level;
         _activeContinent = null;
         _activeCountry = null;
@@ -1755,12 +1756,12 @@
         {
             _selectedContinent = continent;
             SwitchLevel(HierarchyLevel.Continent);
-            Snackbar.Add($"Drilling down into {continent.Name} ({continent.RegionCode})...", Severity.Info);
+            // Snackbar.Add($"Drilling down into {continent.Name} ({continent.RegionCode})...", Severity.Info);
         }
         else
         {
             _selectedContinent = continent;
-            Snackbar.Add($"Selected region: {continent.Name} ({continent.RegionCode}). Opening local organization tree...", Severity.Info);
+            // Snackbar.Add($"Selected region: {continent.Name} ({continent.RegionCode}). Opening local organization tree...", Severity.Info);
             SwitchLevel(HierarchyLevel.SiteOrgChart);
         }
     }
@@ -1797,12 +1798,12 @@
         _selectedCountry = country;
         if (country.Id == "rou")
         {
-            Snackbar.Add($"Opening {country.Flag} {country.Name}...", Severity.Info);
+            // Snackbar.Add($"Opening {country.Flag} {country.Name}...", Severity.Info);
             SwitchLevel(HierarchyLevel.Country);
         }
         else
         {
-            Snackbar.Add($"Opening {country.Flag} {country.Name}...", Severity.Info);
+            // Snackbar.Add($"Opening {country.Flag} {country.Name}...", Severity.Info);
             SwitchLevel(HierarchyLevel.SiteOrgChart);
         }
     }
@@ -1841,11 +1842,11 @@
         {
             _activeBrasovSite = null;
             SwitchLevel(HierarchyLevel.City);
-            Snackbar.Add("Drilling down into Județul Brașov (2 Siemens Sites)...", Severity.Info);
+            // Snackbar.Add("Drilling down into Județul Brașov (2 Siemens Sites)...", Severity.Info);
         }
         else
         {
-            Snackbar.Add($"Opening {county.Name} ({county.CountySeat}) Organization Tree...", Severity.Info);
+            // Snackbar.Add($"Opening {county.Name} ({county.CountySeat}) Organization Tree...", Severity.Info);
             SwitchLevel(HierarchyLevel.SiteOrgChart);
         }
     }
@@ -1866,7 +1867,7 @@
     private void OnBrasovSiteDblClick(BrasovSiteModel site)
     {
         _activeBrasovSite = site;
-        Snackbar.Add($"Opening {site.Name} Organization Tree...", Severity.Info);
+        // Snackbar.Add($"Opening {site.Name} Organization Tree...", Severity.Info);
         SwitchLevel(HierarchyLevel.SiteOrgChart);
     }
 
@@ -1938,7 +1939,12 @@
     private async Task OnSearchNodeSelected(OrgChartNode? node)
     {
         _selectedSearchNode = node;
-        if (node == null) return;
+        if (node == null)
+        {
+            foreach (var n in _nodes) n.IsFocusNode = false;
+            StateHasChanged();
+            return;
+        }
 
         if (_currentLevel != HierarchyLevel.SiteOrgChart)
         {
@@ -1963,17 +1969,31 @@
     {
         if (_root == null) return;
         
+        // Clear all focus nodes
+        foreach (var n in _nodes) n.IsFocusNode = false;
+
         bool isAdmin = _userRole == UserRole.Admin.ToString() || (_isManagerOrHr && _userDepartment != "HR" && _userRole != UserRole.LineManager.ToString());
-        var path = await EmployeeCtx.GetOrgChartPathAsync(targetUserId, isAdmin, _currentUserId);
         
-        if (path.Count == 0 && targetUserId != _root.UserId)
+        var searchPath = await EmployeeCtx.GetOrgChartPathAsync(targetUserId, isAdmin, _currentUserId);
+        var myPath = await EmployeeCtx.GetOrgChartPathAsync(_currentUserId, isAdmin, _currentUserId);
+        
+        if (searchPath.Count == 0 && targetUserId != _root.UserId)
         {
             Snackbar.Add("Employee is not within your accessible team structure.", Severity.Info);
             return;
         }
 
-        // Iteratively expand path
-        foreach (var pathNode in path)
+        var combinedPath = new List<OrgChartNode>();
+        combinedPath.AddRange(searchPath);
+        if (targetUserId != _currentUserId)
+        {
+            combinedPath.AddRange(myPath);
+            // Also ensure HQ is highlighted if both paths share it
+            _root.IsFocusNode = true;
+        }
+
+        // Iteratively expand path and mark as focus
+        foreach (var pathNode in combinedPath)
         {
             // Find this node in our loaded tree
             OrgChartNode? foundNode = null;
@@ -1988,6 +2008,11 @@
 
             if (foundNode != null)
             {
+                if (targetUserId != _currentUserId || foundNode.UserId == _currentUserId)
+                {
+                    foundNode.IsFocusNode = true;
+                }
+
                 if (foundNode.HasUnloadedChildren && foundNode.Subordinates.Count == 0)
                 {
                     // Programmatically expand it
