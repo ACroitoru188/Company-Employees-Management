@@ -25,7 +25,9 @@
     @* The bar people already look at changes colour, rather than a strip being added above
        it: an added element gets tuned out within days, a familiar one that looks wrong does
        not. This is the main guard against acting in someone's account by accident. *@
-    <FluentHeader Style="@HeaderStyle">
+    @* The class is load-bearing, not decoration: FluentHeader's own background rule is
+       `.header[b-hash]`, and app.css needs one more class than that to replace it. *@
+    <FluentHeader Class="app-header" Style="@HeaderStyle">
         <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
                      HorizontalGap="12" Width="100%">
             <FluentLabel Typo="Typography.PaneHeader" Color="Color.Custom" CustomColor="#FFFFFF">SIEMENS</FluentLabel>

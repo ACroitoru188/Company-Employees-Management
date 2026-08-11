@@ -304,8 +304,8 @@ else
 	private DepartmentOption NoDepartment = new(Guid.Empty, "None");
 	private RegionOption AllRegions = new(Guid.Empty, "All regions");
 
-	// Empty until LoadAsync runs, which is before anything renders — the placeholder entries
-	// above cannot be used here now that they are instance fields.
+	// LoadAsync seeds these with the placeholder above before its first await; they must never be
+	// empty while the pickers are on screen.
 	private List<DepartmentOption> _departmentOptions = [];
 	private List<RegionOption> _regionFilterOptions = [];
 
@@ -403,6 +403,13 @@ else
 	{
 		NoDepartment = new DepartmentOption(Guid.Empty, Text["None"]);
 		AllRegions = new RegionOption(Guid.Empty, Text["All regions"]);
+
+		// Seeded before the first await, not after: the page renders while these queries are in
+		// flight, and a picker whose selected option is missing from its own Items resets itself
+		// and raises SelectedOptionChanged — which re-renders this component, which hands it the
+		// same missing option again. That is an infinite render loop, not a cosmetic glitch.
+		_departmentOptions = [NoDepartment];
+		_regionFilterOptions = [AllRegions];
 
 		_users = await Employees.GetAllUsersAsync();
 		_departments = await Employees.GetDepartmentsAsync();

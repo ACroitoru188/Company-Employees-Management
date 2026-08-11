@@ -5,7 +5,11 @@
 
 <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
              HorizontalGap="16" Wrap="true" Width="100%">
-    <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+    @* Width="auto" is what keeps the page action on the same line as the greeting. A vertical
+       FluentStack writes `width: 100%` inline unless told otherwise, so this block claimed the
+       whole row and pushed the spacer and the button onto a second line — the button ended up
+       floating in the gap above the cards, aligned to nothing. *@
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="2" Width="auto">
         <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text.Format("Good morning, {0}", FirstName)</FluentLabel>
         <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Subtitle</FluentLabel>
     </FluentStack>

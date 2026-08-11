@@ -129,6 +129,7 @@ else
 	// injection, and returning a fresh record per call would stop the combobox recognising
 	// its own selected option.
 	private ManagerOption _noManager = new(Guid.Empty, "None");
+	// Never empty while the combobox is on screen — see LoadAsync.
 	private List<ManagerOption> _managerOptions = [];
 
 	// SortBy on a TemplateColumn needs the comparer up front; both are stable across renders.
@@ -175,6 +176,13 @@ else
 	private async Task LoadAsync()
 	{
 		_noManager = new ManagerOption(Guid.Empty, Text["None"]);
+
+		// Seeded before the first await: the page renders while these queries are in flight, and
+		// a combobox whose selected option is missing from its own Items resets itself and raises
+		// SelectedOptionChanged, which re-renders this component and hands it the same missing
+		// option again — an infinite render loop.
+		_managerOptions = [_noManager];
+
 		_departments = await Employees.GetDepartmentsAsync();
 		_users = await Employees.GetAllUsersAsync();
 		_managerOptions = _lineManagers

@@ -40,8 +40,14 @@ html {
    var() fails silently: transparent header, invisible grays, no holiday red. These are the
    author-level floor; if the runtime registers the real tokens (an adopted stylesheet,
    later in the cascade) the runtime still wins.
+-----------------------------------------------------------------------------------
+
+   `:root:root` is not a typo. The FAST runtime registers its tokens through an *adopted*
+   stylesheet, which the cascade places after every linked sheet — so a plain `:root` here loses
+   the tie and every value below was silently ignored. Doubling the selector makes this (0,2,0)
+   against the runtime's (0,1,0) and the values actually apply.
 ----------------------------------------------------------------------------------- */
-:root {
+:root:root {
     --design-unit: 4;
     --control-corner-radius: 4;
     --layer-corner-radius: 8;
@@ -54,7 +60,8 @@ html {
        squeezed-together text everywhere. Naming the Text size, the one meant for UI copy at
        these sizes, is the fix. Everything after it is for the platforms that have none of them,
        and matches what the app used before the Fluent migration. */
-    --body-font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    --body-font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
+                 "Inter", "Noto Sans", "Ubuntu", "Liberation Sans", system-ui, sans-serif;
     --type-ramp-minus-2-font-size: 10px; --type-ramp-minus-2-line-height: 14px;
     --type-ramp-minus-1-font-size: 12px; --type-ramp-minus-1-line-height: 16px;
     --type-ramp-base-font-size: 14px;    --type-ramp-base-line-height: 20px;
@@ -65,12 +72,23 @@ html {
     --type-ramp-plus-5-font-size: 32px;  --type-ramp-plus-5-line-height: 40px;
     --type-ramp-plus-6-font-size: 40px;  --type-ramp-plus-6-line-height: 52px;
 
-    /* #1E88E5 is the app's accent as a *fill* — white text sits on it in the header and on
-       accent buttons. As *text on white* it is only 3.7:1, so accent-coloured labels use the
-       darker foreground value instead. Two tokens, because one colour cannot do both jobs. */
-    --accent-fill-rest: #1E88E5;
-    --accent-fill-hover: #3D97E8;
-    --accent-fill-active: #1B7BD0;
+    /* The accent as a *fill*: white text sits on it on every accent button. #1E88E5 was too
+       light for that — white on it measures 3.68:1, under the 4.5:1 floor, so the label on the
+       app's primary button was the least readable text on the page. #0F6CBD is Fluent's own
+       accent fill and carries white at 5.38:1. As *text on white* even this is borderline, so
+       accent-coloured labels keep the darker foreground value below: two tokens, because one
+       colour cannot do both jobs. */
+    --accent-fill-rest: #0F6CBD;
+    --accent-fill-hover: #115EA3;
+    --accent-fill-active: #0C5A9E;
+
+    /* The app bar owns its colour instead of borrowing the accent. Borrowing looked fine in
+       light mode and failed completely in dark: Fluent's dark palette lifts the accent to
+       #55CAFF, and the white wordmark on it measured 1.86:1 — the single worst contrast in the
+       app, and the main reason the header read as unfinished. This navy carries white at
+       11.1:1 in both themes, and is dark enough that an accent button placed on it still
+       reads as a button. */
+    --app-header-bg: #0B3E66;
     --accent-foreground-rest: #0F6CBD;
     --accent-foreground-hover: #115EA3;
     --foreground-on-accent-rest: #FFFFFF;
@@ -146,6 +164,13 @@ body:has(fluent-design-theme[mode="dark"]) {
     --focus-stroke-outer: #FFFFFF;
     --focus-stroke-inner: #000000;
 
+    /* The one token the FAST runtime does *not* write per component, so the value above leaks
+       into every accent button's shadow DOM. In dark mode the runtime lifts the accent fill to
+       a pale #55CAFF, and white on that measures 1.86:1 — the label on the app's primary button
+       was effectively unreadable. Dark ink on a light fill is what the pair is supposed to be;
+       this reads at 11.2:1. */
+    --foreground-on-accent-rest: #0B1B26;
+
     --accent-foreground-rest: #62ABF5;
     --accent-foreground-hover: #83BDF7;
 
@@ -177,7 +202,15 @@ body:has(fluent-design-theme[mode="dark"]) {
     min-width: 0;
 }
 
-/* The app bar is a solid accent-blue surface, and every neutral token is wrong on it. A stealth
+/* FluentHeader paints itself with the accent fill, which this replaces.
+   The extra `app-header` class is what wins it: FluentHeader's own rule is `.header[b-hash]`,
+   two classes' worth, so `header.header` alone loses. The impersonation red is set inline on
+   the element and still overrides this, which is the point — that bar has to look wrong. */
+header.header.app-header {
+    background: var(--app-header-bg);
+}
+
+/* The app bar is a solid dark surface, and every neutral token is wrong on it. A stealth
    button there still paints the neutral stealth fill — and inside the header that value does not
    come from this file at all: FluentDesignTheme writes its own tokens inline, so #fbfbfb wins
    over the `transparent` set further down. A near-white chip on blue, with a white icon in it,
@@ -190,6 +223,24 @@ header.header fluent-button::part(control) {
 
 header.header fluent-button:hover::part(control) {
     background: rgb(255 255 255 / 18%);
+}
+
+/* Fluent 2 sets a button's label in Body 1 Strong — 14px semibold. The FAST components in this
+   version ship it at 400, the same weight as body copy, so every button in the app read as a
+   run of text that happened to have a border. This is the single change that makes the controls
+   look like controls. Anchors styled as buttons get it too; a hyperlink-appearance anchor is
+   excluded, because that one really is text. */
+fluent-button::part(control),
+fluent-anchor:not([appearance="hypertext"])::part(control) {
+    font-weight: 600;
+}
+
+/* The account row is the drawer's last item, directly under the nav links, and a Fluent button
+   centres its content. Centred, the avatar and name floated in the middle of the rail while
+   every row above them started at the same left gutter — the eye reads that as broken, not as
+   deliberate. Aligning it to the same edge makes the drawer one column instead of two. */
+.drawer-footer fluent-button::part(control) {
+    justify-content: flex-start;
 }
 
 /* A badge opts out of that. It is a label exactly the size of its own text, with no ellipsis,
@@ -360,6 +411,13 @@ fluent-card {
     font-size: 12px;
     line-height: 1;
     letter-spacing: 0.02em;
+}
+
+/* The drawer asks for 250px and was rendering 203: as a flex item it defaults to `shrink: 1`,
+   so the page next to it took the difference back. Nav labels paid for it — "Delegation History"
+   arrived as "Delegation Hist…". Fixing the basis stops the rail negotiating its own width. */
+.fluent-nav-menu {
+    flex: 0 0 auto;
 }
 
 .fluent-nav-menu > .drawer-footer {
@@ -826,10 +884,24 @@ div.cal-surface .fluent-data-grid {
 fluent-progress-ring {
     opacity: 0;
     animation: spinner-appears 120ms ease-out 250ms forwards;
+    /* Eight pages render the ring as their entire body while loading. Left where it falls it
+       sits in the top-left corner of an otherwise blank page, which reads as a broken layout
+       rather than as work in progress. Centred, with the page's own rhythm above it, a slow
+       load looks deliberate. */
+    display: block;
+    margin: 15vh auto;
 }
 
 @keyframes spinner-appears {
     to { opacity: 1; }
+}
+
+/* A progress bar has no width of its own, and a vertical FluentStack writes `align-items: start`
+   as an inline style — so every bar laid out in one collapsed to 0px and simply was not there.
+   The inline align-items cannot be overridden from a stylesheet; an explicit width can. This is
+   the same trap FluentBadge fell into higher up in this file. */
+fluent-progress {
+    width: 100%;
 }
 
 /* ---- Blazor framework UI ------------------------------------------------------------
