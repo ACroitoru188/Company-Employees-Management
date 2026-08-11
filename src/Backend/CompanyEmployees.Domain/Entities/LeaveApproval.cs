@@ -11,9 +11,9 @@ public class LeaveApproval
 
     public Guid Id { get; set; }
     public Guid LeaveRequestId { get; set; }
-    public LeaveRequest LeaveRequest { get; set; }
+    public LeaveRequest LeaveRequest { get; set; } = null!;
     public Guid ApproverId { get; set; }
-    public User Approver { get; set; }
+    public User Approver { get; set; } = null!;
     public int Step { get; set; }
     public LeaveStatus Status { get; set; } = LeaveStatus.Pending;
     public DateTime? ReviewedAt { get; set; }

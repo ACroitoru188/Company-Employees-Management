@@ -6,7 +6,7 @@ public class LeaveAllocation
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
-    public User User { get; set; }
+    public User User { get; set; } = null!;
     public LeaveType LeaveType { get; set; }
     public int Year { get; set; }
     public int NumberOfDays { get; set; }

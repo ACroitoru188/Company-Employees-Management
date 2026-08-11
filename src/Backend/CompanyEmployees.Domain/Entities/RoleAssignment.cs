@@ -7,7 +7,7 @@ public class RoleAssignment
     public Guid Id { get; set; }
 
     public Guid UserId { get; set; }
-    public User User { get; set; }
+    public User User { get; set; } = null!;
 
     public UserRole OldRole { get; set; }
     public UserRole NewRole { get; set; }
@@ -16,7 +16,7 @@ public class RoleAssignment
     public User? NewManager { get; set; }
 
     public Guid AssignedById { get; set; } // must be an Admin
-    public User AssignedBy { get; set; }
+    public User AssignedBy { get; set; } = null!;
 
     public DateTime CreatedAt { get; set; }
 }
