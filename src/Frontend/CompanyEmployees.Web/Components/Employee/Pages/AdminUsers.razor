@@ -10,7 +10,6 @@
 @using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
 @inject EmployeeAccountService Accounts
-@inject ManagerContext Manager
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -24,19 +23,6 @@
 }
 else
 {
-	@if (_activeDelegationsReceived.Count > 0)
-	{
-		<MudAlert Severity="Severity.Info" Variant="Variant.Filled" Elevation="1" Class="mb-4">
-			<div class="d-flex align-center justify-space-between flex-wrap gap-2">
-				<div>
-					<strong>Delegated Admin Notice:</strong> You are currently acting as an active delegate for:
-					@string.Join(", ", _activeDelegationsReceived.Select(d => $"{d.Manager?.Name ?? "Admin"} (until {d.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)})"))
-				</div>
-				<MudChip T="string" Size="Size.Small" Color="Color.Surface">Delegation Active</MudChip>
-			</div>
-		</MudAlert>
-	}
-
 	<div class="d-flex justify-space-between align-center gap-3 flex-wrap mb-4">
 		<MudText Typo="Typo.h5" Style="font-weight:600;">@Text["Users & Contracts"]</MudText>
 		<MudSelect T="Guid?" Value="_regionFilterId"
@@ -55,35 +41,6 @@ else
 			@Text["Download latest CSV"]
 		</MudButton>
 	</div>
-
-	@if (_activeDelegationsGiven.Count > 0)
-	{
-		<MudTable Items="@_activeDelegationsGiven" Dense="true" Hover="true" Elevation="1" Class="mb-6">
-			<ToolBarContent>
-				<MudText Typo="Typo.subtitle1" Style="font-weight:600;">Active Admin Delegations</MudText>
-			</ToolBarContent>
-			<HeaderContent>
-				<MudTh>Delegate</MudTh>
-				<MudTh>Period</MudTh>
-				<MudTh>Reason</MudTh>
-				<MudTh Style="text-align:right;">Actions</MudTh>
-			</HeaderContent>
-			<RowTemplate Context="del">
-				<MudTd DataLabel="Delegate">@(del.Delegate?.Name ?? "Colleague")</MudTd>
-				<MudTd DataLabel="Period">
-					@del.StartDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) –
-					@del.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-				</MudTd>
-				<MudTd DataLabel="Reason">@del.Reason</MudTd>
-				<MudTd DataLabel="Actions" Style="text-align:right;">
-					<MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small"
-							   OnClick="@(() => CancelDelegationAsync(del.Id))">
-						Cancel
-					</MudButton>
-				</MudTd>
-			</RowTemplate>
-		</MudTable>
-	}
 
 	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
 		<MudText Typo="Typo.subtitle1" Style="font-weight:600;" Class="mb-1">
@@ -289,10 +246,6 @@ else
 	[SupplyParameterFromQuery(Name = "search")]
 	public string? InitialSearch { get; set; }
 
-	private Guid _adminId;
-	private bool _isActingAdmin;
-	private List<ManagerDelegation> _activeDelegationsGiven = new();
-	private List<ManagerDelegation> _activeDelegationsReceived = new();
 	private bool _authorized;
 	private List<User> _users = new();
 	private List<Department> _departments = new();
@@ -303,6 +256,7 @@ else
 	private Guid? _newEmployeeDepartmentId;
 	private Guid? _newEmployeeRegionId;
 	private Guid? _regionFilterId;
+	private Guid _adminId;
 	private Guid _adminRegionId;
 	private bool _creating;
 	private EmployeeAccountResult? _createdAccount;
@@ -334,22 +288,10 @@ else
 
 		var user = (await AuthStateTask!).User;
 		var role = user.FindFirst(ClaimTypes.Role)?.Value;
-		var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-		if (Guid.TryParse(userIdStr, out var uId))
-		{
-			_adminId = uId;
-		}
-
 		if (role != UserRole.Admin.ToString())
 		{
-			var delegationsReceived = await Manager.GetActiveDelegationsAssignedToMeAsync(_adminId);
-			_isActingAdmin = delegationsReceived.Any(d => d.Manager.Role == UserRole.Admin);
-			
-			if (!_isActingAdmin)
-			{
-				Nav.NavigateTo("/employee/dashboard");
-				return;
-			}
+			Nav.NavigateTo("/employee/dashboard");
+			return;
 		}
 
 		if (!string.IsNullOrWhiteSpace(InitialSearch))
@@ -371,17 +313,6 @@ else
 	{
 		_users = await Employees.GetAllUsersAsync();
 		_departments = await Employees.GetDepartmentsAsync();
-
-		var today = DateOnly.FromDateTime(DateTime.Today);
-		var allMyDelegations = await Manager.GetMyDelegationsAsync(_adminId);
-		_activeDelegationsGiven = allMyDelegations
-			.Where(d => d.IsActive && d.EndDate >= today)
-			.ToList();
-			
-		var allDelegationsReceived = await Manager.GetActiveDelegationsAssignedToMeAsync(_adminId);
-		_activeDelegationsReceived = allDelegationsReceived
-			.Where(d => d.Manager.Role == UserRole.Admin)
-			.ToList();
 		_regions = await Employees.GetRegionsAsync();
 	}
 
@@ -555,46 +486,5 @@ else
 			.Where(d => d.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase))
 			.Select(d => (Guid?)d.Id);
 		return Task.FromResult(matches);
-	}
-
-	private async Task OpenCreateDelegationDialog()
-	{
-		var candidateDelegates = _users.Where(u => u.Id != _adminId).ToList();
-
-		var parameters = new DialogParameters<CreateDelegationDialog>
-		{
-			{ x => x.AvailableUsers, candidateDelegates }
-		};
-
-		var dialog = await DialogService.ShowAsync<CreateDelegationDialog>("Delegate Admin Responsibilities", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
-		var result = await dialog.Result;
-
-		if (result != null && !result.Canceled && result.Data is CreateDelegationDialog.DelegationResult res)
-		{
-			try
-			{
-				await Manager.CreateDelegationAsync(_adminId, res.DelegateId, res.StartDate, res.EndDate, res.Reason);
-				Snackbar.Add("Delegation created successfully.", Severity.Success);
-				await LoadAsync();
-			}
-			catch (Exception ex)
-			{
-				Snackbar.Add(ex.Message, Severity.Error);
-			}
-		}
-	}
-
-	private async Task CancelDelegationAsync(Guid delegationId)
-	{
-		try
-		{
-			await Manager.CancelDelegationAsync(_adminId, delegationId);
-			Snackbar.Add("Delegation cancelled.", Severity.Info);
-			await LoadAsync();
-		}
-		catch (Exception ex)
-		{
-			Snackbar.Add(ex.Message, Severity.Error);
-		}
 	}
 }

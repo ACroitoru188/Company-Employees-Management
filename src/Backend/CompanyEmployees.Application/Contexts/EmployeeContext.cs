@@ -111,172 +111,6 @@ namespace CompanyEmployees.Application.Contexts
             return await _leaveRequestGateway.GetApprovedRequestsForUsersAsync(teamIds, from, to);
         }
 
-        public async Task<List<OrgChartNode>> GetOrgChartChildrenAsync(OrgChartNode parentNode, Guid currentUserId, bool isAdmin)
-        {
-            var allUsers = await _userGateway.GetAllUsersAsync();
-            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
-            var allPendingRequests = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
-
-            var nodeMap = new Dictionary<Guid, OrgChartNode>();
-            foreach (var u in activeUsers)
-            {
-                var initials = string.Concat(u.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
-                if (initials.Length > 2) initials = initials.Substring(0, 2);
-
-                var activeContract = u.Contracts?.FirstOrDefault(c => c.Status == ContractStatus.Active);
-                var pendingReq = allPendingRequests.FirstOrDefault(r => r.UserId == u.Id);
-
-                nodeMap[u.Id] = new OrgChartNode
-                {
-                    UserId = u.Id,
-                    Name = u.Name,
-                    Email = u.Email ?? string.Empty,
-                    Role = u.Role.ToString(),
-                    Department = u.Department?.Name ?? string.Empty,
-                    Initials = initials,
-                    ManagerId = u.ManagerId,
-                    HasPendingRequest = pendingReq != null,
-                    PendingRequestId = pendingReq?.Id,
-                    PendingRequestType = pendingReq?.Type.ToString(),
-                    PendingRequestDates = pendingReq != null ? $"{pendingReq.StartDate:MMM d} – {pendingReq.EndDate:MMM d, yyyy}" : null,
-                    HasContract = activeContract != null,
-                    ContractId = activeContract?.Id,
-                    ContractType = activeContract?.Type,
-                    ContractStatus = activeContract?.Status,
-                    ContractStartDate = activeContract?.StartDate,
-                    ContractEndDate = activeContract?.EndDate,
-                    HasUnloadedChildren = activeUsers.Any(child => child.ManagerId == u.Id),
-                    IsExpanded = false
-                };
-            }
-
-            var subordinates = new List<OrgChartNode>();
-
-            if (parentNode.Role == "Department")
-            {
-                var adminSubordinates = activeUsers.Where(u => u.ManagerId == parentNode.ManagerId).ToList();
-                var deptUsers = adminSubordinates.Where(u => (u.Department?.Name ?? "No Department") == parentNode.Department).ToList();
-                
-                foreach (var u in deptUsers)
-                {
-                    subordinates.Add(nodeMap[u.Id]);
-                }
-            }
-            else if (parentNode.Role == "Admin" && isAdmin)
-            {
-                var children = activeUsers.Where(u => u.ManagerId == parentNode.UserId).ToList();
-                var deptGroups = children.GroupBy(c => string.IsNullOrWhiteSpace(c.Department?.Name) ? "No Department" : c.Department.Name).OrderBy(g => g.Key);
-                foreach (var group in deptGroups)
-                {
-                    var deptName = group.Key;
-                    var deptNode = new OrgChartNode
-                    {
-                        UserId = Guid.NewGuid(),
-                        Name = deptName,
-                        Role = "Department",
-                        Department = deptName,
-                        Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
-                        ManagerId = parentNode.UserId,
-                        HasUnloadedChildren = true,
-                        IsExpanded = false
-                    };
-                    subordinates.Add(deptNode);
-                }
-            }
-            else
-            {
-                var children = activeUsers.Where(u => u.ManagerId == parentNode.UserId).ToList();
-                foreach (var u in children)
-                {
-                    subordinates.Add(nodeMap[u.Id]);
-                }
-            }
-
-            return subordinates.OrderBy(c => c.Name).ToList();
-        }
-
-        public async Task<List<OrgChartNode>> GetOrgChartPathAsync(Guid targetUserId, bool isAdmin, Guid currentUserId)
-        {
-            var allUsers = await _userGateway.GetAllUsersAsync();
-            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
-            
-            var target = activeUsers.FirstOrDefault(u => u.Id == targetUserId);
-            if (target == null) return new List<OrgChartNode>();
-
-            // Find the anchor (same logic as GetCompanyOrgChartAsync)
-            Guid anchorId = Guid.Empty;
-            if (!isAdmin)
-            {
-                var currentUser = activeUsers.FirstOrDefault(u => u.Id == currentUserId);
-                if (currentUser != null)
-                {
-                    bool hasSubordinates = activeUsers.Any(u => u.ManagerId == currentUser.Id);
-                    anchorId = (hasSubordinates || currentUser.ManagerId == null) ? currentUser.Id : currentUser.ManagerId.Value;
-                }
-            }
-
-            var chain = new List<User>();
-            var curr = target;
-            while (curr != null)
-            {
-                chain.Add(curr);
-                if (curr.Id == anchorId) break; // Reached the root of their vision
-                if (curr.ManagerId == null) break;
-                curr = activeUsers.FirstOrDefault(u => u.Id == curr.ManagerId);
-            }
-            chain.Reverse();
-
-            var path = new List<OrgChartNode>();
-            for (int i = 0; i < chain.Count; i++)
-            {
-                var u = chain[i];
-                var initials = string.Concat(u.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
-                if (initials.Length > 2) initials = initials.Substring(0, 2);
-
-                path.Add(new OrgChartNode
-                {
-                    UserId = u.Id,
-                    Name = u.Name,
-                    Role = u.Role.ToString(),
-                    Department = u.Department?.Name ?? string.Empty,
-                    Initials = initials,
-                    ManagerId = u.ManagerId
-                });
-
-                // If this is an Admin and there is a next user, inject the virtual Department node
-                if (isAdmin && u.Role == UserRole.Admin && i + 1 < chain.Count)
-                {
-                    var nextUser = chain[i + 1];
-                    var deptName = string.IsNullOrWhiteSpace(nextUser.Department?.Name) ? "No Department" : nextUser.Department.Name;
-                    
-                    path.Add(new OrgChartNode
-                    {
-                        UserId = Guid.NewGuid(), // Virtual
-                        Name = deptName,
-                        Role = "Department",
-                        Department = deptName,
-                        Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
-                        ManagerId = u.Id
-                    });
-                }
-            }
-
-            return path;
-        }
-
-        public async Task<List<User>> SearchUsersAsync(string query, int count = 10)
-        {
-            var allUsers = await _userGateway.GetAllUsersAsync();
-            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active);
-            
-            return activeUsers
-                .Where(u => (!string.IsNullOrWhiteSpace(u.Name) && u.Name.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
-                            (!string.IsNullOrWhiteSpace(u.Role.ToString()) && u.Role.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)) ||
-                            (!string.IsNullOrWhiteSpace(u.Department?.Name) && u.Department.Name.Contains(query, StringComparison.OrdinalIgnoreCase)))
-                .Take(count)
-                .ToList();
-        }
-
         // The user's team: their manager first, then the active colleagues who
         // share the same manager. A user without a manager has no team.
         public async Task<List<User>> GetTeamMembersAsync(Guid userId)
@@ -782,35 +616,10 @@ namespace CompanyEmployees.Application.Contexts
             {
                 if (childrenMap.TryGetValue(parent.UserId, out var children))
                 {
-                    if (parent.Role == "Admin" && isAdmin)
+                    parent.Subordinates = children.OrderBy(c => c.Name).ToList();
+                    foreach (var child in parent.Subordinates)
                     {
-                        var deptGroups = children.GroupBy(c => string.IsNullOrWhiteSpace(c.Department) ? "No Department" : c.Department).OrderBy(g => g.Key);
-                        parent.Subordinates = new List<OrgChartNode>();
-                        foreach (var group in deptGroups)
-                        {
-                            var deptName = group.Key;
-                            var deptNode = new OrgChartNode
-                            {
-                                UserId = Guid.NewGuid(),
-                                Name = deptName,
-                                Role = "Department",
-                                Department = deptName,
-                                Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
-                                ManagerId = parent.UserId,
-                                HasUnloadedChildren = true,
-                                IsExpanded = false
-                            };
-                            parent.Subordinates.Add(deptNode);
-                        }
-                    }
-                    else
-                    {
-                        parent.Subordinates = children.OrderBy(c => c.Name).ToList();
-                        foreach (var child in parent.Subordinates)
-                        {
-                            child.HasUnloadedChildren = childrenMap.ContainsKey(child.UserId);
-                            child.IsExpanded = false;
-                        }
+                        AttachChildren(child);
                     }
                 }
             }
@@ -820,10 +629,7 @@ namespace CompanyEmployees.Application.Contexts
                 if (isAdmin)
                 {
                     AttachChildren(root);
-                    root.IsExpanded = true;
-                    foreach(var admin in root.Subordinates) {
-                        admin.IsExpanded = false;
-                    }
+                    SetAllExpanded(root, true);
                     MarkFocus(root, null); // Admins see everything focused
                 }
                 else
@@ -899,11 +705,11 @@ namespace CompanyEmployees.Application.Contexts
                         {
                             if (currentUser.Department != null && node.Department == currentUser.Department.Name)
                             {
-                                // node.IsFocusNode = true;
+                                node.IsFocusNode = true;
                             }
                             else if (focusIds.Contains(node.UserId))
                             {
-                                // node.IsFocusNode = true;
+                                node.IsFocusNode = true;
                             }
                             else
                             {
@@ -988,7 +794,7 @@ namespace CompanyEmployees.Application.Contexts
         {
             if (targetDepartment == null) 
             {
-                // node.IsFocusNode = true;
+                node.IsFocusNode = true;
             }
             else
             {
