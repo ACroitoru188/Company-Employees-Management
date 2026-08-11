@@ -9,10 +9,13 @@
 @using CompanyEmployees.Web.Services
 @inherits LayoutComponentBase
 @inject ThemeState ThemeState
+@inject AppLocalizer Text
 @inject ActingContext Acting
 @inject IServiceScopeFactory ScopeFactory
 @inject IJSRuntime JSRuntime
 @inject IToastService Toast
+@inject IDialogService DialogService
+@inject LanguagePreferenceService LanguagePreferences
 @inject ILogger<EmployeeLayout> Logger
 @implements IDisposable
 
@@ -43,7 +46,7 @@
             }
             else
             {
-                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="#FFFFFF">Time Off Management</FluentLabel>
+                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="#FFFFFF">@Text["Time Off Management"]</FluentLabel>
             }
 
             <FluentSpacer />
@@ -62,7 +65,7 @@
     <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="0" Width="100%"
                  VerticalAlignment="VerticalAlignment.Stretch"
                  Style="flex:1 1 auto; min-height:0;">
-        <FluentNavMenu Width="250" Collapsible="true" Title="Workspace">
+        <FluentNavMenu Width="250" Collapsible="true" Title="@Text["WORKSPACE"]">
             @* The links live in their own region so the drawer itself never scrolls: this is
                the part that gives way when a role has more sections than the window is tall,
                while the account footer below keeps its corner.
@@ -74,15 +77,15 @@
                          HorizontalAlignment="HorizontalAlignment.Stretch"
                          VerticalGap="0" Width="100%">
             <FluentNavLink Href="/employee/dashboard" Match="NavLinkMatch.All"
-                           Icon="@(new Icons.Regular.Size20.Board())">Dashboard</FluentNavLink>
+                           Icon="@(new Icons.Regular.Size20.Board())">@Text["Dashboard"]</FluentNavLink>
             <FluentNavLink Href="/employee/calendar" Match="NavLinkMatch.All"
-                           Icon="@(new Icons.Regular.Size20.CalendarLtr())">Calendar</FluentNavLink>
+                           Icon="@(new Icons.Regular.Size20.CalendarLtr())">@Text["Calendar"]</FluentNavLink>
             <FluentNavLink Href="/employee/team" Match="NavLinkMatch.All"
-                           Icon="@(new Icons.Regular.Size20.People())">Team</FluentNavLink>
+                           Icon="@(new Icons.Regular.Size20.People())">@Text["Team"]</FluentNavLink>
             <FluentNavLink Href="/employee/my-requests" Match="NavLinkMatch.All"
-                           Icon="@(new Icons.Regular.Size20.Document())">My Requests</FluentNavLink>
+                           Icon="@(new Icons.Regular.Size20.Document())">@Text["My Requests"]</FluentNavLink>
             <FluentNavLink Href="/employee/org-chart" Match="NavLinkMatch.All"
-                           Icon="@(new Icons.Regular.Size20.Organization())">Org Chart</FluentNavLink>
+                           Icon="@(new Icons.Regular.Size20.Organization())">@Text["Org Chart"]</FluentNavLink>
 
             @if (_canSeeDelegationHistory)
             {
@@ -90,7 +93,7 @@
                    in it and never will. Admins always get it — for them it is oversight of
                    the region, not their own history. *@
                 <FluentNavLink Href="/manager/delegation-history" Match="NavLinkMatch.All"
-                               Icon="@(new Icons.Regular.Size20.History())">Delegation History</FluentNavLink>
+                               Icon="@(new Icons.Regular.Size20.History())">@Text["Delegation History"]</FluentNavLink>
             }
 
             @* Flat links, not FluentNavGroups. A group is a collapsible heading over a list, and
@@ -101,21 +104,21 @@
             @if (_department == HomeRouteResolver.HrDepartmentName)
             {
                 <FluentNavLink Href="/hr/dashboard" Match="NavLinkMatch.All"
-                               Icon="@(new Icons.Regular.Size20.PersonBoard())">HR Dashboard</FluentNavLink>
+                               Icon="@(new Icons.Regular.Size20.PersonBoard())">@Text["HR Dashboard"]</FluentNavLink>
             }
 
             @if (_role == "LineManager")
             {
                 <FluentNavLink Href="/manager/team" Match="NavLinkMatch.All"
-                               Icon="@(new Icons.Regular.Size20.PeopleTeam())">Department</FluentNavLink>
+                               Icon="@(new Icons.Regular.Size20.PeopleTeam())">@Text["Department"]</FluentNavLink>
             }
 
             @if (_role == "Admin")
             {
                 <FluentNavLink Href="/admin/departments" Match="NavLinkMatch.All"
-                               Icon="@(new Icons.Regular.Size20.Building())">Departments</FluentNavLink>
+                               Icon="@(new Icons.Regular.Size20.Building())">@Text["Departments"]</FluentNavLink>
                 <FluentNavLink Href="/admin/users" Match="NavLinkMatch.All"
-                               Icon="@(new Icons.Regular.Size20.People())">Users</FluentNavLink>
+                               Icon="@(new Icons.Regular.Size20.People())">@Text["Users"]</FluentNavLink>
             }
 
             </FluentStack>
@@ -204,14 +207,21 @@
                 <FluentMenuItem>
                     <FluentSwitch Value="ThemeState.IsDarkMode"
                                   ValueChanged="@(async (bool _) => await ThemeState.ToggleAsync())"
-                                  Label="Dark mode" />
+                                  Label="@Text["Dark mode"]" />
+                </FluentMenuItem>
+                <FluentDivider Role="DividerRole.Presentation" />
+                <FluentMenuItem OnClick="OpenLanguageDialogAsync">
+                    <span slot="start">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.LocalLanguage())" />
+                    </span>
+                    @Text["Language"] · @CurrentLanguageName
                 </FluentMenuItem>
                 <FluentDivider Role="DividerRole.Presentation" />
                 <FluentMenuItem OnClick="@(() => Nav.NavigateTo("mailto:it-support@siemens.com"))">
                     <span slot="start">
                         <FluentIcon Value="@(new Icons.Regular.Size20.PersonSupport())" />
                     </span>
-                    Contact IT department
+                    @Text["Contact IT department"]
                 </FluentMenuItem>
                 <FluentDivider Role="DividerRole.Presentation" />
                 @* Full page load: the logout endpoint must clear the auth cookie itself. *@
@@ -219,7 +229,7 @@
                     <span slot="start">
                         <FluentIcon Value="@(new Icons.Regular.Size20.SignOut())" Color="Color.Error" />
                     </span>
-                    Sign out
+                    @Text["Sign out"]
                 </FluentMenuItem>
             </FluentMenu>
             </FluentStack>
@@ -257,6 +267,8 @@
     private string _initials = "";
     private string _role = "";
     private string _department = "";
+    private string _email = "";
+    private string _culture = SupportedLanguages.DefaultCulture;
 
     private ActingUser? _acting;
     private List<ManagerDelegation> _availableDelegations = new();
@@ -287,6 +299,8 @@
         _name = user.FindFirst("FullName")?.Value ?? "";
         _role = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
         _department = user.FindFirst("Department")?.Value ?? "";
+        _email = user.Identity?.Name ?? "";
+        _culture = SupportedLanguages.Normalize(CultureInfo.CurrentUICulture.Name);
         _initials = Initials(_name);
 
         _acting = await Acting.GetAsync();
@@ -348,6 +362,50 @@
                 _acting!.EffectiveUserId);
             _canSeeDelegationHistory = false;
         }
+    }
+
+    private string CurrentLanguageName =>
+        SupportedLanguages.All.First(language => language.Culture == _culture).NativeName;
+
+    // Saved against the account first, then applied to this browser. The reverse order would
+    // leave a reload happening while the write is still in flight, and a failed write would
+    // still have changed the page.
+    private async Task OpenLanguageDialogAsync()
+    {
+        _profileMenuOpen = false;
+
+        var content = new LanguageDialog.Model { Culture = _culture };
+        var dialog = await DialogService.ShowDialogAsync<LanguageDialog>(content, new DialogParameters
+        {
+            Title = Text["Language"],
+            PrimaryAction = Text["Save"],
+            SecondaryAction = Text["Cancel"],
+            Width = "360px"
+        });
+
+        var result = await dialog.Result;
+        if (result.Cancelled)
+            return;
+
+        var chosen = SupportedLanguages.Normalize(content.Culture);
+        if (chosen == _culture)
+            return;
+
+        try
+        {
+            await LanguagePreferences.SaveAsync(_email, chosen);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not save the language preference for {Email}.", _email);
+            Toast.ShowError("Your language could not be saved.");
+            return;
+        }
+
+        _culture = chosen;
+        // Writes the culture cookie and reloads: the translations are resolved server-side per
+        // request, so the circuit has to be rebuilt for the new culture to take effect.
+        await JSRuntime.InvokeVoidAsync("companyCulture.set", chosen);
     }
 
     private static string ImpersonateFormId(Guid delegationId) => $"impersonate-{delegationId:D}";

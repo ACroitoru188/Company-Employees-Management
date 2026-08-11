@@ -20,6 +20,13 @@
     <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.14.4" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- AppLocalizer reads these from ContentRootPath at startup, so they must travel with the app. -->
+    <Content Update="Languages\*.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <Target Name="KillZombieProcesses" BeforeTargets="PreBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
     <Exec Command="taskkill /F /IM CompanyEmployees.Web.exe /T 2&gt;nul || exit 0" />
   </Target>

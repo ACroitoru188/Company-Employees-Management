@@ -8,7 +8,14 @@
    both ways so search / Focus Me can open the path to a node after first render. *@
 @using CompanyEmployees.Application
 
-<FluentTreeItem Expanded="@Node.IsExpanded"
+@* The Id is what lets the page move the highlight itself. The tree item owns its own selection:
+   it sets `selected` when clicked, but ignores a later `selected=false` from a re-render, so a
+   programmatic jump — Focus Me, or picking somebody from the search — left the previous row
+   highlighted while the detail panel showed the new person. CompanyDirectory clears and sets it
+   by id when that happens. Keying the item on its selected state was tried first and was worse:
+   rebuilding the element on every selection meant no row highlighted at all. *@
+<FluentTreeItem Id="@($"orgnode-{Node.UserId:D}")"
+                Expanded="@Node.IsExpanded"
                 ExpandedChanged="@(expanded => Node.IsExpanded = expanded)"
                 Selected="@(Node.UserId == SelectedId && Node.UserId != Guid.Empty)"
                 SelectedChanged="@(selected => selected ? OnSelect.InvokeAsync(Node) : Task.CompletedTask)">

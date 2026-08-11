@@ -13,8 +13,14 @@
 
 <PageTitle>Sign in · Time Off Management</PageTitle>
 
+@* Centred on both axes. It used to sit 48px from the top of a full-height window, which left a
+   few hundred pixels of empty canvas under it — the card looked dropped onto the page rather
+   than placed on it. min-height rather than height so a short window scrolls instead of
+   squeezing the card. *@
 <FluentStack Orientation="Orientation.Vertical" VerticalGap="16"
-             HorizontalAlignment="HorizontalAlignment.Center" Style="padding:48px 16px;">
+             HorizontalAlignment="HorizontalAlignment.Center"
+             VerticalAlignment="VerticalAlignment.Center"
+             Style="min-height:100vh; padding:32px 16px;">
     <FluentCard Width="420px" Style="padding:32px;">
         <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
             <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" Alignment="HorizontalAlignment.Center"

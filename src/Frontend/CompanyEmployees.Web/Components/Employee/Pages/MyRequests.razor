@@ -3,41 +3,49 @@
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
 @inject ITimeOffService TimeOff
+@inject AppLocalizer Text
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 
-<PageTitle>My Requests · Time Off Management</PageTitle>
+<PageTitle>@Text["My Requests"] · @Text["Time Off Management"]</PageTitle>
 
-<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" MarginBlock="0 16px">My Requests</FluentLabel>
+<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" MarginBlock="0 16px">@Text["My Requests"]</FluentLabel>
 
 <FluentDataGrid Items="@_requests.AsQueryable()" TGridItem="TimeOffRequest"
                 ShowHover="true" OnRowClick="@(row => OpenDetailsAsync(row.Item!))">
-    <PropertyColumn Title="Type" Property="@(r => LeaveTypePalette.Label(r.Type))" />
+    <EmptyContent>
+        <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                     CustomColor="var(--neutral-foreground-hint)">@Text["You have not requested any time off yet."]</FluentLabel>
+    </EmptyContent>
+<ChildContent>
+    <PropertyColumn Title="@Text["Type"]" Property="@(r => Text[r.Type.ToString()])" />
 
-    <TemplateColumn Title="Dates">
+    <TemplateColumn Title="@Text["Dates"]">
         <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
             <FluentLabel Typo="Typography.Body">
-                @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-                @context.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                @context.StartDate.ToString("MMM d", CultureInfo.CurrentCulture) –
+                @context.EndDate.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)
             </FluentLabel>
             <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
-                @context.Days @(context.Days == 1 ? "day" : "days")
+                @context.Days @Text[context.Days == 1 ? "day" : "days"]
             </FluentLabel>
         </FluentStack>
     </TemplateColumn>
 
-    <TemplateColumn Title="Status">
+    <TemplateColumn Title="@Text["Status"]">
         @* Amber / green / red, as before: FluentBadge's three appearances cannot tell
            approved from rejected, and that is the one distinction this column exists for. *@
         <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(context.Status)" Color="white">
-            @context.Status
+            @Text[context.Status.ToString()]
         </FluentBadge>
     </TemplateColumn>
 
-    <PropertyColumn Title="Submitted"
+    <PropertyColumn Title="@Text["Submitted"]"
                     Property="@(r => r.SubmittedAt)"
                     Format="MMM d, yyyy" />
+</ChildContent>
 </FluentDataGrid>
 
 @code {
@@ -64,8 +72,8 @@
     private Task OpenDetailsAsync(TimeOffRequest request) =>
         DialogService.ShowDialogAsync<RequestDetailsDialog>(request, new DialogParameters
         {
-            Title = "Request details",
-            PrimaryAction = "Close",
+            Title = Text["Request details"],
+            PrimaryAction = Text["Close"],
             SecondaryAction = null,
             Width = "480px"
         });

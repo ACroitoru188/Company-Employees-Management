@@ -7,6 +7,7 @@
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inject ITimeOffService TimeOff
+@inject AppLocalizer Text
 @inject IToastService Toast
 @inject NavigationManager Nav
 @inject ThemeState ThemeState
@@ -17,7 +18,7 @@
 @inject ActingContext Acting
 @inject IDialogService DialogService
 
-<PageTitle>Calendar · Time Off Management</PageTitle>
+<PageTitle>@Text["Calendar"] · @Text["Time Off Management"]</PageTitle>
 
 @* Laid out like the Teams calendar: a narrow rail on the left with the month picker and the
    list of calendars — here, the leave types — and the surface itself taking the rest.
@@ -45,7 +46,7 @@
                      HorizontalAlignment="HorizontalAlignment.Stretch">
             <FluentLabel Typo="Typography.Body" Class="cal-rail-title app-overline"
                          Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                Leave types
+                @Text["Leave Type"]
             </FluentLabel>
 
             @foreach (var balance in _balances)
@@ -60,7 +61,7 @@
                         <FluentStack Class="cal-swatch" HorizontalGap="0"
                                      Style="@($"background:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
                         <FluentLabel Typo="Typography.Body" Class="cal-type-name">
-                            @LeaveTypePalette.Label(balance.Type)
+                            @Text[balance.Type.ToString()]
                         </FluentLabel>
                         <FluentSpacer />
                         <FluentLabel Typo="Typography.Body" Class="app-caption"
@@ -81,18 +82,21 @@
            the far right as a dropdown rather than a row of tabs. *@
         <FluentStack Class="cal-toolbar" Orientation="Orientation.Horizontal" HorizontalGap="4"
                      VerticalAlignment="VerticalAlignment.Center" Width="100%">
-            <FluentButton Appearance="Appearance.Stealth" Class="cal-today" OnClick="GoToday">Today</FluentButton>
-            <FluentButton Appearance="Appearance.Stealth" Title="Previous"
+            <FluentButton Appearance="Appearance.Stealth" Class="cal-today" OnClick="GoToday">@Text["Today"]</FluentButton>
+            <FluentButton Appearance="Appearance.Stealth" Title="@Text["Previous"]"
                           IconStart="@(new Icons.Regular.Size20.ChevronLeft())"
                           OnClick="@(() => Navigate(-1))" />
-            <FluentButton Appearance="Appearance.Stealth" Title="Next"
+            <FluentButton Appearance="Appearance.Stealth" Title="@Text["Next"]"
                           IconStart="@(new Icons.Regular.Size20.ChevronRight())"
                           OnClick="@(() => Navigate(1))" />
             <FluentLabel Typo="Typography.Header" Weight="FontWeight.Bold" Class="cal-period">
                 @HeaderLabel
             </FluentLabel>
             <FluentSpacer />
+            @* OptionValue stays the enum name so SetView can still parse it; only the label is
+               translated. *@
             <FluentSelect TOption="string" Items="@ViewNames" Value="@_view.ToString()"
+                          OptionValue="@(name => name)" OptionText="@(name => Text[name])"
                           ValueChanged="SetView" Width="120px" Class="cal-viewpicker" />
         </FluentStack>
 
@@ -159,7 +163,7 @@
                                                leading edge, ordinary dark text. *@
                                             <FluentStack Class="cal-entry" Orientation="Orientation.Horizontal"
                                                          HorizontalGap="0" Style="@EntryTint(absence.Type)"
-                                                         Title="@($"{absence.MemberName} · {LeaveTypePalette.Label(absence.Type)}")">
+                                                         Title="@($"{absence.MemberName} · {Text[absence.Type.ToString()]}")">
                                                 <FluentLabel Typo="Typography.Body" Class="cal-entry-text">
                                                     @absence.MemberName
                                                 </FluentLabel>
@@ -174,7 +178,7 @@
                                             var moreId = $"more-{date:yyyyMMdd}";
                                             <FluentLabel Id="@moreId" Typo="Typography.Body" Class="cal-more app-caption"
                                                          Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                                                @(visible.Count - VisibleEntriesPerDay) more
+                                                @Text.Format("{0} more", visible.Count - VisibleEntriesPerDay)
                                             </FluentLabel>
                                             <FluentTooltip Anchor="@moreId" Position="TooltipPosition.Bottom">
                                                 @foreach (var absence in visible.Skip(VisibleEntriesPerDay))
@@ -242,7 +246,7 @@
                                 {
                                     <FluentStack Class="cal-entry cal-entry-block" Orientation="Orientation.Vertical"
                                                  VerticalGap="0" Style="@EntryTint(item.Type)"
-                                                 Title="@($"{item.MemberName} · {LeaveTypePalette.Label(item.Type)}")">
+                                                 Title="@($"{item.MemberName} · {Text[item.Type.ToString()]}")">
                                         <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold" Class="cal-entry-wrap">
                                             @item.MemberName
                                         </FluentLabel>
@@ -265,7 +269,7 @@
                 @if (rows.Count == 0)
                 {
                     <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                        No approved team leave this month.
+                        @Text["No approved team leave this month."]
                     </FluentLabel>
                 }
                 else
@@ -273,7 +277,7 @@
                     @* One column per day of the month: a timeline, drawn by the grid. *@
                     <FluentDataGrid Items="@rows.AsQueryable()" TGridItem="GridRow" ShowHover="true"
                                     GridTemplateColumns="@($"210px 92px repeat({daysInMonth}, minmax(0, 1fr))")">
-                        <TemplateColumn Title="EMPLOYEE">
+                        <TemplateColumn Title="@Text["Employee"].ToUpper(CultureInfo.CurrentCulture)">
                             <FluentPersona Name="@context.Name" Initials="@context.Initials"
                                            ImageSize="28px" TextPosition="TextPosition.End">
                                 @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
@@ -285,11 +289,11 @@
                             </FluentPersona>
                         </TemplateColumn>
 
-                        <TemplateColumn Title="TYPE">
+                        <TemplateColumn Title="@Text["Type"].ToUpper(CultureInfo.CurrentCulture)">
                             <FluentBadge Fill="highlight"
                                          BackgroundColor="@LeaveTypePalette.Hex(context.Type, ThemeState.IsDarkMode)"
                                          Color="white">
-                                @LeaveTypePalette.Label(context.Type).Split(' ')[0]
+                                @Text[context.Type.ToString()]
                             </FluentBadge>
                         </TemplateColumn>
 
@@ -310,12 +314,12 @@
                                        meet and read as a single period; only the two ends are rounded. *@
                                     var edges = (segment.StartDate == date ? " is-start" : string.Empty)
                                               + (segment.EndDate == date ? " is-end" : string.Empty);
-                                    var period = $"{segment.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)} – {segment.EndDate.ToString("MMM d", CultureInfo.InvariantCulture)}";
+                                    var period = $"{segment.StartDate.ToString("MMM d", CultureInfo.CurrentCulture)} – {segment.EndDate.ToString("MMM d", CultureInfo.CurrentCulture)}";
 
                                     <FluentStack Class="@($"leave-bar{edges}")"
                                                  VerticalAlignment="VerticalAlignment.Center" HorizontalGap="0"
                                                  Style="@($"background:{LeaveTypePalette.Hex(segment.Type, ThemeState.IsDarkMode)};")"
-                                                 Title="@($"{LeaveTypePalette.Label(segment.Type)} · {period}")">
+                                                 Title="@($"{Text[segment.Type.ToString()]} · {period}")">
                                         @* Named once, on the day the range opens, and running along the bar
                                            from there — a cell is ~25px wide, so a label repeated per day
                                            would show nothing. max-width is the range's own span in cells,
@@ -328,7 +332,7 @@
                                             <FluentLabel Class="leave-bar-label" Typo="Typography.Body"
                                                          Style="@($"max-width:{span * 100}%;")"
                                                          Color="Color.Custom" CustomColor="#FFFFFF">
-                                                @LeaveTypePalette.Label(segment.Type)
+                                                @Text[segment.Type.ToString()]
                                             </FluentLabel>
                                         }
                                     </FluentStack>
@@ -345,30 +349,30 @@
                 @if (listRows.Count == 0)
                 {
                     <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                        No approved team leave this month.
+                        @Text["No approved team leave this month."]
                     </FluentLabel>
                 }
                 else
                 {
                     <FluentDataGrid Items="@listRows.AsQueryable()" TGridItem="TeamTimeOff" ShowHover="true">
-                        <TemplateColumn Title="EMPLOYEE">
+                        <TemplateColumn Title="@Text["Employee"].ToUpper(CultureInfo.CurrentCulture)">
                             <FluentPersona Name="@context.MemberName" Initials="@context.Initials"
                                            ImageSize="28px" TextPosition="TextPosition.End" />
                         </TemplateColumn>
-                        <PropertyColumn Title="DEPARTMENT" Property="@(r => r.Department)" Sortable="true" />
-                        <TemplateColumn Title="TEAM">@(context.Team ?? "—")</TemplateColumn>
-                        <TemplateColumn Title="LEAVE TYPE">
+                        <PropertyColumn Title="@Text["Department"].ToUpper(CultureInfo.CurrentCulture)" Property="@(r => r.Department)" Sortable="true" />
+                        <TemplateColumn Title="@Text["Team"].ToUpper(CultureInfo.CurrentCulture)">@(context.Team ?? "—")</TemplateColumn>
+                        <TemplateColumn Title="@Text["Leave Type"].ToUpper(CultureInfo.CurrentCulture)">
                             <FluentBadge Fill="highlight"
                                          BackgroundColor="@LeaveTypePalette.Hex(context.Type, ThemeState.IsDarkMode)"
                                          Color="white">
                                 @LeaveTypePalette.Label(context.Type).Split(' ')[0]
                             </FluentBadge>
                         </TemplateColumn>
-                        <TemplateColumn Title="PERIOD">
-                            @context.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-                            @context.EndDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                        <TemplateColumn Title="@Text["Period"].ToUpper(CultureInfo.CurrentCulture)">
+                            @context.StartDate.ToString("MMM d", CultureInfo.CurrentCulture) –
+                            @context.EndDate.ToString("MMM d", CultureInfo.CurrentCulture)
                         </TemplateColumn>
-                        <TemplateColumn Title="DAYS">
+                        <TemplateColumn Title="@Text["Days heading"].ToUpper(CultureInfo.CurrentCulture)">
                             @WorkingDays(context.StartDate, context.EndDate)
                         </TemplateColumn>
                     </FluentDataGrid>
@@ -384,15 +388,15 @@
             <FluentStack Class="cal-submit" Orientation="Orientation.Horizontal" HorizontalGap="16"
                          Wrap="true" VerticalAlignment="VerticalAlignment.Center" Width="100%">
                 <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">
-                    @LeaveTypePalette.Label(type) ·
-                    @range.Start.ToString("MMM d", CultureInfo.InvariantCulture) –
-                    @range.End.ToString("MMM d", CultureInfo.InvariantCulture)
-                    (@RangeDays(range) @(RangeDays(range) == 1 ? "day" : "days"))
+                    @Text[type.ToString()] ·
+                    @range.Start.ToString("MMM d", CultureInfo.CurrentCulture) –
+                    @range.End.ToString("MMM d", CultureInfo.CurrentCulture)
+                    (@RangeDays(range) @Text[RangeDays(range) == 1 ? "day" : "days"])
                 </FluentLabel>
-                <FluentTextField @bind-Value="_reason" Label="Reason (optional)" Style="min-width:220px;" />
+                <FluentTextField @bind-Value="_reason" Label="@Text["Reason (optional)"]" Style="min-width:220px;" />
                 <FluentSpacer />
-                <FluentButton Appearance="Appearance.Stealth" OnClick="CancelSelection">Cancel selection</FluentButton>
-                <FluentButton Appearance="Appearance.Accent" OnClick="Submit">Submit request</FluentButton>
+                <FluentButton Appearance="Appearance.Stealth" OnClick="CancelSelection">@Text["Cancel selection"]</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" OnClick="Submit">@Text["Submit request"]</FluentButton>
             </FluentStack>
         }
     </FluentStack>
@@ -409,11 +413,13 @@
 
     private static readonly string[] ViewNames = Enum.GetNames<CalView>();
 
-    // Weeks start on Monday, as the grid does; InvariantCulture would put Sunday first. Only the
-    // day headers use this — dates printed anywhere on the page go through InvariantCulture.
-    private static readonly CultureInfo CalendarCulture = CultureInfo.GetCultureInfo("en-GB");
+    // The grid always starts on Monday whatever the language does, so the day names are read
+    // off the current culture in that fixed order rather than from its own FirstDayOfWeek.
+    // Not static: the culture is per request, and a static field would freeze whichever
+    // language happened to load the page first.
+    private static CultureInfo CalendarCulture => CultureInfo.CurrentCulture;
 
-    private static readonly string[] WeekdayHeaders =
+    private static string[] WeekdayHeaders =>
         Enumerable.Range(0, 7)
             .Select(i => CalendarCulture.DateTimeFormat.AbbreviatedDayNames[((int)DayOfWeek.Monday + i) % 7])
             .ToArray();
@@ -562,13 +568,13 @@
 
     private string HeaderLabel => _view == CalView.Week
         ? WeekLabel()
-        : VisibleMonth.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+        : VisibleMonth.ToString("MMMM yyyy", CultureInfo.CurrentCulture);
 
     private string WeekLabel()
     {
         var start = WeekStart;
         var end = start.AddDays(6);
-        var inv = CultureInfo.InvariantCulture;
+        var inv = CultureInfo.CurrentCulture;
         if (start.Year != end.Year)
             return $"{start.ToString("MMM d, yyyy", inv)} – {end.ToString("MMM d, yyyy", inv)}";
         if (start.Month != end.Month)
@@ -650,13 +656,13 @@
     private string? UnavailableDateHint(DateOnly day)
     {
         if (_selectedType is null)
-            return "Select a leave type first.";
+            return Text["Select a leave type first."];
         if (day < _today)
-            return "Past dates cannot be selected.";
+            return Text["Past dates cannot be selected."];
         if (_holidays.TryGetValue(day, out var holiday))
-            return $"{holiday.Name} is a public holiday.";
+            return Text.Format("{0} is a public holiday.", holiday.Name);
         if (IsWeekend(day))
-            return "Weekends are already non-working days.";
+            return Text["Weekends are already non-working days."];
         return null;
     }
 
@@ -708,7 +714,7 @@
         try
         {
             await TimeOff.SubmitRequestAsync(type, range.Start, range.End, _reason);
-            Toast.ShowSuccess("Time off request submitted");
+            Toast.ShowSuccess(Text["Time off request submitted"]);
             CancelSelection();
             _selectedType = null;
             await LoadAsync();

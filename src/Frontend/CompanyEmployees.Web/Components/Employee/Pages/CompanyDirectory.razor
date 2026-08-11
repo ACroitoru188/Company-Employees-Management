@@ -11,6 +11,7 @@
 @inject EmployeeContext EmployeeCtx
 @inject NavigationManager Nav
 @inject IToastService Toast
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Organization Chart · Global Directory</PageTitle>
 
@@ -50,6 +51,12 @@
         Org Tree
     </FluentButton>
 
+    @* Only where there is a tree to search. The people it searches come from _root, which is
+       loaded with the org tree — on the world map that is null, so the box sat there taking
+       input and never returning a single result, with nothing to say why. Focus Me below was
+       already hidden for the same reason. *@
+    @if (_currentLevel == HierarchyLevel.SiteOrgChart)
+    {
     <FluentAutocomplete TOption="OrgChartNode"
                         Placeholder="Search people..."
                         OnOptionsSearch="OnSearchAsync"
@@ -72,6 +79,7 @@
             </FluentPersona>
         </OptionTemplate>
     </FluentAutocomplete>
+    }
 
     @if (_currentLevel == HierarchyLevel.SiteOrgChart)
     {
@@ -202,7 +210,11 @@ else
                             <FluentStack Orientation="Orientation.Horizontal" Width="100%">
                                 <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Department</FluentLabel>
                                 <FluentSpacer />
-                                <FluentLabel Typo="Typography.Body">@_selectedNode.Department</FluentLabel>
+                                @* Admins belong to no department by design, and the field read as
+                                   blank rather than as "none". *@
+                                <FluentLabel Typo="Typography.Body">
+                                    @(string.IsNullOrWhiteSpace(_selectedNode.Department) ? "—" : _selectedNode.Department)
+                                </FluentLabel>
                             </FluentStack>
                             <FluentStack Orientation="Orientation.Horizontal" Width="100%">
                                 <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Role</FluentLabel>
@@ -499,6 +511,25 @@ else
 
         _selectedNode = FindNodeInTree(_root, targetUserId);
         StateHasChanged();
+
+        _ = SyncTreeHighlightAsync(targetUserId);
+    }
+
+    // The tree item keeps whatever selection the user last clicked and ignores being told to
+    // drop it, so a jump made in code has to move the highlight by hand or the tree and the
+    // detail panel end up showing two different people.
+    private async Task SyncTreeHighlightAsync(Guid targetUserId)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval",
+                "document.querySelectorAll('fluent-tree-item').forEach(i => i.selected = false);" +
+                $"document.getElementById('orgnode-{targetUserId:D}')?.setAttribute('selected','');");
+        }
+        catch
+        {
+            // Cosmetic only — the panel is already right.
+        }
     }
 
     private bool ExpandPathToNode(OrgChartNode current, Guid targetUserId)

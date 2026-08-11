@@ -281,6 +281,11 @@ else
         <FluentDataGrid Items="@FilteredTeam" TGridItem="ManagerTeamMember" ResizableColumns="true"
                         GridTemplateColumns="1.2fr 0.8fr 1fr 0.9fr 1.7fr 0.8fr 0.6fr"
                         ShowHover="true" Pagination="@_pagination">
+            <EmptyContent>
+                <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                             CustomColor="var(--neutral-foreground-hint)">Nobody in your department matches this search.</FluentLabel>
+            </EmptyContent>
+        <ChildContent>
             <PropertyColumn Title="Name" Property="@(m => m.Name)" Sortable="true" />
             <PropertyColumn Title="Role" Property="@(m => m.Role)" Sortable="true" />
             <PropertyColumn Title="Department" Property="@(m => m.Department)" Sortable="true" />
@@ -344,6 +349,7 @@ else
                     }
                 </FluentStack>
             </TemplateColumn>
+                </ChildContent>
         </FluentDataGrid>
 
         <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center" Width="100%">

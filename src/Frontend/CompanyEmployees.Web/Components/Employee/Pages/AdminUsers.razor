@@ -9,12 +9,13 @@
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
+@inject AppLocalizer Text
 @inject EmployeeAccountService Accounts
 @inject NavigationManager Nav
 @inject IToastService Toast
 @inject IDialogService DialogService
 
-<PageTitle>Users · Admin</PageTitle>
+<PageTitle>@Text["Users"] · @Text["Admin"]</PageTitle>
 
 @if (!_authorized)
 {
@@ -24,9 +25,9 @@ else
 {
 	<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
 				 HorizontalGap="12" Wrap="true" Width="100%">
-		<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">Users &amp; Contracts</FluentLabel>
+		<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text["Users & Contracts"]</FluentLabel>
 		<FluentSpacer />
-		<FluentSelect TOption="RegionOption" Label="Preview region"
+		<FluentSelect TOption="RegionOption" Label="@Text["Preview region"]"
 					  Items="@_regionFilterOptions"
 					  OptionValue="@(option => option.Id.ToString())"
 					  OptionText="@(option => option.Name)"
@@ -35,34 +36,34 @@ else
 					  Style="min-width:220px;" />
 		<FluentAnchor Href="/api/employees/export.csv" Appearance="Appearance.Outline"
 					  IconStart="@(new Icons.Regular.Size20.ArrowDownload())">
-			Download latest CSV
+			@Text["Download latest CSV"]
 		</FluentAnchor>
 	</FluentStack>
 
 	<FluentCard Style="margin:16px 0 24px; padding:16px;">
 		<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
 			<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
-				<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Create employee account</FluentLabel>
+				<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@Text["Create employee account"]</FluentLabel>
 				<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-					Create employees in your assigned region. Their Siemens login and employee ID are generated automatically.
+					@Text["Create employees in your assigned region. Their Siemens login and employee ID are generated automatically."]
 				</FluentLabel>
 			</FluentStack>
 
 			@if (!CanManageSelectedRegion)
 			{
 				<FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false">
-					This regional preview is read-only. Return to <strong>@GetRegionName(_adminRegionId)</strong> to create an account.
+					@Text.Format("This regional preview is read-only. Return to {0} to create an account.", GetRegionName(_adminRegionId))
 				</FluentMessageBar>
 			}
 
 			<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true"
 						 VerticalAlignment="VerticalAlignment.Bottom">
-				<FluentTextField @bind-Value="_newEmployeeName" Label="Full name"
+				<FluentTextField @bind-Value="_newEmployeeName" Label="@Text["Full name"]"
 								 Style="min-width:260px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
-				<FluentTextField @bind-Value="_newEmployeeInvitationEmail" Label="Real email address"
+				<FluentTextField @bind-Value="_newEmployeeInvitationEmail" Label="@Text["Real email address"]"
 								 TextFieldType="TextFieldType.Email" Style="min-width:300px;"
 								 Disabled="@(_creating || !CanManageSelectedRegion)" />
-				<FluentSelect TOption="Department" Label="Department"
+				<FluentSelect TOption="Department" Label="@Text["Department"]"
 							  Items="@_departments.OrderBy(d => d.Name)"
 							  OptionValue="@(d => d.Id.ToString())"
 							  OptionText="@(d => d.Name)"
@@ -71,7 +72,7 @@ else
 							  Style="min-width:220px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
 				@* Region is fixed to the administrator's own: creating outside it is refused by the
 				   application layer anyway, so the field only reports which one it will be. *@
-				<FluentSelect TOption="Region" Label="Region"
+				<FluentSelect TOption="Region" Label="@Text["Region"]"
 							  Items="@ActiveRegions"
 							  OptionValue="@(r => r.Id.ToString())"
 							  OptionText="@(r => r.Name)"
@@ -80,7 +81,7 @@ else
 				<FluentButton Appearance="Appearance.Accent"
 							  IconStart="@(new Icons.Regular.Size20.PersonAdd())"
 							  OnClick="CreateEmployeeAsync" Disabled="@(_creating || !CanManageSelectedRegion)">
-					@(_creating ? "Creating..." : "Create account")
+					@(_creating ? Text["Creating..."] : Text["Create account"])
 				</FluentButton>
 			</FluentStack>
 
@@ -88,21 +89,21 @@ else
 			{
 				<FluentMessageBar Intent="MessageIntent.Success" AllowDismiss="false">
 					<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
-						<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">Account created</FluentLabel>
-						<FluentLabel Typo="Typography.Body">Name: @_createdAccount.Name</FluentLabel>
-						<FluentLabel Typo="Typography.Body">Department: @_createdAccount.Department</FluentLabel>
-						<FluentLabel Typo="Typography.Body">Region: @_createdAccount.Region</FluentLabel>
-						<FluentLabel Typo="Typography.Body">Siemens login: @_createdAccount.Email</FluentLabel>
-						<FluentLabel Typo="Typography.Body">Invitation email: @_createdAccount.InvitationEmail</FluentLabel>
+						<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@Text["Account created"]</FluentLabel>
+						<FluentLabel Typo="Typography.Body">@Text.Format("Name: {0}", _createdAccount.Name)</FluentLabel>
+						<FluentLabel Typo="Typography.Body">@Text.Format("Department: {0}", _createdAccount.Department)</FluentLabel>
+						<FluentLabel Typo="Typography.Body">@Text.Format("Region: {0}", _createdAccount.Region)</FluentLabel>
+						<FluentLabel Typo="Typography.Body">@Text.Format("Siemens login: {0}", _createdAccount.Email)</FluentLabel>
+						<FluentLabel Typo="Typography.Body">@Text.Format("Invitation email: {0}", _createdAccount.InvitationEmail)</FluentLabel>
 						@if (_createdAccount.EmailDelivered)
 						{
-							<FluentLabel Typo="Typography.Body">A password setup email was sent to the employee.</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text["A password setup email was sent to the employee."]</FluentLabel>
 						}
 						else
 						{
-							<FluentLabel Typo="Typography.Body">SMTP is not configured. Use this development-only setup link:</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text["SMTP is not configured. Use this development-only setup link:"]</FluentLabel>
 							<FluentAnchor Href="@_createdAccount.DevelopmentSetupLink"
-										  Appearance="Appearance.Hypertext">Set password</FluentAnchor>
+										  Appearance="Appearance.Hypertext">@Text["Set password"]</FluentAnchor>
 						}
 					</FluentStack>
 				</FluentMessageBar>
@@ -115,61 +116,66 @@ else
 		@if (CanManageSelectedRegion)
 		{
 			<FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false">
-				Managing your assigned region, <strong>@GetRegionName(_adminRegionId)</strong>.
+				@Text.Format("Managing your assigned region, {0}.", GetRegionName(_adminRegionId))
 			</FluentMessageBar>
 		}
 		else
 		{
 			<FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false">
-				Previewing <strong>@GetRegionName(_regionFilterId.Value)</strong> in read-only mode.
-				Only an administrator assigned to that region can make changes.
+				@Text.Format("Previewing {0} in read-only mode.", GetRegionName(_regionFilterId.Value))
+				@Text["Only an administrator assigned to that region can make changes."]
 			</FluentMessageBar>
 		}
 	}
 	else
 	{
 		<FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false">
-			Previewing all regions. Employees outside <strong>@GetRegionName(_adminRegionId)</strong> are read-only.
+			@Text.Format("Previewing all regions. Employees outside {0} are read-only.", GetRegionName(_adminRegionId))
 		</FluentMessageBar>
 	}
 
 	<FluentSearch @bind-Value="_quickSearch" @bind-Value:after="StateHasChanged"
-				  Placeholder="Search users or contracts..." Style="width:320px; margin:16px 0 8px;" />
+				  Placeholder="@Text["Search users or contracts..."]" Style="width:320px; margin:16px 0 8px;" />
 
 	@* Explicit column widths: the department and region cells hold real editors, and left to
 	   auto-sizing they push past their column and overlap the next one. *@
 	<FluentDataGrid Items="@FilteredUsers" TGridItem="User" ResizableColumns="true"
 					ShowHover="true" Pagination="@_pagination"
 					GridTemplateColumns="1.2fr 1.6fr 0.8fr 1fr 1.6fr 1.3fr 1.1fr 0.5fr">
-		<PropertyColumn Title="Name" Property="@(u => u.Name)" Sortable="true"
+		<EmptyContent>
+		    <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+		                 CustomColor="var(--neutral-foreground-hint)">@Text["No employee matches this search."]</FluentLabel>
+		</EmptyContent>
+	<ChildContent>
+		<PropertyColumn Title="@Text["Name"]" Property="@(u => u.Name)" Sortable="true"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fName))">
 			<ColumnOptions>
 				<FluentSearch @bind-Value="_fName" @bind-Value:after="StateHasChanged"
-							  Placeholder="Filter by name" AutoFocus="true" />
+							  Placeholder="@Text["Filter by name"]" AutoFocus="true" />
 			</ColumnOptions>
 		</PropertyColumn>
 
-		<PropertyColumn Title="Email" Property="@(u => u.Email)" Sortable="true"
+		<PropertyColumn Title="@Text["Email"]" Property="@(u => u.Email)" Sortable="true"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fEmail))">
 			<ColumnOptions>
 				<FluentSearch @bind-Value="_fEmail" @bind-Value:after="StateHasChanged"
-							  Placeholder="Filter by email" AutoFocus="true" />
+							  Placeholder="@Text["Filter by email"]" AutoFocus="true" />
 			</ColumnOptions>
 		</PropertyColumn>
 
-		<PropertyColumn Title="Role" Property="@(u => u.Role)" Sortable="true"
+		<PropertyColumn Title="@Text["Role"]" Property="@(u => u.Role)" Sortable="true"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fRole))">
 			<ColumnOptions>
 				<FluentSearch @bind-Value="_fRole" @bind-Value:after="StateHasChanged"
-							  Placeholder="Filter by role" AutoFocus="true" />
+							  Placeholder="@Text["Filter by role"]" AutoFocus="true" />
 			</ColumnOptions>
 		</PropertyColumn>
 
-		<TemplateColumn Title="Contract Type" Sortable="true" SortBy="@_byContractType"
+		<TemplateColumn Title="@Text["Contract Type"]" Sortable="true" SortBy="@_byContractType"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fContract))">
 			<ColumnOptions>
 				<FluentSearch @bind-Value="_fContract" @bind-Value:after="StateHasChanged"
-							  Placeholder="Filter by type or status" AutoFocus="true" />
+							  Placeholder="@Text["Filter by type or status"]" AutoFocus="true" />
 			</ColumnOptions>
 			<ChildContent>
 			@{
@@ -177,20 +183,20 @@ else
 			}
 			@if (typeContract == null)
 			{
-				<FluentBadge Appearance="Appearance.Neutral">No Contract</FluentBadge>
+				<FluentBadge Appearance="Appearance.Neutral">@Text["No Contract"]</FluentBadge>
 			}
 			else if (typeContract.Type == ContractType.Determinate)
 			{
-				<FluentBadge Appearance="Appearance.Lightweight">Determinate</FluentBadge>
+				<FluentBadge Appearance="Appearance.Lightweight">@Text["Determinate"]</FluentBadge>
 			}
 			else
 			{
-				<FluentBadge Appearance="Appearance.Accent">Indeterminate</FluentBadge>
+				<FluentBadge Appearance="Appearance.Accent">@Text["Indeterminate"]</FluentBadge>
 			}
 			</ChildContent>
 		</TemplateColumn>
 
-		<TemplateColumn Title="Contract Period &amp; Status" Sortable="true" SortBy="@_byContractStatus">
+		<TemplateColumn Title="@Text["Contract Period & Status"]" Sortable="true" SortBy="@_byContractStatus">
 			@{
 				var periodContract = GetActiveContract(context);
 			}
@@ -199,11 +205,11 @@ else
 				<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="6"
 							 VerticalAlignment="VerticalAlignment.Center">
 					<FluentBadge Fill="highlight" BackgroundColor="@StatusColor(periodContract.Status)" Color="white">
-						@periodContract.Status
+						@Text[periodContract.Status.ToString()]
 					</FluentBadge>
 					<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
-						@periodContract.StartDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) –
-						@(periodContract.EndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
+						@periodContract.StartDate.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) –
+						@(periodContract.EndDate?.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) ?? Text["Indefinite"])
 					</FluentLabel>
 				</FluentStack>
 			}
@@ -213,11 +219,11 @@ else
 			}
 		</TemplateColumn>
 
-		<TemplateColumn Title="Department" Sortable="true" SortBy="@_byDepartment"
+		<TemplateColumn Title="@Text["Department"]" Sortable="true" SortBy="@_byDepartment"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fDepartment))">
 			<ColumnOptions>
 				<FluentSearch @bind-Value="_fDepartment" @bind-Value:after="StateHasChanged"
-							  Placeholder="Filter by department" AutoFocus="true" />
+							  Placeholder="@Text["Filter by department"]" AutoFocus="true" />
 			</ColumnOptions>
 			<ChildContent>
 			<FluentCombobox TOption="DepartmentOption"
@@ -231,11 +237,11 @@ else
 			</ChildContent>
 		</TemplateColumn>
 
-		<TemplateColumn Title="Region" Sortable="true" SortBy="@_byRegion"
+		<TemplateColumn Title="@Text["Region"]" Sortable="true" SortBy="@_byRegion"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fRegion))">
 			<ColumnOptions>
 				<FluentSearch @bind-Value="_fRegion" @bind-Value:after="StateHasChanged"
-							  Placeholder="Filter by region" AutoFocus="true" />
+							  Placeholder="@Text["Filter by region"]" AutoFocus="true" />
 			</ColumnOptions>
 			<ChildContent>
 			<FluentSelect TOption="Region"
@@ -248,12 +254,13 @@ else
 			</ChildContent>
 		</TemplateColumn>
 
-		<TemplateColumn Title="Actions" Sortable="false" Align="Align.End">
-			<FluentButton Appearance="Appearance.Stealth" Title="Manage Contract"
+		<TemplateColumn Title="@Text["Actions"]" Sortable="false" Align="Align.End">
+			<FluentButton Appearance="Appearance.Stealth" Title="@Text["Manage Contract"]"
 						  IconStart="@(new Icons.Regular.Size20.ClipboardTextEdit())"
 						  OnClick="@(() => OpenEditContractDialog(context))"
 						  Disabled="@(!CanEditUser(context))" />
 		</TemplateColumn>
+		</ChildContent>
 	</FluentDataGrid>
 
 	<FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center" Width="100%">
@@ -291,11 +298,16 @@ else
 	public sealed record DepartmentOption(Guid Id, string Name);
 	public sealed record RegionOption(Guid Id, string Name);
 
-	private static readonly DepartmentOption NoDepartment = new(Guid.Empty, "None");
-	private static readonly RegionOption AllRegions = new(Guid.Empty, "All regions");
+	// Built once the localizer is available rather than in a field initializer, which runs
+	// before injection; a fresh instance per call would stop the pickers recognising their
+	// own selected option.
+	private DepartmentOption NoDepartment = new(Guid.Empty, "None");
+	private RegionOption AllRegions = new(Guid.Empty, "All regions");
 
-	private List<DepartmentOption> _departmentOptions = [NoDepartment];
-	private List<RegionOption> _regionFilterOptions = [AllRegions];
+	// Empty until LoadAsync runs, which is before anything renders — the placeholder entries
+	// above cannot be used here now that they are instance fields.
+	private List<DepartmentOption> _departmentOptions = [];
+	private List<RegionOption> _regionFilterOptions = [];
 
 	private IEnumerable<Region> ActiveRegions =>
 		_regions.Where(region => region.IsActive).OrderBy(region => region.Name);
@@ -332,7 +344,7 @@ else
 	{
 		var contract = GetActiveContract(u);
 		var contractText = contract is null
-			? "No Contract"
+			? Text["No Contract"]
 			: $"{contract.Type} {contract.Status}";
 
 		return Has(_fName, u.Name)
@@ -389,6 +401,9 @@ else
 
 	private async Task LoadAsync()
 	{
+		NoDepartment = new DepartmentOption(Guid.Empty, Text["None"]);
+		AllRegions = new RegionOption(Guid.Empty, Text["All regions"]);
+
 		_users = await Employees.GetAllUsersAsync();
 		_departments = await Employees.GetDepartmentsAsync();
 		_regions = await Employees.GetRegionsAsync();
@@ -424,7 +439,7 @@ else
 	{
 		if (!CanEditUser(user))
 		{
-			Toast.ShowWarning("Other regions are read-only.");
+			Toast.ShowWarning(Text["Other regions are read-only."]);
 			return;
 		}
 
@@ -437,8 +452,8 @@ else
 
 		var parameters = new DialogParameters
 		{
-			Title = "Manage Contract",
-			PrimaryAction = "Save",
+			Title = Text["Manage Contract"],
+			PrimaryAction = Text["Save"],
 			SecondaryAction = "Cancel",
 			Width = "520px",
 			// Keeps the dialog open with its own message when the entry is not usable.
@@ -452,7 +467,7 @@ else
 		if (!result.Cancelled && content.TryBuildResult() is { } res)
 		{
 			await Employees.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes);
-			Toast.ShowSuccess($"Contract updated for {user.Name}.");
+			Toast.ShowSuccess(Text.Format("Contract updated for {0}.", user.Name));
 			await LoadAsync();
 		}
 	}
@@ -466,7 +481,7 @@ else
 			return;
 
 		await Employees.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId);
-		Toast.ShowSuccess($"{user.Name} moved.");
+		Toast.ShowSuccess(Text.Format("{0} moved.", user.Name));
 		await LoadAsync();
 	}
 
@@ -481,11 +496,12 @@ else
 		var sourceRegion = GetRegionName(user.RegionId);
 		var destinationRegion = GetRegionName(region.Id);
 		var confirmation = await DialogService.ShowConfirmationAsync(
-			$"Are you sure you want to move {user.Name} from {sourceRegion} to {destinationRegion}? " +
-			"They will no longer appear in the source region's employee lists, and cross-region manager links will be removed.",
-			"Yes, transfer",
-			"Cancel",
-			"Confirm region transfer");
+			Text.Format(
+				"Are you sure you want to move {0} from {1} to {2}? They will no longer appear in the source region's employee lists, and cross-region manager links will be removed.",
+				user.Name, sourceRegion, destinationRegion),
+			Text["Yes, transfer"],
+			Text["Cancel"],
+			Text["Confirm region transfer"]);
 
 		var confirmed = await confirmation.Result;
 		if (confirmed.Cancelled)
@@ -497,7 +513,7 @@ else
 		try
 		{
 			await Employees.AssignUserToRegionAsync(_adminId, user.Id, region.Id);
-			Toast.ShowSuccess($"{user.Name} moved from {sourceRegion} to {destinationRegion}.");
+			Toast.ShowSuccess(Text.Format("{0} moved from {1} to {2}.", user.Name, sourceRegion, destinationRegion));
 			await LoadAsync();
 		}
 		catch (Exception exception)
@@ -515,25 +531,25 @@ else
 	{
 		if (string.IsNullOrWhiteSpace(_newEmployeeName))
 		{
-			Toast.ShowWarning("Employee name is required.");
+			Toast.ShowWarning(Text["Employee name is required."]);
 			return;
 		}
 
 		if (string.IsNullOrWhiteSpace(_newEmployeeInvitationEmail))
 		{
-			Toast.ShowWarning("Employee email is required.");
+			Toast.ShowWarning(Text["Employee email is required."]);
 			return;
 		}
 
 		if (_newEmployeeDepartmentId == null)
 		{
-			Toast.ShowWarning("Select a department.");
+			Toast.ShowWarning(Text["Select a department."]);
 			return;
 		}
 
 		if (_newEmployeeRegionId == null)
 		{
-			Toast.ShowWarning("Select a region.");
+			Toast.ShowWarning(Text["Select a region."]);
 			return;
 		}
 
@@ -557,9 +573,9 @@ else
 			await LoadAsync();
 
 			if (_createdAccount.EmailDelivered)
-				Toast.ShowSuccess("Employee account created and setup email sent.");
+				Toast.ShowSuccess(Text["Employee account created and setup email sent."]);
 			else
-				Toast.ShowWarning("Employee account created; SMTP is not configured.");
+				Toast.ShowWarning(Text["Employee account created; SMTP is not configured."]);
 		}
 		catch (Exception exception)
 		{
@@ -572,7 +588,7 @@ else
 	}
 
 	private string GetDepartmentName(Guid? id) =>
-		id == null ? "None" : _departments.FirstOrDefault(d => d.Id == id)?.Name ?? "";
+		id == null ? Text["None"] : _departments.FirstOrDefault(d => d.Id == id)?.Name ?? "";
 
 	private string GetRegionName(Guid id) =>
 		_regions.FirstOrDefault(region => region.Id == id)?.Name ?? "Unknown";

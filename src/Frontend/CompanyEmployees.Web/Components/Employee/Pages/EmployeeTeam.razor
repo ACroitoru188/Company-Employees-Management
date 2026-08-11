@@ -3,14 +3,16 @@
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
 @inject ITimeOffService TimeOff
+@inject AppLocalizer Text
 @inject NavigationManager Nav
 
-<PageTitle>Team · Time Off Management</PageTitle>
+<PageTitle>@Text["Team"] · @Text["Time Off Management"]</PageTitle>
 
-<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">My Team</FluentLabel>
+<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text["My Team"]</FluentLabel>
 <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" MarginBlock="4px 16px">
-    Your manager and the colleagues who share them, with their time off.
+    @Text["Your manager and the colleagues who share them, with their time off."]
 </FluentLabel>
 
 <FluentCard>
@@ -18,7 +20,7 @@
         @if (_team.Count == 0)
         {
             <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                You are not part of a team yet.
+                @Text["You are not part of a team yet."]
             </FluentLabel>
         }
         else
@@ -33,14 +35,14 @@
                         @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
                            rendered here explicitly above the secondary line. *@
                         <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@member.Name</FluentLabel>
-                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">@member.RoleLabel</FluentLabel>
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">@LocalizedRoleLabel(member.RoleLabel)</FluentLabel>
                     </FluentPersona>
 
                     @if (member.IsManager)
                     {
                         @* FluentBadge only accepts Accent, Lightweight or Neutral — anything
                            else throws out of OnParametersSet and takes the circuit with it. *@
-                        <FluentBadge Appearance="Appearance.Lightweight">Manager</FluentBadge>
+                        <FluentBadge Appearance="Appearance.Lightweight">@Text["Manager"]</FluentBadge>
                     }
 
                     <FluentSpacer />
@@ -51,23 +53,23 @@
                         <FluentBadge Fill="highlight"
                                      BackgroundColor="@LeaveTypePalette.Hex(type)"
                                      Color="white">
-                            @LeaveTypePalette.Label(type)
+                            @Text[type.ToString()]
                         </FluentBadge>
 
                         <FluentStack Orientation="Orientation.Vertical" VerticalGap="0"
                                      HorizontalAlignment="HorizontalAlignment.End" Width="160px">
                             <FluentLabel Typo="Typography.Body">
-                                @start.ToString("MMM d", CultureInfo.InvariantCulture) –
-                                @end.ToString("MMM d", CultureInfo.InvariantCulture)
+                                @start.ToString("MMM d", CultureInfo.CurrentCulture) –
+                                @end.ToString("MMM d", CultureInfo.CurrentCulture)
                             </FluentLabel>
                             <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
-                                @(start <= _today ? "On leave now" : "Upcoming leave")
+                                @(start <= _today ? Text["On leave now"] : Text["Upcoming leave"])
                             </FluentLabel>
                         </FluentStack>
                     }
                     else
                     {
-                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Available</FluentLabel>
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Text["Available"]</FluentLabel>
                     }
                 </FluentStack>
             }
@@ -88,5 +90,15 @@
             return;
 
         _team = await TimeOff.GetTeamRosterAsync();
+    }
+
+    // The label arrives already composed as "Role · Department" from DbTimeOffService. Only the
+    // role half has a translation; the department is a name the administrator typed.
+    // "Employee" needs its own key because it also names the Employee column elsewhere.
+    private string LocalizedRoleLabel(string label)
+    {
+        var parts = label.Split(" · ", 2, StringSplitOptions.None);
+        var roleKey = parts[0] == "Employee" ? "Employee role" : parts[0];
+        return parts.Length == 1 ? Text[roleKey] : $"{Text[roleKey]} · {parts[1]}";
     }
 }

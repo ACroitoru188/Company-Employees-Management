@@ -1,4 +1,6 @@
 @using System.Globalization
+@using CompanyEmployees.Web.Services
+@inject AppLocalizer Text
 @implements IDialogContentComponent<TimeOffRequest>
 
 <FluentDialogBody>
@@ -9,21 +11,21 @@
             <FluentBadge Fill="highlight"
                          BackgroundColor="@LeaveTypePalette.Hex(Content.Type)"
                          Color="white">
-                @LeaveTypePalette.Label(Content.Type)
+                @Text[Content.Type.ToString()]
             </FluentBadge>
             <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(Content.Status)" Color="white">
-                @Content.Status
+                @Text[Content.Status.ToString()]
             </FluentBadge>
         </FluentStack>
 
         <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">
-            @Content.StartDate.ToString("MMM d", CultureInfo.InvariantCulture) –
-            @Content.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-            (@Content.Days @(Content.Days == 1 ? "day" : "days"))
+            @Content.StartDate.ToString("MMM d", CultureInfo.CurrentCulture) –
+            @Content.EndDate.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)
+            (@Content.Days @Text[Content.Days == 1 ? "day" : "days"])
         </FluentLabel>
 
         <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
-            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Reason</FluentLabel>
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Text["Reason"]</FluentLabel>
             <FluentLabel Typo="Typography.Body">
                 @(string.IsNullOrWhiteSpace(Content.Reason) ? "—" : Content.Reason)
             </FluentLabel>
@@ -32,14 +34,14 @@
         <FluentDivider Role="DividerRole.Presentation" />
 
         <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-            Submitted @Content.SubmittedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
+            @Text.Format("Submitted {0}", Content.SubmittedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.CurrentCulture))
         </FluentLabel>
 
         @if (Content.Status is RequestStatus.Approved or RequestStatus.Rejected)
         {
             <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                Decided by @(Content.DecidedBy ?? "D. Novak")@(Content.DecidedAt is { } decided
-                    ? $" · {decided.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)}" : "")
+                @Text.Format("Decided by {0}{1}", Content.DecidedBy ?? "—", Content.DecidedAt is { } decided
+                    ? $" · {decided.ToString("MMM d, yyyy HH:mm", CultureInfo.CurrentCulture)}" : "")
             </FluentLabel>
         }
     </FluentStack>

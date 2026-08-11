@@ -544,6 +544,13 @@ fluent-select {
     background: var(--neutral-fill-secondary-rest);
 }
 
+/* The rail picker's prev/next arrows are 28px tall inside a 20px row. Nothing is cut — the row
+   does not clip — but they hang 8px past it, into the weekday names underneath. */
+.cal-rail .fluent-calendar .change-period {
+    height: auto;
+    align-items: center;
+}
+
 .cal-swatch {
     flex: 0 0 12px;
     width: 12px;
@@ -804,6 +811,25 @@ div.cal-surface .fluent-data-grid {
     font-size: var(--type-ramp-minus-1-font-size);
     line-height: 18px;
     pointer-events: none;
+}
+
+/* ---- Loading indicators ---------------------------------------------------------------
+
+   Eight pages render a progress ring while their first load runs. Against a local database that
+   load takes about four milliseconds — measured on /manager/delegation-history, the ring was
+   added at 20ms and removed at 24ms — so every navigation blinked a spinner for a single frame.
+   That flicker is what a button press looked like it was doing.
+
+   The ring is held invisible for the first 250ms and only then fades in: a fast page shows
+   nothing at all, a genuinely slow one still explains itself. No page had to change.
+------------------------------------------------------------------------------------- */
+fluent-progress-ring {
+    opacity: 0;
+    animation: spinner-appears 120ms ease-out 250ms forwards;
+}
+
+@keyframes spinner-appears {
+    to { opacity: 1; }
 }
 
 /* ---- Blazor framework UI ------------------------------------------------------------

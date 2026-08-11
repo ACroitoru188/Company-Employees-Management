@@ -62,6 +62,11 @@ else
 {
     <FluentDataGrid Items="@_result.Items.AsQueryable()" TGridItem="DelegationHistoryEntry"
                     ShowHover="true" Style="margin-top:16px;">
+        <EmptyContent>
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                         CustomColor="var(--neutral-foreground-hint)">Nothing recorded for this view yet.</FluentLabel>
+        </EmptyContent>
+    <ChildContent>
         <PropertyColumn Title="When" Property="@(e => e.When)" Format="MMM d, yyyy HH:mm" />
 
         <TemplateColumn Title="Action">
@@ -77,6 +82,7 @@ else
         <TemplateColumn Title="Details">
             @(string.IsNullOrWhiteSpace(context.Details) ? "—" : context.Details)
         </TemplateColumn>
+        </ChildContent>
     </FluentDataGrid>
 
     @if (PageCount > 1)

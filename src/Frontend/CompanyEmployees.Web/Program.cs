@@ -14,6 +14,7 @@ using CompanyEmployees.Web.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.FluentUI.AspNetCore.Components;
 using System.Security.Claims;
@@ -28,6 +29,9 @@ builder.Services.AddScoped<ThemeState>();
 builder.Services.AddScoped<EmployeeAccountService>();
 builder.Services.AddScoped<ActingContext>();
 builder.Services.AddScoped<EmployeeCsvExportService>();
+builder.Services.AddScoped<LanguagePreferenceService>();
+// Singleton: the translation files are read once at startup and never change at runtime.
+builder.Services.AddSingleton<AppLocalizer>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IAccountEmailSender, SmtpAccountEmailSender>();
 builder.Services.AddControllers();
@@ -69,6 +73,24 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 var app = builder.Build();
+
+// The language is carried by the standard culture cookie, written either at login (from the
+// account's saved preference) or by the picker in the layout. No other provider is registered:
+// the browser's Accept-Language must not override a choice the employee made explicitly.
+var supportedCultures = SupportedLanguages.All
+    .Select(language => new System.Globalization.CultureInfo(language.Culture))
+    .ToArray();
+
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture(SupportedLanguages.DefaultCulture),
+    SupportedCultures = supportedCultures,
+    SupportedUICultures = supportedCultures,
+    RequestCultureProviders =
+    [
+        new CookieRequestCultureProvider()
+    ]
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -122,6 +144,19 @@ app.MapPost("/api/auth/login", async (HttpContext context,
     if(regionMatches)
     {
         await signInManager.SignInAsync(account!, isPersistent: true);
+
+        // The saved preference follows the account, so signing in on another machine restores
+        // the employee's language instead of whatever that browser last used.
+        var culture = SupportedLanguages.Normalize(account!.PreferredCulture);
+        context.Response.Cookies.Append(
+            CookieRequestCultureProvider.DefaultCookieName,
+            CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(culture)),
+            new CookieOptions
+            {
+                Expires = DateTimeOffset.UtcNow.AddYears(1),
+                IsEssential = true,
+                SameSite = SameSiteMode.Lax
+            });
 
         var destination = await userManager.Users
             .Where(u => u.NormalizedUserName == email.ToUpperInvariant())

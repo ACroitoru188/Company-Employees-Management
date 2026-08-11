@@ -6,11 +6,13 @@
 @using CompanyEmployees.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
+@inject AppLocalizer Text
 @inject NavigationManager Nav
 @inject IToastService Toast
 
-<PageTitle>Departments · Admin</PageTitle>
+<PageTitle>@Text["Departments"] · @Text["Admin"]</PageTitle>
 
 @if (!_authorized)
 {
@@ -18,23 +20,28 @@
 }
 else
 {
-	<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" MarginBlock="0 16px">Departments</FluentLabel>
+	<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" MarginBlock="0 16px">@Text["Departments"]</FluentLabel>
 
 	<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
 				 HorizontalGap="12" Wrap="true" Width="100%">
 		<FluentSearch @bind-Value="_quickSearch" @bind-Value:after="StateHasChanged"
-					  Placeholder="Search department..." Style="width:280px;" />
+					  Placeholder="@Text["Search department..."]" Style="width:280px;" />
 		<FluentSpacer />
 	</FluentStack>
 
 	<FluentDataGrid Items="@FilteredDepartments" TGridItem="Department" ResizableColumns="true"
 					ShowHover="true" Pagination="@_pagination" Style="margin-top:12px;"
 					GridTemplateColumns="2fr 2fr 0.7fr 0.5fr">
-		<TemplateColumn Title="Name" Sortable="true" SortBy="@_byName"
+		<EmptyContent>
+		    <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+		                 CustomColor="var(--neutral-foreground-hint)">@Text["No department matches this search."]</FluentLabel>
+		</EmptyContent>
+	<ChildContent>
+		<TemplateColumn Title="@Text["Name"]" Sortable="true" SortBy="@_byName"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fName))">
 			<ColumnOptions>
 				<FluentSearch @bind-Value="_fName" @bind-Value:after="StateHasChanged"
-							  Placeholder="Filter by name" AutoFocus="true" />
+							  Placeholder="@Text["Filter by name"]" AutoFocus="true" />
 			</ColumnOptions>
 			<ChildContent>
 			@* Immediate binding would save on every keystroke, so the value is written to the
@@ -46,11 +53,11 @@ else
 			</ChildContent>
 		</TemplateColumn>
 
-		<TemplateColumn Title="Manager" Sortable="true" SortBy="@_byManager"
+		<TemplateColumn Title="@Text["Manager"]" Sortable="true" SortBy="@_byManager"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fManager))">
 			<ColumnOptions>
 				<FluentSearch @bind-Value="_fManager" @bind-Value:after="StateHasChanged"
-							  Placeholder="Filter by manager" AutoFocus="true" />
+							  Placeholder="@Text["Filter by manager"]" AutoFocus="true" />
 			</ColumnOptions>
 			<ChildContent>
 			<FluentCombobox TOption="ManagerOption"
@@ -63,13 +70,14 @@ else
 			</ChildContent>
 		</TemplateColumn>
 
-		<PropertyColumn Title="Members" Property="@(d => d.Members.Count)" />
+		<PropertyColumn Title="@Text["Members"]" Property="@(d => d.Members.Count)" />
 
 		<TemplateColumn Sortable="false" Align="Align.End">
-			<FluentButton Appearance="Appearance.Stealth" Title="Delete department"
+			<FluentButton Appearance="Appearance.Stealth" Title="@Text["Delete department"]"
 						  IconStart="@(new Icons.Regular.Size20.Delete().WithColor("var(--error)"))"
 						  OnClick="@(() => DeleteDepartmentAsync(context))" />
 		</TemplateColumn>
+		</ChildContent>
 	</FluentDataGrid>
 
 	<FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center"
@@ -79,11 +87,11 @@ else
 
 	<FluentCard Style="margin-top:24px; padding:16px;">
 		<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
-			<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">New department</FluentLabel>
+			<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@Text["New department"]</FluentLabel>
 			<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
 						 VerticalAlignment="VerticalAlignment.Bottom">
-				<FluentTextField @bind-Value="_newName" Label="Name" />
-				<FluentCombobox TOption="ManagerOption" Label="Manager"
+				<FluentTextField @bind-Value="_newName" Label="@Text["Name"]" />
+				<FluentCombobox TOption="ManagerOption" Label="@Text["Manager"]"
 								Items="@_managerOptions"
 								OptionValue="@(option => option.Id.ToString())"
 								OptionText="@(option => option.Name)"
@@ -91,7 +99,7 @@ else
 								SelectedOption="@OptionFor(_newManagerId)"
 								SelectedOptionChanged="@(option => _newManagerId = ToManagerId(option))"
 								Style="min-width:200px;" />
-				<FluentButton Appearance="Appearance.Accent" OnClick="CreateDepartmentAsync">Add</FluentButton>
+				<FluentButton Appearance="Appearance.Accent" OnClick="CreateDepartmentAsync">@Text["Add"]</FluentButton>
 			</FluentStack>
 		</FluentStack>
 	</FluentCard>
@@ -117,8 +125,11 @@ else
 	// "no manager" needs a real entry: Guid.Empty stands in for null on the way in and out.
 	private sealed record ManagerOption(Guid Id, string Name);
 
-	private static readonly ManagerOption NoManager = new(Guid.Empty, "None");
-	private List<ManagerOption> _managerOptions = [NoManager];
+	// One instance, created once the localizer is available: a field initializer runs before
+	// injection, and returning a fresh record per call would stop the combobox recognising
+	// its own selected option.
+	private ManagerOption _noManager = new(Guid.Empty, "None");
+	private List<ManagerOption> _managerOptions = [];
 
 	// SortBy on a TemplateColumn needs the comparer up front; both are stable across renders.
 	private readonly GridSort<Department> _byName = GridSort<Department>.ByAscending(d => d.Name);
@@ -163,18 +174,19 @@ else
 
 	private async Task LoadAsync()
 	{
+		_noManager = new ManagerOption(Guid.Empty, Text["None"]);
 		_departments = await Employees.GetDepartmentsAsync();
 		_users = await Employees.GetAllUsersAsync();
 		_managerOptions = _lineManagers
 			.Select(manager => new ManagerOption(manager.Id, manager.Name))
-			.Prepend(NoManager)
+			.Prepend(_noManager)
 			.ToList();
 	}
 
 	private async Task SaveDepartmentAsync(Department dept)
 	{
 		await Employees.UpdateDepartmentAsync(dept.Id, dept.Name, dept.ManagerId);
-		Toast.ShowSuccess("Department updated.");
+		Toast.ShowSuccess(Text["Department updated."]);
 		await LoadAsync();
 	}
 
@@ -188,11 +200,11 @@ else
 	{
 		if (string.IsNullOrWhiteSpace(_newName))
 		{
-			Toast.ShowWarning("Name is required.");
+			Toast.ShowWarning(Text["Name is required."]);
 			return;
 		}
 		await Employees.CreateDepartmentAsync(_newName, _newManagerId);
-		Toast.ShowSuccess("Department created.");
+		Toast.ShowSuccess(Text["Department created."]);
 		_newName = "";
 		_newManagerId = null;
 		await LoadAsync();
@@ -201,15 +213,15 @@ else
 	private async Task DeleteDepartmentAsync(Department dept)
 	{
 		await Employees.DeleteDepartmentAsync(dept.Id);
-		Toast.ShowSuccess("Department deleted.");
+		Toast.ShowSuccess(Text["Department deleted."]);
 		await LoadAsync();
 	}
 
 	private string GetManagerName(Guid? id) =>
-		id == null ? "None" : _lineManagers.FirstOrDefault(m => m.Id == id)?.Name ?? "";
+		id == null ? Text["None"] : _lineManagers.FirstOrDefault(m => m.Id == id)?.Name ?? "";
 
 	private ManagerOption OptionFor(Guid? id) =>
-		id is null ? NoManager : _managerOptions.FirstOrDefault(option => option.Id == id) ?? NoManager;
+		id is null ? _noManager : _managerOptions.FirstOrDefault(option => option.Id == id) ?? _noManager;
 
 	private static Guid? ToManagerId(ManagerOption? option) =>
 		option is null || option.Id == Guid.Empty ? null : option.Id;
