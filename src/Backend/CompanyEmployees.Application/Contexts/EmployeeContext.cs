@@ -139,6 +139,27 @@ namespace CompanyEmployees.Application.Contexts
                     subordinates.Add(nodeMap[u.Id]);
                 }
             }
+            else if (parentNode.Role == "Admin" && isAdmin)
+            {
+                var children = activeUsers.Where(u => u.ManagerId == parentNode.UserId).ToList();
+                var deptGroups = children.GroupBy(c => string.IsNullOrWhiteSpace(c.Department?.Name) ? "No Department" : c.Department.Name).OrderBy(g => g.Key);
+                foreach (var group in deptGroups)
+                {
+                    var deptName = group.Key;
+                    var deptNode = new OrgChartNode
+                    {
+                        UserId = Guid.NewGuid(),
+                        Name = deptName,
+                        Role = "Department",
+                        Department = deptName,
+                        Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
+                        ManagerId = parentNode.UserId,
+                        HasUnloadedChildren = true,
+                        IsExpanded = false
+                    };
+                    subordinates.Add(deptNode);
+                }
+            }
             else
             {
                 var children = activeUsers.Where(u => u.ManagerId == parentNode.UserId).ToList();
