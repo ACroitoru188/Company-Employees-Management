@@ -130,10 +130,29 @@ namespace CompanyEmployees.Application.Contexts
             return await _holidayProvider.GetHolidaysAsync(user.Region.Code, year);
         }
 
-        // Approved leave of the user's team (same manager, excluding the user,
-        // plus the manager themself) that touches the [from, to] interval.
+        // Employees see approved leave for their peers. Line managers instead see
+        // pending and approved requests for their direct reports, so the calendar
+        // exposes staffing conflicts before an approval decision is made.
         public async Task<List<LeaveRequest>> GetTeamRequestsAsync(Guid userId, DateOnly from, DateOnly to)
         {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            if (user.Role == UserRole.LineManager)
+            {
+                var directReports = await _userGateway.GetDirectReportsAsync(userId);
+                var directReportIds = directReports
+                    .Where(report => report.RegionId == user.RegionId)
+                    .Select(report => report.Id)
+                    .ToList();
+
+                return directReportIds.Count == 0
+                    ? []
+                    : await _leaveRequestGateway.GetActiveRequestsForUsersAsync(
+                        directReportIds, from, to);
+            }
+
             var team = await GetTeamMembersAsync(userId);
 
             var teamIds = new List<Guid>();
@@ -638,10 +657,103 @@ namespace CompanyEmployees.Application.Contexts
                 CreatedAt = DateTime.UtcNow
             };
             await _leaveRequestGateway.CreateRequestAsync(request);
+            await TryWarnManagerAboutLowAvailabilityAsync(requester, request);
 
             _logger.LogInformation("User {UserId} submitted a {Type} leave request {Start}–{End}{AutoApproved}.",
                 userId, type, start, end, requirement.AutoApproved ? " (auto-approved)" : "");
             return request;
+        }
+
+        private async Task TryWarnManagerAboutLowAvailabilityAsync(
+            User requester,
+            LeaveRequest submittedRequest)
+        {
+            try
+            {
+                await WarnManagerAboutLowAvailabilityAsync(requester, submittedRequest);
+            }
+            catch (Exception exception)
+            {
+                // The request is already saved. Conflict notifications are best-effort.
+                _logger.LogWarning(exception,
+                    "Could not evaluate or send a low-availability warning for request {RequestId}.",
+                    submittedRequest.Id);
+            }
+        }
+
+        private async Task WarnManagerAboutLowAvailabilityAsync(
+            User requester,
+            LeaveRequest submittedRequest)
+        {
+            if (requester.ManagerId is not { } managerId)
+                return;
+
+            var manager = await _userGateway.GetUserByIdAsync(managerId);
+            if (manager == null
+                || manager.Role != UserRole.LineManager
+                || manager.RegionId != requester.RegionId)
+                return;
+
+            var team = (await _userGateway.GetDirectReportsAsync(managerId))
+                .Where(member => member.RegionId == manager.RegionId)
+                .ToList();
+            if (team.Count == 0)
+                return;
+
+            var requests = await _leaveRequestGateway.GetActiveRequestsForUsersAsync(
+                team.Select(member => member.Id).ToList(),
+                submittedRequest.StartDate,
+                submittedRequest.EndDate);
+
+            var holidays = new HashSet<DateOnly>();
+            for (var year = submittedRequest.StartDate.Year;
+                 year <= submittedRequest.EndDate.Year;
+                 year++)
+            {
+                foreach (var holiday in await _holidayProvider.GetHolidaysAsync(
+                             requester.Region.Code, year))
+                    holidays.Add(holiday.Date);
+            }
+
+            var warningDates = new List<DateOnly>();
+            var maximumUnavailable = 0;
+            for (var day = submittedRequest.StartDate;
+                 day <= submittedRequest.EndDate;
+                 day = day.AddDays(1))
+            {
+                if (day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday
+                    || holidays.Contains(day))
+                    continue;
+
+                var unavailable = requests
+                    .Where(request => request.StartDate <= day && request.EndDate >= day)
+                    .Select(request => request.UserId)
+                    .Distinct()
+                    .Count();
+
+                if (!TeamAvailabilityPolicy.IsBelowMinimum(team.Count, unavailable))
+                    continue;
+
+                warningDates.Add(day);
+                maximumUnavailable = Math.Max(maximumUnavailable, unavailable);
+            }
+
+            if (warningDates.Count == 0)
+                return;
+
+            var firstDate = warningDates[0];
+            var lastDate = warningDates[^1];
+            var availability = TeamAvailabilityPolicy.AvailabilityPercent(
+                team.Count, maximumUnavailable);
+            var period = firstDate == lastDate
+                ? $"on {firstDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}"
+                : $"from {firstDate.ToString("MMM d", CultureInfo.InvariantCulture)} "
+                  + $"to {lastDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
+            var message = $"Low team availability: only {availability}% of the team is available {period}. "
+                + $"{maximumUnavailable} of {team.Count} members have pending or approved leave. "
+                + "Review before approving.";
+
+            await _notifications.SendNotificationAsync(managerId, message, "/manager/team");
         }
 
         public async Task UpdateRequestDatesAsync(Guid requestId, DateOnly newStart, DateOnly newEnd)
@@ -680,6 +792,7 @@ namespace CompanyEmployees.Application.Contexts
             request.StartDate = newStart;
             request.EndDate = newEnd;
             await _leaveRequestGateway.UpdateRequestDatesAsync(request);
+            await TryWarnManagerAboutLowAvailabilityAsync(requester, request);
 
             _logger.LogInformation("Leave request {RequestId} dates updated to {Start}–{End}.",
                 requestId, newStart, newEnd);
