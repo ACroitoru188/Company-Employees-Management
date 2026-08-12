@@ -16,7 +16,7 @@
         <MudText Typo="Typo.subtitle1" Style="font-weight:600;">
             @Request.StartDate.ToString("d", CultureInfo.CurrentCulture) –
             @Request.EndDate.ToString("d", CultureInfo.CurrentCulture)
-            (@Request.Days @Text[Request.Days == 1 ? "day" : "days"])
+            (@Request.Days @Text[Request.Days == 1 ? "working day" : "working days"])
         </MudText>
 
         <MudText Typo="Typo.body2" Class="mt-3" Style="color:var(--mud-palette-text-secondary);">@Text["Reason"]</MudText>

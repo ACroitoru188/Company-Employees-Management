@@ -64,6 +64,7 @@ namespace CompanyEmployees.Application.Contexts
             var holidays = (await _holidayProvider.GetHolidaysAsync(user.Region.Code, year))
                 .Select(holiday => holiday.Date)
                 .ToHashSet();
+            var annualCarryOver = await GetAnnualCarryOverAsync(user, year, requests);
 
             var balances = new List<LeaveBalanceResult>();
             foreach (var allocation in allocations)
@@ -77,11 +78,47 @@ namespace CompanyEmployees.Application.Contexts
                 balances.Add(new LeaveBalanceResult
                 {
                     Type = allocation.LeaveType,
-                    DaysTotal = allocation.NumberOfDays,
-                    DaysUsed = daysUsed
+                    DaysTotal = allocation.NumberOfDays
+                        + (allocation.LeaveType == LeaveType.Annual ? annualCarryOver : 0),
+                    DaysUsed = daysUsed,
+                    CarriedOverDays = allocation.LeaveType == LeaveType.Annual
+                        ? annualCarryOver
+                        : 0
                 });
             }
             return balances;
+        }
+
+        private async Task<int> GetAnnualCarryOverAsync(
+            User user,
+            int year,
+            IReadOnlyCollection<LeaveRequest> requests)
+        {
+            var previousYear = year - 1;
+            var previousAnnualAllocation = (await _leaveRequestGateway
+                    .GetAllocationsByUserAsync(user.Id, previousYear))
+                .FirstOrDefault(allocation => allocation.LeaveType == LeaveType.Annual);
+
+            // No allocation means the employee had no annual entitlement in that year.
+            if (previousAnnualAllocation == null)
+                return 0;
+
+            var previousYearHolidays = (await _holidayProvider
+                    .GetHolidaysAsync(user.Region.Code, previousYear))
+                .Select(holiday => holiday.Date)
+                .ToHashSet();
+            var previousYearUsed = requests
+                .Where(request => request.Status == LeaveStatus.Approved
+                                  && request.Type == LeaveType.Annual
+                                  && request.StartDate.Year == previousYear)
+                .Sum(request => CountWorkingDays(
+                    request.StartDate,
+                    request.EndDate,
+                    previousYearHolidays));
+
+            return LeaveAllocationPolicy.AnnualCarryOverDays(
+                previousAnnualAllocation.NumberOfDays,
+                previousYearUsed);
         }
 
         public async Task<IReadOnlyList<PublicHoliday>> GetRegionalHolidaysAsync(Guid userId, int year)
@@ -369,7 +406,7 @@ namespace CompanyEmployees.Application.Contexts
                     Type = request.Type.ToString(),
                     StartDate = request.StartDate,
                     EndDate = request.EndDate,
-                    Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
+                    Days = await CountWorkingDaysAsync(hrUser, request.StartDate, request.EndDate),
                     WaitingDays = waiting,
                     Role = request.User.Role.ToString(),
                     Reason = request.Reason,

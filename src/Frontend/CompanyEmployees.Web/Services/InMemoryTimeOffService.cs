@@ -22,7 +22,7 @@ public class InMemoryTimeOffService : ITimeOffService
 
         _balances =
         [
-            new LeaveBalance { Type = LeaveType.Annual, DaysUsed = 9, DaysTotal = 24 },
+            new LeaveBalance { Type = LeaveType.Annual, DaysUsed = 9, DaysTotal = 24, CarriedOverDays = 3 },
             new LeaveBalance { Type = LeaveType.Sick, DaysUsed = 10, DaysTotal = 10 },
             new LeaveBalance { Type = LeaveType.Parental, DaysUsed = 0, DaysTotal = 16 },
             new LeaveBalance { Type = LeaveType.Unpaid, DaysUsed = 1, DaysTotal = 5 }

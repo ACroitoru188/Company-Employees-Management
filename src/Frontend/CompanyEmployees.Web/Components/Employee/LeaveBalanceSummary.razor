@@ -26,8 +26,18 @@
                     <div class="d-flex align-baseline gap-1 mb-2">
                         <MudText Typo="Typo.h4" Style="font-weight:700;">@balance.Remaining</MudText>
                         <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-                            / @Text.Format("{0} days", balance.DaysTotal)
+                            / @Text.Format("{0} days", balance.BaseDays)
                         </MudText>
+                        @if (balance.CarriedOverDays > 0)
+                        {
+                            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-success); font-weight:600;">
+                                + @Text.Format("{0} days", balance.CarriedOverDays)
+                            </MudText>
+                            <MudTooltip Text="@Text.Format("{0} days carried over from last year", balance.CarriedOverDays)">
+                                <MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small"
+                                         Style="color:var(--mud-palette-text-secondary); vertical-align:middle;" />
+                            </MudTooltip>
+                        }
                     </div>
                     <MudProgressLinear Value="@(100.0 * balance.Remaining / balance.DaysTotal)"
                                        Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mb-2"

@@ -178,7 +178,7 @@ else
                                 }
                             </div>
                             <div class="req-desc">
-                                @request.Type &middot; @request.Days @(request.Days == 1 ? "day" : "days") &middot; @request.Department
+                                @request.Type &middot; @request.Days @(request.Days == 1 ? "working day" : "working days") &middot; @request.Department
                                 &middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)–@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
                             </div>
                         </div>
@@ -221,7 +221,7 @@ else
 
                             <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Period</MudText>
                             <MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-3">
-                                @request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy") (@request.Days @(request.Days == 1 ? "day" : "days"))
+                                @request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy") (@request.Days @(request.Days == 1 ? "working day" : "working days"))
                             </MudText>
 
                             <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">Submitted @request.SubmittedAt.ToString("dd.MM.yyyy - HH:mm")</MudText>

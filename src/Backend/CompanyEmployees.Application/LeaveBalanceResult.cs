@@ -8,5 +8,6 @@ namespace CompanyEmployees.Application
         public LeaveType Type { get; set; }
         public int DaysTotal { get; set; }
         public int DaysUsed { get; set; }
+        public int CarriedOverDays { get; set; }
     }
 }
