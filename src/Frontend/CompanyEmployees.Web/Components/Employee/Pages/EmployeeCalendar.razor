@@ -27,17 +27,16 @@
    picker: it sizes itself as eight fixed square cells, wraps its grid in an unnamed div, and
    owns its own selection model. Every one of those had to be overridden to make it behave as a
    month surface, and the overrides were most of this page's CSS. Seven columns of our own are
-   less code and answer to us. The picker stays in the rail, doing the job it was written for. *@
+   less code and answer to us.
+
+   The rail used to open with a second, miniature copy of that picker. Two calendars side by
+   side showing the same month is one calendar too many, and the toolbar's arrows and Today
+   already move the surface — so the rail is the leave types and the legend, nothing else. *@
 <FluentStack Class="cal-page" Orientation="Orientation.Horizontal" HorizontalGap="0"
              VerticalAlignment="VerticalAlignment.Stretch" Style="height:100%;">
 
     <FluentStack Class="cal-rail" Orientation="Orientation.Vertical" VerticalGap="20"
                  HorizontalAlignment="HorizontalAlignment.Stretch">
-
-        <FluentCalendar Class="cal-mini" Culture="@CalendarCulture"
-                        Value="@_anchor.ToDateTime(TimeOnly.MinValue)" ValueChanged="OnMiniPick"
-                        PickerMonth="@VisibleMonth.ToDateTime(TimeOnly.MinValue)"
-                        PickerMonthChanged="OnPickerMonthChanged" />
 
         @* The "My calendars" column of the reference: one row per leave type, each with its
            colour, and the balance where Teams puts the checkbox. Clicking one filters the
@@ -71,6 +70,36 @@
                     </FluentStack>
                 </FluentButton>
             }
+        </FluentStack>
+
+        @* What the two colours on the grid mean. The rail ended after the leave types and left a
+           tall empty column, and the grid meanwhile shades weekends and paints holidays red with
+           nothing anywhere saying so — a legend is the one thing that column was missing. Both
+           lines are keys the dictionary already carried in all 21 languages and nothing used. *@
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="6"
+                     HorizontalAlignment="HorizontalAlignment.Stretch">
+            <FluentLabel Typo="Typography.Body" Class="cal-rail-title app-overline"
+                         Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                @Text["Days heading"]
+            </FluentLabel>
+
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                         VerticalAlignment="VerticalAlignment.Center" Style="padding:0 4px;">
+                <FluentStack Class="cal-swatch cal-swatch-weekend" HorizontalGap="0" />
+                <FluentLabel Typo="Typography.Body" Class="app-caption"
+                             Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                    @Text["Weekend"]
+                </FluentLabel>
+            </FluentStack>
+
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                         VerticalAlignment="VerticalAlignment.Center" Style="padding:0 4px;">
+                <FluentStack Class="cal-swatch" HorizontalGap="0" Style="background:var(--error);" />
+                <FluentLabel Typo="Typography.Body" Class="app-caption cal-legend-text"
+                             Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                    @Text["National public holiday — non-working day"]
+                </FluentLabel>
+            </FluentStack>
         </FluentStack>
     </FluentStack>
 
@@ -268,9 +297,9 @@
 
                 @if (rows.Count == 0)
                 {
-                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                        @Text["No approved team leave this month."]
-                    </FluentLabel>
+                    <EmptyState Icon="@(new Icons.Regular.Size24.CalendarLtr())"
+                                Title="@Text["No approved team leave this month."]"
+                                Boxed="false" />
                 }
                 else
                 {
@@ -348,9 +377,9 @@
 
                 @if (listRows.Count == 0)
                 {
-                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                        @Text["No approved team leave this month."]
-                    </FluentLabel>
+                    <EmptyState Icon="@(new Icons.Regular.Size24.CalendarLtr())"
+                                Title="@Text["No approved team leave this month."]"
+                                Boxed="false" />
                 }
                 else
                 {
@@ -413,11 +442,18 @@
 
     private static readonly string[] ViewNames = Enum.GetNames<CalView>();
 
-    // The grid always starts on Monday whatever the language does, so the day names are read
-    // off the current culture in that fixed order rather than from its own FirstDayOfWeek.
-    // Not static: the culture is per request, and a static field would freeze whichever
-    // language happened to load the page first.
-    private static CultureInfo CalendarCulture => CultureInfo.CurrentCulture;
+    // The current language, with one thing overridden: the week starts on Monday, which is the
+    // order the grid is built in. Not static: the culture is per request, and a static field
+    // would freeze whichever language happened to load the page first.
+    private static CultureInfo CalendarCulture
+    {
+        get
+        {
+            var culture = (CultureInfo)CultureInfo.CurrentCulture.Clone();
+            culture.DateTimeFormat.FirstDayOfWeek = DayOfWeek.Monday;
+            return culture;
+        }
+    }
 
     private static string[] WeekdayHeaders =>
         Enumerable.Range(0, 7)
@@ -527,27 +563,6 @@
         _anchor = _view == CalView.Week
             ? _anchor.AddDays(7 * delta)
             : VisibleMonth.AddMonths(delta);
-        await LoadAsync();
-    }
-
-    // The rail's picker moves the surface, which is the only thing it is there for.
-    private async Task OnMiniPick(DateTime? picked)
-    {
-        if (picked is not { } value)
-            return;
-
-        _anchor = DateOnly.FromDateTime(value);
-        await LoadAsync();
-    }
-
-    // Fired by the rail picker's own arrows; without this they move its month but leave the
-    // surface on the old one.
-    private async Task OnPickerMonthChanged(DateTime month)
-    {
-        if (month.Year == _anchor.Year && month.Month == _anchor.Month)
-            return;
-
-        _anchor = new DateOnly(month.Year, month.Month, 1);
         await LoadAsync();
     }
 

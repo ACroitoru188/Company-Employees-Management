@@ -248,11 +248,11 @@ else
                                              HorizontalAlignment="HorizontalAlignment.End" Width="100%"
                                              Style="margin-top:16px;">
                                     <FluentButton Appearance="Appearance.Neutral"
-                                                  OnClick="@(() => EditDates(request))">EDIT DATES</FluentButton>
+                                                  OnClick="@(() => EditDates(request))">Edit dates</FluentButton>
                                     <FluentButton Appearance="Appearance.Neutral"
-                                                  OnClick="@(() => DecideAsync(request.RequestId, false))">REJECT</FluentButton>
+                                                  OnClick="@(() => DecideAsync(request.RequestId, false))">Reject</FluentButton>
                                     <FluentButton Appearance="Appearance.Accent"
-                                                  OnClick="@(() => DecideAsync(request.RequestId, true))">APPROVE</FluentButton>
+                                                  OnClick="@(() => DecideAsync(request.RequestId, true))">Approve</FluentButton>
                                 </FluentStack>
                             </ChildContent>
                         </FluentAccordionItem>
@@ -301,7 +301,7 @@ else
                 }
                 else
                 {
-                    <FluentBadge Appearance="Appearance.Accent">Indeterminate</FluentBadge>
+                    <FluentBadge Appearance="Appearance.Neutral">Indeterminate</FluentBadge>
                 }
             </TemplateColumn>
 

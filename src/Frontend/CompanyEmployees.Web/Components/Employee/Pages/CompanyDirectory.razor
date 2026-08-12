@@ -21,7 +21,9 @@
         <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
                      VerticalAlignment="VerticalAlignment.Center">
             <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">Global Organization Chart</FluentLabel>
-            <FluentBadge Appearance="Appearance.Accent">
+            @* A caption for the title, not something to press — so it stops wearing the colour
+               that means "press me". *@
+            <FluentBadge Appearance="Appearance.Neutral">
                 @(_currentLevel == HierarchyLevel.World ? "Level 1: Global Continents" : "Level 5: Site Org Chart")
             </FluentBadge>
         </FluentStack>
@@ -40,12 +42,16 @@
 
     <FluentSpacer />
 
-    <FluentButton Appearance="@(_currentLevel == HierarchyLevel.World ? Appearance.Accent : Appearance.Outline)"
+    @* A view switcher, not two actions. Accent here meant "this view is selected", which is the
+       same paint the app uses for "this is the thing to press" — so the page appeared to have two
+       primary buttons that happened to swap. Neutral for the selected side and stealth for the
+       other reads as one segmented control and gives the accent back to real actions. *@
+    <FluentButton Appearance="@(_currentLevel == HierarchyLevel.World ? Appearance.Neutral : Appearance.Stealth)"
                   IconStart="@(new Icons.Regular.Size20.Globe())"
                   OnClick="@(() => SwitchLevel(HierarchyLevel.World))">
         Global Map
     </FluentButton>
-    <FluentButton Appearance="@(_currentLevel == HierarchyLevel.SiteOrgChart ? Appearance.Accent : Appearance.Outline)"
+    <FluentButton Appearance="@(_currentLevel == HierarchyLevel.SiteOrgChart ? Appearance.Neutral : Appearance.Stealth)"
                   IconStart="@(new Icons.Regular.Size20.Organization())"
                   OnClick="@(() => SwitchLevel(HierarchyLevel.SiteOrgChart))">
         Org Tree
@@ -149,7 +155,11 @@
 
                         <FluentStack Orientation="Orientation.Horizontal" Width="100%"
                                      HorizontalAlignment="HorizontalAlignment.End">
-                            <FluentButton Appearance="Appearance.Accent"
+                            @* Outline, not accent. Six identical calls to action rendered in
+                               accent made every card shout at the same volume and left the page
+                               with no primary action at all; Fluent 2 asks for one primary per
+                               view and the outline appearance for repeated minor ones. *@
+                            <FluentButton Appearance="Appearance.Outline"
                                           IconEnd="@(new Icons.Regular.Size20.ArrowRight())"
                                           OnClick="@(() => OnContinentClick(continent))">
                                 Drill Down

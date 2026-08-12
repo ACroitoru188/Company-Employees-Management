@@ -40,14 +40,19 @@ else
 		</FluentAnchor>
 	</FluentStack>
 
-	<FluentCard Style="margin:16px 0 24px; padding:16px;">
-		<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
-			<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
-				<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@Text["Create employee account"]</FluentLabel>
-				<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-					@Text["Create employees in your assigned region. Their Siemens login and employee ID are generated automatically."]
-				</FluentLabel>
-			</FluentStack>
+	@* Folded away by default. Creating an account is something an administrator does occasionally,
+	   while reading the table is what this page is for — and the open form was pushing the grid a
+	   third of the way down the screen every single visit. It springs open on its own after a
+	   successful create, so the confirmation and its setup link are not hidden behind a chevron. *@
+	<FluentAccordion Style="margin:16px 0 24px;">
+		<FluentAccordionItem Heading="@Text["Create employee account"]" Expanded="@_createFormOpen">
+			<span slot="start">
+				<FluentIcon Value="@(new Icons.Regular.Size20.PersonAdd())" Color="Color.Neutral" />
+			</span>
+		<FluentStack Orientation="Orientation.Vertical" VerticalGap="12" Style="padding:8px 0 4px;">
+			<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+				@Text["Create employees in your assigned region. Their Siemens login and employee ID are generated automatically."]
+			</FluentLabel>
 
 			@if (!CanManageSelectedRegion)
 			{
@@ -56,34 +61,52 @@ else
 				</FluentMessageBar>
 			}
 
-			<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true"
-						 VerticalAlignment="VerticalAlignment.Bottom">
-				<FluentTextField @bind-Value="_newEmployeeName" Label="@Text["Full name"]"
-								 Style="min-width:260px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
-				<FluentTextField @bind-Value="_newEmployeeInvitationEmail" Label="@Text["Real email address"]"
-								 TextFieldType="TextFieldType.Email" Style="min-width:300px;"
-								 Disabled="@(_creating || !CanManageSelectedRegion)" />
-				<FluentSelect TOption="Department" Label="@Text["Department"]"
-							  Items="@_departments.OrderBy(d => d.Name)"
-							  OptionValue="@(d => d.Id.ToString())"
-							  OptionText="@(d => d.Name)"
-							  SelectedOption="@_departments.FirstOrDefault(d => d.Id == _newEmployeeDepartmentId)"
-							  SelectedOptionChanged="@(d => _newEmployeeDepartmentId = d?.Id)"
-							  Style="min-width:220px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
+			@* A grid, not a wrapping row. A Fluent field renders its label and its control as two
+			   siblings, so a wrapping flex row is free to break between them — which is exactly
+			   what happened: "Department" stayed on the first line and its select dropped to the
+			   second, leaving a label pointing at nothing and a stray "Design" box below. A grid
+			   item is one box per field, so the two can never be separated, and the fields line
+			   up in columns instead of packing left to right. *@
+			<FluentGrid Spacing="3">
+				<FluentGridItem xs="12" sm="6" md="3">
+					<FluentTextField @bind-Value="_newEmployeeName" Label="@Text["Full name"]"
+									 Style="width:100%;" Disabled="@(_creating || !CanManageSelectedRegion)" />
+				</FluentGridItem>
+				<FluentGridItem xs="12" sm="6" md="3">
+					<FluentTextField @bind-Value="_newEmployeeInvitationEmail" Label="@Text["Real email address"]"
+									 TextFieldType="TextFieldType.Email" Style="width:100%;"
+									 Disabled="@(_creating || !CanManageSelectedRegion)" />
+				</FluentGridItem>
+				<FluentGridItem xs="12" sm="6" md="3">
+					<FluentSelect TOption="Department" Label="@Text["Department"]"
+								  Items="@_departments.OrderBy(d => d.Name)"
+								  OptionValue="@(d => d.Id.ToString())"
+								  OptionText="@(d => d.Name)"
+								  SelectedOption="@_departments.FirstOrDefault(d => d.Id == _newEmployeeDepartmentId)"
+								  SelectedOptionChanged="@(d => _newEmployeeDepartmentId = d?.Id)"
+								  Style="width:100%;" Disabled="@(_creating || !CanManageSelectedRegion)" />
+				</FluentGridItem>
 				@* Region is fixed to the administrator's own: creating outside it is refused by the
 				   application layer anyway, so the field only reports which one it will be. *@
-				<FluentSelect TOption="Region" Label="@Text["Region"]"
-							  Items="@ActiveRegions"
-							  OptionValue="@(r => r.Id.ToString())"
-							  OptionText="@(r => r.Name)"
-							  SelectedOption="@_regions.FirstOrDefault(r => r.Id == _newEmployeeRegionId)"
-							  Style="min-width:200px;" Disabled="true" />
-				<FluentButton Appearance="Appearance.Accent"
-							  IconStart="@(new Icons.Regular.Size20.PersonAdd())"
-							  OnClick="CreateEmployeeAsync" Disabled="@(_creating || !CanManageSelectedRegion)">
-					@(_creating ? Text["Creating..."] : Text["Create account"])
-				</FluentButton>
-			</FluentStack>
+				<FluentGridItem xs="12" sm="6" md="3">
+					<FluentSelect TOption="Region" Label="@Text["Region"]"
+								  Items="@ActiveRegions"
+								  OptionValue="@(r => r.Id.ToString())"
+								  OptionText="@(r => r.Name)"
+								  SelectedOption="@_regions.FirstOrDefault(r => r.Id == _newEmployeeRegionId)"
+								  Style="width:100%;" Disabled="true" />
+				</FluentGridItem>
+				@* The action gets its own line rather than a fifth column. Squeezed in beside the
+				   fields it had ~180px to live in, which is narrower than a select is willing to
+				   be, so it ended up sitting on top of the Region dropdown. *@
+				<FluentGridItem xs="12" Style="display:flex; justify-content:flex-start;">
+					<FluentButton Appearance="Appearance.Accent"
+								  IconStart="@(new Icons.Regular.Size20.PersonAdd())"
+								  OnClick="CreateEmployeeAsync" Disabled="@(_creating || !CanManageSelectedRegion)">
+						@(_creating ? Text["Creating..."] : Text["Create account"])
+					</FluentButton>
+				</FluentGridItem>
+			</FluentGrid>
 
 			@if (_createdAccount != null)
 			{
@@ -109,7 +132,8 @@ else
 				</FluentMessageBar>
 			}
 		</FluentStack>
-	</FluentCard>
+		</FluentAccordionItem>
+	</FluentAccordion>
 
 	@if (_regionFilterId.HasValue)
 	{
@@ -138,13 +162,19 @@ else
 				  Placeholder="@Text["Search users or contracts..."]" Style="width:320px; margin:16px 0 8px;" />
 
 	@* Explicit column widths: the department and region cells hold real editors, and left to
-	   auto-sizing they push past their column and overlap the next one. *@
+	   auto-sizing they push past their column and overlap the next one.
+
+	   The tracks below are sized from what each column actually has to show, measured rather than
+	   guessed: Region needs ~50px of label and holds one word, Email is too long to fit at any
+	   width so it stops taking room from its neighbours, and Department needs ~120px for its
+	   combobox and its own two-line title. *@
 	<FluentDataGrid Items="@FilteredUsers" TGridItem="User" ResizableColumns="true"
 					ShowHover="true" Pagination="@_pagination"
-					GridTemplateColumns="1.2fr 1.6fr 0.8fr 1fr 1.6fr 1.3fr 1.1fr 0.5fr">
+					GridTemplateColumns="1.2fr 1.5fr 0.8fr 0.8fr 1.6fr 1.4fr 1fr 0.5fr">
 		<EmptyContent>
-		    <FluentLabel Typo="Typography.Body" Color="Color.Custom"
-		                 CustomColor="var(--neutral-foreground-hint)">@Text["No employee matches this search."]</FluentLabel>
+		    <EmptyState Icon="@(new Icons.Regular.Size24.Search())"
+		                Title="@Text["No employee matches this search."]"
+		                Boxed="false" />
 		</EmptyContent>
 	<ChildContent>
 		<PropertyColumn Title="@Text["Name"]" Property="@(u => u.Name)" Sortable="true"
@@ -171,7 +201,10 @@ else
 			</ColumnOptions>
 		</PropertyColumn>
 
-		<TemplateColumn Title="@Text["Contract Type"]" Sortable="true" SortBy="@_byContractType"
+		@* "Type" rather than "Contract Type": the column sits directly beside "Contract Period &
+		   Status", so the word Contract is already established, and the long version could not fit
+		   its track without stealing width from a column that needs it more. *@
+		<TemplateColumn Title="@Text["Type"]" Sortable="true" SortBy="@_byContractType"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fContract))">
 			<ColumnOptions>
 				<FluentSearch @bind-Value="_fContract" @bind-Value:after="StateHasChanged"
@@ -191,7 +224,7 @@ else
 			}
 			else
 			{
-				<FluentBadge Appearance="Appearance.Accent">@Text["Indeterminate"]</FluentBadge>
+				<FluentBadge Appearance="Appearance.Neutral">@Text["Indeterminate"]</FluentBadge>
 			}
 			</ChildContent>
 		</TemplateColumn>
@@ -291,6 +324,10 @@ else
 	private EmployeeAccountResult? _createdAccount;
 
 	private readonly PaginationState _pagination = new() { ItemsPerPage = 15 };
+
+	// The create panel is collapsed until it is needed, and stays open once a create has left a
+	// confirmation and a setup link inside it to read.
+	private bool _createFormOpen;
 
 	// Fluent's pickers select an object out of a list rather than resolving a value through a
 	// search callback, so the "no department" / "all regions" entries need a real row of their
@@ -577,6 +614,9 @@ else
 			_newEmployeeInvitationEmail = "";
 			_newEmployeeDepartmentId = null;
 			_newEmployeeRegionId = _adminRegionId;
+			// The panel holds the new account's login and, without SMTP, the only copy of its
+			// password-setup link. Collapsing it now would hide the one thing worth reading.
+			_createFormOpen = true;
 			await LoadAsync();
 
 			if (_createdAccount.EmailDelivered)

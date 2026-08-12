@@ -91,7 +91,15 @@ html {
     --app-header-bg: #0B3E66;
     --accent-foreground-rest: #0F6CBD;
     --accent-foreground-hover: #115EA3;
-    --foreground-on-accent-rest: #FFFFFF;
+
+    /* NOT --foreground-on-accent-rest. That is the one accent token the FAST runtime does not
+       write per component, so a value set here inherits straight into every accent button's
+       shadow root and overrules the pairing the runtime worked out. FAST picks the accent fill
+       to suit each element's own backdrop — inside a card it went as pale as #7adfff — and then
+       chooses a readable ink to match. Forcing white on top of that measured 1.52:1 on the
+       "Create account" button. Left alone, the runtime pairs both. This token is ours, for the
+       one place in the light DOM that paints on the accent itself. */
+    --app-on-accent: #FFFFFF;
 
     --neutral-foreground-rest: #1A1A1A;
     --neutral-foreground-hover: #1A1A1A;
@@ -164,13 +172,6 @@ body:has(fluent-design-theme[mode="dark"]) {
     --focus-stroke-outer: #FFFFFF;
     --focus-stroke-inner: #000000;
 
-    /* The one token the FAST runtime does *not* write per component, so the value above leaks
-       into every accent button's shadow DOM. In dark mode the runtime lifts the accent fill to
-       a pale #55CAFF, and white on that measures 1.86:1 — the label on the app's primary button
-       was effectively unreadable. Dark ink on a light fill is what the pair is supposed to be;
-       this reads at 11.2:1. */
-    --foreground-on-accent-rest: #0B1B26;
-
     --accent-foreground-rest: #62ABF5;
     --accent-foreground-hover: #83BDF7;
 
@@ -199,6 +200,15 @@ body:has(fluent-design-theme[mode="dark"]) {
    "D…", "C…" instead of keeping their width.
 ------------------------------------------------------------------------------------- */
 .stack-horizontal > * {
+    min-width: 0;
+}
+
+/* Same trap, one component deeper: fluent-select carries `min-width: 250px` of its own, so in
+   any column narrower than that it refuses to shrink and simply overlaps whatever is beside it.
+   On the account form the two dropdowns sat on top of each other and under the submit button.
+   A select can size to its column; its dropdown list is free to be wider than the field. */
+fluent-select,
+fluent-combobox {
     min-width: 0;
 }
 
@@ -261,6 +271,31 @@ fluent-badge {
 .fluent-data-grid td {
     overflow-wrap: anywhere;
 }
+
+/* Column titles wrap rather than being cut. The sort caret and the filter icon take 40-60px of
+   the track before the label gets any, so "Contract Period & Status" arrived as "Contract Period
+   & Stat" and even "Department" lost its last letters. Widening those columns only moves the
+   problem to whichever column pays for it; a second line fixes every column at once and keeps
+   the words. The clipping lives on the title div in the light DOM — the button around it wraps
+   fine — and the button has to be allowed to grow with it. */
+.fluent-data-grid th .col-title-text {
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.25;
+}
+
+.fluent-data-grid th fluent-button.col-sort-button::part(control) {
+    height: auto;
+    min-height: 32px;
+    padding-block: 4px;
+}
+
+/* A sticky header was tried here and removed. FluentDataGrid renders its table as `display:
+   grid` with `thead` and `tr` at `display: contents`, so the only positionable element is the
+   `th` itself — and a grid item's sticky travel is bounded by its own grid area, which is one
+   row tall. It scrolls away no matter what the rule says. Making the header stay needs the grid
+   to own its scrolling (a height on the grid, `overflow: auto` inside it) rather than the page,
+   which changes how every one of these pages is laid out. */
 
 /* The grid's own rule is `width: auto`, which fills a block container but collapses to the
    content width inside a flex one — and a vertical FluentStack aligns its children to the
@@ -616,6 +651,23 @@ fluent-select {
     border-radius: 3px;
 }
 
+/* The legend's weekend chip carries the same wash the grid's weekend cells do, drawn over the
+   rail's own surface so the two always agree — including when the theme flips. */
+.cal-swatch-weekend {
+    background: rgb(0 0 0 / 6%);
+    border: 1px solid var(--neutral-stroke-divider-rest);
+}
+
+body:has(fluent-design-theme[mode="dark"]) .cal-swatch-weekend {
+    background: rgb(255 255 255 / 10%);
+}
+
+/* The holiday line is a full sentence, so it wraps instead of being cut. */
+.cal-legend-text {
+    white-space: normal;
+    line-height: 1.35;
+}
+
 .cal-type-name {
     min-width: 0;
     overflow: hidden;
@@ -687,8 +739,21 @@ fluent-select {
 /* Days of the neighbouring month, and days nobody works: recessed, so the month being looked at
    reads as one block and a weekend is visibly not bookable. */
 .cal-cell.is-outside,
+/* A weekend has to be visibly not a working day. --neutral-layer-2 was the wrong tool: against
+   the calendar surface it lands 2% away in dark mode (#1F1F1F on #242424), which measures as a
+   difference and reads as none. A translucent wash works from whatever the surface happens to
+   be, in either theme, and the dimmed date reinforces it — the same treatment days outside the
+   month already get. */
 .cal-cell.is-weekend {
-    background: var(--neutral-layer-2);
+    background: rgb(0 0 0 / 6%);
+}
+
+.cal-cell.is-weekend .cal-daynum {
+    color: var(--neutral-foreground-hint);
+}
+
+body:has(fluent-design-theme[mode="dark"]) .cal-cell.is-weekend {
+    background: rgb(255 255 255 / 6%);
 }
 
 .cal-cell.is-outside .cal-daynum {
@@ -718,7 +783,7 @@ fluent-select {
 .cal-daynum.is-today {
     width: 24px;
     background: var(--accent-fill-rest);
-    color: var(--foreground-on-accent-rest) !important;
+    color: var(--app-on-accent) !important;
     border-radius: 50%;
     font-weight: 600;
 }

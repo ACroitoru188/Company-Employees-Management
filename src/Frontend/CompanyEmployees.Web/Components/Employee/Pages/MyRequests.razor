@@ -16,8 +16,17 @@
 <FluentDataGrid Items="@_requests.AsQueryable()" TGridItem="TimeOffRequest"
                 ShowHover="true" OnRowClick="@(row => OpenDetailsAsync(row.Item!))">
     <EmptyContent>
-        <FluentLabel Typo="Typography.Body" Color="Color.Custom"
-                     CustomColor="var(--neutral-foreground-hint)">@Text["You have not requested any time off yet."]</FluentLabel>
+        <EmptyState Icon="@(new Icons.Regular.Size24.Document())"
+                    Title="@Text["You have not requested any time off yet."]"
+                    Boxed="false">
+            <Action>
+                <FluentButton Appearance="Appearance.Accent"
+                              IconStart="@(new Icons.Regular.Size20.Add())"
+                              OnClick="@(() => Nav.NavigateTo("/employee/calendar"))">
+                    @Text["Request time off"]
+                </FluentButton>
+            </Action>
+        </EmptyState>
     </EmptyContent>
 <ChildContent>
     <PropertyColumn Title="@Text["Type"]" Property="@(r => Text[r.Type.ToString()])" />

@@ -19,9 +19,9 @@
     <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
         @if (_team.Count == 0)
         {
-            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                @Text["You are not part of a team yet."]
-            </FluentLabel>
+            <EmptyState Icon="@(new Icons.Regular.Size24.People())"
+                        Title="@Text["You are not part of a team yet."]"
+                        Boxed="false" />
         }
         else
         {

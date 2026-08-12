@@ -43,20 +43,14 @@ else if (_failed)
 }
 else if (_result.Total == 0)
 {
-    <FluentCard Style="margin-top:16px;">
-        <FluentStack Orientation="Orientation.Vertical" VerticalGap="8"
-                     HorizontalAlignment="HorizontalAlignment.Center">
-            <FluentIcon Value="@(new Icons.Regular.Size24.History())" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" />
-            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                @(Scope switch
+    <EmptyState Icon="@(new Icons.Regular.Size24.History())"
+                Margin="16px 0 0"
+                Title="@(Scope switch
                 {
                     DelegationHistoryScope.DoneInMyName => "Nobody has acted on your behalf yet.",
                     DelegationHistoryScope.DoneByMe => "You have not acted for anyone else yet.",
                     _ => "Nothing has been done from a borrowed account in this region yet."
-                })
-            </FluentLabel>
-        </FluentStack>
-    </FluentCard>
+                })" />
 }
 else
 {

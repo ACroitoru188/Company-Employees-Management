@@ -36,15 +36,10 @@ else if (_failed)
 }
 else if (_total == 0)
 {
-    <FluentCard Style="margin-top:16px;">
-        <FluentStack Orientation="Orientation.Vertical" VerticalGap="8"
-                     HorizontalAlignment="HorizontalAlignment.Center">
-            <FluentIcon Value="@(new Icons.Regular.Size24.Alert())" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" />
-            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                You have no notifications yet.
-            </FluentLabel>
-        </FluentStack>
-    </FluentCard>
+    <EmptyState Icon="@(new Icons.Regular.Size24.Alert())"
+                Title="You have no notifications yet."
+                Description="Approvals, declines and reminders will appear here."
+                Margin="16px 0 0" />
 }
 else
 {

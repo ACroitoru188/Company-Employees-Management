@@ -26,9 +26,9 @@
 
         @if (_teamTimeOff.Count == 0)
         {
-            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                @Text["No upcoming time off in your team."]
-            </FluentLabel>
+            <EmptyState Icon="@(new Icons.Regular.Size24.PeopleTeam())"
+                        Title="@Text["No upcoming time off in your team."]"
+                        Boxed="false" />
         }
         else
         {

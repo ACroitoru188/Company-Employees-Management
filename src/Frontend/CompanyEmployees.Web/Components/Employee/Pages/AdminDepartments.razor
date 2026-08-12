@@ -33,8 +33,9 @@ else
 					ShowHover="true" Pagination="@_pagination" Style="margin-top:12px;"
 					GridTemplateColumns="2fr 2fr 0.7fr 0.5fr">
 		<EmptyContent>
-		    <FluentLabel Typo="Typography.Body" Color="Color.Custom"
-		                 CustomColor="var(--neutral-foreground-hint)">@Text["No department matches this search."]</FluentLabel>
+		    <EmptyState Icon="@(new Icons.Regular.Size24.Search())"
+		                Title="@Text["No department matches this search."]"
+		                Boxed="false" />
 		</EmptyContent>
 	<ChildContent>
 		<TemplateColumn Title="@Text["Name"]" Sortable="true" SortBy="@_byName"
