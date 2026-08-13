@@ -152,8 +152,64 @@ namespace CompanyEmployees.Application.Contexts
 
             var subordinates = new List<OrgChartNode>();
 
-            if (parentNode.Role == "Department")
+            if (parentNode.Role == "City")
             {
+                var siteNode1 = new OrgChartNode
+                {
+                    UserId = Guid.NewGuid(),
+                    Name = "Siemens Industry Software Center",
+                    Role = "Site",
+                    Department = "Region",
+                    Initials = "SI",
+                    ManagerId = parentNode.UserId,
+                    HasUnloadedChildren = true,
+                    IsExpanded = false
+                };
+                var siteNode2 = new OrgChartNode
+                {
+                    UserId = Guid.NewGuid(),
+                    Name = "Siemens R&D Advanta Center",
+                    Role = "Site",
+                    Department = "Region",
+                    Initials = "SR",
+                    ManagerId = parentNode.UserId,
+                    HasUnloadedChildren = true,
+                    IsExpanded = false
+                };
+                subordinates.Add(siteNode1);
+                subordinates.Add(siteNode2);
+            }
+            else if (parentNode.Role == "Site")
+            {
+                // Return all admins in the system (or filtered by region if preferred)
+                var adminUsers = activeUsers.Where(u => u.Role == UserRole.Admin).OrderBy(u => u.Name).ToList();
+                // Split them based on Department to allow specific assignment
+                if (parentNode.Name == "Siemens Industry Software Center")
+                {
+                    adminUsers = adminUsers.Where(u => u.Department?.Name == "Industry Software").ToList();
+                }
+                else
+                {
+                    // Fallback for Advanta: everyone else (existing demo users)
+                    adminUsers = adminUsers.Where(u => u.Department?.Name != "Industry Software").ToList();
+                }
+
+                foreach (var u in adminUsers)
+                {
+                    var node = nodeMap[u.Id];
+                    node.HasUnloadedChildren = true;
+                    node.IsExpanded = false;
+                    // Site is artificial, so we override ManagerId to render correctly under Site
+                    node.ManagerId = parentNode.UserId;
+                    subordinates.Add(node);
+                }
+            }
+            else if (parentNode.Role == "Department")
+            {
+                // For CountryManager's admins, their ManagerId was overridden to Site's UserId in the UI memory.
+                // However, in DB, the Admin's ManagerId is still HQ (null) or someone else.
+                // But activeUsers will match if we use the original logic if we look at real managers.
+                // Wait, if parentNode.Role == "Department", the parentNode.ManagerId is the Admin's UserId!
                 var adminSubordinates = activeUsers.Where(u => u.ManagerId == parentNode.ManagerId).ToList();
                 var deptUsers = adminSubordinates.Where(u => (u.Department?.Name ?? "No Department") == parentNode.Department).ToList();
                 
@@ -162,7 +218,7 @@ namespace CompanyEmployees.Application.Contexts
                     subordinates.Add(nodeMap[u.Id]);
                 }
             }
-            else if (parentNode.Role == "Admin" && isAdmin)
+            else if (parentNode.Role == "Admin")
             {
                 var children = activeUsers.Where(u => u.ManagerId == parentNode.UserId).ToList();
                 var deptGroups = children.GroupBy(c => string.IsNullOrWhiteSpace(c.Department?.Name) ? "No Department" : c.Department.Name).OrderBy(g => g.Key);
@@ -817,14 +873,42 @@ namespace CompanyEmployees.Application.Contexts
 
             if (root != null)
             {
-                if (isAdmin)
+                if (requestingUser.Role == UserRole.CountryManager)
+                {
+                    var cmNode = nodeMap[requestingUser.Id];
+                    var cityNode = new OrgChartNode
+                    {
+                        UserId = Guid.NewGuid(),
+                        Name = "Brașov",
+                        Role = "City",
+                        Department = "Region",
+                        Initials = "BV",
+                        ManagerId = cmNode.UserId,
+                        HasUnloadedChildren = true,
+                        IsExpanded = false
+                    };
+                    cmNode.Subordinates = new List<OrgChartNode> { cityNode };
+                    cmNode.IsExpanded = true;
+                    MarkFocus(cmNode, null);
+                    
+                    root = cmNode; // For country manager, they are the root of the tree
+                }
+                else if (requestingUser.Role == UserRole.Admin)
+                {
+                    var adminNode = nodeMap[requestingUser.Id];
+                    AttachChildren(adminNode);
+                    adminNode.IsExpanded = true;
+                    MarkFocus(adminNode, null);
+                    root = adminNode;
+                }
+                else if (isAdmin)
                 {
                     AttachChildren(root);
                     root.IsExpanded = true;
                     foreach(var admin in root.Subordinates) {
                         admin.IsExpanded = false;
                     }
-                    MarkFocus(root, null); // Admins see everything focused
+                    MarkFocus(root, null); // HR sees everything focused
                 }
                 else
                 {
