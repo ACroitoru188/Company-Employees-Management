@@ -1996,15 +1996,7 @@
         foreach (var pathNode in combinedPath)
         {
             // Find this node in our loaded tree
-            OrgChartNode? foundNode = null;
-            if (pathNode.Role == "Department")
-            {
-                foundNode = _nodes.FirstOrDefault(n => n.Role == "Department" && n.Department == pathNode.Department && n.ManagerId == pathNode.ManagerId);
-            }
-            else
-            {
-                foundNode = _nodes.FirstOrDefault(n => n.UserId == pathNode.UserId);
-            }
+            OrgChartNode? foundNode = FindMatchingNodeInTree(_root, pathNode);
 
             if (foundNode != null)
             {
@@ -2027,7 +2019,7 @@
 
         RecalculateLayout();
 
-        var targetNode = _nodes.FirstOrDefault(n => n.UserId == targetUserId) ?? _root;
+        var targetNode = FindNodeInTree(_root, targetUserId) ?? _root;
 
         double containerWidth = 1100;
         double containerHeight = 550;
@@ -2129,6 +2121,21 @@
         foreach (var child in current.Subordinates)
         {
             var found = FindNodeInTree(child, targetId);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private OrgChartNode? FindMatchingNodeInTree(OrgChartNode current, OrgChartNode target)
+    {
+        if (target.Role == "City" && current.Role == "City" && current.Name == target.Name) return current;
+        if (target.Role == "Site" && current.Role == "Site" && current.Name == target.Name) return current;
+        if (target.Role == "Department" && current.Role == "Department" && current.Department == target.Department && current.ManagerId == target.ManagerId) return current;
+        if (current.UserId == target.UserId) return current;
+
+        foreach (var child in current.Subordinates)
+        {
+            var found = FindMatchingNodeInTree(child, target);
             if (found != null) return found;
         }
         return null;
