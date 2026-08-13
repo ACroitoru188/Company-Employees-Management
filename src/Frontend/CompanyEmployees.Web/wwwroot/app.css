@@ -495,6 +495,25 @@ fluent-card {
     overflow: visible;
 }
 
+/* FluentCard carries `contain: content`, which implies paint containment: every descendant is
+   clipped to the card's padding box. Framing the admin grids in a card therefore cut off any
+   dropdown opened in one of the last rows, at the card's bottom edge, with no overflow property
+   anywhere to explain it — `overflow` on the card computes to `visible` throughout. The cards
+   that frame a grid opt out. Containment is a rendering optimisation here; nothing about the
+   layout depends on it, and the cell-level rule above is useless while it is on.
+   `fluent-card.grid-card` rather than `.grid-card` alone so this outranks the library's own
+   single-class rule whichever order the stylesheets happen to load in. */
+fluent-card.grid-card {
+    contain: none;
+
+    /* Dropping the containment also drops the stacking context it was creating, and the next
+       thing on the page — the create panel — then painted straight over the open list instead of
+       clipping it. Same symptom, one cause further along. The card is lifted a layer so anything
+       opened inside it stays above whatever follows it in the document. */
+    position: relative;
+    z-index: 1;
+}
+
 /* And a ceiling on the list itself. The library's own rule is
    `max-height: calc(var(--max-height) - …)`, but nothing ever defines --max-height, so the
    calc is invalid and the max-height resolves to `none`: forty managers came to 1288px of

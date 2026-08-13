@@ -162,6 +162,10 @@ else
 	<FluentSearch @bind-Value="_quickSearch" @bind-Value:after="StateHasChanged"
 				  Placeholder="@Text["Search users or contracts..."]" Style="width:320px; margin:16px 0 8px;" />
 
+	@* Grid and paginator share one surface, the same way /admin/departments frames its table:
+	   the two admin pages sit next to each other in the nav and a table floating on the page
+	   background beside one in a card reads as an oversight. *@
+	<FluentCard Class="grid-card" Style="padding:16px;">
 	@* Explicit column widths: the department and region cells hold real editors, and left to
 	   auto-sizing they push past their column and overlap the next one.
 
@@ -300,6 +304,7 @@ else
 	<FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center" Width="100%">
 		<FluentPaginator State="@_pagination" />
 	</FluentStack>
+	</FluentCard>
 	</div>
 }
 
