@@ -9,7 +9,6 @@
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
-@inject EmployeeAccountService Accounts
 @inject ManagerContext Manager
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
@@ -39,6 +38,7 @@ else
 
 	<div class="d-flex justify-space-between align-center gap-3 flex-wrap mb-4">
 		<MudText Typo="Typo.h5" Style="font-weight:600;">@Text["Users & Contracts"]</MudText>
+		<MudSpacer />
 		<MudSelect T="Guid?" Value="_regionFilterId"
 				   ValueChanged="OnViewingRegionChanged"
 				   Label="@(Text["Preview region"])" Variant="Variant.Outlined"
@@ -53,6 +53,11 @@ else
 				   Variant="Variant.Outlined" Color="Color.Primary"
 				   StartIcon="@Icons.Material.Filled.Download">
 			@Text["Download latest CSV"]
+		</MudButton>
+		<MudButton Href="/admin/users/create"
+				   Variant="Variant.Filled" Color="Color.Primary"
+				   StartIcon="@Icons.Material.Filled.PersonAdd">
+			@Text["Create employee account"]
 		</MudButton>
 	</div>
 
@@ -84,76 +89,6 @@ else
 			</RowTemplate>
 		</MudTable>
 	}
-
-	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
-		<MudText Typo="Typo.subtitle1" Style="font-weight:600;" Class="mb-1">
-			@Text["Create employee account"]
-		</MudText>
-		<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-			@Text["Create employees in your assigned region. Their Siemens login and employee ID are generated automatically."]
-		</MudText>
-		@if (!CanManageSelectedRegion)
-		{
-			<MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
-				@Text.Format("This regional preview is read-only. Return to {0} to create an account.", GetRegionName(_adminRegionId))
-			</MudAlert>
-		}
-
-		<div class="d-flex align-end gap-3 flex-wrap">
-			<MudTextField T="string" @bind-Value="_newEmployeeName"
-						  Label="@(Text["Full name"])" Variant="Variant.Outlined"
-						  Style="min-width:260px;" Disabled="@(_creating || !CanManageSelectedRegion)" />
-			<MudTextField T="string" @bind-Value="_newEmployeeInvitationEmail"
-						  Label="@(Text["Real email address"])" Variant="Variant.Outlined"
-						  InputType="InputType.Email" Style="min-width:300px;"
-						  Disabled="@(_creating || !CanManageSelectedRegion)" />
-			<MudSelect T="Guid?" @bind-Value="_newEmployeeDepartmentId"
-					   Label="@(Text["Department"])" Variant="Variant.Outlined"
-					   Style="min-width:220px;" Disabled="@(_creating || !CanManageSelectedRegion)">
-				@foreach (var department in _departments.OrderBy(d => d.Name))
-				{
-					<MudSelectItem T="Guid?" Value="@((Guid?)department.Id)">
-						@department.Name
-					</MudSelectItem>
-				}
-			</MudSelect>
-			<MudSelect T="Guid?" @bind-Value="_newEmployeeRegionId"
-					   Label="@(Text["Region"])" Variant="Variant.Outlined"
-					   Style="min-width:200px;" Disabled="true">
-				@foreach (var region in _regions.Where(region => region.IsActive).OrderBy(region => region.Name))
-				{
-					<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
-				}
-			</MudSelect>
-			<MudButton Variant="Variant.Filled" Color="Color.Primary"
-					   StartIcon="@Icons.Material.Filled.PersonAdd"
-					   Style="height:44px; align-self:center; transform:translateY(2px);"
-					   OnClick="CreateEmployeeAsync" Disabled="@(_creating || !CanManageSelectedRegion)">
-				@(_creating ? Text["Creating..."] : Text["Create account"])
-			</MudButton>
-		</div>
-
-		@if (_createdAccount != null)
-		{
-			<MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mt-4">
-				<MudText Typo="Typo.subtitle2" Style="font-weight:600;">@Text["Account created"]</MudText>
-				<MudText Typo="Typo.body2">@Text.Format("Name: {0}", _createdAccount.Name)</MudText>
-				<MudText Typo="Typo.body2">@Text.Format("Department: {0}", _createdAccount.Department)</MudText>
-				<MudText Typo="Typo.body2">@Text.Format("Region: {0}", _createdAccount.Region)</MudText>
-				<MudText Typo="Typo.body2">@Text.Format("Siemens login: {0}", _createdAccount.Email)</MudText>
-				<MudText Typo="Typo.body2">@Text.Format("Invitation email: {0}", _createdAccount.InvitationEmail)</MudText>
-				@if (_createdAccount.EmailDelivered)
-				{
-					<MudText Typo="Typo.body2">@Text["A password setup email was sent to the employee."]</MudText>
-				}
-				else
-				{
-					<MudText Typo="Typo.body2">@Text["SMTP is not configured. Use this development-only setup link:"]</MudText>
-					<MudLink Href="@_createdAccount.DevelopmentSetupLink">@Text["Set password"]</MudLink>
-				}
-			</MudAlert>
-		}
-	</MudPaper>
 
 	@if (_regionFilterId.HasValue)
 	{
@@ -298,14 +233,8 @@ else
 	private List<Department> _departments = new();
 	private List<Region> _regions = new();
 	private string _quickSearch = "";
-	private string _newEmployeeName = "";
-	private string _newEmployeeInvitationEmail = "";
-	private Guid? _newEmployeeDepartmentId;
-	private Guid? _newEmployeeRegionId;
 	private Guid? _regionFilterId;
 	private Guid _adminRegionId;
-	private bool _creating;
-	private EmployeeAccountResult? _createdAccount;
 
 	private Func<User, bool> _quickFilter => u =>
 	{
@@ -364,7 +293,6 @@ else
 		_adminId = currentAdmin.Id;
 		_adminRegionId = currentAdmin.RegionId;
 		_regionFilterId = currentAdmin.RegionId;
-		_newEmployeeRegionId = currentAdmin.RegionId;
 	}
 
 	private async Task LoadAsync()
@@ -474,66 +402,6 @@ else
 	{
 		_regionFilterId = regionId;
 		return Task.CompletedTask;
-	}
-
-	private async Task CreateEmployeeAsync()
-	{
-		if (string.IsNullOrWhiteSpace(_newEmployeeName))
-		{
-			Snackbar.Add(Text["Employee name is required."], Severity.Warning);
-			return;
-		}
-
-		if (string.IsNullOrWhiteSpace(_newEmployeeInvitationEmail))
-		{
-			Snackbar.Add(Text["Employee email is required."], Severity.Warning);
-			return;
-		}
-
-		if (_newEmployeeDepartmentId == null)
-		{
-			Snackbar.Add(Text["Select a department."], Severity.Warning);
-			return;
-		}
-
-		if (_newEmployeeRegionId == null)
-		{
-			Snackbar.Add(Text["Select a region."], Severity.Warning);
-			return;
-		}
-
-		_creating = true;
-		_createdAccount = null;
-
-		try
-		{
-			_createdAccount = await Accounts.CreateAsync(
-				_adminId,
-				_newEmployeeName,
-				_newEmployeeInvitationEmail,
-				_newEmployeeDepartmentId.Value,
-				_newEmployeeRegionId.Value,
-				Nav.BaseUri);
-
-			_newEmployeeName = "";
-			_newEmployeeInvitationEmail = "";
-			_newEmployeeDepartmentId = null;
-			_newEmployeeRegionId = _adminRegionId;
-			await LoadAsync();
-			Snackbar.Add(
-				_createdAccount.EmailDelivered
-					? Text["Employee account created and setup email sent."]
-					: Text["Employee account created; SMTP is not configured."],
-				_createdAccount.EmailDelivered ? Severity.Success : Severity.Warning);
-		}
-		catch (Exception exception)
-		{
-			Snackbar.Add(exception.Message, Severity.Error);
-		}
-		finally
-		{
-			_creating = false;
-		}
 	}
 
 	private string GetDepartmentName(Guid? id) =>

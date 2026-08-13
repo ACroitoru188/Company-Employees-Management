@@ -1,0 +1,209 @@
+@page "/admin/users/create"
+@layout EmployeeLayout
+@using System.Security.Claims
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
+@inject EmployeeContext Employees
+@inject EmployeeAccountService Accounts
+@inject ManagerContext Manager
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject AppLocalizer Text
+
+<PageTitle>@Text["Create employee account"] · @Text["Admin"]</PageTitle>
+
+@if (!_authorized)
+{
+	<MudProgressCircular Indeterminate="true" />
+}
+else
+{
+	<div class="d-flex align-center gap-3 mb-5">
+		<MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+					   Href="/admin/users"
+					   aria-label="@(Text["Back to users"])" />
+		<div>
+			<MudText Typo="Typo.h5" Style="font-weight:600;">@Text["Create employee account"]</MudText>
+			<MudText Typo="Typo.body2" Color="Color.Secondary">
+				@Text["Create employees in your assigned region. Their Siemens login and employee ID are generated automatically."]
+			</MudText>
+		</div>
+	</div>
+
+	<MudGrid Justify="Justify.Center">
+		<MudItem xs="12" md="8" lg="7">
+			<MudPaper Class="pa-6" Elevation="1">
+				@if (_createdAccount is null)
+				{
+					<div class="d-flex flex-column gap-4">
+						<MudTextField T="string" @bind-Value="_employeeName"
+									  Label="@(Text["Full name"])" Variant="Variant.Outlined"
+									  Disabled="@_creating" Autofocus="true" />
+						<MudTextField T="string" @bind-Value="_invitationEmail"
+									  Label="@(Text["Real email address"])" Variant="Variant.Outlined"
+									  InputType="InputType.Email" Disabled="@_creating" />
+						<MudSelect T="Guid?" @bind-Value="_departmentId"
+								   Label="@(Text["Department"])" Variant="Variant.Outlined"
+								   Disabled="@_creating">
+							@foreach (var department in _departments.OrderBy(d => d.Name))
+							{
+								<MudSelectItem T="Guid?" Value="@((Guid?)department.Id)">@department.Name</MudSelectItem>
+							}
+						</MudSelect>
+						<MudTextField T="string" Value="@GetRegionName(_adminRegionId)"
+									  Label="@(Text["Region"])" Variant="Variant.Outlined"
+									  Disabled="true" />
+
+						<div class="d-flex justify-end gap-3 mt-2">
+							<MudButton Href="/admin/users" Variant="Variant.Text" Disabled="@_creating">
+								@Text["Cancel"]
+							</MudButton>
+							<MudButton Variant="Variant.Filled" Color="Color.Primary"
+									   StartIcon="@Icons.Material.Filled.PersonAdd"
+									   OnClick="CreateEmployeeAsync" Disabled="@_creating">
+								@(_creating ? Text["Creating..."] : Text["Create account"])
+							</MudButton>
+						</div>
+					</div>
+				}
+				else
+				{
+					<MudAlert Severity="Severity.Success" Variant="Variant.Outlined">
+						<MudText Typo="Typo.subtitle1" Style="font-weight:600;" Class="mb-2">@Text["Account created"]</MudText>
+						<MudText Typo="Typo.body2">@Text.Format("Name: {0}", _createdAccount.Name)</MudText>
+						<MudText Typo="Typo.body2">@Text.Format("Department: {0}", _createdAccount.Department)</MudText>
+						<MudText Typo="Typo.body2">@Text.Format("Region: {0}", _createdAccount.Region)</MudText>
+						<MudText Typo="Typo.body2">@Text.Format("Siemens login: {0}", _createdAccount.Email)</MudText>
+						<MudText Typo="Typo.body2">@Text.Format("Invitation email: {0}", _createdAccount.InvitationEmail)</MudText>
+						@if (_createdAccount.EmailDelivered)
+						{
+							<MudText Typo="Typo.body2" Class="mt-2">@Text["A password setup email was sent to the employee."]</MudText>
+						}
+						else
+						{
+							<MudText Typo="Typo.body2" Class="mt-2">@Text["SMTP is not configured. Use this development-only setup link:"]</MudText>
+							<MudLink Href="@_createdAccount.DevelopmentSetupLink">@Text["Set password"]</MudLink>
+						}
+					</MudAlert>
+
+					<div class="d-flex justify-end gap-3 mt-4">
+						<MudButton Href="/admin/users" Variant="Variant.Outlined">@Text["Back to users"]</MudButton>
+						<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ResetForm">
+							@Text["Create another account"]
+						</MudButton>
+					</div>
+				}
+			</MudPaper>
+		</MudItem>
+	</MudGrid>
+}
+
+@code {
+	[CascadingParameter]
+	private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+	private Guid _adminId;
+	private Guid _adminRegionId;
+	private bool _authorized;
+	private bool _creating;
+	private string _employeeName = "";
+	private string _invitationEmail = "";
+	private Guid? _departmentId;
+	private List<Department> _departments = new();
+	private List<Region> _regions = new();
+	private EmployeeAccountResult? _createdAccount;
+
+	protected override async Task OnInitializedAsync()
+	{
+		if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+			return;
+
+		var principal = (await AuthStateTask!).User;
+		var role = principal.FindFirst(ClaimTypes.Role)?.Value;
+		var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+		if (!Guid.TryParse(userId, out _adminId))
+		{
+			Nav.NavigateTo("/employee/dashboard");
+			return;
+		}
+
+		if (role != UserRole.Admin.ToString())
+		{
+			var receivedDelegations = await Manager.GetActiveDelegationsAssignedToMeAsync(_adminId);
+			if (!receivedDelegations.Any(delegation => delegation.Manager.Role == UserRole.Admin))
+			{
+				Nav.NavigateTo("/employee/dashboard");
+				return;
+			}
+		}
+
+		var currentAdmin = await Employees.GetEmployeeByEmailAsync(principal.Identity!.Name!);
+		_adminId = currentAdmin.Id;
+		_adminRegionId = currentAdmin.RegionId;
+		_departments = await Employees.GetDepartmentsAsync();
+		_regions = await Employees.GetRegionsAsync();
+		_authorized = true;
+	}
+
+	private async Task CreateEmployeeAsync()
+	{
+		if (string.IsNullOrWhiteSpace(_employeeName))
+		{
+			Snackbar.Add(Text["Employee name is required."], Severity.Warning);
+			return;
+		}
+
+		if (string.IsNullOrWhiteSpace(_invitationEmail))
+		{
+			Snackbar.Add(Text["Employee email is required."], Severity.Warning);
+			return;
+		}
+
+		if (_departmentId is null)
+		{
+			Snackbar.Add(Text["Select a department."], Severity.Warning);
+			return;
+		}
+
+		_creating = true;
+		try
+		{
+			_createdAccount = await Accounts.CreateAsync(
+				_adminId,
+				_employeeName,
+				_invitationEmail,
+				_departmentId.Value,
+				_adminRegionId,
+				Nav.BaseUri);
+
+			Snackbar.Add(
+				_createdAccount.EmailDelivered
+					? Text["Employee account created and setup email sent."]
+					: Text["Employee account created; SMTP is not configured."],
+				_createdAccount.EmailDelivered ? Severity.Success : Severity.Warning);
+		}
+		catch (Exception exception)
+		{
+			Snackbar.Add(exception.Message, Severity.Error);
+		}
+		finally
+		{
+			_creating = false;
+		}
+	}
+
+	private void ResetForm()
+	{
+		_employeeName = "";
+		_invitationEmail = "";
+		_departmentId = null;
+		_createdAccount = null;
+	}
+
+	private string GetRegionName(Guid id) =>
+		_regions.FirstOrDefault(region => region.Id == id)?.Name ?? Text["Unknown"];
+}
