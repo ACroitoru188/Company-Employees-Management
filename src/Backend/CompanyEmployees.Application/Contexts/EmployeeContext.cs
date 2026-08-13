@@ -64,10 +64,22 @@ namespace CompanyEmployees.Application.Contexts
             await _leaveRequestGateway.EnsureDefaultAllocationsAsync(userId, year);
             var allocations = await _leaveRequestGateway.GetAllocationsByUserAsync(userId, year);
             var requests = await _leaveRequestGateway.GetRequestsByUserAsync(userId);
+            var companyStartDate = (await _contractGateway.GetContractsByUserIdAsync(userId))
+                .OrderBy(contract => contract.StartDate)
+                .Select(contract => (DateOnly?)contract.StartDate)
+                .FirstOrDefault();
             var holidays = (await _holidayProvider.GetHolidaysAsync(user.Region.Code, year))
                 .Select(holiday => holiday.Date)
                 .ToHashSet();
-            var annualCarryOver = await GetAnnualCarryOverAsync(user, year, requests);
+            var annualEntitlement = LeaveAllocationPolicy.AnnualDaysForRegion(
+                user.Region.Code,
+                companyStartDate,
+                year);
+            var annualCarryOver = await GetAnnualCarryOverAsync(
+                user,
+                year,
+                requests,
+                companyStartDate);
             var carryOverExpiryDate = LeaveAllocationPolicy.AnnualCarryOverExpiryDate(year);
             var annualDaysUsedBeforeExpiry = requests
                 .Where(r => r.Status == LeaveStatus.Approved
@@ -96,7 +108,9 @@ namespace CompanyEmployees.Application.Contexts
                 balances.Add(new LeaveBalanceResult
                 {
                     Type = allocation.LeaveType,
-                    DaysTotal = allocation.NumberOfDays
+                    DaysTotal = (allocation.LeaveType == LeaveType.Annual
+                            ? annualEntitlement
+                            : allocation.NumberOfDays)
                         + (allocation.LeaveType == LeaveType.Annual ? annualCarryOver : 0),
                     DaysUsed = daysUsed,
                     CarriedOverDays = allocation.LeaveType == LeaveType.Annual
@@ -117,7 +131,8 @@ namespace CompanyEmployees.Application.Contexts
         private async Task<int> GetAnnualCarryOverAsync(
             User user,
             int year,
-            IReadOnlyCollection<LeaveRequest> requests)
+            IReadOnlyCollection<LeaveRequest> requests,
+            DateOnly? companyStartDate)
         {
             var previousYear = year - 1;
             var previousAnnualAllocation = (await _leaveRequestGateway
@@ -142,7 +157,10 @@ namespace CompanyEmployees.Application.Contexts
                     previousYearHolidays));
 
             return LeaveAllocationPolicy.AnnualCarryOverDays(
-                previousAnnualAllocation.NumberOfDays,
+                LeaveAllocationPolicy.AnnualDaysForRegion(
+                    user.Region.Code,
+                    companyStartDate,
+                    previousYear),
                 previousYearUsed);
         }
 

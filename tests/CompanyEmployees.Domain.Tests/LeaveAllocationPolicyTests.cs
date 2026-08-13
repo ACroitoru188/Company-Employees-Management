@@ -17,6 +17,36 @@ public class LeaveAllocationPolicyTests
     }
 
     [Theory]
+    [InlineData("RO", 2022, 1, 1, 2026, 21)]
+    [InlineData("RO", 2021, 1, 1, 2026, 22)]
+    [InlineData("ro", 2016, 1, 1, 2026, 23)]
+    [InlineData("RO", 2016, 1, 2, 2026, 22)]
+    [InlineData("RO", 2011, 1, 1, 2026, 24)]
+    [InlineData("RO", 2006, 1, 1, 2026, 24)]
+    [InlineData("DE", 2006, 1, 1, 2026, 21)]
+    public void AnnualDaysForRegion_applies_company_seniority_only_in_Romania(
+        string regionCode,
+        int startYear,
+        int startMonth,
+        int startDay,
+        int entitlementYear,
+        int expectedDays)
+    {
+        var days = LeaveAllocationPolicy.AnnualDaysForRegion(
+            regionCode,
+            new DateOnly(startYear, startMonth, startDay),
+            entitlementYear);
+
+        Assert.Equal(expectedDays, days);
+    }
+
+    [Fact]
+    public void AnnualDaysForRegion_without_a_contract_start_uses_base_entitlement()
+    {
+        Assert.Equal(21, LeaveAllocationPolicy.AnnualDaysForRegion("RO", null, 2026));
+    }
+
+    [Theory]
     [InlineData(21, 21, 0)]
     [InlineData(21, 19, 2)]
     [InlineData(21, 16, 5)]
