@@ -173,9 +173,9 @@ namespace CompanyEmployees.Application.Contexts
             return await _holidayProvider.GetHolidaysAsync(user.Region.Code, year);
         }
 
-        // Employees see approved leave for their peers. Line managers instead see
-        // pending and approved requests for their direct reports, so the calendar
-        // exposes staffing conflicts before an approval decision is made.
+        // Everyone sees pending and approved requests for their own team so employees
+        // have the same staffing visibility as their line manager. Team membership and
+        // region boundaries are still enforced below.
         public async Task<List<LeaveRequest>> GetTeamRequestsAsync(Guid userId, DateOnly from, DateOnly to)
         {
             var user = await _userGateway.GetUserByIdAsync(userId);
@@ -198,7 +198,10 @@ namespace CompanyEmployees.Application.Contexts
 
             var team = await GetTeamMembersAsync(userId);
 
-            var teamIds = new List<Guid>();
+            // Include the signed-in employee as well as their manager and peers. Without
+            // this, an employee's own leave appeared on the line-manager calendar but
+            // disappeared when that employee opened the same team calendar.
+            var teamIds = new List<Guid> { userId };
             foreach (var member in team)
             {
                 teamIds.Add(member.Id);
@@ -207,7 +210,7 @@ namespace CompanyEmployees.Application.Contexts
             if (teamIds.Count == 0)
                 return [];
 
-            return await _leaveRequestGateway.GetApprovedRequestsForUsersAsync(teamIds, from, to);
+            return await _leaveRequestGateway.GetActiveRequestsForUsersAsync(teamIds, from, to);
         }
 
         public async Task<List<OrgChartNode>> GetOrgChartChildrenAsync(OrgChartNode parentNode, Guid currentUserId, bool isAdmin)
