@@ -299,21 +299,51 @@ namespace CompanyEmployees.Application.Contexts
                     ManagerId = u.ManagerId
                 });
 
-                // If this is an Admin and there is a next user, inject the virtual Department node
-                if (isAdmin && u.Role == UserRole.Admin && i + 1 < chain.Count)
+                if (i < chain.Count - 1)
                 {
                     var nextUser = chain[i + 1];
-                    var deptName = string.IsNullOrWhiteSpace(nextUser.Department?.Name) ? "No Department" : nextUser.Department.Name;
-                    
-                    path.Add(new OrgChartNode
+
+                    if (u.Role == UserRole.CountryManager && nextUser.Role == UserRole.Admin)
                     {
-                        UserId = Guid.NewGuid(), // Virtual
-                        Name = deptName,
-                        Role = "Department",
-                        Department = deptName,
-                        Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
-                        ManagerId = u.Id
-                    });
+                        var cityId = Guid.NewGuid();
+                        path.Add(new OrgChartNode
+                        {
+                            UserId = cityId,
+                            Name = "Brașov",
+                            Role = "City",
+                            Department = "Region",
+                            Initials = "BV",
+                            ManagerId = u.Id
+                        });
+
+                        var isIndustry = nextUser.Department?.Name == "Industry Software";
+                        var siteName = isIndustry ? "Siemens Industry Software Center" : "Siemens R&D Advanta Center";
+                        var siteInitials = isIndustry ? "SI" : "SR";
+
+                        path.Add(new OrgChartNode
+                        {
+                            UserId = Guid.NewGuid(),
+                            Name = siteName,
+                            Role = "Site",
+                            Department = "Region",
+                            Initials = siteInitials,
+                            ManagerId = cityId
+                        });
+                    }
+
+                    if (u.Role == UserRole.Admin)
+                    {
+                        var deptName = string.IsNullOrWhiteSpace(nextUser.Department?.Name) ? "No Department" : nextUser.Department.Name;
+                        path.Add(new OrgChartNode
+                        {
+                            UserId = Guid.NewGuid(),
+                            Name = deptName,
+                            Role = "Department",
+                            Department = deptName,
+                            Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
+                            ManagerId = u.Id
+                        });
+                    }
                 }
             }
 
