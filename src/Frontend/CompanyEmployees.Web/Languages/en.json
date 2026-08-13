@@ -21,6 +21,8 @@
   "{0} days": "{0} days",
   "{0} used this year": "{0} used this year",
   "{0} days carried over from last year": "{0} days carried over from last year",
+  "{0} days carried over from last year; unused days expire on {1}": "{0} days carried over from last year; unused days expire on {1}",
+  "{0} expired": "{0} expired",
   "day": "day",
   "days": "days",
   "working day": "working day",

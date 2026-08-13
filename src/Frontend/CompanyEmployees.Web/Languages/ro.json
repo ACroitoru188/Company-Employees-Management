@@ -21,6 +21,8 @@
   "{0} days": "{0} zile",
   "{0} used this year": "{0} utilizate anul acesta",
   "{0} days carried over from last year": "{0} zile reportate din anul trecut",
+  "{0} days carried over from last year; unused days expire on {1}": "{0} zile reportate din anul trecut; zilele neutilizate expirÄƒ la {1}",
+  "{0} expired": "{0} expirate",
   "day": "zi",
   "days": "zile",
   "working day": "zi lucrătoare",

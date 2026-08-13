@@ -137,6 +137,9 @@ app.MapPost("/api/auth/login", async (HttpContext context,
 
     if(regionMatches)
     {
+        // A login POST may be used to switch demo accounts. Explicitly remove the
+        // previous principal before issuing the cookie for the selected account.
+        await signInManager.SignOutAsync();
         await signInManager.SignInAsync(account!, isPersistent: true);
 
         var culture = SupportedLanguages.Normalize(account!.PreferredCulture);

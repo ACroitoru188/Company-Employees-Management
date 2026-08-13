@@ -33,13 +33,19 @@
                             <MudText Typo="Typo.body2" Style="color:var(--mud-palette-success); font-weight:600;">
                                 + @Text.Format("{0} days", balance.CarriedOverDays)
                             </MudText>
-                            <MudTooltip Text="@Text.Format("{0} days carried over from last year", balance.CarriedOverDays)">
+                            <MudTooltip Text="@Text.Format("{0} days carried over from last year; unused days expire on {1}", balance.CarriedOverDays, balance.CarryOverExpiryDate?.ToString("d", CultureInfo.CurrentCulture))">
                                 <MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small"
                                          Style="color:var(--mud-palette-text-secondary); vertical-align:middle;" />
                             </MudTooltip>
                         }
+                        @if (balance.ExpiredCarriedOverDays > 0)
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Error" Style="font-weight:600;">
+                                - @Text.Format("{0} expired", balance.ExpiredCarriedOverDays)
+                            </MudText>
+                        }
                     </div>
-                    <MudProgressLinear Value="@(100.0 * balance.Remaining / balance.DaysTotal)"
+                    <MudProgressLinear Value="@(balance.EffectiveDaysTotal == 0 ? 0 : 100.0 * balance.Remaining / balance.EffectiveDaysTotal)"
                                        Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mb-2"
                                        Style="@($"--mud-palette-primary:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
                     <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">

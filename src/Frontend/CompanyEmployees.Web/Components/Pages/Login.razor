@@ -53,19 +53,21 @@
 			</MudSelect>
             <MudTextField T="string" @bind-Value="_email" Label="Work email"
                           Variant="Variant.Outlined" InputType="InputType.Email"
+                          Immediate="true"
                           Required="true" RequiredError="Email is required"
                           Validation="@(new Func<string, string?>(ValidateEmail))"
                           Placeholder="yourname@siemens.com" Class="mb-4"
-                          OnKeyDown="HandleKeyDown" />
+                          OnKeyUp="HandleKeyUp" />
             <MudTextField T="string" @bind-Value="_password" Label="Password"
                           Variant="Variant.Outlined"
+                          Immediate="true"
                           InputType="@(_showPassword ? InputType.Text : InputType.Password)"
                           Required="true" RequiredError="Password is required"
                           Adornment="Adornment.End"
                           AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
                           OnAdornmentClick="@(() => _showPassword = !_showPassword)"
                           AdornmentAriaLabel="Show password"
-                          OnKeyDown="HandleKeyDown" />
+                          OnKeyUp="HandleKeyUp" />
 
             <div class="d-flex justify-space-between align-center gap-4 my-4 flex-wrap">
                 <MudCheckBox T="bool" @bind-Value="_keepSignedIn" Label="Keep me signed in" Dense="true" />
@@ -135,7 +137,7 @@
     private static string? ValidateEmail(string value) =>
         string.IsNullOrWhiteSpace(value) || value.Contains('@') ? null : "Enter a valid email address";
 
-    private Task HandleKeyDown(KeyboardEventArgs args)
+    private Task HandleKeyUp(KeyboardEventArgs args)
     {
         if (args.Key == "Enter")
             return SignIn();

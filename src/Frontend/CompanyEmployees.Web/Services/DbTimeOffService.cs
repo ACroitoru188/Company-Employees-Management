@@ -64,7 +64,9 @@ public class DbTimeOffService : ITimeOffService
                     Type = MapType(b.Type),
                     DaysTotal = b.DaysTotal,
                     DaysUsed = b.DaysUsed,
-                    CarriedOverDays = b.CarriedOverDays
+                    CarriedOverDays = b.CarriedOverDays,
+                    ExpiredCarriedOverDays = b.ExpiredCarriedOverDays,
+                    CarryOverExpiryDate = b.CarryOverExpiryDate
                 })
                 .OrderBy(b => b.Type)
                 .ToList();

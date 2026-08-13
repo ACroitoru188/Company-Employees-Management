@@ -52,7 +52,10 @@ namespace CompanyEmployees.Application.Contexts
             return _leaveRequestGateway.GetRequestsByUserAsync(userId);
         }
 
-        public async Task<List<LeaveBalanceResult>> GetMyBalancesAsync(Guid userId, int year)
+        public async Task<List<LeaveBalanceResult>> GetMyBalancesAsync(
+            Guid userId,
+            int year,
+            DateOnly? asOf = null)
         {
             var user = await _userGateway.GetUserByIdAsync(userId);
             if (user == null)
@@ -65,6 +68,21 @@ namespace CompanyEmployees.Application.Contexts
                 .Select(holiday => holiday.Date)
                 .ToHashSet();
             var annualCarryOver = await GetAnnualCarryOverAsync(user, year, requests);
+            var carryOverExpiryDate = LeaveAllocationPolicy.AnnualCarryOverExpiryDate(year);
+            var annualDaysUsedBeforeExpiry = requests
+                .Where(r => r.Status == LeaveStatus.Approved
+                            && r.Type == LeaveType.Annual
+                            && r.StartDate.Year == year
+                            && r.StartDate <= carryOverExpiryDate)
+                .Sum(r => CountWorkingDays(
+                    r.StartDate,
+                    r.EndDate < carryOverExpiryDate ? r.EndDate : carryOverExpiryDate,
+                    holidays));
+            var expiredAnnualCarryOver = LeaveAllocationPolicy.ExpiredAnnualCarryOverDays(
+                annualCarryOver,
+                Math.Min(annualCarryOver, annualDaysUsedBeforeExpiry),
+                year,
+                asOf ?? DateOnly.FromDateTime(DateTime.Today));
 
             var balances = new List<LeaveBalanceResult>();
             foreach (var allocation in allocations)
@@ -83,7 +101,14 @@ namespace CompanyEmployees.Application.Contexts
                     DaysUsed = daysUsed,
                     CarriedOverDays = allocation.LeaveType == LeaveType.Annual
                         ? annualCarryOver
-                        : 0
+                        : 0,
+                    ExpiredCarriedOverDays = allocation.LeaveType == LeaveType.Annual
+                        ? expiredAnnualCarryOver
+                        : 0,
+                    CarryOverExpiryDate = allocation.LeaveType == LeaveType.Annual
+                        && annualCarryOver > 0
+                            ? carryOverExpiryDate
+                            : null
                 });
             }
             return balances;
@@ -637,9 +662,9 @@ namespace CompanyEmployees.Application.Contexts
             var requestedDays = await CountWorkingDaysAsync(requester, start, end);
             if (requestedDays == 0)
                 throw new InvalidOperationException("The selected period contains no working days.");
-            var balances = await GetMyBalancesAsync(userId, start.Year);
+            var balances = await GetMyBalancesAsync(userId, start.Year, start);
             var balance = balances.FirstOrDefault(b => b.Type == type);
-            if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
+            if (balance == null || balance.DaysRemaining < requestedDays)
                 throw new InvalidOperationException("Not enough days left for this leave type.");
 
             // Admins sit outside the approval workflow entirely (no approve/reject UI
@@ -784,9 +809,9 @@ namespace CompanyEmployees.Application.Contexts
             await EnsureWorkingDayAsync(requester, newStart);
             await EnsureWorkingDayAsync(requester, newEnd);
             var requestedDays = await CountWorkingDaysAsync(requester, newStart, newEnd);
-            var balances = await GetMyBalancesAsync(request.UserId, newStart.Year);
+            var balances = await GetMyBalancesAsync(request.UserId, newStart.Year, newStart);
             var balance = balances.FirstOrDefault(b => b.Type == request.Type);
-            if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
+            if (balance == null || balance.DaysRemaining < requestedDays)
                 throw new InvalidOperationException("Not enough days left for this leave type.");
 
             request.StartDate = newStart;
