@@ -5,8 +5,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project
 
 Company Employees Management — an internship project built by a team of 4 developers. A leave
-(time-off) management app: Blazor Web App (**.NET 9**, Interactive Server) + MudBlazor UI on top
-of a layered backend with EF Core 8 and SQL Server LocalDB.
+(time-off) management app: Blazor Web App (**.NET 9**, Interactive Server) + **Microsoft Fluent UI
+Blazor** on top of a layered backend with EF Core 8 and SQL Server LocalDB.
+
+> The UI was **migrated from MudBlazor to Fluent UI Blazor** in commit `a25e53d`. MudBlazor is
+> gone from the source entirely — the only remaining hits are build debris under the deleted
+> `src/CompanyEmployees.Web/bin|obj` (note the path: the live project is
+> `src/Frontend/CompanyEmployees.Web`). Anything below describing a `Mud*` component is history.
 
 > The repo was **re-architected in July 2026** (commit `ec1dc44` and around it): the old
 > `CompanyEmployees.Data` project, `ApplicationDbContext`, `Employee : IdentityUser<int>` entity
@@ -15,7 +20,7 @@ of a layered backend with EF Core 8 and SQL Server LocalDB.
 > `src/CompanyEmployees.BusinessLogic` and `src/CompanyEmployees.Data.UnitTests` are build
 > debris of deleted projects, not code.
 
-## Solution layout (`CompanyEmployees.slnx`, 6 projects, all net9.0)
+## Solution layout (`CompanyEmployees.slnx`, 8 projects, all net9.0)
 
 ```
 src/Backend/CompanyEmployees.Domain          # entities, enums, gateway INTERFACES, domain exceptions
@@ -23,9 +28,11 @@ src/Backend/CompanyEmployees.Persistence     # CompanyEmployeesDbContext, IEntit
                                              # Migrations/ (incl. SeedData/*.sql), DesignTimeDbContextFactory
 src/Backend/CompanyEmployees.Gateway         # repository IMPLEMENTATIONS (BaseRepository holds the DbContext)
 src/Backend/CompanyEmployees.Application     # business logic: Contexts/ (BaseContext, EmployeeContext,
-                                             # ManagerContext, NotificationContext) + Hubs/NotificationHub
+                                             # ManagerContext, NotificationContext, ImpersonationContext)
 src/Backend/CompanyEmployees.Infrastructure  # cross-cutting: GlobalExceptionHandler, ResponseHandling
-src/Frontend/CompanyEmployees.Web            # Blazor Server + MudBlazor + minimal-API login
+src/Frontend/CompanyEmployees.Web            # Blazor Server + Fluent UI + minimal-API login
+tests/CompanyEmployees.Domain.Tests          # xunit: LeaveAllocationPolicy, LeaveApprovalPolicy
+tests/CompanyEmployees.Application.Tests     # xunit: ManagerContext, NotificationContext
 ```
 
 **Data flow (follow it, don't bypass it):**
@@ -46,6 +53,7 @@ after a fresh clone run `dotnet tool restore` once.
 
 ```sh
 dotnet build                                             # build the solution
+dotnet test                                              # 19 tests, all green
 dotnet run --project src/Frontend/CompanyEmployees.Web   # run, http://localhost:5269
 dotnet watch --project src/Frontend/CompanyEmployees.Web # hot reload
 dotnet dotnet-ef migrations add <Name> --project src/Backend/CompanyEmployees.Persistence
@@ -54,9 +62,11 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
 
 - Ports (`launchSettings.json`): `http` → http://localhost:5269; `https` → https://localhost:7248.
   `UseHttpsRedirection` is commented out in `Program.cs` so plain HTTP testing works.
-- On Windows a running instance **locks `CompanyEmployees.Web.exe`** → `dotnet build` fails with
-  MSB3027/MSB3026 (file-in-use), not a compile error. `taskkill /F /IM CompanyEmployees.Web.exe`
-  first.
+- A running instance used to **lock `CompanyEmployees.Web.exe`** and fail the build with
+  MSB3027/MSB3026. The `KillZombieProcesses` target in `CompanyEmployees.Web.csproj` now runs
+  `taskkill /F /IM CompanyEmployees.Web.exe /T` before every build on Windows, so the build
+  succeeds — but **it silently stops whatever instance is running**, including one started from
+  an IDE. Expect to restart the app after any build.
 - Connection string: `ConnectionStrings:Default` in `Web/appsettings.Development.json`
   (LocalDB `CompanyEmployees`). `Persistence/DesignTimeDbContextFactory.cs` keeps its own copy
   for `dotnet ef` tooling, overridable with the `ConnectionStrings__Default` **environment
@@ -79,7 +89,10 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
     so `database update` fails against it. Drop it once
     (`dotnet dotnet-ef database drop --force --project src/Backend/CompanyEmployees.Persistence`), then
     `database update`.
-- No test project. When one lands, wire up `dotnet test` and document it here.
+- **Tests exist** (they did not when this file was first written): xunit, two projects under
+  `tests/`, 19 tests, `dotnet test` green. They cover domain policies and two Application
+  contexts; there is no Web/component test project, so Razor pages are still only verified by
+  running the app.
 
 ## Domain model (`Domain/Entities`, `Domain/Enums`)
 
@@ -150,7 +163,7 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   `AddCascadingAuthenticationState()` + `Web/Security/IdentityRevalidatingAuthenticationStateProvider`
   (30-min security-stamp revalidation). `<AuthorizeView>` / `[CascadingParameter]
   Task<AuthenticationState>` work.
-- **Login flow**: `Login.razor` (route `/`, MudBlazor form) requires a region and submits a hidden
+- **Login flow**: `Login.razor` (route `/`, Fluent form) requires a region and submits a hidden
   HTML `<form method="post" action="/api/auth/login">` via JS interop — the minimal API verifies
   the password and that the account belongs to the selected active region, then redirects to
   `/employee/dashboard` (or `/?error=InvalidCredentials`). Selecting a region never grants
@@ -233,28 +246,58 @@ HR Dashboard's live counters if you need current numbers.
 - A leave request's `LeaveApproval` comes from either the requester's manager
   (`ManagerContext.DecideRequestAsync`) or HR (`EmployeeContext.HrDecideRequestAsync`).
 
-## The live Employee UI (MudBlazor)
+## The live Employee UI (Fluent UI Blazor)
 
 Pages in `Web/Components/Employee/Pages/` — `EmployeeDashboard` (`/employee/dashboard`),
 `EmployeeCalendar` (`/employee/calendar`), `EmployeeTeam` (`/employee/team`), `MyRequests`
-(`/employee/my-requests`), `NotificationsHistory` (`/employee/notifications`); all
-`@layout EmployeeLayout`.
+(`/employee/my-requests`), `NotificationsHistory` (`/employee/notifications`), plus an org chart
+at `/employee/org-chart`; all `@layout EmployeeLayout`.
 
 - **Render mode is global**: `App.razor` wraps `<Routes @rendermode="InteractiveServer" />`, so
-  layouts render interactively too. That is why `EmployeeProviders`
-  (`MudPopoverProvider`/`MudDialogProvider`/`MudSnackbarProvider` + shared `MudTheme`) currently
-  lives in `EmployeeLayout` and the `NotificationBell` in the AppBar works. **If per-page render
-  modes ever return, the providers must move back into each page** — a static layout's providers
-  never register with the circuit and every tooltip/dialog/snackbar crashes it
-  ("Missing <MudPopoverProvider />").
-- `Components/Layout/EmployeeLayout.razor` (MudAppBar + "WORKSPACE" drawer nav: Dashboard /
-  Calendar / Team / My Requests + user footer, plus role/department-conditional sections — "HR"
-  for HR-department users, "Department" for LineManager, "IT ADMIN" for Admin).
+  layouts render interactively too. That is why `EmployeeProviders` lives in `EmployeeLayout` and
+  the `NotificationBell` in the header works. **If per-page render modes ever return, the
+  providers must move back into each page** — a static layout's providers never register with the
+  circuit and every tooltip/dialog/toast crashes it.
+- `Components/Employee/EmployeeProviders.razor` is the provider bundle: `FluentDesignTheme`
+  (must sit **above** the rest — it emits the design tokens every component reads),
+  `FluentToastProvider`, `FluentDialogProvider`, `FluentTooltipProvider`, `FluentMenuProvider`,
+  and a `FluentMessageBarProvider` pinned to `MessageSections.Page` (an unsectioned one would
+  also swallow the notification bell's centre). Include it at the top of every layout.
+  `AccentColor` (`#0F6CBD`) must stay in step with the value `app.css` uses for light-DOM
+  elements, or the app runs two slightly different blues.
+- `Components/Layout/EmployeeLayout.razor` ("WORKSPACE" nav: Dashboard / Calendar / Team / My
+  Requests / Org Chart + user footer, plus role/department-conditional sections — "HR" for
+  HR-department users, "Department" for LineManager, "IT ADMIN" for Admin).
   It reads the user's name/role from the auth cookie's claims, never the DB — the layout shares
   the page's scoped DbContext and a second in-flight query on it throws.
-- **MudBlazor 9.x** (`9.7.0` pinned in `CompanyEmployees.Web.csproj`); `AddMudServices()` in
-  `Program.cs`; CSS/JS linked in `App.razor` via plain
-  `_content/MudBlazor/…` hrefs (RCL assets don't go through `@Assets[]`).
+- **Microsoft.FluentUI.AspNetCore.Components 4.14.4** (pinned, plus the matching `.Icons`
+  package); `AddFluentUIComponents()` in `Program.cs`. Icons come from the icon package as
+  `new Icons.Regular.Size20.Foo()`, not inline SVG as on the older pages.
+- Dialogs and toasts are injected services (`IDialogService`, `IToastService`), not components.
+
+### FluentCombobox raises SelectedOptionChanged more than once — guard it
+
+A single pick fires the callback **at least twice**: first with a **null** option, then with the
+option actually chosen ([fluentui-blazor#2077](https://github.com/microsoft/fluentui-blazor/issues/2077)),
+and then again on every render for as long as the component's own selection disagrees with the
+`SelectedOption` it is handed back. Two rules, both learned the hard way on `/admin/users`:
+
+1. **Ignore a null option.** Clearing a value on purpose arrives as a real "None" entry carrying
+   `Guid.Empty`, never as null, so null is always the phantom callback. Acting on it wipes the
+   field for as long as the real value takes to arrive — and permanently if that save then fails.
+   Do **not** funnel both through a `ToXxxId(option)` helper that maps null and `Guid.Empty` to
+   the same thing; that conflation is what hid the bug.
+2. **Write the new value to the bound row before the first `await`.** Until the row agrees with
+   the component, every render contradicts it and it raises the event again — an endless loop of
+   handler calls that never lets the save finish.
+
+Because the circuit has **one scoped `DbContext`**, overlapping callbacks also mean overlapping
+EF operations, which EF Core refuses ("a second operation was started on this context instance").
+Unhandled, that kills the whole circuit and blanks the page. Handlers doing database work on
+these pages therefore also take a `SemaphoreSlim` and wrap the work in `try/catch` →
+`Toast.ShowError`. The same collision happens when clicking Delete blurs a focused field, so
+delete paths share the lock. `OnUserRegionChangedAsync` had the null guard from the start, which
+is exactly why the Region column never showed the bug while Department did.
 - Leave-type color map: `Components/Employee/LeaveTypePalette.cs`, applied via inline `Style`
   (the colors aren't theme `Color` enum members). `LeaveBalanceSummary.razor` is the shared
   header + balance cards (Dashboard passes a CTA through its `Actions` RenderFragment).
@@ -281,9 +324,37 @@ Pages in `Web/Components/Employee/Pages/` — `EmployeeDashboard` (`/employee/da
   to the dashboard. `AdminDepartments` edits name/manager per department and creates/deletes
   departments; `AdminUsers` reassigns a user's department (`AssignUserToDepartmentAsync`) — the
   Users table used to live inside `AdminDepartments` but was split into its own page on
-  2026-07-28. Both list tables are `MudDataGrid` (sortable/filterable/paged via a `QuickFilter`
-  toolbar search), not the plain `MudTable` used elsewhere.
-- Date formatting: always `CultureInfo.InvariantCulture` (server culture may not be English).
+  2026-07-28. `AdminUsers` also owns contracts, region transfer, CSV export and account
+  creation. Both list tables are `FluentDataGrid` with `PaginationState` + `FluentPaginator`,
+  a toolbar `FluentSearch` and per-column `ColumnOptions` filters that stack with it; both
+  edit inline through `FluentCombobox`/`FluentSelect` cells, so read the combobox warning above
+  before touching either.
+- Date formatting: `CultureInfo.InvariantCulture` on the admin/data paths (server culture may not
+  be English); the user-facing contract and calendar strings use `CultureInfo.CurrentCulture`,
+  which request localization sets from the signed-in user's language.
+
+## Localization (21 languages, home-grown — not IStringLocalizer)
+
+Undocumented until now, and it touches every page you will edit.
+
+- `Web/Services/AppLocalizer` is a **singleton** that loads `Web/Languages/<culture>.json` from
+  `ContentRootPath` at startup. Each file is a flat `{ "english source string": "translation" }`
+  map, keyed by the English text itself — there are no symbolic keys. A missing file **throws at
+  startup**, so a new entry in `SupportedLanguages.All` needs its JSON added in the same change.
+- The files are `Content … CopyToOutputDirectory="PreserveNewest"` in the csproj precisely
+  because the localizer reads them from disk rather than from resources.
+- Pages `@inject AppLocalizer Text` and write `@Text["Some label"]`, or
+  `Text.Format("{0} moved.", name)` when there are placeholders. **Adding UI text means adding
+  the same key to all 21 JSON files**, keeping `{0}`/`{1}` intact in every translation.
+- `LanguagePreferenceService` + `User.PreferredCulture` persist the choice (`LanguageDialog`
+  changes it); `Program.cs` calls `UseRequestLocalization`, which is what makes
+  `CultureInfo.CurrentCulture` correct on user-facing pages.
+- Arabic and Urdu are in the set, so **do not hard-code left-to-right layout assumptions**.
+
+Other Web services worth knowing before adding a feature: `EmployeeAccountService` (account
+creation + invite), `AccountEmailSender`/`SmtpAccountEmailSender` (setup links; falls back to a
+dev link when SMTP is unconfigured), `EmployeeCsvExportService` (the region-scoped export behind
+`/api/employees/export.csv`), `ThemeState` (dark/light, persisted), `LanguagePreferenceService`.
 
 ## Delegation = borrowed accounts (not delegated permissions)
 
@@ -370,22 +441,22 @@ trace. The compensating controls below are what make that acceptable; don't remo
 
 ## Other UI in the tree (know before styling)
 
-Three design systems coexist; only the MudBlazor one above is on the live path from login.
+Several styling worlds coexist; only the Fluent UI one above is on the live path from login.
 
 > The **retro/vintage-desktop Dashboard** (`Components/Pages/Dashboard.razor` at
 > `/manager/dashboard`, plus its ~21 components — `Sidebar`, `TopBar`, `Card`, `RetroButton`,
 > `ManagerOverview`, `TeamCalendarView`, … — and `LeaveTone.cs`) was **deleted on
 > 2026-08-04**. It was an in-memory mockup on a route nothing linked to, and its component
 > graph was closed: nothing outside it referenced any of the 22 files. The real manager view
-> is `/manager/team` (`ManagerDashboard.razor`, MudBlazor). `git show 9c3d804` and earlier
-> still has it if anything needs recovering.
+> is `/manager/team` (`ManagerDashboard.razor`). `git show 9c3d804` and earlier still has it if
+> anything needs recovering.
 
 1. **CSS Isolation** (not a design system, but it trips people up project-wide): each `Foo.razor` has
      a co-located `Foo.razor.css`. A rule only applies to markup *authored directly* in that
      component's own markup — RenderFragment content (e.g. `Card`'s `ChildContent`) is scoped to
      the *passing* component, and **a child component's own rendered root is never reachable at
      all** without `::deep` (Blazor never emits a scope attribute onto a child component's
-     output — `<MudPaper Class="foo">` means `.foo` alone can't match MudPaper's root div, full
+     output — `<FluentCard Class="foo">` means `.foo` alone can't match the card's root div, full
      stop). `::deep .foo` compiles to the descendant selector `[b-scope] .foo`, which then needs
      a literal DOM **ancestor** carrying that scope attribute — a sibling element in the markup
      doesn't count, so where you close a wrapping `<div>` relative to the target matters (see
@@ -411,11 +482,11 @@ Three design systems coexist; only the MudBlazor one above is on the live path f
    `DefaultLayout` in `Routes.razor`, backing only `NotFound.razor` and `Error.razor`. Not dead
    code.
 
-Icons are inline SVGs (no icon package). GSAP + ScrollTrigger are loaded **from the cdnjs CDN**
-in `App.razor` (plus `/pointer.js` and `/anim.js`) but are **dormant** — the MudBlazor Login has
-no `data-*` anim attributes; the declarative contract (`data-reveal`, `data-intro`, …) in
-`wwwroot/js/anim.js` still works if markup opts in. `Dashboard.razor` and `Login.razor` use
-`@layout AuthLayout` (bare `@Body`).
+On these older pages icons are inline SVGs; the Fluent pages use the icon package instead
+(`Icons.Regular.Size20.*`). GSAP + ScrollTrigger are loaded **from the cdnjs CDN** in `App.razor`
+(plus `/pointer.js` and `/anim.js`) but are **dormant** — the Login has no `data-*` anim
+attributes; the declarative contract (`data-reveal`, `data-intro`, …) in `wwwroot/js/anim.js`
+still works if markup opts in. `Login.razor` uses `@layout AuthLayout` (bare `@Body`).
 
 ## Working conventions
 
@@ -424,5 +495,9 @@ no `data-*` anim attributes; the declarative contract (`data-reveal`, `data-intr
   Gateway, logic in an Application context, thin mapping in a Web service. Don't add a new
   context class for a handful of pass-throughs — extend `EmployeeContext`.
 - `TODO.md` is stale (pre-rearchitecture).
-- Keep this file current as structure lands: `dotnet test` when tests exist, auth hardening as
-  it happens.
+- New user-facing text means a new key in **all** `Web/Languages/*.json`, not just `en.json`.
+- Any event handler that touches the database from a Razor page needs a `try/catch` that reports
+  through `IToastService`. Blazor Server tears down the circuit on an unhandled exception, which
+  looks to the user like the page freezing or silently ignoring them — the department-assignment
+  bug hid behind exactly that for weeks.
+- Keep this file current as structure lands.

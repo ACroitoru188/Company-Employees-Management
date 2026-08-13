@@ -92,13 +92,16 @@ else
 			<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
 						 VerticalAlignment="VerticalAlignment.Bottom">
 				<FluentTextField @bind-Value="_newName" Label="@Text["Name"]" />
+				@* SelectedOptionChanged keeps the current value when handed a null option: null is
+				   the phantom half of the pair of callbacks a single pick raises, and taking it
+				   would wipe the choice the real callback is about to deliver. *@
 				<FluentCombobox TOption="ManagerOption" Label="@Text["Manager"]"
 								Items="@_managerOptions"
 								OptionValue="@(option => option.Id.ToString())"
 								OptionText="@(option => option.Name)"
 								Autocomplete="ComboboxAutocomplete.Both"
 								SelectedOption="@OptionFor(_newManagerId)"
-								SelectedOptionChanged="@(option => _newManagerId = ToManagerId(option))"
+								SelectedOptionChanged="@(option => _newManagerId = option is null ? _newManagerId : ToManagerId(option))"
 								Style="min-width:200px;" />
 				<FluentButton Appearance="Appearance.Accent" OnClick="CreateDepartmentAsync">@Text["Add"]</FluentButton>
 			</FluentStack>
@@ -192,16 +195,55 @@ else
 			.ToList();
 	}
 
+	// Serialises the database work on this page. The circuit has a single scoped DbContext and
+	// EF Core refuses two operations on one context ("a second operation was started on this
+	// context instance"); the combobox delivering several callbacks for one pick, and clicking
+	// Delete while a name field still has focus, both used to trigger exactly that and take the
+	// whole circuit down with it.
+	private readonly SemaphoreSlim _saveLock = new(1, 1);
+
 	private async Task SaveDepartmentAsync(Department dept)
 	{
-		await Employees.UpdateDepartmentAsync(dept.Id, dept.Name, dept.ManagerId);
-		Toast.ShowSuccess(Text["Department updated."]);
-		await LoadAsync();
+		await _saveLock.WaitAsync();
+		try
+		{
+			await Employees.UpdateDepartmentAsync(dept.Id, dept.Name, dept.ManagerId);
+			Toast.ShowSuccess(Text["Department updated."]);
+		}
+		catch (Exception exception)
+		{
+			// Left unhandled this reaches the renderer and terminates the circuit.
+			Toast.ShowError(exception.Message);
+		}
+		finally
+		{
+			// Reloaded after a failure too: callers write the new name or manager onto the row
+			// before saving, so without this a rejected save would leave that value on screen.
+			await LoadAsync();
+			_saveLock.Release();
+		}
 	}
 
 	private async Task OnManagerChangedAsync(Department dept, ManagerOption? option)
 	{
-		dept.ManagerId = ToManagerId(option);
+		// A single pick raises SelectedOptionChanged more than once (fluentui-blazor#2077): first
+		// with a null option, then with the manager chosen, then again on every render for as long
+		// as the combobox's selection disagrees with the SelectedOption it is handed back. Acting
+		// on the null would detach the manager until the real value arrived, and for good if that
+		// save then failed; detaching on purpose arrives as the "None" entry, a real option
+		// holding Guid.Empty, so a null option is only ever the phantom callback.
+		if (option is null)
+			return;
+
+		var managerId = ToManagerId(option);
+
+		// Assigned before the first await so the row agrees with the combobox straight away —
+		// otherwise each render contradicts the component and it raises the event again, and the
+		// repeats never let the save finish.
+		if (dept.ManagerId == managerId)
+			return;
+
+		dept.ManagerId = managerId;
 		await SaveDepartmentAsync(dept);
 	}
 
@@ -212,18 +254,47 @@ else
 			Toast.ShowWarning(Text["Name is required."]);
 			return;
 		}
-		await Employees.CreateDepartmentAsync(_newName, _newManagerId);
-		Toast.ShowSuccess(Text["Department created."]);
-		_newName = "";
-		_newManagerId = null;
-		await LoadAsync();
+		await _saveLock.WaitAsync();
+		try
+		{
+			await Employees.CreateDepartmentAsync(_newName, _newManagerId);
+			Toast.ShowSuccess(Text["Department created."]);
+			_newName = "";
+			_newManagerId = null;
+			await LoadAsync();
+		}
+		catch (Exception exception)
+		{
+			Toast.ShowError(exception.Message);
+		}
+		finally
+		{
+			_saveLock.Release();
+		}
 	}
 
+	// Shares the lock with SaveDepartmentAsync on purpose: clicking Delete first blurs whichever
+	// name field had focus, so the row's focusout save and this delete would otherwise reach the
+	// same DbContext together — the same collision the combobox caused.
 	private async Task DeleteDepartmentAsync(Department dept)
 	{
-		await Employees.DeleteDepartmentAsync(dept.Id);
-		Toast.ShowSuccess(Text["Department deleted."]);
-		await LoadAsync();
+		await _saveLock.WaitAsync();
+		try
+		{
+			await Employees.DeleteDepartmentAsync(dept.Id);
+			Toast.ShowSuccess(Text["Department deleted."]);
+			await LoadAsync();
+		}
+		catch (Exception exception)
+		{
+			// A department still referenced elsewhere fails on a foreign key; the admin needs to
+			// read that, not watch the page disappear.
+			Toast.ShowError(exception.Message);
+		}
+		finally
+		{
+			_saveLock.Release();
+		}
 	}
 
 	private string GetManagerName(Guid? id) =>

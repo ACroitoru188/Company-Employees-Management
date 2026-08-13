@@ -265,7 +265,7 @@ else
 							OptionText="@(option => option.Name)"
 							Autocomplete="ComboboxAutocomplete.Both"
 							SelectedOption="@DepartmentOptionFor(context.DepartmentId)"
-							SelectedOptionChanged="@(option => OnUserDepartmentChangedAsync(context, ToDepartmentId(option)))"
+							SelectedOptionChanged="@(option => OnUserDepartmentChangedAsync(context, option))"
 							Disabled="@(!CanEditUser(context))" />
 			</ChildContent>
 		</TemplateColumn>
@@ -516,17 +516,58 @@ else
 		}
 	}
 
-	private async Task OnUserDepartmentChangedAsync(User user, Guid? departmentId)
+	// Guards the database work below. The combobox can deliver several callbacks for one pick and
+	// the circuit has a single scoped DbContext; EF Core refuses two operations on one context
+	// ("a second operation was started on this context instance"), which used to go uncaught and
+	// take the whole circuit down with it.
+	private readonly SemaphoreSlim _departmentSaveLock = new(1, 1);
+
+	private async Task OnUserDepartmentChangedAsync(User user, DepartmentOption? option)
 	{
+		// A single pick raises SelectedOptionChanged more than once (fluentui-blazor#2077): first
+		// with a null option, then with the department chosen, and then once more on every render
+		// for as long as the combobox's own selection disagrees with the SelectedOption parameter
+		// it is handed back. Acting on the null would clear the department for as long as it takes
+		// the real value to arrive — and permanently if that save then failed. Clearing on purpose
+		// arrives as the "None" entry, a real option carrying Guid.Empty, so a null option only
+		// ever means the phantom callback. OnUserRegionChangedAsync guards its region the same way.
+		if (option is null)
+			return;
+
 		if (!CanEditUser(user))
 			return;
 
+		var departmentId = ToDepartmentId(option);
+
+		// Written to the row before the first await, which is what ends the repeats: until the row
+		// agrees with the combobox, every render hands the component a SelectedOption that
+		// contradicts its own state and it raises the event again, so the save never got to
+		// finish. Updating it here also keeps the cell showing the new department across the round
+		// trip; LoadAsync replaces the row with the stored truth either way.
 		if (user.DepartmentId == departmentId)
 			return;
 
-		await Employees.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId);
-		Toast.ShowSuccess(Text.Format("{0} moved.", user.Name));
-		await LoadAsync();
+		user.DepartmentId = departmentId;
+
+		await _departmentSaveLock.WaitAsync();
+		try
+		{
+			await Employees.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId);
+			Toast.ShowSuccess(Text.Format("{0} moved.", user.Name));
+		}
+		catch (Exception exception)
+		{
+			// Left unhandled this reaches the renderer and terminates the circuit, blanking the
+			// page instead of reporting the failure.
+			Toast.ShowError(exception.Message);
+		}
+		finally
+		{
+			// Runs after a failure too, so the optimistic value above cannot outlive a save that
+			// did not happen.
+			await LoadAsync();
+			_departmentSaveLock.Release();
+		}
 	}
 
 	private async Task OnUserRegionChangedAsync(User user, Region? region)
