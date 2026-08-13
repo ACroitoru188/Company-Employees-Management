@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "آپ نے ابھی تک کوئی چھٹی نہیں مانگی۔",
   "Save": "محفوظ کریں",
   "Delegation History": "تفویض کی تاریخ",
-  "The application follows this language everywhere, on any device you sign in from.": "ایپلیکیشن ہر جگہ یہی زبان استعمال کرے گی، چاہے آپ کسی بھی ڈیوائس سے سائن اِن کریں۔"
+  "The application follows this language everywhere, on any device you sign in from.": "ایپلیکیشن ہر جگہ یہی زبان استعمال کرے گی، چاہے آپ کسی بھی ڈیوائس سے سائن اِن کریں۔",
+  "Yes, delete": "جی ہاں، حذف کریں",
+  "Confirm department deletion": "شعبہ حذف کرنے کی تصدیق کریں",
+  "Delete {0}? This cannot be undone.": "{0} حذف کریں؟ اس عمل کو واپس نہیں کیا جا سکتا۔",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "{0} حذف کریں؟ اس عمل کو واپس نہیں کیا جا سکتا، اور اس کے {1} ارکان بغیر شعبے کے رہ جائیں گے۔"
 }

@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "Zatím jste nepožádali o žádné volno.",
   "Save": "Uložit",
   "Delegation History": "Historie delegování",
-  "The application follows this language everywhere, on any device you sign in from.": "Aplikace používá tento jazyk všude, na jakémkoli zařízení, ze kterého se přihlásíte."
+  "The application follows this language everywhere, on any device you sign in from.": "Aplikace používá tento jazyk všude, na jakémkoli zařízení, ze kterého se přihlásíte.",
+  "Yes, delete": "Ano, smazat",
+  "Confirm department deletion": "Potvrdit smazání oddělení",
+  "Delete {0}? This cannot be undone.": "Smazat {0}? Tuto akci nelze vrátit zpět.",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "Smazat {0}? Tuto akci nelze vrátit zpět a {1} členů zůstane bez oddělení."
 }

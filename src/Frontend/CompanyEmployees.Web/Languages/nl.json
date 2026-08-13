@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "U hebt nog geen verlof aangevraagd.",
   "Save": "Opslaan",
   "Delegation History": "Delegatiegeschiedenis",
-  "The application follows this language everywhere, on any device you sign in from.": "De applicatie gebruikt deze taal overal, op elk apparaat waarmee u zich aanmeldt."
+  "The application follows this language everywhere, on any device you sign in from.": "De applicatie gebruikt deze taal overal, op elk apparaat waarmee u zich aanmeldt.",
+  "Yes, delete": "Ja, verwijderen",
+  "Confirm department deletion": "Verwijderen van afdeling bevestigen",
+  "Delete {0}? This cannot be undone.": "{0} verwijderen? Dit kan niet ongedaan worden gemaakt.",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "{0} verwijderen? Dit kan niet ongedaan worden gemaakt en de {1} leden blijven zonder afdeling achter."
 }

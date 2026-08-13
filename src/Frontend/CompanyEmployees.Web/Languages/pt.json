@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "Ainda não solicitou qualquer ausência.",
   "Save": "Guardar",
   "Delegation History": "Histórico de delegações",
-  "The application follows this language everywhere, on any device you sign in from.": "A aplicação usa este idioma em todo o lado, em qualquer dispositivo a partir do qual iniciar sessão."
+  "The application follows this language everywhere, on any device you sign in from.": "A aplicação usa este idioma em todo o lado, em qualquer dispositivo a partir do qual iniciar sessão.",
+  "Yes, delete": "Sim, eliminar",
+  "Confirm department deletion": "Confirmar a eliminação do departamento",
+  "Delete {0}? This cannot be undone.": "Eliminar {0}? Esta ação não pode ser anulada.",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "Eliminar {0}? Esta ação não pode ser anulada e os seus {1} membros ficarão sem departamento."
 }

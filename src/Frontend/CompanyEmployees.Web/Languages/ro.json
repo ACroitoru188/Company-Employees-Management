@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "Nu ai solicitat încă nicio zi liberă.",
   "Save": "Salvează",
   "Delegation History": "Istoric delegări",
-  "The application follows this language everywhere, on any device you sign in from.": "Aplicația folosește această limbă peste tot, pe orice dispozitiv de pe care te autentifici."
+  "The application follows this language everywhere, on any device you sign in from.": "Aplicația folosește această limbă peste tot, pe orice dispozitiv de pe care te autentifici.",
+  "Yes, delete": "Da, șterge",
+  "Confirm department deletion": "Confirmă ștergerea departamentului",
+  "Delete {0}? This cannot be undone.": "Ștergi {0}? Acțiunea nu poate fi anulată.",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "Ștergi {0}? Acțiunea nu poate fi anulată, iar cei {1} membri vor rămâne fără departament."
 }

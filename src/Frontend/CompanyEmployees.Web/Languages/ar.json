@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "لم تطلب أي إجازة بعد.",
   "Save": "حفظ",
   "Delegation History": "سجل التفويض",
-  "The application follows this language everywhere, on any device you sign in from.": "يستخدم التطبيق هذه اللغة في كل مكان، على أي جهاز تسجّل الدخول منه."
+  "The application follows this language everywhere, on any device you sign in from.": "يستخدم التطبيق هذه اللغة في كل مكان، على أي جهاز تسجّل الدخول منه.",
+  "Yes, delete": "نعم، احذف",
+  "Confirm department deletion": "تأكيد حذف القسم",
+  "Delete {0}? This cannot be undone.": "هل تريد حذف {0}؟ لا يمكن التراجع عن هذا الإجراء.",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "هل تريد حذف {0}؟ لا يمكن التراجع عن هذا الإجراء، وسيبقى أعضاؤه البالغ عددهم {1} بلا قسم."
 }

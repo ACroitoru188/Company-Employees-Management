@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "आपने अभी तक कोई छुट्टी नहीं माँगी है।",
   "Save": "सहेजें",
   "Delegation History": "प्रतिनिधिमंडल इतिहास",
-  "The application follows this language everywhere, on any device you sign in from.": "आप जिस भी डिवाइस से साइन इन करें, ऐप्लिकेशन हर जगह यही भाषा उपयोग करेगा।"
+  "The application follows this language everywhere, on any device you sign in from.": "आप जिस भी डिवाइस से साइन इन करें, ऐप्लिकेशन हर जगह यही भाषा उपयोग करेगा।",
+  "Yes, delete": "हाँ, हटाएँ",
+  "Confirm department deletion": "विभाग हटाने की पुष्टि करें",
+  "Delete {0}? This cannot be undone.": "{0} हटाएँ? यह क्रिया पूर्ववत नहीं की जा सकती।",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "{0} हटाएँ? यह क्रिया पूर्ववत नहीं की जा सकती, और इसके {1} सदस्य बिना विभाग के रह जाएंगे।"
 }

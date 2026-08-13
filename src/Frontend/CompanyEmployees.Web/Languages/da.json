@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "Du har endnu ikke anmodet om fri.",
   "Save": "Gem",
   "Delegation History": "Delegeringshistorik",
-  "The application follows this language everywhere, on any device you sign in from.": "Applikationen bruger dette sprog overalt, på enhver enhed du logger ind fra."
+  "The application follows this language everywhere, on any device you sign in from.": "Applikationen bruger dette sprog overalt, på enhver enhed du logger ind fra.",
+  "Yes, delete": "Ja, slet",
+  "Confirm department deletion": "Bekræft sletning af afdeling",
+  "Delete {0}? This cannot be undone.": "Slet {0}? Dette kan ikke fortrydes.",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "Slet {0}? Dette kan ikke fortrydes, og afdelingens {1} medlemmer står tilbage uden afdeling."
 }

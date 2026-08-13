@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "Et ole vielä hakenut vapaata.",
   "Save": "Tallenna",
   "Delegation History": "Delegointihistoria",
-  "The application follows this language everywhere, on any device you sign in from.": "Sovellus käyttää tätä kieltä kaikkialla, millä tahansa laitteella kirjaudutkin."
+  "The application follows this language everywhere, on any device you sign in from.": "Sovellus käyttää tätä kieltä kaikkialla, millä tahansa laitteella kirjaudutkin.",
+  "Yes, delete": "Kyllä, poista",
+  "Confirm department deletion": "Vahvista osaston poistaminen",
+  "Delete {0}? This cannot be undone.": "Poistetaanko {0}? Tätä ei voi kumota.",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "Poistetaanko {0}? Tätä ei voi kumota, ja sen {1} jäsentä jää ilman osastoa."
 }

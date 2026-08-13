@@ -21,14 +21,25 @@
    header and every page below renders at zero height. */
 html, body { margin: 0; padding: 0; height: 100%; }
 
-/* Always reserve the vertical scrollbar's width, even on pages short enough not to
-   need one. Without this, centred content shifts left/right depending on whether THIS
-   page happens to be tall enough to grow a scrollbar — e.g. the Calendar's month grid
-   versus the shorter Dashboard. scrollbar-gutter is the modern property; overflow-y is
-   the fallback for browsers that don't support it yet. */
-html {
-    overflow-y: scroll;
+/* The document itself never scrolls: html and body are pinned to the window's height above and
+   FluentBodyContent owns the overflow, so the `overflow-y: scroll` that used to sit here was
+   painting a permanent — and permanently disabled — scrollbar on every page. The reservation it
+   existed to provide, so centred content does not shift left/right when a page happens to be
+   tall enough to grow a scrollbar, moves onto the element that actually scrolls. It has to:
+   measured in Chromium, `scrollbar-gutter` on the root element reserves nothing at all, which is
+   why the `overflow-y` "fallback" was doing all the work and all the damage. */
+.body-content {
     scrollbar-gutter: stable;
+}
+
+/* Page content sits centred under a ceiling instead of stretching to the width of the monitor.
+   max-width with margin-inline, never fixed positioning: the block narrows by itself on a small
+   window and keeps the same place on a wide one. Opt-in per page rather than applied to
+   FluentBodyContent for everyone — the calendar and the org chart want the full width. */
+.page-shell {
+    width: 100%;
+    max-width: 1280px;
+    margin-inline: auto;
 }
 
 /* ---- Fluent design tokens ---------------------------------------------------------

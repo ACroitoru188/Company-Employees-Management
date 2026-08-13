@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "Du har ännu inte ansökt om någon ledighet.",
   "Save": "Spara",
   "Delegation History": "Delegeringshistorik",
-  "The application follows this language everywhere, on any device you sign in from.": "Applikationen använder detta språk överallt, på alla enheter du loggar in från."
+  "The application follows this language everywhere, on any device you sign in from.": "Applikationen använder detta språk överallt, på alla enheter du loggar in från.",
+  "Yes, delete": "Ja, ta bort",
+  "Confirm department deletion": "Bekräfta borttagning av avdelning",
+  "Delete {0}? This cannot be undone.": "Ta bort {0}? Detta går inte att ångra.",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "Ta bort {0}? Detta går inte att ångra och dess {1} medlemmar blir utan avdelning."
 }

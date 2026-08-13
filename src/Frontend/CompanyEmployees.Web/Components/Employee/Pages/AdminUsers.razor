@@ -23,6 +23,7 @@
 }
 else
 {
+	<div class="page-shell">
 	<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
 				 HorizontalGap="12" Wrap="true" Width="100%">
 		<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text["Users & Contracts"]</FluentLabel>
@@ -299,6 +300,7 @@ else
 	<FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center" Width="100%">
 		<FluentPaginator State="@_pagination" />
 	</FluentStack>
+	</div>
 }
 
 @code {

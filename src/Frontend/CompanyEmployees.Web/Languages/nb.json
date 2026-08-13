@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "Du har ennå ikke søkt om fri.",
   "Save": "Lagre",
   "Delegation History": "Delegeringshistorikk",
-  "The application follows this language everywhere, on any device you sign in from.": "Applikasjonen bruker dette språket overalt, på alle enheter du logger inn fra."
+  "The application follows this language everywhere, on any device you sign in from.": "Applikasjonen bruker dette språket overalt, på alle enheter du logger inn fra.",
+  "Yes, delete": "Ja, slett",
+  "Confirm department deletion": "Bekreft sletting av avdeling",
+  "Delete {0}? This cannot be undone.": "Slette {0}? Dette kan ikke angres.",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "Slette {0}? Dette kan ikke angres, og de {1} medlemmene blir stående uten avdeling."
 }

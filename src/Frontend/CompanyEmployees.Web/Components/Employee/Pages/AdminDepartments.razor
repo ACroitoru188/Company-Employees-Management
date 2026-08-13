@@ -11,6 +11,7 @@
 @inject AppLocalizer Text
 @inject NavigationManager Nav
 @inject IToastService Toast
+@inject IDialogService DialogService
 
 <PageTitle>@Text["Departments"] · @Text["Admin"]</PageTitle>
 
@@ -20,6 +21,7 @@
 }
 else
 {
+	<div class="page-shell">
 	<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" MarginBlock="0 16px">@Text["Departments"]</FluentLabel>
 
 	<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
@@ -29,9 +31,12 @@ else
 		<FluentSpacer />
 	</FluentStack>
 
+	@* Grid and paginator share one surface, so the table reads as a single object instead of
+	   rows floating on the page background — and it matches the panel below it. *@
+	<FluentCard Style="margin-top:12px; padding:16px;">
 	<FluentDataGrid Items="@FilteredDepartments" TGridItem="Department" ResizableColumns="true"
-					ShowHover="true" Pagination="@_pagination" Style="margin-top:12px;"
-					GridTemplateColumns="2fr 2fr 0.7fr 0.5fr">
+					ShowHover="true" Pagination="@_pagination"
+					GridTemplateColumns="2fr 2fr 0.8fr 0.6fr">
 		<EmptyContent>
 		    <EmptyState Icon="@(new Icons.Regular.Size24.Search())"
 		                Title="@Text["No department matches this search."]"
@@ -71,9 +76,23 @@ else
 			</ChildContent>
 		</TemplateColumn>
 
-		<PropertyColumn Title="@Text["Members"]" Property="@(d => d.Members.Count)" />
+		@* A bare count answers nothing; as a link it answers the question it provokes — who are
+		   they — and /admin/users already takes a search term from the query string. An empty
+		   department gets a dash rather than a zero inviting a click. *@
+		<TemplateColumn Title="@Text["Members"]" Sortable="true" SortBy="@_byMembers">
+			@if (context.Members.Count == 0)
+			{
+				<FluentLabel Typo="Typography.Body" Color="Color.Custom"
+							 CustomColor="var(--neutral-foreground-hint)">—</FluentLabel>
+			}
+			else
+			{
+				<FluentAnchor Href="@($"/admin/users?search={Uri.EscapeDataString(context.Name)}")"
+							  Appearance="Appearance.Lightweight">@context.Members.Count</FluentAnchor>
+			}
+		</TemplateColumn>
 
-		<TemplateColumn Sortable="false" Align="Align.End">
+		<TemplateColumn Title="@Text["Actions"]" Sortable="false" Align="Align.End">
 			<FluentButton Appearance="Appearance.Stealth" Title="@Text["Delete department"]"
 						  IconStart="@(new Icons.Regular.Size20.Delete().WithColor("var(--error)"))"
 						  OnClick="@(() => DeleteDepartmentAsync(context))" />
@@ -85,28 +104,45 @@ else
 				 Width="100%">
 		<FluentPaginator State="@_pagination" />
 	</FluentStack>
-
-	<FluentCard Style="margin-top:24px; padding:16px;">
-		<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
-			<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@Text["New department"]</FluentLabel>
-			<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
-						 VerticalAlignment="VerticalAlignment.Bottom">
-				<FluentTextField @bind-Value="_newName" Label="@Text["Name"]" />
-				@* SelectedOptionChanged keeps the current value when handed a null option: null is
-				   the phantom half of the pair of callbacks a single pick raises, and taking it
-				   would wipe the choice the real callback is about to deliver. *@
-				<FluentCombobox TOption="ManagerOption" Label="@Text["Manager"]"
-								Items="@_managerOptions"
-								OptionValue="@(option => option.Id.ToString())"
-								OptionText="@(option => option.Name)"
-								Autocomplete="ComboboxAutocomplete.Both"
-								SelectedOption="@OptionFor(_newManagerId)"
-								SelectedOptionChanged="@(option => _newManagerId = option is null ? _newManagerId : ToManagerId(option))"
-								Style="min-width:200px;" />
-				<FluentButton Appearance="Appearance.Accent" OnClick="CreateDepartmentAsync">@Text["Add"]</FluentButton>
-			</FluentStack>
-		</FluentStack>
 	</FluentCard>
+
+	@* Folded away like the create-account panel on /admin/users: adding a department is
+	   occasional, reading the table is what this page is for. It springs back open after a
+	   successful create so the confirmation is not left behind a chevron. *@
+	<FluentAccordion Style="margin-top:24px;">
+		<FluentAccordionItem Heading="@Text["New department"]" Expanded="@_createFormOpen">
+			<span slot="start">
+				<FluentIcon Value="@(new Icons.Regular.Size20.Add())" Color="Color.Neutral" />
+			</span>
+			@* A grid, not a wrapping row. A Fluent field renders its label and its control as two
+			   siblings, so a wrapping flex row is free to break between them and leave "Manager"
+			   pointing at nothing — the same trap the create-account form hit. *@
+			<FluentGrid Spacing="3" Style="padding:8px 0 4px;">
+				<FluentGridItem xs="12" sm="6" md="4">
+					<FluentTextField @bind-Value="_newName" Label="@Text["Name"]" Style="width:100%;" />
+				</FluentGridItem>
+				<FluentGridItem xs="12" sm="6" md="4">
+					@* SelectedOptionChanged keeps the current value when handed a null option: null is
+					   the phantom half of the pair of callbacks a single pick raises, and taking it
+					   would wipe the choice the real callback is about to deliver. *@
+					<FluentCombobox TOption="ManagerOption" Label="@Text["Manager"]"
+									Items="@_managerOptions"
+									OptionValue="@(option => option.Id.ToString())"
+									OptionText="@(option => option.Name)"
+									Autocomplete="ComboboxAutocomplete.Both"
+									SelectedOption="@OptionFor(_newManagerId)"
+									SelectedOptionChanged="@(option => _newManagerId = option is null ? _newManagerId : ToManagerId(option))"
+									Style="width:100%;" />
+				</FluentGridItem>
+				<FluentGridItem xs="12" Style="display:flex; justify-content:flex-start;">
+					<FluentButton Appearance="Appearance.Accent"
+								  IconStart="@(new Icons.Regular.Size20.Add())"
+								  OnClick="CreateDepartmentAsync">@Text["Add"]</FluentButton>
+				</FluentGridItem>
+			</FluentGrid>
+		</FluentAccordionItem>
+	</FluentAccordion>
+	</div>
 }
 
 @code {
@@ -120,6 +156,9 @@ else
 
 	private string _newName = "";
 	private Guid? _newManagerId;
+
+	// The panel carries the confirmation of what was just created, so it stays open afterwards.
+	private bool _createFormOpen;
 
 	private string _quickSearch = "";
 
@@ -139,6 +178,7 @@ else
 	// SortBy on a TemplateColumn needs the comparer up front; both are stable across renders.
 	private readonly GridSort<Department> _byName = GridSort<Department>.ByAscending(d => d.Name);
 	private GridSort<Department> _byManager => GridSort<Department>.ByAscending(d => GetManagerName(d.ManagerId));
+	private readonly GridSort<Department> _byMembers = GridSort<Department>.ByAscending(d => d.Members.Count);
 
 	// Per-column filters, opened from each column's options icon; they stack with the
 	// toolbar search rather than replacing it.
@@ -261,6 +301,7 @@ else
 			Toast.ShowSuccess(Text["Department created."]);
 			_newName = "";
 			_newManagerId = null;
+			_createFormOpen = true;
 			await LoadAsync();
 		}
 		catch (Exception exception)
@@ -273,17 +314,34 @@ else
 		}
 	}
 
+	// A department goes for good and the FK detaches its members (SetNull), so the count is named
+	// in the question: one stray click on the HR row would otherwise unlink 51 people in silence.
+	//
 	// Shares the lock with SaveDepartmentAsync on purpose: clicking Delete first blurs whichever
 	// name field had focus, so the row's focusout save and this delete would otherwise reach the
-	// same DbContext together — the same collision the combobox caused.
+	// same DbContext together — the same collision the combobox caused. The question is asked
+	// before the lock is taken, which lets that pending save finish while the dialog is open.
 	private async Task DeleteDepartmentAsync(Department dept)
 	{
+		var question = dept.Members.Count == 0
+			? Text.Format("Delete {0}? This cannot be undone.", dept.Name)
+			: Text.Format("Delete {0}? This cannot be undone, and its {1} members will be left without a department.",
+						  dept.Name, dept.Members.Count);
+
+		var confirmation = await DialogService.ShowConfirmationAsync(
+			question,
+			Text["Yes, delete"],
+			Text["Cancel"],
+			Text["Confirm department deletion"]);
+
+		if ((await confirmation.Result).Cancelled)
+			return;
+
 		await _saveLock.WaitAsync();
 		try
 		{
 			await Employees.DeleteDepartmentAsync(dept.Id);
 			Toast.ShowSuccess(Text["Department deleted."]);
-			await LoadAsync();
 		}
 		catch (Exception exception)
 		{
@@ -293,6 +351,7 @@ else
 		}
 		finally
 		{
+			await LoadAsync();
 			_saveLock.Release();
 		}
 	}

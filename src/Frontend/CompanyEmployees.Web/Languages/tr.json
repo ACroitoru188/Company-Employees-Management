@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "Henüz hiç izin talebinde bulunmadınız.",
   "Save": "Kaydet",
   "Delegation History": "Yetki devri geçmişi",
-  "The application follows this language everywhere, on any device you sign in from.": "Uygulama bu dili her yerde, oturum açtığınız her cihazda kullanır."
+  "The application follows this language everywhere, on any device you sign in from.": "Uygulama bu dili her yerde, oturum açtığınız her cihazda kullanır.",
+  "Yes, delete": "Evet, sil",
+  "Confirm department deletion": "Departman silmeyi onayla",
+  "Delete {0}? This cannot be undone.": "{0} silinsin mi? Bu işlem geri alınamaz.",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "{0} silinsin mi? Bu işlem geri alınamaz ve {1} üyesi departmansız kalır."
 }

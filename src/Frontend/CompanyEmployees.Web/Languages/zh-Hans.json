@@ -155,5 +155,9 @@
   "You have not requested any time off yet.": "您尚未申请任何休假。",
   "Save": "保存",
   "Delegation History": "委派记录",
-  "The application follows this language everywhere, on any device you sign in from.": "无论您从哪台设备登录，应用程序都会在所有位置使用此语言。"
+  "The application follows this language everywhere, on any device you sign in from.": "无论您从哪台设备登录，应用程序都会在所有位置使用此语言。",
+  "Yes, delete": "是，删除",
+  "Confirm department deletion": "确认删除部门",
+  "Delete {0}? This cannot be undone.": "删除 {0}？此操作无法撤销。",
+  "Delete {0}? This cannot be undone, and its {1} members will be left without a department.": "删除 {0}？此操作无法撤销，其 {1} 名成员将不再属于任何部门。"
 }
