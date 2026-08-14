@@ -6,7 +6,7 @@ namespace CompanyEmployees.Domain.Entities;
 public class User : IdentityUser<Guid>
 {
     //inf. comune
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     //rol si status
     public UserRole Role { get; set; } = UserRole.Guest;

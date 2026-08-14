@@ -39,4 +39,10 @@
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Infrastructure\CompanyEmployees.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="Languages\*.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

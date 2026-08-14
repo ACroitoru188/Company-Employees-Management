@@ -881,21 +881,77 @@ namespace CompanyEmployees.Application.Contexts
             {
                 if (childrenMap.TryGetValue(parent.UserId, out var children))
                 {
-                    parent.Subordinates = children.OrderBy(c => c.Name).ToList();
-                    foreach (var child in parent.Subordinates)
+                    if (parent.Role == "Admin" && isAdmin)
                     {
-                        AttachChildren(child);
+                        var deptGroups = children.GroupBy(c => string.IsNullOrWhiteSpace(c.Department) ? "No Department" : c.Department).OrderBy(g => g.Key);
+                        parent.Subordinates = new List<OrgChartNode>();
+                        foreach (var group in deptGroups)
+                        {
+                            var deptName = group.Key;
+                            var deptNode = new OrgChartNode
+                            {
+                                UserId = Guid.NewGuid(),
+                                Name = deptName,
+                                Role = "Department",
+                                Department = deptName,
+                                Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
+                                ManagerId = parent.UserId,
+                                HasUnloadedChildren = true,
+                                IsExpanded = false
+                            };
+                            parent.Subordinates.Add(deptNode);
+                        }
+                    }
+                    else
+                    {
+                        parent.Subordinates = children.OrderBy(c => c.Name).ToList();
+                        foreach (var child in parent.Subordinates)
+                        {
+                            child.HasUnloadedChildren = childrenMap.ContainsKey(child.UserId);
+                            child.IsExpanded = false;
+                        }
                     }
                 }
             }
 
             if (root != null)
             {
-                if (isAdmin)
+                if (requestingUser.Role == UserRole.CountryManager)
+                {
+                    var cmNode = nodeMap[requestingUser.Id];
+                    var cityNode = new OrgChartNode
+                    {
+                        UserId = Guid.NewGuid(),
+                        Name = "Brașov",
+                        Role = "City",
+                        Department = "Region",
+                        Initials = "BV",
+                        ManagerId = cmNode.UserId,
+                        HasUnloadedChildren = true,
+                        IsExpanded = false
+                    };
+                    cmNode.Subordinates = new List<OrgChartNode> { cityNode };
+                    cmNode.IsExpanded = true;
+                    MarkFocus(cmNode, null);
+                    
+                    root = cmNode; // For country manager, they are the root of the tree
+                }
+                else if (requestingUser.Role == UserRole.Admin)
+                {
+                    var adminNode = nodeMap[requestingUser.Id];
+                    AttachChildren(adminNode);
+                    adminNode.IsExpanded = true;
+                    MarkFocus(adminNode, null);
+                    root = adminNode;
+                }
+                else if (isAdmin)
                 {
                     AttachChildren(root);
-                    SetAllExpanded(root, true);
-                    MarkFocus(root, null); // Admins see everything focused
+                    root.IsExpanded = true;
+                    foreach(var admin in root.Subordinates) {
+                        admin.IsExpanded = false;
+                    }
+                    MarkFocus(root, null); // HR sees everything focused
                 }
                 else
                 {
@@ -970,11 +1026,11 @@ namespace CompanyEmployees.Application.Contexts
                         {
                             if (currentUser.Department != null && node.Department == currentUser.Department.Name)
                             {
-                                node.IsFocusNode = true;
+                                // node.IsFocusNode = true;
                             }
                             else if (focusIds.Contains(node.UserId))
                             {
-                                node.IsFocusNode = true;
+                                // node.IsFocusNode = true;
                             }
                             else
                             {
@@ -1059,7 +1115,7 @@ namespace CompanyEmployees.Application.Contexts
         {
             if (targetDepartment == null) 
             {
-                node.IsFocusNode = true;
+                // node.IsFocusNode = true;
             }
             else
             {

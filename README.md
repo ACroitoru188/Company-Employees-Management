@@ -15,3 +15,20 @@ dotnet run --project src/Frontend/CompanyEmployees.Web
 ```
 
 App runs at http://localhost:5269. Demo accounts and passwords are in `CLAUDE.md`.
+
+## Tests
+
+Run all unit tests from the repository root:
+
+```sh
+dotnet test CompanyEmployees.slnx
+```
+
+Collect Coverlet coverage reports:
+
+```sh
+dotnet test CompanyEmployees.slnx --collect:"XPlat Code Coverage"
+```
+
+The tests are split into `CompanyEmployees.Domain.Tests` for pure business rules and
+`CompanyEmployees.Application.Tests` for workflows exercised with mocked gateways.
