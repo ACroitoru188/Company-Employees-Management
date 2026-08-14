@@ -114,6 +114,258 @@ namespace CompanyEmployees.Application.Contexts
             return await _leaveRequestGateway.GetApprovedRequestsForUsersAsync(teamIds, from, to);
         }
 
+        public async Task<List<OrgChartNode>> GetOrgChartChildrenAsync(OrgChartNode parentNode, Guid currentUserId, bool isAdmin)
+        {
+            var allUsers = await _userGateway.GetAllUsersAsync();
+            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
+            var allPendingRequests = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
+
+            var nodeMap = new Dictionary<Guid, OrgChartNode>();
+            foreach (var u in activeUsers)
+            {
+                var initials = string.Concat(u.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
+                if (initials.Length > 2) initials = initials.Substring(0, 2);
+
+                var activeContract = u.Contracts?.FirstOrDefault(c => c.Status == ContractStatus.Active);
+                var pendingReq = allPendingRequests.FirstOrDefault(r => r.UserId == u.Id);
+
+                nodeMap[u.Id] = new OrgChartNode
+                {
+                    UserId = u.Id,
+                    Name = u.Name,
+                    Email = u.Email ?? string.Empty,
+                    Role = u.Role.ToString(),
+                    Department = u.Department?.Name ?? string.Empty,
+                    Initials = initials,
+                    ManagerId = u.ManagerId,
+                    HasPendingRequest = pendingReq != null,
+                    PendingRequestId = pendingReq?.Id,
+                    PendingRequestType = pendingReq?.Type.ToString(),
+                    PendingRequestDates = pendingReq != null ? $"{pendingReq.StartDate:MMM d} – {pendingReq.EndDate:MMM d, yyyy}" : null,
+                    HasContract = activeContract != null,
+                    ContractId = activeContract?.Id,
+                    ContractType = activeContract?.Type,
+                    ContractStatus = activeContract?.Status,
+                    ContractStartDate = activeContract?.StartDate,
+                    ContractEndDate = activeContract?.EndDate,
+                    HasUnloadedChildren = activeUsers.Any(child => child.ManagerId == u.Id),
+                    IsExpanded = false
+                };
+            }
+
+            var subordinates = new List<OrgChartNode>();
+
+            if (parentNode.Role == "City")
+            {
+                var siteNode1 = new OrgChartNode
+                {
+                    UserId = Guid.NewGuid(),
+                    Name = "Siemens Industry Software Center",
+                    Role = "Site",
+                    Department = "Region",
+                    Initials = "SI",
+                    ManagerId = parentNode.UserId,
+                    HasUnloadedChildren = true,
+                    IsExpanded = false
+                };
+                var siteNode2 = new OrgChartNode
+                {
+                    UserId = Guid.NewGuid(),
+                    Name = "Siemens R&D Advanta Center",
+                    Role = "Site",
+                    Department = "Region",
+                    Initials = "SR",
+                    ManagerId = parentNode.UserId,
+                    HasUnloadedChildren = true,
+                    IsExpanded = false
+                };
+                subordinates.Add(siteNode1);
+                subordinates.Add(siteNode2);
+            }
+            else if (parentNode.Role == "Site")
+            {
+                // Return all admins in the system (or filtered by region if preferred)
+                var adminUsers = activeUsers.Where(u => u.Role == UserRole.Admin).OrderBy(u => u.Name).ToList();
+                // Split them based on Department to allow specific assignment
+                if (parentNode.Name == "Siemens Industry Software Center")
+                {
+                    adminUsers = adminUsers.Where(u => u.Department?.Name == "Industry Software").ToList();
+                }
+                else
+                {
+                    // Fallback for Advanta: everyone else (existing demo users)
+                    adminUsers = adminUsers.Where(u => u.Department?.Name != "Industry Software").ToList();
+                }
+
+                foreach (var u in adminUsers)
+                {
+                    var node = nodeMap[u.Id];
+                    node.HasUnloadedChildren = true;
+                    node.IsExpanded = false;
+                    // Site is artificial, so we override ManagerId to render correctly under Site
+                    node.ManagerId = parentNode.UserId;
+                    subordinates.Add(node);
+                }
+            }
+            else if (parentNode.Role == "Department")
+            {
+                // For CountryManager's admins, their ManagerId was overridden to Site's UserId in the UI memory.
+                // However, in DB, the Admin's ManagerId is still HQ (null) or someone else.
+                // But activeUsers will match if we use the original logic if we look at real managers.
+                // Wait, if parentNode.Role == "Department", the parentNode.ManagerId is the Admin's UserId!
+                var adminSubordinates = activeUsers.Where(u => u.ManagerId == parentNode.ManagerId).ToList();
+                var deptUsers = adminSubordinates.Where(u => (u.Department?.Name ?? "No Department") == parentNode.Department).ToList();
+                
+                foreach (var u in deptUsers)
+                {
+                    subordinates.Add(nodeMap[u.Id]);
+                }
+            }
+            else if (parentNode.Role == "Admin")
+            {
+                var children = activeUsers.Where(u => u.ManagerId == parentNode.UserId).ToList();
+                var deptGroups = children.GroupBy(c => string.IsNullOrWhiteSpace(c.Department?.Name) ? "No Department" : c.Department.Name).OrderBy(g => g.Key);
+                foreach (var group in deptGroups)
+                {
+                    var deptName = group.Key;
+                    var deptNode = new OrgChartNode
+                    {
+                        UserId = Guid.NewGuid(),
+                        Name = deptName,
+                        Role = "Department",
+                        Department = deptName,
+                        Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
+                        ManagerId = parentNode.UserId,
+                        HasUnloadedChildren = true,
+                        IsExpanded = false
+                    };
+                    subordinates.Add(deptNode);
+                }
+            }
+            else
+            {
+                var children = activeUsers.Where(u => u.ManagerId == parentNode.UserId).ToList();
+                foreach (var u in children)
+                {
+                    subordinates.Add(nodeMap[u.Id]);
+                }
+            }
+
+            return subordinates.OrderBy(c => c.Name).ToList();
+        }
+
+        public async Task<List<OrgChartNode>> GetOrgChartPathAsync(Guid targetUserId, bool isAdmin, Guid currentUserId)
+        {
+            var allUsers = await _userGateway.GetAllUsersAsync();
+            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
+            
+            var target = activeUsers.FirstOrDefault(u => u.Id == targetUserId);
+            if (target == null) return new List<OrgChartNode>();
+
+            // Find the anchor (same logic as GetCompanyOrgChartAsync)
+            Guid anchorId = Guid.Empty;
+            if (!isAdmin)
+            {
+                var currentUser = activeUsers.FirstOrDefault(u => u.Id == currentUserId);
+                if (currentUser != null)
+                {
+                    bool hasSubordinates = activeUsers.Any(u => u.ManagerId == currentUser.Id);
+                    anchorId = (hasSubordinates || currentUser.ManagerId == null) ? currentUser.Id : currentUser.ManagerId.Value;
+                }
+            }
+
+            var chain = new List<User>();
+            var curr = target;
+            while (curr != null)
+            {
+                chain.Add(curr);
+                if (curr.Id == anchorId) break; // Reached the root of their vision
+                if (curr.ManagerId == null) break;
+                curr = activeUsers.FirstOrDefault(u => u.Id == curr.ManagerId);
+            }
+            chain.Reverse();
+
+            var path = new List<OrgChartNode>();
+            for (int i = 0; i < chain.Count; i++)
+            {
+                var u = chain[i];
+                var initials = string.Concat(u.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
+                if (initials.Length > 2) initials = initials.Substring(0, 2);
+
+                path.Add(new OrgChartNode
+                {
+                    UserId = u.Id,
+                    Name = u.Name,
+                    Role = u.Role.ToString(),
+                    Department = u.Department?.Name ?? string.Empty,
+                    Initials = initials,
+                    ManagerId = u.ManagerId
+                });
+
+                if (i < chain.Count - 1)
+                {
+                    var nextUser = chain[i + 1];
+
+                    if (u.Role == UserRole.CountryManager && nextUser.Role == UserRole.Admin)
+                    {
+                        var cityId = Guid.NewGuid();
+                        path.Add(new OrgChartNode
+                        {
+                            UserId = cityId,
+                            Name = "Brașov",
+                            Role = "City",
+                            Department = "Region",
+                            Initials = "BV",
+                            ManagerId = u.Id
+                        });
+
+                        var isIndustry = nextUser.Department?.Name == "Industry Software";
+                        var siteName = isIndustry ? "Siemens Industry Software Center" : "Siemens R&D Advanta Center";
+                        var siteInitials = isIndustry ? "SI" : "SR";
+
+                        path.Add(new OrgChartNode
+                        {
+                            UserId = Guid.NewGuid(),
+                            Name = siteName,
+                            Role = "Site",
+                            Department = "Region",
+                            Initials = siteInitials,
+                            ManagerId = cityId
+                        });
+                    }
+
+                    if (u.Role == UserRole.Admin)
+                    {
+                        var deptName = string.IsNullOrWhiteSpace(nextUser.Department?.Name) ? "No Department" : nextUser.Department.Name;
+                        path.Add(new OrgChartNode
+                        {
+                            UserId = Guid.NewGuid(),
+                            Name = deptName,
+                            Role = "Department",
+                            Department = deptName,
+                            Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
+                            ManagerId = u.Id
+                        });
+                    }
+                }
+            }
+
+            return path;
+        }
+
+        public async Task<List<User>> SearchUsersAsync(string query, int count = 10)
+        {
+            var allUsers = await _userGateway.GetAllUsersAsync();
+            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active);
+            
+            return activeUsers
+                .Where(u => (!string.IsNullOrWhiteSpace(u.Name) && u.Name.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
+                            (!string.IsNullOrWhiteSpace(u.Role.ToString()) && u.Role.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)) ||
+                            (!string.IsNullOrWhiteSpace(u.Department?.Name) && u.Department.Name.Contains(query, StringComparison.OrdinalIgnoreCase)))
+                .Take(count)
+                .ToList();
+        }
+
         // The user's team: their manager first, then the active colleagues who
         // share the same manager. A user without a manager has no team.
         public async Task<List<User>> GetTeamMembersAsync(Guid userId)
