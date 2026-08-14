@@ -256,6 +256,224 @@ fluent-anchor:not([appearance="hypertext"])::part(control) {
     font-weight: 600;
 }
 
+/* ---- Button colours ---------------------------------------------------------------------
+
+   Fluent 2's button palette, declared once per theme as custom properties that the rules below
+   read. A colour changes in one place and every appearance, both themes and the app bar follow.
+
+   Named outright rather than taken from the Fluent tokens at the top of this file, because those
+   cannot be trusted for controls: FAST recomputes its ramp per component, against whatever that
+   component is sitting on, so one token holds different values in different places. Measured in
+   dark mode, --neutral-fill-rest is #292929 at document level and #3D3D3D inside a card — a
+   neutral button therefore came out *darker* than the card under it. Nothing recomputes the
+   properties below.
+
+   The library also barely styles hover. An outline button's entire hover feedback is
+   `:host(:not([disabled]):hover) .control { border-color: var(--neutral-stroke-hover) }`, which
+   moves the border from #D1D1D1 to #C7C7C7 and changes nothing else — invisible in practice.
+   Every appearance here gets a fill change, which is what Fluent 2 specifies.
+
+   Two tiers, on purpose. --app-btn-* is what the rules read; --app-page-btn-* is the page palette
+   they default to. A surface with its own treatment — the app bar — repoints --app-btn-* for its
+   subtree, and a surface nested inside that one which is really page content — the notification
+   popover — points them back at --app-page-btn-*. Inheritance does the scoping, so no rule has to
+   out-score another and no selector is written twice per theme. Getting that wrong is what put a
+   near-white chip on the navy bar and white-on-white text in the popover.
+
+   Values are Fluent 2's: brandWeb 60/70/80 for accent, the neutral grey ramp for the rest.
+   Secondary buttons deliberately share the surface fill and are read from their stroke — that is
+   the Fluent look — so the stroke is the part that has to stay visible at rest.
+------------------------------------------------------------------------------------------- */
+
+:root:root {
+    --app-page-btn-fill: #FFFFFF;
+    --app-page-btn-fill-hover: #F5F5F5;
+    --app-page-btn-fill-active: #E0E0E0;
+    --app-page-btn-ink: #242424;
+    --app-page-btn-stroke: #D1D1D1;
+    --app-page-btn-stroke-hover: #C7C7C7;
+    /* Stealth and lightweight show nothing at rest, so they only need the two touched states. */
+    --app-page-btn-subtle-hover: #F5F5F5;
+    --app-page-btn-subtle-active: #E0E0E0;
+    /* White on brand 80 measures 5.38:1, clear of the 4.5:1 floor. */
+    --app-page-btn-accent: #0F6CBD;
+    --app-page-btn-accent-hover: #115EA3;
+    --app-page-btn-accent-active: #0F548C;
+    --app-page-btn-accent-ink: #FFFFFF;
+    --app-page-btn-disabled-fill: #F0F0F0;
+    --app-page-btn-disabled-ink: #BDBDBD;
+    --app-page-btn-disabled-stroke: #E0E0E0;
+}
+
+body:has(fluent-design-theme[mode="dark"]) {
+    /* #333333 is what the runtime paints a card in this theme, so a secondary button matches the
+       surface it sits on and is read from its stroke — the same relationship as in light mode,
+       rather than the dark hole a document-level token produced. */
+    --app-page-btn-fill: #333333;
+    --app-page-btn-fill-hover: #3D3D3D;
+    --app-page-btn-fill-active: #292929;
+    --app-page-btn-ink: #FFFFFF;
+    --app-page-btn-stroke: #666666;
+    --app-page-btn-stroke-hover: #757575;
+    --app-page-btn-subtle-hover: #383838;
+    --app-page-btn-subtle-active: #2E2E2E;
+    /* Dark shifts the brand one step down the ramp so the fill sits against the canvas instead of
+       glowing on it. White on brand 70 measures 6.65:1. */
+    --app-page-btn-accent: #115EA3;
+    --app-page-btn-accent-hover: #0F6CBD;
+    --app-page-btn-accent-active: #0F548C;
+    --app-page-btn-disabled-fill: #292929;
+    --app-page-btn-disabled-ink: #5C5C5C;
+    --app-page-btn-disabled-stroke: #3D3D3D;
+}
+
+/* The pair the rules read. On `body`, not `:root` — var() substitutes where the property is
+   declared, and the dark palette above lands on `body`, so resolving these one level up on `html`
+   would bake in the light values and inherit them down already resolved, leaving dark mode
+   painting light buttons. Declared again inside the popover: a custom property set on a
+   descendant beats the inherited value with no specificity contest, which is the whole reason the
+   palette is addressed this way. */
+body,
+header.header .fluent-popover-content {
+    --app-btn-fill: var(--app-page-btn-fill);
+    --app-btn-fill-hover: var(--app-page-btn-fill-hover);
+    --app-btn-fill-active: var(--app-page-btn-fill-active);
+    --app-btn-ink: var(--app-page-btn-ink);
+    --app-btn-stroke: var(--app-page-btn-stroke);
+    --app-btn-stroke-hover: var(--app-page-btn-stroke-hover);
+    --app-btn-subtle-hover: var(--app-page-btn-subtle-hover);
+    --app-btn-subtle-active: var(--app-page-btn-subtle-active);
+    --app-btn-accent: var(--app-page-btn-accent);
+    --app-btn-accent-hover: var(--app-page-btn-accent-hover);
+    --app-btn-accent-active: var(--app-page-btn-accent-active);
+    --app-btn-accent-ink: var(--app-page-btn-accent-ink);
+    --app-btn-disabled-fill: var(--app-page-btn-disabled-fill);
+    --app-btn-disabled-ink: var(--app-page-btn-disabled-ink);
+    --app-btn-disabled-stroke: var(--app-page-btn-disabled-stroke);
+}
+
+/* The app bar is a solid navy in both themes, so its buttons carry no fill of their own and wash
+   with the bar's own white instead of the page's greys. Setting the properties here covers every
+   appearance and every state at once — including the ones that have no rule of their own, which
+   is what the old specificity-based override kept missing. */
+header.header {
+    --app-btn-fill: transparent;
+    --app-btn-fill-hover: rgb(255 255 255 / 18%);
+    --app-btn-fill-active: rgb(255 255 255 / 28%);
+    /* A button on this bar otherwise inherits the page's neutral ink, which in light mode is
+       #1A1A1A — measured at 1.57:1 on the navy, i.e. unreadable. The icons carry an explicit white
+       fill and never showed it, so it only surfaced on the one header button with words in it. */
+    --app-btn-ink: #FFFFFF;
+    --app-btn-stroke: transparent;
+    --app-btn-stroke-hover: rgb(255 255 255 / 45%);
+    --app-btn-subtle-hover: rgb(255 255 255 / 18%);
+    --app-btn-subtle-active: rgb(255 255 255 / 28%);
+    --app-btn-disabled-fill: transparent;
+    --app-btn-disabled-ink: rgb(255 255 255 / 45%);
+    --app-btn-disabled-stroke: transparent;
+}
+
+fluent-button[appearance="accent"]::part(control),
+fluent-anchor[appearance="accent"]::part(control) {
+    background: var(--app-btn-accent);
+    color: var(--app-btn-accent-ink);
+    border-color: transparent;
+}
+
+fluent-button[appearance="accent"]:not([disabled]):hover::part(control),
+fluent-anchor[appearance="accent"]:not([disabled]):hover::part(control) {
+    background: var(--app-btn-accent-hover);
+}
+
+fluent-button[appearance="accent"]:not([disabled]):active::part(control),
+fluent-anchor[appearance="accent"]:not([disabled]):active::part(control) {
+    background: var(--app-btn-accent-active);
+}
+
+/* `neutral` is also what a FluentButton renders with no appearance set. */
+fluent-button:not([appearance])::part(control),
+fluent-button[appearance="neutral"]::part(control),
+fluent-button[appearance="outline"]::part(control),
+fluent-anchor[appearance="outline"]::part(control) {
+    background: var(--app-btn-fill);
+    color: var(--app-btn-ink);
+    border-color: var(--app-btn-stroke);
+}
+
+fluent-button:not([appearance]):not([disabled]):hover::part(control),
+fluent-button[appearance="neutral"]:not([disabled]):hover::part(control),
+fluent-button[appearance="outline"]:not([disabled]):hover::part(control),
+fluent-anchor[appearance="outline"]:not([disabled]):hover::part(control) {
+    background: var(--app-btn-fill-hover);
+    border-color: var(--app-btn-stroke-hover);
+}
+
+fluent-button:not([appearance]):not([disabled]):active::part(control),
+fluent-button[appearance="neutral"]:not([disabled]):active::part(control),
+fluent-button[appearance="outline"]:not([disabled]):active::part(control),
+fluent-anchor[appearance="outline"]:not([disabled]):active::part(control) {
+    background: var(--app-btn-fill-active);
+}
+
+/* Stealth and lightweight take no fill at rest, but they still need the ink: without a rest rule
+   nothing consumes --app-btn-ink for them, so on the app bar they fell back to the page's
+   #1A1A1A and measured 1.57:1 on the navy. The icons carry an explicit white fill and hide it;
+   the bell button showed it the moment anything else in the bar had a label. */
+fluent-button[appearance="stealth"]::part(control),
+fluent-button[appearance="lightweight"]::part(control),
+fluent-anchor[appearance="lightweight"]::part(control) {
+    color: var(--app-btn-ink);
+}
+
+/* Lightweight is in the hover group below because it is a real control too: the member counts on
+   /admin/departments are lightweight anchors, and without this they were the one thing on the
+   page that did not answer the cursor at all. */
+fluent-button[appearance="stealth"]:not([disabled]):hover::part(control),
+fluent-button[appearance="lightweight"]:not([disabled]):hover::part(control),
+fluent-anchor[appearance="lightweight"]:not([disabled]):hover::part(control) {
+    background: var(--app-btn-subtle-hover);
+}
+
+fluent-button[appearance="stealth"]:not([disabled]):active::part(control),
+fluent-button[appearance="lightweight"]:not([disabled]):active::part(control),
+fluent-anchor[appearance="lightweight"]:not([disabled]):active::part(control) {
+    background: var(--app-btn-subtle-active);
+}
+
+/* Last, so it settles the tie against the appearance rules above at equal specificity: disabled
+   reads as unavailable rather than as a low-contrast enabled button. */
+fluent-button[disabled]::part(control),
+fluent-anchor[disabled]::part(control) {
+    background: var(--app-btn-disabled-fill);
+    color: var(--app-btn-disabled-ink);
+    border-color: var(--app-btn-disabled-stroke);
+}
+
+/* The outline appearance is the one that cannot be filled through ::part. Its shadow sheet
+   carries `.control { background: transparent !important }`, and for important declarations the
+   inner tree beats the outer one — an outer !important does not win either; that was measured,
+   not assumed. The host is ordinary light DOM though, so painting it puts the colour where the
+   control refuses to.
+
+   Only the touched states are painted here. At rest an outline button is meant to be transparent,
+   and letting the surface behind it show through is both the Fluent behaviour and one less thing
+   depending on the control covering its host exactly — the fill can only be seen for as long as
+   the cursor is on it. Same radius as the control, or a corner shows square behind the border. */
+fluent-button[appearance="outline"],
+fluent-anchor[appearance="outline"] {
+    border-radius: calc(var(--control-corner-radius) * 1px);
+}
+
+fluent-button[appearance="outline"]:not([disabled]):hover,
+fluent-anchor[appearance="outline"]:not([disabled]):hover {
+    background: var(--app-btn-fill-hover);
+}
+
+fluent-button[appearance="outline"]:not([disabled]):active,
+fluent-anchor[appearance="outline"]:not([disabled]):active {
+    background: var(--app-btn-fill-active);
+}
+
 /* The account row is the drawer's last item, directly under the nav links, and a Fluent button
    centres its content. Centred, the avatar and name floated in the middle of the rail while
    every row above them started at the same left gutter — the eye reads that as broken, not as

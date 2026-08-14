@@ -15,6 +15,7 @@
 
 <PageTitle>Organization Chart · Global Directory</PageTitle>
 
+<div class="page-shell">
 <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12" Wrap="true"
              VerticalAlignment="VerticalAlignment.Center" Width="100%">
     <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
@@ -190,7 +191,11 @@ else
         </FluentGridItem>
 
         <FluentGridItem xs="12" md="5">
-            <FluentCard Style="padding:16px; height:75vh; overflow:auto;">
+            @* Sized by its content, with a ceiling rather than a fixed height: the panel holds a
+               persona, four rows and sometimes a button row, and pinning it to the tree's 75vh
+               left a card that was three quarters empty. The ceiling keeps it level with the tree
+               when somebody's details run long. *@
+            <FluentCard Style="padding:16px; max-height:75vh; overflow:auto;">
                 @if (_selectedNode is null)
                 {
                     <FluentStack Orientation="Orientation.Vertical" VerticalGap="8"
@@ -301,6 +306,7 @@ else
         </FluentGridItem>
     </FluentGrid>
 }
+</div>
 
 @code {
     private enum HierarchyLevel
@@ -507,7 +513,9 @@ else
         FocusOnNode(_currentUserId);
     }
 
-    // Expanding the path is all the "focus" the tree needs — there is no viewport to move.
+    // Expanding the path opens the way to the node; the tree card is 75vh with its own scrollbar,
+    // so the row still has to be brought into view or "Focus Me" lands on somebody selected far
+    // below the fold and looks like it did nothing.
     private void FocusOnNode(Guid targetUserId)
     {
         if (_root == null) return;
@@ -525,16 +533,15 @@ else
         _ = SyncTreeHighlightAsync(targetUserId);
     }
 
-    // The tree item keeps whatever selection the user last clicked and ignores being told to
-    // drop it, so a jump made in code has to move the highlight by hand or the tree and the
-    // detail panel end up showing two different people.
+    // Moving the highlight and scrolling the row into view both live in wwwroot/js/orgchart.js:
+    // as a named function it is syntax-checked where it is written, can be stepped through, and
+    // survives a Content-Security-Policy without 'unsafe-eval' — none of which is true of a
+    // routine assembled from a dozen concatenated C# string fragments.
     private async Task SyncTreeHighlightAsync(Guid targetUserId)
     {
         try
         {
-            await JSRuntime.InvokeVoidAsync("eval",
-                "document.querySelectorAll('fluent-tree-item').forEach(i => i.selected = false);" +
-                $"document.getElementById('orgnode-{targetUserId:D}')?.setAttribute('selected','');");
+            await JSRuntime.InvokeVoidAsync("companyOrgChart.focusNode", targetUserId.ToString("D"));
         }
         catch
         {

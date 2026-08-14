@@ -298,6 +298,31 @@ these pages therefore also take a `SemaphoreSlim` and wrap the work in `try/catc
 `Toast.ShowError`. The same collision happens when clicking Delete blurs a focused field, so
 delete paths share the lock. `OnUserRegionChangedAsync` had the null guard from the start, which
 is exactly why the Region column never showed the bug while Department did.
+### Styling a Fluent control from `app.css` — three things that will bite you
+
+Learned while giving the buttons a Fluent 2 palette; all three were measured, not guessed.
+
+1. **An outline button's background cannot be set through `::part`.** Its shadow sheet carries
+   `.control { background: transparent !important }`, and for `!important` declarations the
+   *inner* tree wins over the outer one — an outer `!important` does not win either. The host
+   element is ordinary light DOM, so paint that instead and give it the control's radius.
+2. **Appearance-scoped rules outrank the app-bar block.** `fluent-button[appearance="stealth"]…`
+   scores (0,3,1) against `header.header fluent-button…`'s (0,2,2), so a page rule silently
+   repaints the navy bar — that is where the near-white chip on the header came from, twice.
+   Prefixing with `body:has(fluent-design-theme[mode="dark"])` adds another (0,1,1) on top and
+   breaks the same overrides again in dark mode only.
+3. **Do not scope a per-theme palette by repeating `body:has(…)` on every rule.** The buttons use
+   two tiers of custom property instead — `--app-page-btn-*` for the page palette, `--app-btn-*`
+   for what the rules read — so a surface with its own treatment (the app bar) repoints them for
+   its subtree and a surface nested inside it that is really page content (the notification
+   popover, which renders *inside* `<header>`) points them back. Inheritance does the scoping,
+   which means no rule has to out-score another and nothing is written twice per theme.
+
+Corollary for the light-DOM tokens at the top of `app.css`: they are fine for text and surfaces
+but **not for controls**. FAST recomputes its ramp per component against whatever that component
+sits on, so one token holds different values in different places — measured in dark mode,
+`--neutral-fill-rest` is `#292929` at document level and `#3D3D3D` inside a card.
+
 - Leave-type color map: `Components/Employee/LeaveTypePalette.cs`, applied via inline `Style`
   (the colors aren't theme `Color` enum members). `LeaveBalanceSummary.razor` is the shared
   header + balance cards (Dashboard passes a CTA through its `Actions` RenderFragment).
