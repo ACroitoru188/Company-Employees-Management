@@ -3,43 +3,55 @@
 @inject ThemeState ThemeState
 @inject AppLocalizer Text
 
-<div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-4">
-    <div>
-        <MudText Typo="Typo.h5" Style="font-weight:600;">@Text.Format("Good morning, {0}", FirstName)</MudText>
-        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">@Subtitle</MudText>
-    </div>
+<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+             HorizontalGap="16" Wrap="true" Width="100%">
+    @* Width="auto" is what keeps the page action on the same line as the greeting. A vertical
+       FluentStack writes `width: 100%` inline unless told otherwise, so this block claimed the
+       whole row and pushed the spacer and the button onto a second line — the button ended up
+       floating in the gap above the cards, aligned to nothing. *@
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="2" Width="auto">
+        <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text.Format("Good morning, {0}", FirstName)</FluentLabel>
+        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Subtitle</FluentLabel>
+    </FluentStack>
+    <FluentSpacer />
     @if (Actions is not null)
     {
-        <div>@Actions</div>
+        @Actions
     }
-</div>
+</FluentStack>
 
-<MudGrid Spacing="3">
+<FluentGrid Spacing="3" Style="margin-top:16px;">
     @foreach (var balance in Balances)
     {
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="1">
-                <MudCardContent>
-                    <MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
+        <FluentGridItem xs="12" sm="6" md="3">
+            <FluentCard>
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-overline">
                         @Text[balance.Type.ToString()].ToUpper(CultureInfo.CurrentCulture)
-                    </MudText>
-                    <div class="d-flex align-baseline gap-1 mb-2">
-                        <MudText Typo="Typo.h4" Style="font-weight:700;">@balance.Remaining</MudText>
-                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
+                    </FluentLabel>
+
+                    <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="4"
+                                 VerticalAlignment="VerticalAlignment.Bottom">
+                        <FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@balance.Remaining</FluentLabel>
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
                             / @Text.Format("{0} days", balance.DaysTotal)
-                        </MudText>
-                    </div>
-                    <MudProgressLinear Value="@(100.0 * balance.Remaining / balance.DaysTotal)"
-                                       Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mb-2"
-                                       Style="@($"--mud-palette-primary:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
-                    <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                        </FluentLabel>
+                    </FluentStack>
+
+                    @* The leave-type colour is per category, which Fluent's single-accent
+                       palette has no slot for — hence the local custom colour. *@
+                    <FluentProgress Min="0" Max="@balance.DaysTotal" Value="@balance.Remaining"
+                                    Stroke="ProgressStroke.Normal"
+                                    Style="@($"--accent-fill-rest:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
+
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
                         @Text.Format("{0} used this year", balance.DaysUsed)
-                    </MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
+                    </FluentLabel>
+                </FluentStack>
+            </FluentCard>
+        </FluentGridItem>
     }
-</MudGrid>
+</FluentGrid>
 
 @code {
     [Parameter, EditorRequired] public string UserName { get; set; } = "";
@@ -53,6 +65,8 @@
         get
         {
             var d = DateTime.Today;
+            // The long date follows the chosen language too — an English weekday next to a
+            // translated week label reads like a bug.
             return $"{d.ToString("D", CultureInfo.CurrentCulture)} · {Text.Format("Week {0}", ISOWeek.GetWeekOfYear(d))}";
         }
     }

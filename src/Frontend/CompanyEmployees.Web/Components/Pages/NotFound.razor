@@ -1,5 +1,34 @@
-﻿@page "/not-found"
-@layout MainLayout
+@* Reached through UseStatusCodePagesWithReExecute, so this renders for any unknown URL — signed
+   in or not. AuthLayout rather than MainLayout: MainLayout is the pre-Fluent shell, which left
+   this page unstyled and outside the app it belongs to, and AuthLayout brings the Fluent
+   providers and theme without assuming a session. *@
+@page "/not-found"
+@layout CompanyEmployees.Web.Components.Layout.AuthLayout
 
-<h3>Not Found</h3>
-<p>Sorry, the content you are looking for does not exist.</p>
+<PageTitle>Page not found · Time Off Management</PageTitle>
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="12"
+             HorizontalAlignment="HorizontalAlignment.Center"
+             VerticalAlignment="VerticalAlignment.Center"
+             Style="min-height:70vh; padding:24px; text-align:center;">
+
+    <FluentIcon Value="@(new Icons.Regular.Size32.QuestionCircle())"
+                Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" />
+
+    <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">Page not found</FluentLabel>
+
+    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+        The address you followed does not exist, or you no longer have access to it.
+    </FluentLabel>
+
+    @* forceLoad: this page can be reached without a circuit, and it may be rendering outside the
+       signed-in shell, so the destination is asked for as a fresh document. *@
+    <FluentButton Appearance="Appearance.Accent" Style="margin-top:8px;"
+                  OnClick="@(() => Nav.NavigateTo("/employee/dashboard", forceLoad: true))">
+        Back to the dashboard
+    </FluentButton>
+</FluentStack>
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+}

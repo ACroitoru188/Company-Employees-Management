@@ -1,55 +1,48 @@
 @using CompanyEmployees.Application
-@using CompanyEmployees.Application.Contexts
-@inject EmployeeContext Employees
+@implements IDialogContentComponent<EditLeaveDatesDialog.Model>
 
-<MudDialog>
-    <DialogContent>
-        <MudDatePicker Label="Start date" @bind-Date="_start" />
-        <MudDatePicker Label="End date" @bind-Date="_end" Class="mt-3" />
-        @if (_error is not null)
+<FluentDialogBody>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+        <FluentDatePicker Label="Start date" @bind-Value="Content.Start" Style="width:100%;" />
+        <FluentDatePicker Label="End date" @bind-Value="Content.End" Style="width:100%;" />
+
+        @if (Content.Error is not null)
         {
-            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+            <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">@Content.Error</FluentMessageBar>
         }
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">Save</MudButton>
-    </DialogActions>
-</MudDialog>
+    </FluentStack>
+</FluentDialogBody>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [Parameter, EditorRequired] public HrPendingRequest Request { get; set; } = default!;
+    [Parameter]
+    public Model Content { get; set; } = default!;
 
-    private DateTime? _start;
-    private DateTime? _end;
-    private string? _error;
+    // Fluent runs the primary action's validation outside this component's event loop, so a
+    // message written onto Content during it would never reach the screen without this.
+    protected override void OnInitialized() => Content.Refresh = () => InvokeAsync(StateHasChanged);
 
-    protected override void OnInitialized()
+    // Presentational only, like the other dialogs: the caller owns the save and writes any
+    // failure back onto this same Content instance, which is what puts the message above.
+    public class Model : DialogContentModel
     {
-        _start = Request.StartDate.ToDateTime(TimeOnly.MinValue);
-        _end = Request.EndDate.ToDateTime(TimeOnly.MinValue);
-    }
+        public Guid RequestId { get; set; }
+        public DateTime? Start { get; set; }
+        public DateTime? End { get; set; }
+        public string? Error { get; private set; }
 
-    private async Task Save()
-    {
-        if (_start is null || _end is null)
+        // The caller writes failures here from its ValidateDialogAsync, which runs outside
+        // this component's event loop — hence the notify rather than a plain setter.
+        public void SetError(string? message)
         {
-            _error = "Both dates are required.";
-            return;
+            Error = message;
+            NotifyChanged();
         }
 
-        try
+        public static Model From(HrPendingRequest request) => new()
         {
-            await Employees.UpdateRequestDatesAsync(
-                Request.RequestId,
-                DateOnly.FromDateTime(_start.Value),
-                DateOnly.FromDateTime(_end.Value));
-            MudDialog.Close(DialogResult.Ok(true));
-        }
-        catch (CompanyEmployees.Domain.Exceptions.InvalidOperationException ex)
-        {
-            _error = ex.Message;
-        }
+            RequestId = request.RequestId,
+            Start = request.StartDate.ToDateTime(TimeOnly.MinValue),
+            End = request.EndDate.ToDateTime(TimeOnly.MinValue)
+        };
     }
 }

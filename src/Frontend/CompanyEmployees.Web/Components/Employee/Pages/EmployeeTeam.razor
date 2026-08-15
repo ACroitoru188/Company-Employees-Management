@@ -3,72 +3,79 @@
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
 @inject ITimeOffService TimeOff
-@inject NavigationManager Nav
 @inject AppLocalizer Text
+@inject NavigationManager Nav
 
-<PageTitle>Team · Time Off Management</PageTitle>
+<PageTitle>@Text["Team"] · @Text["Time Off Management"]</PageTitle>
 
-<MudText Typo="Typo.h5" Style="font-weight:600;">@Text["My Team"]</MudText>
-<MudText Typo="Typo.body2" Class="mb-4" Style="color:var(--mud-palette-text-secondary);">
+<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text["My Team"]</FluentLabel>
+<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" MarginBlock="4px 16px">
     @Text["Your manager and the colleagues who share them, with their time off."]
-</MudText>
+</FluentLabel>
 
-<MudCard Elevation="1">
-    <MudCardContent>
+<FluentCard>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
         @if (_team.Count == 0)
         {
-            <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">
-                @Text["You are not part of a team yet."]
-            </MudText>
+            <EmptyState Icon="@(new Icons.Regular.Size24.People())"
+                        Title="@Text["You are not part of a team yet."]"
+                        Boxed="false" />
         }
         else
         {
             @foreach (var member in _team)
             {
-                <div class="d-flex align-center gap-3 py-3"
-                     style="border-bottom:1px solid var(--mud-palette-lines-default);">
-                    <MudAvatar Size="Size.Small" Color="Color.Primary">@member.Initials</MudAvatar>
-                    <div class="flex-grow-1">
-                        <div class="d-flex align-center gap-2">
-                            <MudText Typo="Typo.body2" Style="font-weight:500;">@member.Name</MudText>
-                            @if (member.IsManager)
-                            {
-                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
-                                         Color="Color.Primary">@Text["Manager"]</MudChip>
-                            }
-                        </div>
-                        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-                            @LocalizedRoleLabel(member.RoleLabel)
-                        </MudText>
-                    </div>
+                <FluentDivider Role="DividerRole.Presentation" />
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+                             VerticalAlignment="VerticalAlignment.Center" Width="100%">
+                    <FluentPersona Name="@member.Name" Initials="@member.Initials"
+                                   ImageSize="36px" TextPosition="TextPosition.End">
+                        @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
+                           rendered here explicitly above the secondary line. *@
+                        <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@member.Name</FluentLabel>
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">@LocalizedRoleLabel(member.RoleLabel)</FluentLabel>
+                    </FluentPersona>
+
+                    @if (member.IsManager)
+                    {
+                        @* FluentBadge only accepts Accent, Lightweight or Neutral — anything
+                           else throws out of OnParametersSet and takes the circuit with it. *@
+                        <FluentBadge Appearance="Appearance.Lightweight">@Text["Manager"]</FluentBadge>
+                    }
+
+                    <FluentSpacer />
+
                     @if (member.Type is { } type && member.Start is { } start && member.End is { } end)
                     {
-                        <MudChip T="string" Size="Size.Small"
-                                 Style="@($"background:{LeaveTypePalette.Hex(type)}; color:white;")">
+                        @* Per-category colour, which Fluent's single-accent palette has no slot for. *@
+                        <FluentBadge Fill="highlight"
+                                     BackgroundColor="@LeaveTypePalette.Hex(type)"
+                                     Color="white">
                             @Text[type.ToString()]
-                        </MudChip>
-                        <div style="text-align:right; min-width:150px;">
-                            <MudText Typo="Typo.body2">
-                                @start.ToString("d", CultureInfo.CurrentCulture) –
-                                @end.ToString("d", CultureInfo.CurrentCulture)
-                            </MudText>
-                            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+                        </FluentBadge>
+
+                        <FluentStack Orientation="Orientation.Vertical" VerticalGap="0"
+                                     HorizontalAlignment="HorizontalAlignment.End" Width="160px">
+                            <FluentLabel Typo="Typography.Body">
+                                @start.ToString("MMM d", CultureInfo.CurrentCulture) –
+                                @end.ToString("MMM d", CultureInfo.CurrentCulture)
+                            </FluentLabel>
+                            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
                                 @(start <= _today ? Text["On leave now"] : Text["Upcoming leave"])
-                            </MudText>
-                        </div>
+                            </FluentLabel>
+                        </FluentStack>
                     }
                     else
                     {
-                        <MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary); min-width:150px; text-align:right;">
-                            @Text["Available"]
-                        </MudText>
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Text["Available"]</FluentLabel>
                     }
-                </div>
+                </FluentStack>
             }
         }
-    </MudCardContent>
-</MudCard>
+    </FluentStack>
+</FluentCard>
 
 @code {
     [CascadingParameter]
@@ -85,6 +92,9 @@
         _team = await TimeOff.GetTeamRosterAsync();
     }
 
+    // The label arrives already composed as "Role · Department" from DbTimeOffService. Only the
+    // role half has a translation; the department is a name the administrator typed.
+    // "Employee" needs its own key because it also names the Employee column elsewhere.
     private string LocalizedRoleLabel(string label)
     {
         var parts = label.Split(" · ", 2, StringSplitOptions.None);

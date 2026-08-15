@@ -18,6 +18,7 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IRegionGateway _regionGateway;
         private readonly IPublicHolidayProvider _holidayProvider;
         private readonly IContractGateway _contractGateway;
+        private readonly IManagerDelegationGateway _delegationGateway;
         private readonly NotificationContext _notifications;
 
         public EmployeeContext(
@@ -28,6 +29,7 @@ namespace CompanyEmployees.Application.Contexts
             IRegionGateway regionGateway,
             IPublicHolidayProvider holidayProvider,
             IContractGateway contractGateway,
+            IManagerDelegationGateway delegationGateway,
             NotificationContext notifications) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
@@ -36,6 +38,7 @@ namespace CompanyEmployees.Application.Contexts
             _regionGateway = regionGateway;
             _holidayProvider = holidayProvider;
             _contractGateway = contractGateway;
+            _delegationGateway = delegationGateway;
             _notifications = notifications;
         }
 
@@ -675,6 +678,16 @@ namespace CompanyEmployees.Application.Contexts
             // Admins sit outside the approval workflow entirely (no approve/reject UI
             // exists for them as either requester's manager or reviewer) — auto-approved.
             var requirement = LeaveApprovalPolicy.DetermineRequirement(requester);
+
+            // Nobody reviews an admin's leave, so the only thing standing between them and
+            // an unattended account is this: someone has to be covering before the request
+            // is created. Overlap is enough — the cover may be shorter than the leave.
+            if (requester.Role == UserRole.Admin
+                && !await _delegationGateway.HasActiveDelegationInPeriodAsync(userId, start, end))
+            {
+                throw new DelegationRequiredException(
+                    "Choose a colleague to take over your responsibilities before requesting this leave.");
+            }
 
             var request = new LeaveRequest
             {

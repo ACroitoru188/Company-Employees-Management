@@ -1,6 +1,14 @@
+@* Bare layout for the pages rendered before sign-in. They still need the Fluent providers,
+   but nothing of the app shell. *@
 @inherits LayoutComponentBase
 
-@Body
+<CompanyEmployees.Web.Components.Employee.EmployeeProviders />
+
+<FluentLayout>
+    <FluentBodyContent>
+        @Body
+    </FluentBodyContent>
+</FluentLayout>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

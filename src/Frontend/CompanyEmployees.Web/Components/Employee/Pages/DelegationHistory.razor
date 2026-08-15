@@ -1,0 +1,184 @@
+@page "/manager/delegation-history"
+@layout EmployeeLayout
+@using System.Globalization
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Logging
+@using CompanyEmployees.Application
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Enums
+@using CompanyEmployees.Web.Security
+@inject ManagerContext Manager
+@inject NavigationManager Nav
+@inject ILogger<DelegationHistory> Logger
+
+<PageTitle>Delegation history · Time Off Management</PageTitle>
+
+<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">Delegation history</FluentLabel>
+<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" MarginBlock="4px 16px">
+    Actions taken from a borrowed account, and who was behind them.
+</FluentLabel>
+
+<FluentTabs ActiveTabId="@_activeTabId" ActiveTabIdChanged="OnTabChangedAsync">
+    <FluentTab Id="mine" Label="Done in my name" Icon="@(new Icons.Regular.Size20.Mail())" />
+    <FluentTab Id="byme" Label="Done by me as delegate" Icon="@(new Icons.Regular.Size20.ArrowSwap())" />
+    @if (_isAdmin)
+    {
+        @* Oversight, not personal history — hence admins only. The backend refuses the
+           scope regardless, so hiding the tab is convenience, not the control. *@
+        <FluentTab Id="region" Label="@($"Everyone in {RegionLabel}")"
+                   Icon="@(new Icons.Regular.Size20.ShieldTask())" />
+    }
+</FluentTabs>
+
+@if (_loading)
+{
+    <FluentProgressRing />
+}
+else if (_failed)
+{
+    <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">
+        The history could not be loaded. Please refresh the page.
+    </FluentMessageBar>
+}
+else if (_result.Total == 0)
+{
+    <EmptyState Icon="@(new Icons.Regular.Size24.History())"
+                Margin="16px 0 0"
+                Title="@(Scope switch
+                {
+                    DelegationHistoryScope.DoneInMyName => "Nobody has acted on your behalf yet.",
+                    DelegationHistoryScope.DoneByMe => "You have not acted for anyone else yet.",
+                    _ => "Nothing has been done from a borrowed account in this region yet."
+                })" />
+}
+else
+{
+    <FluentDataGrid Items="@_result.Items.AsQueryable()" TGridItem="DelegationHistoryEntry"
+                    ShowHover="true" Style="margin-top:16px;">
+        <EmptyContent>
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                         CustomColor="var(--neutral-foreground-hint)">Nothing recorded for this view yet.</FluentLabel>
+        </EmptyContent>
+    <ChildContent>
+        <PropertyColumn Title="When" Property="@(e => e.When)" Format="MMM d, yyyy HH:mm" />
+
+        <TemplateColumn Title="Action">
+            <FluentBadge Appearance="@ActionAppearance(context.ActionType)">
+                @ActionLabel(context.ActionType)
+            </FluentBadge>
+        </TemplateColumn>
+
+        <PropertyColumn Title="Employee" Property="@(e => e.TargetName)" />
+        <PropertyColumn Title="Performed by" Property="@(e => e.RealUserName)" />
+        <PropertyColumn Title="Acting as" Property="@(e => e.ActedAsName)" />
+
+        <TemplateColumn Title="Details">
+            @(string.IsNullOrWhiteSpace(context.Details) ? "—" : context.Details)
+        </TemplateColumn>
+        </ChildContent>
+    </FluentDataGrid>
+
+    @if (PageCount > 1)
+    {
+        <FluentStack Orientation="Orientation.Horizontal"
+                     HorizontalAlignment="HorizontalAlignment.Center" Width="100%">
+            <FluentPaginator State="@_pagination" />
+        </FluentStack>
+    }
+}
+
+@code {
+    private const int PageSize = 20;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private Guid _userId;
+    private string _activeTabId = "mine";
+    private int _page = 1;
+    private bool _loading = true;
+    private bool _failed;
+    private bool _isAdmin;
+    private DelegationHistoryResult _result = new();
+
+    private readonly PaginationState _pagination = new() { ItemsPerPage = PageSize };
+
+    // The name comes back with the rows, resolved from the same record they were filtered
+    // by; the Region claim is fixed at sign-in and would still name the old one after a
+    // transfer. Falls back to the claim only until the first load returns.
+    private string RegionLabel => _result.RegionName ?? _claimRegionName;
+    private string _claimRegionName = "my region";
+
+    private DelegationHistoryScope Scope => _activeTabId switch
+    {
+        "mine" => DelegationHistoryScope.DoneInMyName,
+        "byme" => DelegationHistoryScope.DoneByMe,
+        _ => DelegationHistoryScope.EveryoneInRegion
+    };
+
+    private int PageCount => (_result.Total + PageSize - 1) / PageSize;
+
+    // No role check: both personal queries are filtered to this user, so the page can only
+    // ever show your own two sides of it. Gating on LineManager would just hide history from
+    // someone whose role changed after the fact.
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+            return;
+
+        var user = (await AuthStateTask!).User;
+        if (!Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out _userId))
+        {
+            _failed = true;
+            _loading = false;
+            return;
+        }
+
+        _isAdmin = user.FindFirst(ClaimTypes.Role)?.Value == UserRole.Admin.ToString();
+        _claimRegionName = user.FindFirst("Region")?.Value ?? "my region";
+
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _page = _pagination.CurrentPageIndex + 1;
+            _result = await Manager.GetDelegationHistoryAsync(
+                _userId, Scope, (_page - 1) * PageSize, PageSize);
+            await _pagination.SetTotalItemCountAsync(_result.Total);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load delegation history for user {UserId}.", _userId);
+            _failed = true;
+        }
+    }
+
+    // Switching perspective is a different list, so paging starts over.
+    private async Task OnTabChangedAsync(string tabId)
+    {
+        _activeTabId = tabId;
+        await _pagination.SetCurrentPageIndexAsync(0);
+        await LoadAsync();
+    }
+
+    private static string ActionLabel(DelegatedActionType type) => type switch
+    {
+        DelegatedActionType.LeaveApproved => "Leave approved",
+        DelegatedActionType.LeaveRejected => "Leave declined",
+        DelegatedActionType.ContractExtended => "Contract extended",
+        DelegatedActionType.ContractTerminated => "Contract terminated",
+        _ => type.ToString()
+    };
+
+    private static Appearance ActionAppearance(DelegatedActionType type) => type switch
+    {
+        DelegatedActionType.LeaveApproved => Appearance.Accent,
+        DelegatedActionType.ContractTerminated => Appearance.Neutral,
+        _ => Appearance.Lightweight
+    };
+}

@@ -1,40 +1,33 @@
-@using System.Globalization
+@* Fluent dialogs render only their body; the title and the two buttons come from the
+   DialogParameters the caller passes. State travels on the Content object, which the caller
+   reads back after a non-cancelled result. *@
+@implements IDialogContentComponent<TerminateContractDialog.Model>
 
-<MudDialog>
-    <DialogContent>
-        <MudText Typo="Typo.body1" Class="mb-3">
-            Are you sure you want to terminate the contract for <strong>@EmployeeName</strong>?
-        </MudText>
+<FluentDialogBody>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+        <FluentLabel Typo="Typography.Body">
+            Are you sure you want to terminate the contract for <strong>@Content.EmployeeName</strong>?
+        </FluentLabel>
 
-        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
-            This action will mark the contract as <strong>Terminated</strong> and cannot be undone.
-        </MudAlert>
+        <FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false">
+            This action marks the contract as Terminated and cannot be undone.
+        </FluentMessageBar>
 
-        <MudTextField T="string"
-                      Label="Termination Reason (Optional)"
-                      @bind-Value="_reason"
-                      Variant="Variant.Outlined"
-                      Lines="3"
-                      Margin="Margin.Dense"
-                      Placeholder="Provide reason or context for termination..." />
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
-        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Submit">
-            Terminate Contract
-        </MudButton>
-    </DialogActions>
-</MudDialog>
+        <FluentTextArea @bind-Value="Content.Reason"
+                        Label="Termination reason (optional)"
+                        Placeholder="Provide reason or context for termination..."
+                        Rows="3"
+                        Style="width:100%;" />
+    </FluentStack>
+</FluentDialogBody>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter]
+    public Model Content { get; set; } = default!;
 
-    [Parameter] public string EmployeeName { get; set; } = "";
-
-    private string _reason = "";
-
-    private void Submit()
+    public class Model
     {
-        MudDialog.Close(DialogResult.Ok(_reason));
+        public string EmployeeName { get; set; } = "";
+        public string Reason { get; set; } = "";
     }
 }

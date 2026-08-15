@@ -18,6 +18,10 @@ public class ManagerContextTests
     private readonly IManagerDelegationGateway _delegations = Substitute.For<IManagerDelegationGateway>();
     private readonly INotificationGateway _notifications = Substitute.For<INotificationGateway>();
     private readonly INotificationDispatcher _dispatcher = Substitute.For<INotificationDispatcher>();
+    // This branch carries the delegation feature, so ManagerContext also takes the
+    // impersonation guard and the audit trail every borrowed action is written to.
+    private readonly IImpersonationGateway _sessions = Substitute.For<IImpersonationGateway>();
+    private readonly IDelegatedActionGateway _delegatedActions = Substitute.For<IDelegatedActionGateway>();
 
     [Fact]
     public async Task DecideRequestAsync_keeps_request_pending_after_manager_approval_when_hr_is_required()
@@ -151,13 +155,17 @@ public class ManagerContextTests
     private ManagerContext CreateContext()
     {
         var notificationContext = new NotificationContext(_notifications, _dispatcher);
+        var impersonationContext = new ImpersonationContext(
+            NullLogger<ImpersonationContext>.Instance, _sessions, _delegations, _users);
         return new ManagerContext(
             NullLogger<ManagerContext>.Instance,
             _requests,
             _users,
             _contracts,
             _delegations,
-            notificationContext);
+            notificationContext,
+            impersonationContext,
+            _delegatedActions);
     }
 
     private static User NewUser(UserRole role, Guid regionId) => new()

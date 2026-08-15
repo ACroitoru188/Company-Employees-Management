@@ -62,6 +62,52 @@ namespace CompanyEmployees.Persistence.Migrations
                     b.ToTable("Contracts");
                 });
 
+            modelBuilder.Entity("CompanyEmployees.Domain.Entities.DelegatedAction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActedAsUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ActionType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DelegationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("RealUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TargetEntityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TargetUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("DelegationId");
+
+                    b.HasIndex("TargetUserId");
+
+                    b.HasIndex("ActedAsUserId", "CreatedAt");
+
+                    b.HasIndex("RealUserId", "CreatedAt");
+
+                    b.ToTable("DelegatedActions");
+                });
+
             modelBuilder.Entity("CompanyEmployees.Domain.Entities.Department", b =>
                 {
                     b.Property<Guid>("Id")
@@ -81,6 +127,42 @@ namespace CompanyEmployees.Persistence.Migrations
                     b.HasIndex("ManagerId");
 
                     b.ToTable("Departments");
+                });
+
+            modelBuilder.Entity("CompanyEmployees.Domain.Entities.ImpersonationSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActedAsUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DelegationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<Guid>("RealUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActedAsUserId");
+
+                    b.HasIndex("DelegationId");
+
+                    b.HasIndex("RealUserId", "EndedAt");
+
+                    b.ToTable("ImpersonationSessions");
                 });
 
             modelBuilder.Entity("CompanyEmployees.Domain.Entities.LeaveAllocation", b =>
@@ -518,6 +600,41 @@ namespace CompanyEmployees.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("CompanyEmployees.Domain.Entities.DelegatedAction", b =>
+                {
+                    b.HasOne("CompanyEmployees.Domain.Entities.User", "ActedAsUser")
+                        .WithMany()
+                        .HasForeignKey("ActedAsUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("CompanyEmployees.Domain.Entities.ManagerDelegation", "Delegation")
+                        .WithMany()
+                        .HasForeignKey("DelegationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("CompanyEmployees.Domain.Entities.User", "RealUser")
+                        .WithMany()
+                        .HasForeignKey("RealUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("CompanyEmployees.Domain.Entities.User", "TargetUser")
+                        .WithMany()
+                        .HasForeignKey("TargetUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("ActedAsUser");
+
+                    b.Navigation("Delegation");
+
+                    b.Navigation("RealUser");
+
+                    b.Navigation("TargetUser");
+                });
+
             modelBuilder.Entity("CompanyEmployees.Domain.Entities.Department", b =>
                 {
                     b.HasOne("CompanyEmployees.Domain.Entities.User", "Manager")
@@ -526,6 +643,33 @@ namespace CompanyEmployees.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Manager");
+                });
+
+            modelBuilder.Entity("CompanyEmployees.Domain.Entities.ImpersonationSession", b =>
+                {
+                    b.HasOne("CompanyEmployees.Domain.Entities.User", "ActedAsUser")
+                        .WithMany()
+                        .HasForeignKey("ActedAsUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("CompanyEmployees.Domain.Entities.ManagerDelegation", "Delegation")
+                        .WithMany()
+                        .HasForeignKey("DelegationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("CompanyEmployees.Domain.Entities.User", "RealUser")
+                        .WithMany()
+                        .HasForeignKey("RealUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("ActedAsUser");
+
+                    b.Navigation("Delegation");
+
+                    b.Navigation("RealUser");
                 });
 
             modelBuilder.Entity("CompanyEmployees.Domain.Entities.LeaveAllocation", b =>

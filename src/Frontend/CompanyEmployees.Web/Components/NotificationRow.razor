@@ -1,64 +1,38 @@
-@* Presentation only — the parent owns the click, so this works inside both a MudMenuItem
-   and a MudListItem. *@
+@* Presentation only — the parent owns the click. Used by the history page; the bell now
+   renders Fluent's own notification cards instead. *@
 @using System.Globalization
 @using CompanyEmployees.Domain.Entities
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Class="flex-grow-1">
+<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+             HorizontalGap="12" Width="100%">
     @* Fixed-width slot so read and unread rows stay aligned. *@
-    <div style="width:8px; flex:0 0 8px;">
+    <FluentStack Orientation="Orientation.Horizontal" Width="8px" HorizontalGap="0">
         @if (!Notification.IsRead)
         {
-            <MudIcon Icon="@Icons.Material.Filled.Circle"
-                     Style="font-size:.5rem; color:var(--mud-palette-primary);" />
+            <FluentBadge Circular="true" Appearance="Appearance.Accent" Width="8px" Height="8px" />
         }
-    </div>
+    </FluentStack>
 
-    <MudStack Spacing="0" Class="flex-grow-1">
-        <MudText Typo="Typo.body2"
-                 Style="@(Notification.IsRead ? "white-space:normal;" : "white-space:normal; font-weight:600;")">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="2" Width="100%">
+        <FluentLabel Typo="Typography.Body"
+                     Weight="@(Notification.IsRead ? FontWeight.Normal : FontWeight.Bold)">
             @Notification.Message
-        </MudText>
-        <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
-            @Timestamp
-        </MudText>
-    </MudStack>
+        </FluentLabel>
+        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+            @Notification.CreatedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
+        </FluentLabel>
+    </FluentStack>
 
     @if (ShowNavigationHint && !string.IsNullOrWhiteSpace(Notification.ActionUrl))
     {
-        <MudIcon Icon="@Icons.Material.Filled.ChevronRight"
-                 Style="color:var(--mud-palette-text-disabled);" />
+        <FluentIcon Value="@(new Icons.Regular.Size16.ChevronRight())" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" />
     }
-</MudStack>
+</FluentStack>
 
 @code {
     [Parameter, EditorRequired]
     public Notification Notification { get; set; } = default!;
 
-    // The bell asks "what just happened"; the history page is an archive and wants the
-    // exact moment.
-    [Parameter]
-    public bool RelativeTime { get; set; }
-
     [Parameter]
     public bool ShowNavigationHint { get; set; }
-
-    private string Timestamp => RelativeTime
-        ? FormatRelative(Notification.CreatedAt)
-        : Notification.CreatedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture);
-
-    private static string FormatRelative(DateTime createdAtUtc)
-    {
-        var elapsed = DateTime.UtcNow - createdAtUtc;
-
-        if (elapsed < TimeSpan.FromMinutes(1))
-            return "just now";
-        if (elapsed < TimeSpan.FromHours(1))
-            return $"{(int)elapsed.TotalMinutes}m ago";
-        if (elapsed < TimeSpan.FromDays(1))
-            return $"{(int)elapsed.TotalHours}h ago";
-        if (elapsed < TimeSpan.FromDays(7))
-            return $"{(int)elapsed.TotalDays}d ago";
-
-        return createdAtUtc.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-    }
 }

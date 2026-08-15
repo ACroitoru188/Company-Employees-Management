@@ -1,86 +1,103 @@
+@* Fluent dialogs render only their body; the title and the two buttons come from the
+   DialogParameters the caller passes. State travels on the Content object, which the caller
+   reads back after a non-cancelled result. *@
 @using CompanyEmployees.Domain.Entities
 @using System.Globalization
+@implements IDialogContentComponent<CreateDelegationDialog.Model>
 
-<MudDialog>
-    <DialogContent>
-        <MudText Typo="Typo.body2" Class="mb-3" Style="color:var(--mud-palette-text-secondary);">
-            Temporarily delegate your manager approval rights and contract management duties to a colleague.
-        </MudText>
+<FluentDialogBody>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+            @(string.IsNullOrWhiteSpace(Content.Intro)
+                ? "Temporarily delegate your manager approval rights and contract management duties to a colleague."
+                : Content.Intro)
+        </FluentLabel>
 
-        <MudSelect T="Guid?" Label="Delegate To (Colleague)" @bind-Value="_selectedDelegateId"
-                   Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Class="mb-3">
-            @foreach (var user in AvailableUsers)
-            {
-                <MudSelectItem Value="@((Guid?)user.Id)">@user.Name (@user.Role - @(user.Department?.Name ?? "No dept"))</MudSelectItem>
-            }
-        </MudSelect>
+        @* SelectedOption is bound, not just its change event: without it the select shows the
+           first colleague as though it were chosen while SelectedDelegateId is still null, and
+           the primary action then refuses to close with nothing selected. *@
+        <FluentSelect TOption="User"
+                      Label="Delegate to (colleague)"
+                      Placeholder="Choose a colleague..."
+                      Items="@Content.AvailableUsers"
+                      OptionValue="@(u => u.Id.ToString())"
+                      OptionText="@(u => $"{u.Name} ({u.Role} - {u.Department?.Name ?? "No dept"})")"
+                      SelectedOption="@Content.SelectedDelegate"
+                      SelectedOptionChanged="@(u => Content.SelectedDelegateId = u?.Id)"
+                      Style="width:100%;" />
 
-        <div class="d-flex gap-3 mb-3">
-            <MudDatePicker Label="Start Date"
-                           @bind-Date="_startDate"
-                           Variant="Variant.Outlined"
-                           Margin="Margin.Dense"
-                           Class="flex-grow-1" />
-            <MudDatePicker Label="End Date"
-                           @bind-Date="_endDate"
-                           Variant="Variant.Outlined"
-                           Margin="Margin.Dense"
-                           Class="flex-grow-1" />
-        </div>
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12">
+            <FluentDatePicker Label="Start date" @bind-Value="Content.StartDate" Style="width:100%;" />
+            <FluentDatePicker Label="End date" @bind-Value="Content.EndDate" Style="width:100%;" />
+        </FluentStack>
 
-        <MudTextField T="string"
-                      Label="Reason (e.g. Annual Leave)"
-                      @bind-Value="_reason"
-                      Variant="Variant.Outlined"
-                      Lines="2"
-                      Margin="Margin.Dense"
-                      Placeholder="Explain why you are delegating..." />
+        <FluentTextArea @bind-Value="Content.Reason"
+                        Label="Reason (e.g. annual leave)"
+                        Placeholder="Explain why you are delegating..."
+                        Rows="2"
+                        Style="width:100%;" />
 
-        @if (!string.IsNullOrEmpty(_errorMessage))
+        @if (!string.IsNullOrEmpty(Content.ErrorMessage))
         {
-            <MudText Color="Color.Error" Typo="Typo.caption" Class="mt-2">@_errorMessage</MudText>
+            <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">
+                @Content.ErrorMessage
+            </FluentMessageBar>
         }
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!IsValid)">
-            Create Delegation
-        </MudButton>
-    </DialogActions>
-</MudDialog>
+    </FluentStack>
+</FluentDialogBody>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter]
+    public Model Content { get; set; } = default!;
 
-    [Parameter] public List<User> AvailableUsers { get; set; } = [];
+    // Fluent runs the primary action's validation outside this component's event loop, so a
+    // message written onto Content during it would never reach the screen without this.
+    protected override void OnInitialized() => Content.Refresh = () => InvokeAsync(StateHasChanged);
 
-    private Guid? _selectedDelegateId;
-    private DateTime? _startDate = DateTime.Today;
-    private DateTime? _endDate = DateTime.Today.AddDays(7);
-    private string _reason = "";
-    private string _errorMessage = "";
+    public class Model : DialogContentModel
+    {
+        public List<User> AvailableUsers { get; set; } = [];
+
+        // Set when the dialog opens out of a leave request: the dates arrive filled in with
+        // the leave period, but stay editable so a shorter handover is possible.
+        public DateTime? StartDate { get; set; } = DateTime.Today;
+        public DateTime? EndDate { get; set; } = DateTime.Today.AddDays(7);
+        public string? Intro { get; set; }
+
+        public Guid? SelectedDelegateId { get; set; }
+        public string Reason { get; set; } = "";
+        public string ErrorMessage { get; set; } = "";
+
+        public User? SelectedDelegate =>
+            AvailableUsers.FirstOrDefault(user => user.Id == SelectedDelegateId);
+
+        public bool IsValid =>
+            SelectedDelegateId.HasValue && StartDate.HasValue && EndDate.HasValue && EndDate >= StartDate;
+
+        // Called from the caller's ValidateDialogAsync. Returning false alone would keep the
+        // dialog open with no explanation, which reads as a dead button — so the reason is
+        // written where the body already renders it.
+        public bool Validate()
+        {
+            ErrorMessage = !SelectedDelegateId.HasValue
+                ? "Choose the colleague who will act for you."
+                : !StartDate.HasValue || !EndDate.HasValue
+                    ? "Both dates are required."
+                    : EndDate < StartDate
+                        ? "The end date cannot be before the start date."
+                        : "";
+
+            NotifyChanged();
+            return ErrorMessage.Length == 0;
+        }
+
+        // The caller turns a confirmed dialog into this before handing it to ManagerContext.
+        public DelegationResult ToResult() => new(
+            SelectedDelegateId!.Value,
+            DateOnly.FromDateTime(StartDate!.Value),
+            DateOnly.FromDateTime(EndDate!.Value),
+            string.IsNullOrWhiteSpace(Reason) ? null : Reason);
+    }
 
     public record DelegationResult(Guid DelegateId, DateOnly StartDate, DateOnly EndDate, string? Reason);
-
-    private bool IsValid => _selectedDelegateId.HasValue && _startDate.HasValue && _endDate.HasValue && _endDate >= _startDate;
-
-    private void Submit()
-    {
-        if (!_selectedDelegateId.HasValue)
-        {
-            _errorMessage = "Please choose a delegate.";
-            return;
-        }
-
-        if (!_startDate.HasValue || !_endDate.HasValue || _endDate < _startDate)
-        {
-            _errorMessage = "End date must be on or after start date.";
-            return;
-        }
-
-        var start = DateOnly.FromDateTime(_startDate.Value);
-        var end = DateOnly.FromDateTime(_endDate.Value);
-
-        MudDialog.Close(DialogResult.Ok(new DelegationResult(_selectedDelegateId.Value, start, end, string.IsNullOrWhiteSpace(_reason) ? null : _reason)));
-    }
 }

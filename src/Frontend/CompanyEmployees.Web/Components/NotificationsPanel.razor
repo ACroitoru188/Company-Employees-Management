@@ -1,0 +1,243 @@
+@* The bell's "see all" surface: the full history in a right-hand panel that scrolls, instead
+   of leaving the page you are on. Read and unread both — the centre in the bell only holds
+   what is still unread, so this is the only place a notification can be found afterwards. *@
+@using System.Globalization
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Entities
+@implements IDialogContentComponent<NotificationsPanel.Model>
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Nav
+@inject ILogger<NotificationsPanel> Logger
+
+<FluentDialogBody Class="notification-panel">
+    @if (_loading)
+    {
+        <FluentProgressRing />
+    }
+    else if (_failed)
+    {
+        <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">
+            Your notifications could not be loaded.
+        </FluentMessageBar>
+    }
+    else if (_total == 0)
+    {
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="8"
+                     HorizontalAlignment="HorizontalAlignment.Center" Style="padding:32px 0;">
+            <FluentIcon Value="@(new Icons.Regular.Size24.Alert())"
+                        Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" />
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                         CustomColor="var(--neutral-foreground-hint)">
+                You have no notifications yet.
+            </FluentLabel>
+        </FluentStack>
+    }
+    else
+    {
+        @* Stretch, not the default start alignment: otherwise every row is only as wide as its
+           own text and the hover band is ragged. *@
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="0"
+                     HorizontalAlignment="HorizontalAlignment.Stretch" Width="100%">
+
+            <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+                         HorizontalGap="8" Width="100%">
+                <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                             CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+                    @_unreadCount unread of @_total
+                </FluentLabel>
+                <FluentSpacer />
+                @if (_unreadCount > 0)
+                {
+                    <FluentButton Appearance="Appearance.Lightweight"
+                                  IconStart="@(new Icons.Regular.Size20.CheckmarkCircle())"
+                                  OnClick="MarkAllAsReadAsync">Mark all as read</FluentButton>
+                }
+            </FluentStack>
+
+            <FluentDivider Role="DividerRole.Presentation" />
+
+            @* One line per notification, expanded on demand. A row used to be a FluentButton
+               wrapping the full message: a button does not wrap its content, so every message
+               ran off the right edge and the panel grew a horizontal scrollbar. *@
+            @* Multi mode with the open row tracked here, rather than Single with ActiveId: in
+               single mode the accordion owns which row is open and clicking the open one does
+               not close it. This way a second click collapses, and one row is open at a time
+               because _expandedId holds one value. *@
+            <FluentAccordion ExpandMode="AccordionExpandMode.Multi">
+                @foreach (var notification in _notifications)
+                {
+                    @* Unread is carried by the row itself — an accent edge and a filled
+                       background — rather than by a marker competing for space inside it. *@
+                    <FluentAccordionItem Id="@notification.Id.ToString()"
+                                         Class="@(notification.IsRead ? "notification-item" : "notification-item unread")"
+                                         Expanded="@(_expandedId == notification.Id)"
+                                         ExpandedChanged="@(expanded => OnExpandedChangedAsync(notification, expanded))">
+                        <HeadingTemplate>
+                            <FluentStack Orientation="Orientation.Vertical" VerticalGap="2"
+                                         HorizontalAlignment="HorizontalAlignment.Stretch" Width="100%">
+                                <FluentLabel Typo="Typography.Body" Class="notification-summary"
+                                             Weight="@(notification.IsRead ? FontWeight.Normal : FontWeight.Bold)">
+                                    @notification.Message
+                                </FluentLabel>
+                                <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                                             CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+                                    @notification.CreatedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
+                                </FluentLabel>
+                            </FluentStack>
+                        </HeadingTemplate>
+
+                        <ChildContent>
+                            <FluentLabel Typo="Typography.Body" Class="notification-text">
+                                @notification.Message
+                            </FluentLabel>
+
+                            @if (!string.IsNullOrWhiteSpace(notification.ActionUrl))
+                            {
+                                <FluentButton Appearance="Appearance.Accent" Style="margin-top:12px;"
+                                              IconStart="@(new Icons.Regular.Size16.Open())"
+                                              OnClick="@(() => OpenAsync(notification))">Open</FluentButton>
+                            }
+                        </ChildContent>
+                    </FluentAccordionItem>
+                }
+            </FluentAccordion>
+
+            @if (_notifications.Count < _total)
+            {
+                @* Paged rather than all at once: the list grows for the life of an account, and
+                   the panel scrolls through what has been loaded. *@
+                <FluentButton Appearance="Appearance.Lightweight" Disabled="@_loadingMore"
+                              OnClick="LoadMoreAsync" Style="margin-top:8px;">
+                    Load older (@(_total - _notifications.Count) more)
+                </FluentButton>
+            }
+        </FluentStack>
+    }
+</FluentDialogBody>
+
+@code {
+    private const int PageSize = 25;
+
+    /// <summary>The account whose notifications the panel shows.</summary>
+    public sealed class Model
+    {
+        public Guid UserId { get; init; }
+    }
+
+    [Parameter]
+    public Model Content { get; set; } = default!;
+
+    // FluentDialog cascades itself to its content; opening a notification navigates, so the
+    // panel has to close itself first.
+    [CascadingParameter]
+    public FluentDialog Dialog { get; set; } = default!;
+
+    private List<Notification> _notifications = new();
+    private Guid? _expandedId;
+    private int _total;
+    private int _unreadCount;
+    private bool _loading = true;
+    private bool _loadingMore;
+    private bool _failed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync(reset: true);
+        _loading = false;
+    }
+
+    // Own scope, and sequential awaits within it: this renders inside the layout, whose scoped
+    // DbContext the page is already using, and a second query in flight on one throws.
+    private async Task LoadAsync(bool reset)
+    {
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
+
+            if (reset)
+            {
+                _total = await context.GetHistoryCountAsync(Content.UserId);
+                _unreadCount = await context.GetUnreadCountAsync(Content.UserId);
+                _notifications = new List<Notification>();
+            }
+
+            var page = await context.GetHistoryPageAsync(Content.UserId, _notifications.Count, PageSize);
+            _notifications.AddRange(page);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load notifications for user {UserId}.", Content.UserId);
+            _failed = true;
+        }
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        _loadingMore = true;
+        await LoadAsync(reset: false);
+        _loadingMore = false;
+    }
+
+    // Expanding a row is reading it — the full message is on screen at that point. Collapsing
+    // is just a collapse.
+    private async Task OnExpandedChangedAsync(Notification notification, bool expanded)
+    {
+        _expandedId = expanded ? notification.Id : null;
+
+        if (!expanded || notification.IsRead)
+            return;
+
+        await MarkAsReadAsync(notification);
+
+        // Rows come back untracked, so this only updates the screen; the bell's badge
+        // refreshes through the dispatcher.
+        notification.IsRead = true;
+        _unreadCount = Math.Max(0, _unreadCount - 1);
+    }
+
+    private async Task OpenAsync(Notification notification)
+    {
+        if (!notification.IsRead)
+        {
+            await MarkAsReadAsync(notification);
+            notification.IsRead = true;
+            _unreadCount = Math.Max(0, _unreadCount - 1);
+        }
+
+        if (string.IsNullOrWhiteSpace(notification.ActionUrl))
+            return;
+
+        await Dialog.CloseAsync();
+        Nav.NavigateTo(notification.ActionUrl);
+    }
+
+    private Task MarkAsReadAsync(Notification notification) =>
+        RunAsync(context => context.MarkAsReadAsync(Content.UserId, notification.Id));
+
+    private async Task MarkAllAsReadAsync()
+    {
+        await RunAsync(context => context.MarkAllAsReadAsync(Content.UserId));
+
+        foreach (var notification in _notifications)
+            notification.IsRead = true;
+
+        _unreadCount = 0;
+    }
+
+    private async Task RunAsync(Func<NotificationContext, Task> action)
+    {
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var context = scope.ServiceProvider.GetRequiredService<NotificationContext>();
+            await action(context);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not update notifications for user {UserId}.", Content.UserId);
+        }
+    }
+}

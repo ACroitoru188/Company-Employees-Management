@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-@using System.Globalization
-<html lang="@CultureInfo.CurrentUICulture.Name" dir="@(CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft ? "rtl" : "ltr")">
+<html lang="en">
 
 <head>
     <meta charset="utf-8" />
@@ -8,9 +7,9 @@
     <base href="/" />
 
     <link rel="stylesheet" href="@Assets["app.css"]" />
-    <link rel="stylesheet" href="@Assets["css/tokens.css"]" />
     <link rel="stylesheet" href="@Assets["CompanyEmployees.Web.styles.css"]" />
-    <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
+    @* Fluent UI ships only a CSS reboot; the design tokens come from FluentDesignTheme. *@
+    <link rel="stylesheet" href="_content/Microsoft.FluentUI.AspNetCore.Components/css/reboot.css" />
     <ImportMap />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <script>if (!matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('anim');</script>
@@ -23,21 +22,28 @@
             <Routes @rendermode="InteractiveServer" />
         </ChildContent>
         <ErrorContent Context="ex">
-            <div style="color:red; padding:20px;">
-                <h1>CRITICAL ERROR CAUGHT</h1>
-                <p>@ex.Message</p>
-                <pre>@ex.StackTrace</pre>
-            </div>
+            @* Outside any layout, so it brings its own providers — otherwise the Fluent
+               components here render without a theme. *@
+            <CompanyEmployees.Web.Components.Employee.EmployeeProviders />
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="12" Style="padding:20px;">
+                <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" Color="Color.Error">
+                    CRITICAL ERROR CAUGHT
+                </FluentLabel>
+                <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">@ex.Message</FluentMessageBar>
+                <FluentTextArea Value="@ex.StackTrace" ReadOnly="true" Rows="20" Style="width:100%;" />
+            </FluentStack>
         </ErrorContent>
     </ErrorBoundary>
     <ReconnectModal />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="/js/culture.js"></script>
+    <script src="/js/orgchart.js"></script>
     <script src="/pointer.js"></script>
     <script src="/anim.js"></script>
-    <script src="/js/culture.js"></script>
+    @* Fluent UI's own JS is a Blazor library initializer, loaded by blazor.web.js — a
+       manual script tag here would run it twice. *@
     <script src="@Assets["_framework/blazor.web.js"]"></script>
-    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 </body>
 
 </html>
