@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Text.Json;
 
 namespace CompanyEmployees.Persistence
@@ -185,6 +186,38 @@ namespace CompanyEmployees.Persistence
             base.OnModelCreating(modelBuilder);
 
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(CompanyEmployeesDbContext).Assembly);
+
+            // SQL Server returns datetime2 values with Kind=Unspecified, while Npgsql refuses
+            // those values for timestamp-with-time-zone columns. A model-level converter is
+            // applied in addition to the change-tracker normalization so baseline inserts are
+            // guaranteed to reach either provider as UTC.
+            var utcConverter = new ValueConverter<DateTime, DateTime>(
+                value => value.Kind == DateTimeKind.Utc
+                    ? value
+                    : value.Kind == DateTimeKind.Local
+                        ? value.ToUniversalTime()
+                        : DateTime.SpecifyKind(value, DateTimeKind.Utc),
+                value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+            var nullableUtcConverter = new ValueConverter<DateTime?, DateTime?>(
+                value => value.HasValue
+                    ? value.Value.Kind == DateTimeKind.Utc
+                        ? value
+                        : value.Value.Kind == DateTimeKind.Local
+                            ? value.Value.ToUniversalTime()
+                            : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+                    : value,
+                value => value.HasValue
+                    ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+                    : value);
+
+            foreach (var property in modelBuilder.Model.GetEntityTypes()
+                         .SelectMany(entityType => entityType.GetProperties()))
+            {
+                if (property.ClrType == typeof(DateTime))
+                    property.SetValueConverter(utcConverter);
+                else if (property.ClrType == typeof(DateTime?))
+                    property.SetValueConverter(nullableUtcConverter);
+            }
         }
     }
 }

@@ -26,6 +26,11 @@ public static class PostgreSqlStandbyBootstrapper
         await db.Database.EnsureCreatedAsync(cancellationToken);
         await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(db, cancellationToken);
 
+        // Emergency accounts created while SQL Server is unavailable are real business
+        // data. Capture them in the PostgreSQL outbox so they can be copied to SQL Server
+        // before an administrator fails back.
+        db.SuppressOutboxCapture = false;
+
         if (!bool.TryParse(configuration["DatabaseFailover:SeedFallbackAdmin"], out var seed)
             || !seed)
             return;
