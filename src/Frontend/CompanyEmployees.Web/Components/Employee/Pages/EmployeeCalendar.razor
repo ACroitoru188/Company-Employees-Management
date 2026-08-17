@@ -65,7 +65,7 @@
                         <FluentSpacer />
                         <FluentLabel Typo="Typography.Body" Class="app-caption"
                                      Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                            @balance.Remaining / @balance.DaysTotal
+                            @balance.Remaining / @balance.EffectiveDaysTotal
                         </FluentLabel>
                     </FluentStack>
                 </FluentButton>
@@ -106,6 +106,18 @@
     <FluentStack Class="cal-main" Orientation="Orientation.Vertical" VerticalGap="0"
                  HorizontalAlignment="HorizontalAlignment.Stretch"
                  Style="flex:1 1 auto; min-width:0;">
+
+        @if (SelectedBalance is { } selectedBalance && _availabilityStart is { } availabilityStart && _availableUntil is { } availableUntil)
+        {
+            <FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false">
+                @Text.Format(
+                    "{0}: {1} working days available. Starting {2}, the last available day is {3}.",
+                    Text[selectedBalance.Type.ToString()],
+                    selectedBalance.Remaining,
+                    availabilityStart.ToString("d", CultureInfo.CurrentCulture),
+                    availableUntil.ToString("d", CultureInfo.CurrentCulture))
+            </FluentMessageBar>
+        }
 
         @* Teams' order exactly: Today, the two arrows, then the period; the view picker sits on
            the far right as a dropdown rather than a row of tabs. *@
@@ -298,7 +310,7 @@
                 @if (rows.Count == 0)
                 {
                     <EmptyState Icon="@(new Icons.Regular.Size24.CalendarLtr())"
-                                Title="@Text["No approved team leave this month."]"
+                                Title="@Text["No team leave this month."]"
                                 Boxed="false" />
                 }
                 else
@@ -378,7 +390,7 @@
                 @if (listRows.Count == 0)
                 {
                     <EmptyState Icon="@(new Icons.Regular.Size24.CalendarLtr())"
-                                Title="@Text["No approved team leave this month."]"
+                                Title="@Text["No team leave this month."]"
                                 Boxed="false" />
                 }
                 else
@@ -477,8 +489,13 @@
     private DateOnly? _anchorDay;
     private (DateOnly Start, DateOnly End)? _range;
     private string? _reason;
+    private DateOnly? _availabilityStart;
+    private DateOnly? _availableUntil;
 
     private bool ShowSubmitBar => _range is not null && _selectedType is not null;
+    private LeaveBalance? SelectedBalance => _selectedType is { } type
+        ? _balances.FirstOrDefault(balance => balance.Type == type)
+        : null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -627,16 +644,19 @@
         return count;
     }
 
-    private void SelectType(LeaveType type)
+    private async Task SelectType(LeaveType type)
     {
         if (_selectedType == type)
         {
             _selectedType = null;
+            _availabilityStart = null;
+            _availableUntil = null;
             CancelSelection();
         }
         else
         {
             _selectedType = type;
+            await UpdateAvailabilityInfoAsync(_anchorDay ?? _today);
         }
     }
 
@@ -687,7 +707,7 @@
     private bool IsHoliday(DateOnly day) => _holidays.ContainsKey(day);
 
     // Click the first day, then the last; clicking inside the range clears it.
-    private void OnDayClick(DateOnly day)
+    private async Task OnDayClick(DateOnly day)
     {
         if (!CanSelectDay(day))
             return;
@@ -696,6 +716,7 @@
         {
             _range = null;
             _anchorDay = null;
+            await UpdateAvailabilityInfoAsync(_today);
             return;
         }
 
@@ -703,10 +724,41 @@
         {
             _anchorDay = day;
             _range = (day, day);
+            await UpdateAvailabilityInfoAsync(day);
             return;
         }
 
         _range = day < anchor ? (day, anchor) : (anchor, day);
+    }
+
+    private async Task UpdateAvailabilityInfoAsync(DateOnly start)
+    {
+        _availabilityStart = start;
+        _availableUntil = SelectedBalance is { Remaining: > 0 } balance
+            ? await FindLastAvailableDayAsync(start, balance.Remaining)
+            : null;
+    }
+
+    private async Task<DateOnly> FindLastAvailableDayAsync(DateOnly start, int workingDays)
+    {
+        var holidayDates = new HashSet<DateOnly>();
+        var loadedYears = new HashSet<int>();
+        var counted = 0;
+
+        for (var day = start; ; day = day.AddDays(1))
+        {
+            if (loadedYears.Add(day.Year))
+            {
+                foreach (var holiday in await TimeOff.GetRegionalHolidaysAsync(day.Year))
+                    holidayDates.Add(holiday.Date);
+            }
+
+            if (!IsWeekend(day) && !holidayDates.Contains(day))
+                counted++;
+
+            if (counted == workingDays)
+                return day;
+        }
     }
 
     private void CancelSelection()

@@ -34,25 +34,31 @@
                                  VerticalAlignment="VerticalAlignment.Bottom">
                         <FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@balance.Remaining</FluentLabel>
                         <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
-                            / @Text.Format("{0} days", balance.EffectiveDaysTotal)
+                            / @Text.Format("{0} days", balance.BaseDays)
                         </FluentLabel>
+                        @for (var i = 0; i < balance.CarryOverPortions.Count; i++)
+                        {
+                            var portion = balance.CarryOverPortions[i];
+                            var anchor = $"carry-over-{balance.Type}-{i}";
+                            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--success)" Class="app-caption">
+                                + @Text.Format("{0} days", portion.Days)
+                            </FluentLabel>
+                            <FluentTooltip Anchor="@anchor">
+                                @Text.Format(
+                                    "{0} carried annual-leave days expire on {1}",
+                                    portion.Days,
+                                    portion.ExpiryDate.ToString("d", CultureInfo.CurrentCulture))
+                            </FluentTooltip>
+                            <FluentIcon Id="@anchor" Value="@(new Icons.Regular.Size16.Info())"
+                                        Color="Color.Neutral" />
+                        }
+                        @if (balance.ExpiredCarriedOverDays > 0)
+                        {
+                            <FluentLabel Typo="Typography.Body" Color="Color.Error" Class="app-caption">
+                                - @Text.Format("{0} expired", balance.ExpiredCarriedOverDays)
+                            </FluentLabel>
+                        }
                     </FluentStack>
-
-                    @foreach (var portion in balance.CarryOverPortions)
-                    {
-                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--status-success-foreground-1)" Class="app-caption">
-                            @Text.Format(
-                                "{0} carried annual-leave days expire on {1}",
-                                portion.Days,
-                                portion.ExpiryDate.ToString("d", CultureInfo.CurrentCulture))
-                        </FluentLabel>
-                    }
-                    @if (balance.ExpiredCarriedOverDays > 0)
-                    {
-                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--status-danger-foreground-1)" Class="app-caption">
-                            @Text.Format("{0} expired", balance.ExpiredCarriedOverDays)
-                        </FluentLabel>
-                    }
 
                     @* The leave-type colour is per category, which Fluent's single-accent
                        palette has no slot for — hence the local custom colour. *@

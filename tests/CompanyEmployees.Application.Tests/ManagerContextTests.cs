@@ -16,6 +16,7 @@ public class ManagerContextTests
     private readonly IUserGateway _users = Substitute.For<IUserGateway>();
     private readonly IContractGateway _contracts = Substitute.For<IContractGateway>();
     private readonly IManagerDelegationGateway _delegations = Substitute.For<IManagerDelegationGateway>();
+    private readonly IPublicHolidayProvider _holidays = Substitute.For<IPublicHolidayProvider>();
     private readonly INotificationGateway _notifications = Substitute.For<INotificationGateway>();
     private readonly INotificationDispatcher _dispatcher = Substitute.For<INotificationDispatcher>();
     // This branch carries the delegation feature, so ManagerContext also takes the
@@ -163,6 +164,7 @@ public class ManagerContextTests
             _users,
             _contracts,
             _delegations,
+            _holidays,
             notificationContext,
             impersonationContext,
             _delegatedActions);

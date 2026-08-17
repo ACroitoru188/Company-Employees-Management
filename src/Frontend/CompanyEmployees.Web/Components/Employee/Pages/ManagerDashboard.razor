@@ -175,7 +175,7 @@ else
                                             }
                                         </FluentStack>
                                         <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                                            @request.Type &middot; @request.Days @(request.Days == 1 ? "day" : "days")
+                                            @request.Type &middot; @request.Days @(request.Days == 1 ? "working day" : "working days")
                                             &middot; @request.Department
                                             &middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)–@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
                                         </FluentLabel>
@@ -236,7 +236,7 @@ else
                                         <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Period</FluentLabel>
                                         <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
                                             @request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy")
-                                            (@request.Days @(request.Days == 1 ? "day" : "days"))
+                                            (@request.Days @(request.Days == 1 ? "working day" : "working days"))
                                         </FluentLabel>
                                     </FluentStack>
                                     <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
