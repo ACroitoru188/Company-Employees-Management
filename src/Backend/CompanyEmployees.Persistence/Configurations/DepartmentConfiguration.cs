@@ -18,6 +18,11 @@ namespace CompanyEmployees.Persistence.Configurations
                    .WithMany()
                    .HasForeignKey(d => d.ManagerId)
                    .OnDelete(DeleteBehavior.NoAction);
+
+            builder.HasOne(d => d.Admin)
+                   .WithMany()
+                   .HasForeignKey(d => d.AdminId)
+                   .OnDelete(DeleteBehavior.NoAction);
         }
     }
 }
