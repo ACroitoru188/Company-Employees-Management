@@ -18,6 +18,8 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IManagerDelegationGateway _delegationGateway;
         private readonly IPublicHolidayProvider _holidayProvider;
         private readonly NotificationContext _notifications;
+        private readonly ImpersonationContext _impersonation;
+        private readonly IDelegatedActionGateway _delegatedActions;
 
         public ManagerContext(
             ILogger<ManagerContext> logger,
@@ -26,7 +28,9 @@ namespace CompanyEmployees.Application.Contexts
             IContractGateway contractGateway,
             IManagerDelegationGateway delegationGateway,
             IPublicHolidayProvider holidayProvider,
-            NotificationContext notifications) : base(logger)
+            NotificationContext notifications,
+            ImpersonationContext impersonation,
+            IDelegatedActionGateway delegatedActions) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
@@ -34,6 +38,57 @@ namespace CompanyEmployees.Application.Contexts
             _delegationGateway = delegationGateway;
             _holidayProvider = holidayProvider;
             _notifications = notifications;
+            _impersonation = impersonation;
+            _delegatedActions = delegatedActions;
+        }
+
+        // Every action taken from inside a borrowed account passes through here first. It
+        // delegates to ImpersonationContext rather than re-checking the window locally, so
+        // the rule for "is this delegation still good" has exactly one implementation.
+        //
+        // Returns the delegation, which arrives with Manager and Delegate loaded — that is
+        // where the audit row and the notification get the real actor's name, without a
+        // second lookup. Null means the caller is acting as themselves.
+        private async Task<ManagerDelegation?> GuardAsync(Guid actingAsUserId, ActingOnBehalf? onBehalf)
+        {
+            if (onBehalf is null)
+                return null;
+
+            return await _impersonation.ValidateDelegationAsync(
+                onBehalf.RealUserId, onBehalf.DelegationId, actingAsUserId);
+        }
+
+        // "Line Manager Mihai Georgescu" or, when someone is covering for him,
+        // "Line Manager Mihai Georgescu (delegate: Elena Vasilescu)". The account that
+        // carries the authority is named first — the delegate is the parenthetical.
+        private static string ActorLabel(User actingAs, ManagerDelegation? delegation)
+        {
+            var who = actingAs.Role == UserRole.LineManager
+                ? $"Line Manager {actingAs.Name}"
+                : actingAs.Name;
+
+            return delegation is null ? who : $"{who} (delegate: {delegation.Delegate.Name})";
+        }
+
+        private Task RecordDelegatedActionAsync(
+            ManagerDelegation? delegation, Guid actingAsUserId, Guid targetUserId,
+            DelegatedActionType actionType, Guid targetEntityId, string? details)
+        {
+            if (delegation is null)
+                return Task.CompletedTask;
+
+            return _delegatedActions.CreateAsync(new DelegatedAction
+            {
+                Id = Guid.NewGuid(),
+                DelegationId = delegation.Id,
+                RealUserId = delegation.DelegateId,
+                ActedAsUserId = actingAsUserId,
+                TargetUserId = targetUserId,
+                ActionType = actionType,
+                TargetEntityId = targetEntityId,
+                Details = details,
+                CreatedAt = DateTime.UtcNow
+            });
         }
 
         public async Task<List<LeaveRequest>> GetPendingRequestsForManagerAsync(Guid managerId)
@@ -190,8 +245,10 @@ namespace CompanyEmployees.Application.Contexts
             return count;
         }
 
-        public async Task<LeaveRequest> DecideRequestAsync(Guid managerId, Guid requestId, bool approve)
+        public async Task<LeaveRequest> DecideRequestAsync(
+            Guid managerId, Guid requestId, bool approve, ActingOnBehalf? onBehalf = null)
         {
+            var delegation = await GuardAsync(managerId, onBehalf);
             var manager = await GetUserOrThrowAsync(managerId);
             var request = await _leaveRequestGateway.GetRequestByIdAsync(requestId);
             if (request == null)
@@ -237,21 +294,22 @@ namespace CompanyEmployees.Application.Contexts
 
             await _leaveRequestGateway.SaveDecisionAsync(request, approval);
 
+            var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                         + " – " +
+                         request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+
+            await RecordDelegatedActionAsync(
+                delegation, managerId, request.UserId,
+                approve ? DelegatedActionType.LeaveApproved : DelegatedActionType.LeaveRejected,
+                request.Id, $"{request.Type} leave, {period}");
+
             try
             {
-                var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
-                             + " – " +
-                             request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-                
-                string notificationMessage;
-                if (isFinal)
-                {
-                    notificationMessage = $"Your {request.Type} leave request for {period} was {(request.Status == LeaveStatus.Approved ? "approved" : "declined")}.";
-                }
-                else
-                {
-                    notificationMessage = $"Your {request.Type} leave request for {period} was approved by {(isAuthorizedDelegate ? "acting delegate manager" : "your manager")} and is now awaiting HR approval.";
-                }
+                var actor = ActorLabel(manager, delegation);
+
+                var notificationMessage = isFinal
+                    ? $"Your {request.Type} leave request for {period} was {(request.Status == LeaveStatus.Approved ? "approved" : "declined")} by {actor}."
+                    : $"Your {request.Type} leave request for {period} was approved by {actor} and is now awaiting HR approval.";
 
                 await _notifications.SendNotificationAsync(
                     request.UserId,
@@ -268,8 +326,10 @@ namespace CompanyEmployees.Application.Contexts
             return request;
         }
 
-        public async Task ExtendContractAsync(Guid managerId, Guid contractId, DateOnly newEndDate)
+        public async Task ExtendContractAsync(
+            Guid managerId, Guid contractId, DateOnly newEndDate, ActingOnBehalf? onBehalf = null)
         {
+            var delegation = await GuardAsync(managerId, onBehalf);
             var manager = await GetUserOrThrowAsync(managerId);
             var contract = await _contractGateway.GetByIdAsync(contractId);
             if (contract == null)
@@ -309,11 +369,15 @@ namespace CompanyEmployees.Application.Contexts
 
             await _contractGateway.UpdateAsync(contract);
 
+            await RecordDelegatedActionAsync(
+                delegation, managerId, contract.UserId, DelegatedActionType.ContractExtended,
+                contract.Id, $"End date {previousEnd} → {newEndDate:yyyy-MM-dd}");
+
             try
             {
                 await _notifications.SendNotificationAsync(
                     contract.UserId,
-                    $"Your employment contract has been extended to {newEndDate:yyyy-MM-dd} by your line manager.",
+                    $"Your employment contract has been extended to {newEndDate:yyyy-MM-dd} by {ActorLabel(manager, delegation)}.",
                     "/employee/profile");
             }
             catch (Exception ex)
@@ -325,8 +389,10 @@ namespace CompanyEmployees.Application.Contexts
                 managerId, contractId, contract.UserId, previousEnd, newEndDate);
         }
 
-        public async Task TerminateContractAsync(Guid managerId, Guid contractId, string? reason)
+        public async Task TerminateContractAsync(
+            Guid managerId, Guid contractId, string? reason, ActingOnBehalf? onBehalf = null)
         {
+            var delegation = await GuardAsync(managerId, onBehalf);
             var manager = await GetUserOrThrowAsync(managerId);
             var contract = await _contractGateway.GetByIdAsync(contractId);
             if (contract == null)
@@ -361,11 +427,15 @@ namespace CompanyEmployees.Application.Contexts
 
             await _contractGateway.UpdateAsync(contract);
 
+            await RecordDelegatedActionAsync(
+                delegation, managerId, contract.UserId, DelegatedActionType.ContractTerminated,
+                contract.Id, reason);
+
             try
             {
                 await _notifications.SendNotificationAsync(
                     contract.UserId,
-                    $"Your employment contract has been terminated by your line manager. Reason: {reason ?? "No reason specified"}.",
+                    $"Your employment contract has been terminated by {ActorLabel(manager, delegation)}. Reason: {reason ?? "No reason specified"}.",
                     "/employee/profile");
             }
             catch (Exception ex)
@@ -377,8 +447,15 @@ namespace CompanyEmployees.Application.Contexts
                 managerId, contractId, contract.UserId, reason);
         }
 
-        public async Task<ManagerDelegation> CreateDelegationAsync(Guid managerId, Guid delegateId, DateOnly start, DateOnly end, string? reason)
+        public async Task<ManagerDelegation> CreateDelegationAsync(
+            Guid managerId, Guid delegateId, DateOnly start, DateOnly end, string? reason,
+            ActingOnBehalf? onBehalf = null)
         {
+            // No chaining: authority that was lent cannot be lent onward. Only the account's
+            // real owner may hand it to someone else.
+            if (onBehalf is not null)
+                throw new UnauthorizedException("You cannot delegate from an account you are only borrowing.");
+
             if (managerId == delegateId)
                 throw new InvalidOperationException("You cannot delegate responsibilities to yourself.");
 
@@ -446,6 +523,53 @@ namespace CompanyEmployees.Application.Contexts
             await _delegationGateway.UpdateAsync(delegation);
 
             _logger.LogInformation("Manager {ManagerId} cancelled delegation {DelegationId}.", managerId, delegationId);
+        }
+
+        // Reads the audit rows this context writes. The two personal scopes are filtered to
+        // the caller and need no further authorisation; the region-wide one is oversight and
+        // is checked here, so hiding the tab is not what protects it.
+        public async Task<DelegationHistoryResult> GetDelegationHistoryAsync(
+            Guid userId, DelegationHistoryScope scope, int skip, int take)
+        {
+            List<DelegatedAction> actions;
+            int total;
+            string? regionName = null;
+
+            if (scope == DelegationHistoryScope.EveryoneInRegion)
+            {
+                var caller = await GetUserOrThrowAsync(userId);
+                if (caller.Role != UserRole.Admin)
+                    throw new UnauthorizedException("Only an administrator can view the whole region's history.");
+
+                actions = await _delegatedActions.GetForRegionAsync(caller.RegionId, skip, take);
+                total = await _delegatedActions.CountForRegionAsync(caller.RegionId);
+                regionName = caller.Region?.Name;
+            }
+            else if (scope == DelegationHistoryScope.DoneInMyName)
+            {
+                actions = await _delegatedActions.GetActedAsAsync(userId, skip, take);
+                total = await _delegatedActions.CountActedAsAsync(userId);
+            }
+            else
+            {
+                actions = await _delegatedActions.GetPerformedByAsync(userId, skip, take);
+                total = await _delegatedActions.CountPerformedByAsync(userId);
+            }
+
+            return new DelegationHistoryResult
+            {
+                Total = total,
+                RegionName = regionName,
+                Items = actions.Select(action => new DelegationHistoryEntry
+                {
+                    When = action.CreatedAt,
+                    RealUserName = action.RealUser.Name,
+                    ActedAsName = action.ActedAsUser.Name,
+                    TargetName = action.TargetUser.Name,
+                    ActionType = action.ActionType,
+                    Details = action.Details
+                }).ToList()
+            };
         }
 
         public async Task<List<ManagerDelegation>> GetMyDelegationsAsync(Guid managerId)

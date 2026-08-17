@@ -58,6 +58,14 @@ namespace CompanyEmployees.Gateway.Repositories
                 .ToListAsync();
         }
 
+        public Task<bool> HasActiveDelegationInPeriodAsync(Guid managerId, DateOnly from, DateOnly to) =>
+            _context.ManagerDelegations.AnyAsync(md =>
+                md.ManagerId == managerId && md.IsActive && md.StartDate <= to && md.EndDate >= from);
+
+        public Task<bool> HasAnyDelegationAsync(Guid userId) =>
+            _context.ManagerDelegations.AnyAsync(md =>
+                md.ManagerId == userId || md.DelegateId == userId);
+
         public async Task CreateAsync(ManagerDelegation delegation)
         {
             await _context.ManagerDelegations.AddAsync(delegation);

@@ -1,0 +1,33 @@
+@* The language picker, in a dialog rather than inline in the profile menu: a menu closes on
+   the first click inside it, which is exactly the click that opens a select's dropdown. The
+   choice is saved against the account by the layout, not here — this component only asks. *@
+@using CompanyEmployees.Web.Services
+@inject AppLocalizer Text
+@implements IDialogContentComponent<LanguageDialog.Model>
+
+<FluentDialogBody>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="12" Style="min-width:280px;">
+        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+            @Text["The application follows this language everywhere, on any device you sign in from."]
+        </FluentLabel>
+
+        <FluentSelect TOption="SupportedLanguage"
+                      Label="@Text["Language"]"
+                      Items="@SupportedLanguages.All"
+                      OptionValue="@(language => language.Culture)"
+                      OptionText="@(language => language.NativeName)"
+                      @bind-Value="@Content.Culture"
+                      Style="width:100%;" />
+    </FluentStack>
+</FluentDialogBody>
+
+@code {
+    [Parameter]
+    public Model Content { get; set; } = default!;
+
+    public sealed class Model
+    {
+        // Bound both ways: the dialog opens on the language in use and hands back the choice.
+        public string Culture { get; set; } = SupportedLanguages.DefaultCulture;
+    }
+}

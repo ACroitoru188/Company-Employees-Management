@@ -1,26 +1,26 @@
 using CompanyEmployees.Web.Models;
-using MudBlazor;
 
 namespace CompanyEmployees.Web.Components.Employee;
 
 /// <summary>
-/// Single source of truth for the leave-type color map, applied via inline styles
-/// because DeepPurple/Gray are not part of the MudBlazor theme Color enum.
+/// Single source of truth for the leave-type color map. Literal hex rather than design
+/// tokens: Fluent derives its palette from one accent colour, so it has no slot for four
+/// unrelated category colours.
 /// </summary>
 public static class LeaveTypePalette
 {
     public static string Hex(LeaveType type, bool isDarkMode = false) => (type, isDarkMode) switch
     {
-        (LeaveType.Annual, false) => Colors.Blue.Default,
-        (LeaveType.Annual, true) => Colors.Blue.Lighten2,
-        (LeaveType.Sick, false) => Colors.Orange.Darken1,
-        (LeaveType.Sick, true) => Colors.Orange.Lighten1,
-        (LeaveType.Parental, false) => Colors.DeepPurple.Default,
-        (LeaveType.Parental, true) => Colors.DeepPurple.Lighten2,
-        (LeaveType.Unpaid, false) => Colors.Gray.Darken1,
-        (LeaveType.Unpaid, true) => Colors.Gray.Lighten1,
-        (_, false) => Colors.Gray.Darken1,
-        (_, true) => Colors.Gray.Lighten1
+        (LeaveType.Annual, false) => "#2196F3",
+        (LeaveType.Annual, true) => "#90CAF9",
+        (LeaveType.Sick, false) => "#FB8C00",
+        (LeaveType.Sick, true) => "#FFB74D",
+        (LeaveType.Parental, false) => "#673AB7",
+        (LeaveType.Parental, true) => "#B39DDB",
+        (LeaveType.Unpaid, false) => "#757575",
+        (LeaveType.Unpaid, true) => "#BDBDBD",
+        (_, false) => "#757575",
+        (_, true) => "#BDBDBD"
     };
 
     /// <summary>Hex with alpha suffix for the calendar range highlight (~20% opacity).</summary>

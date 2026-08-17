@@ -11,95 +11,95 @@
 @inject EmployeeAccountService Accounts
 @inject ManagerContext Manager
 @inject NavigationManager Nav
-@inject ISnackbar Snackbar
+@inject IToastService Toast
 @inject AppLocalizer Text
 
 <PageTitle>@Text["Create employee account"] · @Text["Admin"]</PageTitle>
 
 @if (!_authorized)
 {
-	<MudProgressCircular Indeterminate="true" />
+	<FluentProgressRing />
 }
 else
 {
-	<div class="d-flex align-center gap-3 mb-5">
-		<MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
-					   Href="/admin/users"
-					   aria-label="@(Text["Back to users"])" />
-		<div>
-			<MudText Typo="Typo.h5" Style="font-weight:600;">@Text["Create employee account"]</MudText>
-			<MudText Typo="Typo.body2" Color="Color.Secondary">
+	<div class="page-shell">
+		<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+					 VerticalAlignment="VerticalAlignment.Center" Width="100%" Style="margin-bottom:20px;">
+			<FluentAnchor Href="/admin/users" Appearance="Appearance.Stealth"
+						  IconStart="@(new Icons.Regular.Size20.ArrowLeft())"
+						  Title="@Text["Back to users"]" />
+			<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+				<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text["Create employee account"]</FluentLabel>
+				<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
 				@Text["Create employees in your assigned region. Their Siemens login and employee ID are generated automatically."]
-			</MudText>
-		</div>
-	</div>
+				</FluentLabel>
+			</FluentStack>
+		</FluentStack>
 
-	<MudGrid Justify="Justify.Center">
-		<MudItem xs="12" md="8" lg="7">
-			<MudPaper Class="pa-6" Elevation="1">
+		<FluentGrid Spacing="3" Justify="JustifyContent.Center">
+			<FluentGridItem xs="12" md="8" lg="7">
+				<FluentCard Style="padding:24px;">
 				@if (_createdAccount is null)
 				{
-					<div class="d-flex flex-column gap-4">
-						<MudTextField T="string" @bind-Value="_employeeName"
-									  Label="@(Text["Full name"])" Variant="Variant.Outlined"
-									  Disabled="@_creating" Autofocus="true" />
-						<MudTextField T="string" @bind-Value="_invitationEmail"
-									  Label="@(Text["Real email address"])" Variant="Variant.Outlined"
-									  InputType="InputType.Email" Disabled="@_creating" />
-						<MudSelect T="Guid?" @bind-Value="_departmentId"
-								   Label="@(Text["Department"])" Variant="Variant.Outlined"
-								   Disabled="@_creating">
-							@foreach (var department in _departments.OrderBy(d => d.Name))
-							{
-								<MudSelectItem T="Guid?" Value="@((Guid?)department.Id)">@department.Name</MudSelectItem>
-							}
-						</MudSelect>
-						<MudTextField T="string" Value="@GetRegionName(_adminRegionId)"
-									  Label="@(Text["Region"])" Variant="Variant.Outlined"
-									  Disabled="true" />
+					<FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+						<FluentTextField @bind-Value="_employeeName" Label="@Text["Full name"]"
+									 AutoFocus="true" Disabled="@_creating" Style="width:100%;" />
+						<FluentTextField @bind-Value="_invitationEmail" Label="@Text["Real email address"]"
+									 TextFieldType="TextFieldType.Email" Disabled="@_creating" Style="width:100%;" />
+						<FluentSelect TOption="Department" Label="@Text["Department"]"
+								  Items="@_departments.OrderBy(d => d.Name)"
+								  OptionValue="@(d => d.Id.ToString())" OptionText="@(d => d.Name)"
+								  SelectedOption="@SelectedDepartment"
+								  SelectedOptionChanged="OnDepartmentChanged"
+								  Disabled="@_creating" Style="width:100%;" />
+						<FluentTextField Value="@GetRegionName(_adminRegionId)" Label="@Text["Region"]"
+									 Disabled="true" Style="width:100%;" />
 
-						<div class="d-flex justify-end gap-3 mt-2">
-							<MudButton Href="/admin/users" Variant="Variant.Text" Disabled="@_creating">
-								@Text["Cancel"]
-							</MudButton>
-							<MudButton Variant="Variant.Filled" Color="Color.Primary"
-									   StartIcon="@Icons.Material.Filled.PersonAdd"
-									   OnClick="CreateEmployeeAsync" Disabled="@_creating">
+						<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+									 HorizontalAlignment="HorizontalAlignment.End" Width="100%" Style="margin-top:8px;">
+							<FluentAnchor Href="/admin/users" Appearance="Appearance.Stealth">@Text["Cancel"]</FluentAnchor>
+							<FluentButton Appearance="Appearance.Accent"
+										  IconStart="@(new Icons.Regular.Size20.PersonAdd())"
+										  OnClick="CreateEmployeeAsync" Disabled="@_creating">
 								@(_creating ? Text["Creating..."] : Text["Create account"])
-							</MudButton>
-						</div>
-					</div>
+							</FluentButton>
+						</FluentStack>
+					</FluentStack>
 				}
 				else
 				{
-					<MudAlert Severity="Severity.Success" Variant="Variant.Outlined">
-						<MudText Typo="Typo.subtitle1" Style="font-weight:600;" Class="mb-2">@Text["Account created"]</MudText>
-						<MudText Typo="Typo.body2">@Text.Format("Name: {0}", _createdAccount.Name)</MudText>
-						<MudText Typo="Typo.body2">@Text.Format("Department: {0}", _createdAccount.Department)</MudText>
-						<MudText Typo="Typo.body2">@Text.Format("Region: {0}", _createdAccount.Region)</MudText>
-						<MudText Typo="Typo.body2">@Text.Format("Siemens login: {0}", _createdAccount.Email)</MudText>
-						<MudText Typo="Typo.body2">@Text.Format("Invitation email: {0}", _createdAccount.InvitationEmail)</MudText>
+					<FluentMessageBar Intent="MessageIntent.Success" AllowDismiss="false">
+						<FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+							<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@Text["Account created"]</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text.Format("Name: {0}", _createdAccount.Name)</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text.Format("Department: {0}", _createdAccount.Department)</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text.Format("Region: {0}", _createdAccount.Region)</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text.Format("Siemens login: {0}", _createdAccount.Email)</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text.Format("Invitation email: {0}", _createdAccount.InvitationEmail)</FluentLabel>
 						@if (_createdAccount.EmailDelivered)
 						{
-							<MudText Typo="Typo.body2" Class="mt-2">@Text["A password setup email was sent to the employee."]</MudText>
+							<FluentLabel Typo="Typography.Body">@Text["A password setup email was sent to the employee."]</FluentLabel>
 						}
 						else
 						{
-							<MudText Typo="Typo.body2" Class="mt-2">@Text["SMTP is not configured. Use this development-only setup link:"]</MudText>
-							<MudLink Href="@_createdAccount.DevelopmentSetupLink">@Text["Set password"]</MudLink>
+							<FluentLabel Typo="Typography.Body">@Text["SMTP is not configured. Use this development-only setup link:"]</FluentLabel>
+							<FluentAnchor Href="@_createdAccount.DevelopmentSetupLink" Appearance="Appearance.Hypertext">@Text["Set password"]</FluentAnchor>
 						}
-					</MudAlert>
+						</FluentStack>
+					</FluentMessageBar>
 
-					<div class="d-flex justify-end gap-3 mt-4">
-						<MudButton Href="/admin/users" Variant="Variant.Outlined">@Text["Back to users"]</MudButton>
-						<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ResetForm">
+					<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+								 HorizontalAlignment="HorizontalAlignment.End" Width="100%" Style="margin-top:16px;">
+						<FluentAnchor Href="/admin/users" Appearance="Appearance.Outline">@Text["Back to users"]</FluentAnchor>
+						<FluentButton Appearance="Appearance.Accent" OnClick="ResetForm">
 							@Text["Create another account"]
-						</MudButton>
-					</div>
+						</FluentButton>
+					</FluentStack>
 				}
-			</MudPaper>
-		</MudItem>
-	</MudGrid>
+				</FluentCard>
+			</FluentGridItem>
+		</FluentGrid>
+	</div>
 }
 
 @code {
@@ -116,6 +116,9 @@ else
 	private List<Department> _departments = new();
 	private List<Region> _regions = new();
 	private EmployeeAccountResult? _createdAccount;
+	private Department? SelectedDepartment => _departments.FirstOrDefault(d => d.Id == _departmentId);
+
+	private void OnDepartmentChanged(Department? department) => _departmentId = department?.Id;
 
 	protected override async Task OnInitializedAsync()
 	{
@@ -153,19 +156,19 @@ else
 	{
 		if (string.IsNullOrWhiteSpace(_employeeName))
 		{
-			Snackbar.Add(Text["Employee name is required."], Severity.Warning);
+			Toast.ShowWarning(Text["Employee name is required."]);
 			return;
 		}
 
 		if (string.IsNullOrWhiteSpace(_invitationEmail))
 		{
-			Snackbar.Add(Text["Employee email is required."], Severity.Warning);
+			Toast.ShowWarning(Text["Employee email is required."]);
 			return;
 		}
 
 		if (_departmentId is null)
 		{
-			Snackbar.Add(Text["Select a department."], Severity.Warning);
+			Toast.ShowWarning(Text["Select a department."]);
 			return;
 		}
 
@@ -180,15 +183,14 @@ else
 				_adminRegionId,
 				Nav.BaseUri);
 
-			Snackbar.Add(
-				_createdAccount.EmailDelivered
-					? Text["Employee account created and setup email sent."]
-					: Text["Employee account created; SMTP is not configured."],
-				_createdAccount.EmailDelivered ? Severity.Success : Severity.Warning);
+			if (_createdAccount.EmailDelivered)
+				Toast.ShowSuccess(Text["Employee account created and setup email sent."]);
+			else
+				Toast.ShowWarning(Text["Employee account created; SMTP is not configured."]);
 		}
 		catch (Exception exception)
 		{
-			Snackbar.Add(exception.Message, Severity.Error);
+			Toast.ShowError(exception.Message);
 		}
 		finally
 		{

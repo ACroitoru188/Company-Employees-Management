@@ -15,6 +15,7 @@ namespace CompanyEmployees.Application
             services.AddScoped<INotificationGateway, NotificationGateway>();
             services.AddScoped<NotificationContext>();
             services.AddScoped<ManagerContext>();
+            services.AddScoped<ImpersonationContext>();
 
             return services;
         }

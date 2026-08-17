@@ -3,44 +3,59 @@
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
 @inject ITimeOffService TimeOff
+@inject AppLocalizer Text
 @inject IDialogService DialogService
 @inject NavigationManager Nav
-@inject AppLocalizer Text
 
 <PageTitle>@Text["My Requests"] · @Text["Time Off Management"]</PageTitle>
 
-<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">@Text["My Requests"]</MudText>
+<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" MarginBlock="0 16px">@Text["My Requests"]</FluentLabel>
 
-<MudTable T="TimeOffRequest" Items="@_requests" Hover="true" Elevation="1"
-          OnRowClick="@(args => args.Item is null ? Task.CompletedTask : OpenDetails(args.Item))">
-    <HeaderContent>
-        <MudTh>@Text["Type"]</MudTh>
-        <MudTh>@Text["Dates"]</MudTh>
-        <MudTh>@Text["Status"]</MudTh>
-        <MudTh>@Text["Submitted"]</MudTh>
-    </HeaderContent>
-    <RowTemplate>
-        <MudTd DataLabel="@(Text["Type"])">
-            @Text[context.Type.ToString()]
-        </MudTd>
-        <MudTd DataLabel="@(Text["Dates"])">
-            @context.StartDate.ToString("d", CultureInfo.CurrentCulture) –
-            @context.EndDate.ToString("d", CultureInfo.CurrentCulture)
-            <MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">
+<FluentDataGrid Items="@_requests.AsQueryable()" TGridItem="TimeOffRequest"
+                ShowHover="true" OnRowClick="@(row => OpenDetailsAsync(row.Item!))">
+    <EmptyContent>
+        <EmptyState Icon="@(new Icons.Regular.Size24.Document())"
+                    Title="@Text["You have not requested any time off yet."]"
+                    Boxed="false">
+            <Action>
+                <FluentButton Appearance="Appearance.Accent"
+                              IconStart="@(new Icons.Regular.Size20.Add())"
+                              OnClick="@(() => Nav.NavigateTo("/employee/calendar"))">
+                    @Text["Request time off"]
+                </FluentButton>
+            </Action>
+        </EmptyState>
+    </EmptyContent>
+<ChildContent>
+    <PropertyColumn Title="@Text["Type"]" Property="@(r => Text[r.Type.ToString()])" />
+
+    <TemplateColumn Title="@Text["Dates"]">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+            <FluentLabel Typo="Typography.Body">
+                @context.StartDate.ToString("MMM d", CultureInfo.CurrentCulture) –
+                @context.EndDate.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)
+            </FluentLabel>
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
                 @context.Days @Text[context.Days == 1 ? "day" : "days"]
-            </MudText>
-        </MudTd>
-        <MudTd DataLabel="@(Text["Status"])">
-            <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">
-                @Text[context.Status.ToString()]
-            </MudChip>
-        </MudTd>
-        <MudTd DataLabel="@(Text["Submitted"])">
-            @context.SubmittedAt.ToString("d", CultureInfo.CurrentCulture)
-        </MudTd>
-    </RowTemplate>
-</MudTable>
+            </FluentLabel>
+        </FluentStack>
+    </TemplateColumn>
+
+    <TemplateColumn Title="@Text["Status"]">
+        @* Amber / green / red, as before: FluentBadge's three appearances cannot tell
+           approved from rejected, and that is the one distinction this column exists for. *@
+        <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(context.Status)" Color="white">
+            @Text[context.Status.ToString()]
+        </FluentBadge>
+    </TemplateColumn>
+
+    <PropertyColumn Title="@Text["Submitted"]"
+                    Property="@(r => r.SubmittedAt)"
+                    Format="MMM d, yyyy" />
+</ChildContent>
+</FluentDataGrid>
 
 @code {
     [CascadingParameter]
@@ -56,20 +71,19 @@
         _requests = await TimeOff.GetMyRequestsAsync();
     }
 
-    private static Color StatusColor(RequestStatus status) => status switch
+    private static string StatusColor(RequestStatus status) => status switch
     {
-        RequestStatus.Pending => Color.Warning,
-        RequestStatus.Approved => Color.Success,
-        RequestStatus.Rejected => Color.Error,
-        _ => Color.Default
+        RequestStatus.Approved => "var(--success)",
+        RequestStatus.Rejected => "var(--error)",
+        _ => "var(--warning)"
     };
 
-    private Task OpenDetails(TimeOffRequest request)
-    {
-        var parameters = new DialogParameters<RequestDetailsDialog>
+    private Task OpenDetailsAsync(TimeOffRequest request) =>
+        DialogService.ShowDialogAsync<RequestDetailsDialog>(request, new DialogParameters
         {
-            { d => d.Request, request }
-        };
-        return DialogService.ShowAsync<RequestDetailsDialog>(Text["Request details"], parameters);
-    }
+            Title = Text["Request details"],
+            PrimaryAction = Text["Close"],
+            SecondaryAction = null,
+            Width = "480px"
+        });
 }

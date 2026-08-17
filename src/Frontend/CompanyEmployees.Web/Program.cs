@@ -1,6 +1,7 @@
 using Azure.Identity;
 using Blazored.LocalStorage;
 using CompanyEmployees.Application;
+using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Gateway;
@@ -13,21 +14,23 @@ using CompanyEmployees.Web.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Localization;
-using MudBlazor.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.FluentUI.AspNetCore.Components;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-builder.Services.AddMudServices();
-builder.Services.AddMudLocalization();
+builder.Services.AddFluentUIComponents();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<ThemeState>();
 builder.Services.AddScoped<EmployeeAccountService>();
+builder.Services.AddScoped<ActingContext>();
 builder.Services.AddScoped<EmployeeCsvExportService>();
 builder.Services.AddScoped<LanguagePreferenceService>();
+// Singleton: the translation files are read once at startup and never change at runtime.
 builder.Services.AddSingleton<AppLocalizer>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IAccountEmailSender, SmtpAccountEmailSender>();
@@ -71,6 +74,9 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 var app = builder.Build();
 
+// The language is carried by the standard culture cookie, written either at login (from the
+// account's saved preference) or by the picker in the layout. No other provider is registered:
+// the browser's Accept-Language must not override a choice the employee made explicitly.
 var supportedCultures = SupportedLanguages.All
     .Select(language => new System.Globalization.CultureInfo(language.Culture))
     .ToArray();
@@ -142,6 +148,8 @@ app.MapPost("/api/auth/login", async (HttpContext context,
         await signInManager.SignOutAsync();
         await signInManager.SignInAsync(account!, isPersistent: true);
 
+        // The saved preference follows the account, so signing in on another machine restores
+        // the employee's language instead of whatever that browser last used.
         var culture = SupportedLanguages.Normalize(account!.PreferredCulture);
         context.Response.Cookies.Append(
             CookieRequestCultureProvider.DefaultCookieName,
@@ -175,10 +183,77 @@ app.MapPost("/api/auth/login", async (HttpContext context,
 
 // Sign-out has to be a plain HTTP request too: an interactive circuit can't
 // touch the auth cookie (same reason the login form posts here).
-app.MapGet("/api/auth/logout", async (SignInManager<User> signInManager) =>
+app.MapGet("/api/auth/logout", async (
+    HttpContext context,
+    ImpersonationContext impersonation,
+    SignInManager<User> signInManager) =>
 {
+    // Close any borrowed session first: a row left open here is indistinguishable from one
+    // still in use, and used to block the next switch for good.
+    var acting = ActingUser.Resolve(context.User);
+    if (acting is not null)
+        await impersonation.EndOpenSessionAsync(acting.RealUserId);
+
     await signInManager.SignOutAsync();
     return Results.Redirect("/");
+});
+
+// Borrowing an account swaps the auth cookie, so it has to happen over a plain request
+// like login does. The rules live in ImpersonationContext; this only maps them to a
+// redirect. Both endpoints require an already-signed-in user.
+app.MapPost("/api/auth/impersonate", async (
+    HttpContext context,
+    [Microsoft.AspNetCore.Mvc.FromForm] Guid delegationId,
+    ImpersonationContext impersonation,
+    SignInManager<User> signInManager) =>
+{
+    var acting = ActingUser.Resolve(context.User);
+    if (acting is null)
+        return Results.Redirect("/");
+
+    // No chaining, decided from the cookie rather than from an open session row: the row
+    // survives a sign-out or an expired cookie, the claim does not.
+    if (acting.IsImpersonating)
+        return Results.Redirect("/employee/dashboard?error=DelegationUnavailable");
+
+    try
+    {
+        var target = await impersonation.StartAsync(
+            acting.RealUserId, delegationId, context.Connection.RemoteIpAddress?.ToString());
+
+        await signInManager.SignInWithClaimsAsync(target, isPersistent: true, new[]
+        {
+            new Claim(ImpersonationClaims.RealUserId, acting.RealUserId.ToString("D")),
+            new Claim(ImpersonationClaims.RealUserName, acting.RealUserName),
+            new Claim(ImpersonationClaims.DelegationId, delegationId.ToString("D"))
+        });
+
+        // Same landing rule as login: /manager/team bounces anyone who is not a
+        // LineManager, and admins are delegated from too.
+        return Results.Redirect(HomeRouteResolver.Resolve(target.Role, target.Department?.Name));
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Impersonation refused for user {RealUserId}.", acting.RealUserId);
+        return Results.Redirect("/employee/dashboard?error=DelegationUnavailable");
+    }
+}).DisableAntiforgery();
+
+// GET so the banner's exit can be a plain link, like logout: a forced request only ever
+// returns someone to their own account, so there is nothing here worth a CSRF token.
+app.MapGet("/api/auth/impersonate/stop", async (
+    HttpContext context,
+    ImpersonationContext impersonation,
+    SignInManager<User> signInManager) =>
+{
+    var acting = ActingUser.Resolve(context.User);
+    if (acting is null)
+        return Results.Redirect("/");
+
+    var realUser = await impersonation.StopAsync(acting.RealUserId);
+    await signInManager.SignInAsync(realUser, isPersistent: true);
+
+    return Results.Redirect("/employee/dashboard");
 });
 
 app.MapGet("/api/employees/export.csv", async (

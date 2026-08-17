@@ -1,0 +1,76 @@
+@* The one empty state in the app. Every list, grid and panel that can come back with nothing
+   renders this, so "nothing here" always looks the same and always looks deliberate.
+
+   The shape follows the standard guidance: an icon to break the blankness, a sentence saying
+   why the screen is empty, and at most one action. Not two — a first-time empty state that
+   offers several paths is a menu, and the point of this surface is to leave exactly one thing
+   to do next.
+
+   The list variants sit inside a card of their own; the grid variants do not, because
+   FluentDataGrid already draws the frame and a card inside a card reads as a mistake. *@
+
+@if (Boxed)
+{
+    <FluentCard Class="empty-state" Style="@CardStyle">
+        @Content
+    </FluentCard>
+}
+else
+{
+    @Content
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public Icon Icon { get; set; } = default!;
+
+    /// The reason the screen is empty, as one sentence.
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    /// Optional second line: what to do about it, when that is not obvious from the action.
+    [Parameter]
+    public string? Description { get; set; }
+
+    /// At most one control. More than one and this stops being an empty state.
+    [Parameter]
+    public RenderFragment? Action { get; set; }
+
+    /// False inside a FluentDataGrid's EmptyContent, where the grid supplies the frame.
+    [Parameter]
+    public bool Boxed { get; set; } = true;
+
+    [Parameter]
+    public string? Margin { get; set; }
+
+    private string CardStyle => Margin is null ? "" : $"margin:{Margin};";
+
+    private RenderFragment Content => @<FluentStack Orientation="Orientation.Vertical" VerticalGap="8"
+                                                    HorizontalAlignment="HorizontalAlignment.Center"
+                                                    Style="padding:32px 24px; text-align:center;">
+        <FluentIcon Value="@Icon" Width="28px" Color="Color.Custom"
+                    CustomColor="var(--neutral-foreground-hint)" />
+
+        <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold"
+                     Alignment="HorizontalAlignment.Center">
+            @Title
+        </FluentLabel>
+
+        @if (!string.IsNullOrWhiteSpace(Description))
+        {
+            <FluentLabel Typo="Typography.Body" Alignment="HorizontalAlignment.Center"
+                         Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                @Description
+            </FluentLabel>
+        }
+
+        @if (Action is not null)
+        {
+            <FluentStack Orientation="Orientation.Horizontal" VerticalGap="0"
+                         HorizontalAlignment="HorizontalAlignment.Center"
+                         Style="margin-top:8px;">
+                @Action
+            </FluentStack>
+        }
+    </FluentStack>;
+}

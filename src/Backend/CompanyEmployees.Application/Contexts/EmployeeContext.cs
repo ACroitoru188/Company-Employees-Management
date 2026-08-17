@@ -18,6 +18,7 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IRegionGateway _regionGateway;
         private readonly IPublicHolidayProvider _holidayProvider;
         private readonly IContractGateway _contractGateway;
+        private readonly IManagerDelegationGateway _delegationGateway;
         private readonly NotificationContext _notifications;
 
         public EmployeeContext(
@@ -28,6 +29,7 @@ namespace CompanyEmployees.Application.Contexts
             IRegionGateway regionGateway,
             IPublicHolidayProvider holidayProvider,
             IContractGateway contractGateway,
+            IManagerDelegationGateway delegationGateway,
             NotificationContext notifications) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
@@ -36,6 +38,7 @@ namespace CompanyEmployees.Application.Contexts
             _regionGateway = regionGateway;
             _holidayProvider = holidayProvider;
             _contractGateway = contractGateway;
+            _delegationGateway = delegationGateway;
             _notifications = notifications;
         }
 
@@ -254,8 +257,64 @@ namespace CompanyEmployees.Application.Contexts
 
             var subordinates = new List<OrgChartNode>();
 
-            if (parentNode.Role == "Department")
+            if (parentNode.Role == "City")
             {
+                var siteNode1 = new OrgChartNode
+                {
+                    UserId = Guid.NewGuid(),
+                    Name = "Siemens Industry Software Center",
+                    Role = "Site",
+                    Department = "Region",
+                    Initials = "SI",
+                    ManagerId = parentNode.UserId,
+                    HasUnloadedChildren = true,
+                    IsExpanded = false
+                };
+                var siteNode2 = new OrgChartNode
+                {
+                    UserId = Guid.NewGuid(),
+                    Name = "Siemens R&D Advanta Center",
+                    Role = "Site",
+                    Department = "Region",
+                    Initials = "SR",
+                    ManagerId = parentNode.UserId,
+                    HasUnloadedChildren = true,
+                    IsExpanded = false
+                };
+                subordinates.Add(siteNode1);
+                subordinates.Add(siteNode2);
+            }
+            else if (parentNode.Role == "Site")
+            {
+                // Return all admins in the system (or filtered by region if preferred)
+                var adminUsers = activeUsers.Where(u => u.Role == UserRole.Admin).OrderBy(u => u.Name).ToList();
+                // Split them based on Department to allow specific assignment
+                if (parentNode.Name == "Siemens Industry Software Center")
+                {
+                    adminUsers = adminUsers.Where(u => u.Department?.Name == "Industry Software").ToList();
+                }
+                else
+                {
+                    // Fallback for Advanta: everyone else (existing demo users)
+                    adminUsers = adminUsers.Where(u => u.Department?.Name != "Industry Software").ToList();
+                }
+
+                foreach (var u in adminUsers)
+                {
+                    var node = nodeMap[u.Id];
+                    node.HasUnloadedChildren = true;
+                    node.IsExpanded = false;
+                    // Site is artificial, so we override ManagerId to render correctly under Site
+                    node.ManagerId = parentNode.UserId;
+                    subordinates.Add(node);
+                }
+            }
+            else if (parentNode.Role == "Department")
+            {
+                // For CountryManager's admins, their ManagerId was overridden to Site's UserId in the UI memory.
+                // However, in DB, the Admin's ManagerId is still HQ (null) or someone else.
+                // But activeUsers will match if we use the original logic if we look at real managers.
+                // Wait, if parentNode.Role == "Department", the parentNode.ManagerId is the Admin's UserId!
                 var adminSubordinates = activeUsers.Where(u => u.ManagerId == parentNode.ManagerId).ToList();
                 var deptUsers = adminSubordinates.Where(u => (u.Department?.Name ?? "No Department") == parentNode.Department).ToList();
                 
@@ -264,7 +323,7 @@ namespace CompanyEmployees.Application.Contexts
                     subordinates.Add(nodeMap[u.Id]);
                 }
             }
-            else if (parentNode.Role == "Admin" && isAdmin)
+            else if (parentNode.Role == "Admin")
             {
                 var children = activeUsers.Where(u => u.ManagerId == parentNode.UserId).ToList();
                 var deptGroups = children.GroupBy(c => string.IsNullOrWhiteSpace(c.Department?.Name) ? "No Department" : c.Department.Name).OrderBy(g => g.Key);
@@ -345,21 +404,51 @@ namespace CompanyEmployees.Application.Contexts
                     ManagerId = u.ManagerId
                 });
 
-                // If this is an Admin and there is a next user, inject the virtual Department node
-                if (isAdmin && u.Role == UserRole.Admin && i + 1 < chain.Count)
+                if (i < chain.Count - 1)
                 {
                     var nextUser = chain[i + 1];
-                    var deptName = string.IsNullOrWhiteSpace(nextUser.Department?.Name) ? "No Department" : nextUser.Department.Name;
-                    
-                    path.Add(new OrgChartNode
+
+                    if (u.Role == UserRole.CountryManager && nextUser.Role == UserRole.Admin)
                     {
-                        UserId = Guid.NewGuid(), // Virtual
-                        Name = deptName,
-                        Role = "Department",
-                        Department = deptName,
-                        Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
-                        ManagerId = u.Id
-                    });
+                        var cityId = Guid.NewGuid();
+                        path.Add(new OrgChartNode
+                        {
+                            UserId = cityId,
+                            Name = "Brașov",
+                            Role = "City",
+                            Department = "Region",
+                            Initials = "BV",
+                            ManagerId = u.Id
+                        });
+
+                        var isIndustry = nextUser.Department?.Name == "Industry Software";
+                        var siteName = isIndustry ? "Siemens Industry Software Center" : "Siemens R&D Advanta Center";
+                        var siteInitials = isIndustry ? "SI" : "SR";
+
+                        path.Add(new OrgChartNode
+                        {
+                            UserId = Guid.NewGuid(),
+                            Name = siteName,
+                            Role = "Site",
+                            Department = "Region",
+                            Initials = siteInitials,
+                            ManagerId = cityId
+                        });
+                    }
+
+                    if (u.Role == UserRole.Admin)
+                    {
+                        var deptName = string.IsNullOrWhiteSpace(nextUser.Department?.Name) ? "No Department" : nextUser.Department.Name;
+                        path.Add(new OrgChartNode
+                        {
+                            UserId = Guid.NewGuid(),
+                            Name = deptName,
+                            Role = "Department",
+                            Department = deptName,
+                            Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
+                            ManagerId = u.Id
+                        });
+                    }
                 }
             }
 
@@ -692,6 +781,16 @@ namespace CompanyEmployees.Application.Contexts
             // exists for them as either requester's manager or reviewer) — auto-approved.
             var requirement = LeaveApprovalPolicy.DetermineRequirement(requester);
 
+            // Nobody reviews an admin's leave, so the only thing standing between them and
+            // an unattended account is this: someone has to be covering before the request
+            // is created. Overlap is enough — the cover may be shorter than the leave.
+            if (requester.Role == UserRole.Admin
+                && !await _delegationGateway.HasActiveDelegationInPeriodAsync(userId, start, end))
+            {
+                throw new DelegationRequiredException(
+                    "Choose a colleague to take over your responsibilities before requesting this leave.");
+            }
+
             var request = new LeaveRequest
             {
                 UserId = userId,
@@ -1013,14 +1112,42 @@ namespace CompanyEmployees.Application.Contexts
 
             if (root != null)
             {
-                if (isAdmin)
+                if (requestingUser.Role == UserRole.CountryManager)
+                {
+                    var cmNode = nodeMap[requestingUser.Id];
+                    var cityNode = new OrgChartNode
+                    {
+                        UserId = Guid.NewGuid(),
+                        Name = "Brașov",
+                        Role = "City",
+                        Department = "Region",
+                        Initials = "BV",
+                        ManagerId = cmNode.UserId,
+                        HasUnloadedChildren = true,
+                        IsExpanded = false
+                    };
+                    cmNode.Subordinates = new List<OrgChartNode> { cityNode };
+                    cmNode.IsExpanded = true;
+                    MarkFocus(cmNode, null);
+
+                    root = cmNode; // For country manager, they are the root of the tree
+                }
+                else if (requestingUser.Role == UserRole.Admin)
+                {
+                    var adminNode = nodeMap[requestingUser.Id];
+                    AttachChildren(adminNode);
+                    adminNode.IsExpanded = true;
+                    MarkFocus(adminNode, null);
+                    root = adminNode;
+                }
+                else if (isAdmin)
                 {
                     AttachChildren(root);
                     root.IsExpanded = true;
                     foreach(var admin in root.Subordinates) {
                         admin.IsExpanded = false;
                     }
-                    MarkFocus(root, null); // Admins see everything focused
+                    MarkFocus(root, null); // HR sees everything focused
                 }
                 else
                 {

@@ -6,91 +6,143 @@
 @using CompanyEmployees.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
-@inject ManagerContext Manager
-@inject NavigationManager Nav
-@inject ISnackbar Snackbar
 @inject AppLocalizer Text
+@inject NavigationManager Nav
+@inject IToastService Toast
+@inject IDialogService DialogService
 
 <PageTitle>@Text["Departments"] · @Text["Admin"]</PageTitle>
 
 @if (!_authorized)
 {
-	<MudProgressCircular Indeterminate="true" />
+	<FluentProgressRing />
 }
 else
-	@if (_isActingAdmin && _activeDelegationsReceived.Count > 0)
-	{
-		<MudAlert Severity="Severity.Info" Variant="Variant.Filled" Elevation="1" Class="mb-4">
-			<div class="d-flex align-center justify-space-between flex-wrap gap-2">
-				<div>
-					<strong>Delegated Admin Notice:</strong> You are currently acting as an active delegate for:
-					@string.Join(", ", _activeDelegationsReceived.Select(d => $"{d.Manager?.Name ?? "Admin"} (until {d.EndDate.ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture)})"))
-				</div>
-				<MudChip T="string" Size="Size.Small" Color="Color.Surface">Delegation Active</MudChip>
-			</div>
-		</MudAlert>
-	}
+{
+	<div class="page-shell">
+	<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" MarginBlock="0 16px">@Text["Departments"]</FluentLabel>
 
-	<MudText Typo="Typo.h5" Style="font-weight:600;" Class="mb-4">@Text["Departments"]</MudText>
+	<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+				 HorizontalGap="12" Wrap="true" Width="100%">
+		<FluentSearch @bind-Value="_quickSearch" @bind-Value:after="StateHasChanged"
+					  Placeholder="@Text["Search department..."]" Style="width:280px;" />
+		<FluentSpacer />
+	</FluentStack>
 
-	<MudDataGrid T="Department" Items="@_departments" QuickFilter="@_quickFilter"
-				 Filterable="true" SortMode="SortMode.Multiple"
-				 FilterMode="DataGridFilterMode.ColumnFilterRow"
-				 Hover="true" Dense="true" Elevation="1" Class="mb-6">
-		<ToolBarContent>
-			<MudTextField @bind-Value="_quickSearch" Placeholder="@(Text["Search department..."])"
-						  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-						  IconSize="Size.Small" Variant="Variant.Outlined" Margin="Margin.Dense"
-						  Immediate="true" />
-			<MudSpacer />
-		</ToolBarContent>
-		<Columns>
-			<TemplateColumn T="Department" Title="@(Text["Name"])" Sortable="true"
-							SortBy="@(d => d.Name)" Filterable="false">
-				<CellTemplate>
-					<MudTextField @bind-Value="context.Item.Name" Immediate="false"
-								  OnBlur="@(() => SaveDepartmentAsync(context.Item))" />
-				</CellTemplate>
-			</TemplateColumn>
-			<TemplateColumn T="Department" Title="@(Text["Manager"])" Sortable="true"
-							SortBy="@(d => GetManagerName(d.ManagerId))" Filterable="false">
-				<CellTemplate>
-					<MudAutocomplete T="Guid?" Value="context.Item.ManagerId"
-									 ValueChanged="@(v => OnManagerChangedAsync(context.Item, v))"
-									 SearchFunc="@SearchManagers"
-									 ToStringFunc="@GetManagerName"
-									 ResetValueOnEmptyText="true"
-									 CoerceText="true" />
-				</CellTemplate>
-			</TemplateColumn>
-			<PropertyColumn Property="@(d => d.Members.Count)" Title="@(Text["Members"])" />
-			<TemplateColumn T="Department" Sortable="false" Filterable="false">
-				<CellTemplate>
-					<MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
-								   OnClick="@(() => DeleteDepartmentAsync(context.Item))" />
-				</CellTemplate>
-			</TemplateColumn>
-		</Columns>
-		<PagerContent>
-			<MudDataGridPager T="Department" />
-		</PagerContent>
-	</MudDataGrid>
+	@* Grid and paginator share one surface, so the table reads as a single object instead of
+	   rows floating on the page background — and it matches the panel below it. *@
+	<FluentCard Class="grid-card" Style="margin-top:12px; padding:16px;">
+	<FluentDataGrid Items="@FilteredDepartments" TGridItem="Department" ResizableColumns="true"
+					ShowHover="true" Pagination="@_pagination"
+					GridTemplateColumns="2fr 2fr 0.8fr 0.6fr">
+		<EmptyContent>
+		    <EmptyState Icon="@(new Icons.Regular.Size24.Search())"
+		                Title="@Text["No department matches this search."]"
+		                Boxed="false" />
+		</EmptyContent>
+	<ChildContent>
+		<TemplateColumn Title="@Text["Name"]" Sortable="true" SortBy="@_byName"
+						Filtered="@(!string.IsNullOrWhiteSpace(_fName))">
+			<ColumnOptions>
+				<FluentSearch @bind-Value="_fName" @bind-Value:after="StateHasChanged"
+							  Placeholder="@Text["Filter by name"]" AutoFocus="true" />
+			</ColumnOptions>
+			<ChildContent>
+			@* Immediate binding would save on every keystroke, so the value is written to the
+			   model as you type and only persisted when the field loses focus — as before.
+			   focusout rather than blur: blur does not bubble out of the web component. *@
+			<FluentTextField Value="@context.Name"
+							 ValueChanged="@(value => context.Name = value ?? string.Empty)"
+							 @onfocusout="@(() => SaveDepartmentAsync(context))" />
+			</ChildContent>
+		</TemplateColumn>
 
-	<MudPaper Class="pa-4 mb-6" Elevation="0" Outlined="true">
-		<MudText Typo="Typo.subtitle2" Class="mb-2">@Text["New department"]</MudText>
-		<div class="d-flex align-center gap-3">
-			<MudTextField T="string" @bind-Value="_newName" Label="@(Text["Name"])" />
-			<MudAutocomplete T="Guid?" @bind-Value="_newManagerId" Label="@(Text["Manager"])" Style="min-width:200px;"
-							 SearchFunc="@SearchManagers"
-							 ToStringFunc="@GetManagerName"
-							 ResetValueOnEmptyText="true"
-							 CoerceText="true" />
-			<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateDepartmentAsync">
-				@Text["Add"]
-			</MudButton>
-		</div>
-	</MudPaper>
+		<TemplateColumn Title="@Text["Manager"]" Sortable="true" SortBy="@_byManager"
+						Filtered="@(!string.IsNullOrWhiteSpace(_fManager))">
+			<ColumnOptions>
+				<FluentSearch @bind-Value="_fManager" @bind-Value:after="StateHasChanged"
+							  Placeholder="@Text["Filter by manager"]" AutoFocus="true" />
+			</ColumnOptions>
+			<ChildContent>
+			<FluentCombobox TOption="ManagerOption"
+							Items="@_managerOptions"
+							OptionValue="@(option => option.Id.ToString())"
+							OptionText="@(option => option.Name)"
+							Autocomplete="ComboboxAutocomplete.Both"
+							SelectedOption="@OptionFor(context.ManagerId)"
+							SelectedOptionChanged="@(option => OnManagerChangedAsync(context, option))" />
+			</ChildContent>
+		</TemplateColumn>
+
+		@* A bare count answers nothing; as a link it answers the question it provokes — who are
+		   they — and /admin/users already takes a search term from the query string. An empty
+		   department gets a dash rather than a zero inviting a click. *@
+		<TemplateColumn Title="@Text["Members"]" Sortable="true" SortBy="@_byMembers">
+			@if (context.Members.Count == 0)
+			{
+				<FluentLabel Typo="Typography.Body" Color="Color.Custom"
+							 CustomColor="var(--neutral-foreground-hint)">—</FluentLabel>
+			}
+			else
+			{
+				<FluentAnchor Href="@($"/admin/users?search={Uri.EscapeDataString(context.Name)}")"
+							  Appearance="Appearance.Lightweight">@context.Members.Count</FluentAnchor>
+			}
+		</TemplateColumn>
+
+		<TemplateColumn Title="@Text["Actions"]" Sortable="false" Align="Align.End">
+			<FluentButton Appearance="Appearance.Stealth" Title="@Text["Delete department"]"
+						  IconStart="@(new Icons.Regular.Size20.Delete().WithColor("var(--error)"))"
+						  OnClick="@(() => DeleteDepartmentAsync(context))" />
+		</TemplateColumn>
+		</ChildContent>
+	</FluentDataGrid>
+
+	<FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.Center"
+				 Width="100%">
+		<FluentPaginator State="@_pagination" />
+	</FluentStack>
+	</FluentCard>
+
+	@* Folded away like the create-account panel on /admin/users: adding a department is
+	   occasional, reading the table is what this page is for. It springs back open after a
+	   successful create so the confirmation is not left behind a chevron. *@
+	<FluentAccordion Style="margin-top:24px;">
+		<FluentAccordionItem Heading="@Text["New department"]" Expanded="@_createFormOpen">
+			<span slot="start">
+				<FluentIcon Value="@(new Icons.Regular.Size20.Add())" Color="Color.Neutral" />
+			</span>
+			@* A grid, not a wrapping row. A Fluent field renders its label and its control as two
+			   siblings, so a wrapping flex row is free to break between them and leave "Manager"
+			   pointing at nothing — the same trap the create-account form hit. *@
+			<FluentGrid Spacing="3" Style="padding:8px 0 4px;">
+				<FluentGridItem xs="12" sm="6" md="4">
+					<FluentTextField @bind-Value="_newName" Label="@Text["Name"]" Style="width:100%;" />
+				</FluentGridItem>
+				<FluentGridItem xs="12" sm="6" md="4">
+					@* SelectedOptionChanged keeps the current value when handed a null option: null is
+					   the phantom half of the pair of callbacks a single pick raises, and taking it
+					   would wipe the choice the real callback is about to deliver. *@
+					<FluentCombobox TOption="ManagerOption" Label="@Text["Manager"]"
+									Items="@_managerOptions"
+									OptionValue="@(option => option.Id.ToString())"
+									OptionText="@(option => option.Name)"
+									Autocomplete="ComboboxAutocomplete.Both"
+									SelectedOption="@OptionFor(_newManagerId)"
+									SelectedOptionChanged="@(option => _newManagerId = option is null ? _newManagerId : ToManagerId(option))"
+									Style="width:100%;" />
+				</FluentGridItem>
+				<FluentGridItem xs="12" Style="display:flex; justify-content:flex-start;">
+					<FluentButton Appearance="Appearance.Accent"
+								  IconStart="@(new Icons.Regular.Size20.Add())"
+								  OnClick="CreateDepartmentAsync">@Text["Add"]</FluentButton>
+				</FluentGridItem>
+			</FluentGrid>
+		</FluentAccordionItem>
+	</FluentAccordion>
+	</div>
 }
 
 @code {
@@ -98,8 +150,6 @@ else
 	private Task<AuthenticationState>? AuthStateTask { get; set; }
 
 	private bool _authorized;
-	private bool _isActingAdmin;
-	private List<ManagerDelegation> _activeDelegationsReceived = new();
 	private List<Department> _departments = [];
 	private List<User> _users = [];
 	private IEnumerable<User> _lineManagers => _users.Where(u => u.Role == UserRole.LineManager);
@@ -107,17 +157,49 @@ else
 	private string _newName = "";
 	private Guid? _newManagerId;
 
+	// The panel carries the confirmation of what was just created, so it stays open afterwards.
+	private bool _createFormOpen;
+
 	private string _quickSearch = "";
 
-	private Func<Department, bool> _quickFilter => d =>
-	{
-		if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
-		return d.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-			|| GetManagerName(d.ManagerId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase);
-	};
+	private readonly PaginationState _pagination = new() { ItemsPerPage = 10 };
 
-	// The role comes from the auth cookie's claims (AppClaimsPrincipalFactory).
-	// If the user is not an Admin, we query the DB to see if they are an active delegate of an Admin.
+	// Fluent's combobox picks from a list of objects rather than from a search callback, so
+	// "no manager" needs a real entry: Guid.Empty stands in for null on the way in and out.
+	private sealed record ManagerOption(Guid Id, string Name);
+
+	// One instance, created once the localizer is available: a field initializer runs before
+	// injection, and returning a fresh record per call would stop the combobox recognising
+	// its own selected option.
+	private ManagerOption _noManager = new(Guid.Empty, "None");
+	// Never empty while the combobox is on screen — see LoadAsync.
+	private List<ManagerOption> _managerOptions = [];
+
+	// SortBy on a TemplateColumn needs the comparer up front; both are stable across renders.
+	private readonly GridSort<Department> _byName = GridSort<Department>.ByAscending(d => d.Name);
+	private GridSort<Department> _byManager => GridSort<Department>.ByAscending(d => GetManagerName(d.ManagerId));
+	private readonly GridSort<Department> _byMembers = GridSort<Department>.ByAscending(d => d.Members.Count);
+
+	// Per-column filters, opened from each column's options icon; they stack with the
+	// toolbar search rather than replacing it.
+	private string _fName = "";
+	private string _fManager = "";
+
+	private static bool Has(string filter, string? value) =>
+		string.IsNullOrWhiteSpace(filter)
+		|| (value ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+	private IQueryable<Department> FilteredDepartments =>
+		_departments.Where(d =>
+			(string.IsNullOrWhiteSpace(_quickSearch)
+			 || d.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
+			 || GetManagerName(d.ManagerId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase))
+			&& Has(_fName, d.Name)
+			&& Has(_fManager, GetManagerName(d.ManagerId)))
+		.AsQueryable();
+
+	// The role comes from the auth cookie's claims (AppClaimsPrincipalFactory),
+	// so non-admins are redirected without a database query.
 	protected override async Task OnInitializedAsync()
 	{
 		if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
@@ -127,25 +209,8 @@ else
 		var role = user.FindFirst(ClaimTypes.Role)?.Value;
 		if (role != UserRole.Admin.ToString())
 		{
-			var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-			if (Guid.TryParse(userIdStr, out var uId))
-			{
-				var delegationsReceived = await Manager.GetActiveDelegationsAssignedToMeAsync(uId);
-				_isActingAdmin = delegationsReceived.Any(d => d.Manager.Role == UserRole.Admin);
-				
-				if (!_isActingAdmin)
-				{
-					Nav.NavigateTo("/employee/dashboard");
-					return;
-				}
-				
-				_activeDelegationsReceived = delegationsReceived.Where(d => d.Manager.Role == UserRole.Admin).ToList();
-			}
-			else
-			{
-				Nav.NavigateTo("/employee/dashboard");
-				return;
-			}
+			Nav.NavigateTo("/employee/dashboard");
+			return;
 		}
 
 		_authorized = true;
@@ -154,19 +219,70 @@ else
 
 	private async Task LoadAsync()
 	{
+		_noManager = new ManagerOption(Guid.Empty, Text["None"]);
+
+		// Seeded before the first await: the page renders while these queries are in flight, and
+		// a combobox whose selected option is missing from its own Items resets itself and raises
+		// SelectedOptionChanged, which re-renders this component and hands it the same missing
+		// option again — an infinite render loop.
+		_managerOptions = [_noManager];
+
 		_departments = await Employees.GetDepartmentsAsync();
 		_users = await Employees.GetAllUsersAsync();
+		_managerOptions = _lineManagers
+			.Select(manager => new ManagerOption(manager.Id, manager.Name))
+			.Prepend(_noManager)
+			.ToList();
 	}
+
+	// Serialises the database work on this page. The circuit has a single scoped DbContext and
+	// EF Core refuses two operations on one context ("a second operation was started on this
+	// context instance"); the combobox delivering several callbacks for one pick, and clicking
+	// Delete while a name field still has focus, both used to trigger exactly that and take the
+	// whole circuit down with it.
+	private readonly SemaphoreSlim _saveLock = new(1, 1);
 
 	private async Task SaveDepartmentAsync(Department dept)
 	{
-		await Employees.UpdateDepartmentAsync(dept.Id, dept.Name, dept.ManagerId);
-		Snackbar.Add(Text["Department updated."], Severity.Success);
-		await LoadAsync();
+		await _saveLock.WaitAsync();
+		try
+		{
+			await Employees.UpdateDepartmentAsync(dept.Id, dept.Name, dept.ManagerId);
+			Toast.ShowSuccess(Text["Department updated."]);
+		}
+		catch (Exception exception)
+		{
+			// Left unhandled this reaches the renderer and terminates the circuit.
+			Toast.ShowError(exception.Message);
+		}
+		finally
+		{
+			// Reloaded after a failure too: callers write the new name or manager onto the row
+			// before saving, so without this a rejected save would leave that value on screen.
+			await LoadAsync();
+			_saveLock.Release();
+		}
 	}
 
-	private async Task OnManagerChangedAsync(Department dept, Guid? managerId)
+	private async Task OnManagerChangedAsync(Department dept, ManagerOption? option)
 	{
+		// A single pick raises SelectedOptionChanged more than once (fluentui-blazor#2077): first
+		// with a null option, then with the manager chosen, then again on every render for as long
+		// as the combobox's selection disagrees with the SelectedOption it is handed back. Acting
+		// on the null would detach the manager until the real value arrived, and for good if that
+		// save then failed; detaching on purpose arrives as the "None" entry, a real option
+		// holding Guid.Empty, so a null option is only ever the phantom callback.
+		if (option is null)
+			return;
+
+		var managerId = ToManagerId(option);
+
+		// Assigned before the first await so the row agrees with the combobox straight away —
+		// otherwise each render contradicts the component and it raises the event again, and the
+		// repeats never let the save finish.
+		if (dept.ManagerId == managerId)
+			return;
+
 		dept.ManagerId = managerId;
 		await SaveDepartmentAsync(dept);
 	}
@@ -175,39 +291,77 @@ else
 	{
 		if (string.IsNullOrWhiteSpace(_newName))
 		{
-			Snackbar.Add(Text["Name is required."], Severity.Warning);
+			Toast.ShowWarning(Text["Name is required."]);
 			return;
 		}
-		await Employees.CreateDepartmentAsync(_newName, _newManagerId);
-		Snackbar.Add(Text["Department created."], Severity.Success);
-		_newName = "";
-		_newManagerId = null;
-		await LoadAsync();
+		await _saveLock.WaitAsync();
+		try
+		{
+			await Employees.CreateDepartmentAsync(_newName, _newManagerId);
+			Toast.ShowSuccess(Text["Department created."]);
+			_newName = "";
+			_newManagerId = null;
+			_createFormOpen = true;
+			await LoadAsync();
+		}
+		catch (Exception exception)
+		{
+			Toast.ShowError(exception.Message);
+		}
+		finally
+		{
+			_saveLock.Release();
+		}
 	}
 
+	// A department goes for good and the FK detaches its members (SetNull), so the count is named
+	// in the question: one stray click on the HR row would otherwise unlink 51 people in silence.
+	//
+	// Shares the lock with SaveDepartmentAsync on purpose: clicking Delete first blurs whichever
+	// name field had focus, so the row's focusout save and this delete would otherwise reach the
+	// same DbContext together — the same collision the combobox caused. The question is asked
+	// before the lock is taken, which lets that pending save finish while the dialog is open.
 	private async Task DeleteDepartmentAsync(Department dept)
 	{
-		await Employees.DeleteDepartmentAsync(dept.Id);
-		Snackbar.Add(Text["Department deleted."], Severity.Success);
-		await LoadAsync();
+		var question = dept.Members.Count == 0
+			? Text.Format("Delete {0}? This cannot be undone.", dept.Name)
+			: Text.Format("Delete {0}? This cannot be undone, and its {1} members will be left without a department.",
+						  dept.Name, dept.Members.Count);
+
+		var confirmation = await DialogService.ShowConfirmationAsync(
+			question,
+			Text["Yes, delete"],
+			Text["Cancel"],
+			Text["Confirm department deletion"]);
+
+		if ((await confirmation.Result).Cancelled)
+			return;
+
+		await _saveLock.WaitAsync();
+		try
+		{
+			await Employees.DeleteDepartmentAsync(dept.Id);
+			Toast.ShowSuccess(Text["Department deleted."]);
+		}
+		catch (Exception exception)
+		{
+			// A department still referenced elsewhere fails on a foreign key; the admin needs to
+			// read that, not watch the page disappear.
+			Toast.ShowError(exception.Message);
+		}
+		finally
+		{
+			await LoadAsync();
+			_saveLock.Release();
+		}
 	}
 
 	private string GetManagerName(Guid? id) =>
 		id == null ? Text["None"] : _lineManagers.FirstOrDefault(m => m.Id == id)?.Name ?? "";
 
-	private Task<IEnumerable<Guid?>> SearchManagers(string value, CancellationToken token)
-	{
-		var allIds = _lineManagers.Select(m => (Guid?)m.Id).Prepend(null);
-		
-		// Daca textul e gol, SAU e "None", SAU textul este fix numele deja selectat, afisam toata lista
-		if (string.IsNullOrEmpty(value) || value.Equals(Text["None"], StringComparison.CurrentCultureIgnoreCase) || _lineManagers.Any(m => m.Name.Equals(value, StringComparison.CurrentCultureIgnoreCase)))
-		{
-			return Task.FromResult(allIds);
-		}
-		
-		var matches = _lineManagers
-			.Where(m => m.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase))
-			.Select(m => (Guid?)m.Id);
-		return Task.FromResult(matches);
-	}
+	private ManagerOption OptionFor(Guid? id) =>
+		id is null ? _noManager : _managerOptions.FirstOrDefault(option => option.Id == id) ?? _noManager;
+
+	private static Guid? ToManagerId(ManagerOption? option) =>
+		option is null || option.Id == Guid.Empty ? null : option.Id;
 }

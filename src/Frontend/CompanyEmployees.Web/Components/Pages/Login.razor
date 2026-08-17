@@ -12,83 +12,85 @@
 @inject EmployeeContext Employees
 
 <PageTitle>Sign in · Time Off Management</PageTitle>
-<EmployeeProviders />
 
-<div class="login-wrap">
-    <MudPaper Elevation="3" Class="pa-8 login-card">
-        <div class="d-flex align-baseline justify-center gap-3 mb-6">
-            <MudText Typo="Typo.h4" Style="font-weight:800; letter-spacing:.06em; color:var(--mud-palette-primary);">
+@* Centred on both axes. It used to sit 48px from the top of a full-height window, which left a
+   few hundred pixels of empty canvas under it — the card looked dropped onto the page rather
+   than placed on it. min-height rather than height so a short window scrolls instead of
+   squeezing the card. *@
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="16"
+             HorizontalAlignment="HorizontalAlignment.Center"
+             VerticalAlignment="VerticalAlignment.Center"
+             Style="min-height:100vh; padding:32px 16px;">
+    <FluentCard Width="420px" Style="padding:32px;">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+            <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold" Alignment="HorizontalAlignment.Center"
+                         Color="Color.Custom" CustomColor="var(--accent-foreground-rest)">
                 SIEMENS
-            </MudText>
+            </FluentLabel>
 
-        </div>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+                <FluentLabel Typo="Typography.Header" Weight="FontWeight.Bold">Sign in to your workspace</FluentLabel>
+                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Use your Siemens credentials.</FluentLabel>
+            </FluentStack>
 
-        <MudText Typo="Typo.h6" Style="font-weight:600;">Sign in to your workspace</MudText>
-        <MudText Typo="Typo.body2" Class="mb-6" Style="color:var(--mud-palette-text-secondary);">
-            Use your Siemens credentials.
-        </MudText>
+            @if (_error is not null)
+            {
+                <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">@_error</FluentMessageBar>
+            }
 
-        @if (_error is not null)
-        {
-            <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true">@_error</MudAlert>
-        }
+            @* The hidden-form hop exists because an interactive circuit cannot set the auth
+               cookie itself; the endpoint does it and redirects. *@
+            <form id="hiddenLoginForm" method="post" action="/api/auth/login" style="display:none;">
+                <AntiforgeryToken />
+                <input type="hidden" name="email" value="@_email" />
+                <input type="hidden" name="password" value="@_password" />
+                <input type="hidden" name="regionId" value="@_regionId" />
+                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+            </form>
 
-        <form id="hiddenLoginForm" method="post" action="/api/auth/login" style="display:none;">
-            <AntiforgeryToken />
-            <input type="hidden" name="email" value="@_email" />
-            <input type="hidden" name="password" value="@_password" />
-            <input type="hidden" name="regionId" value="@_regionId" />
-            <input type="hidden" name="returnUrl" value="@ReturnUrl" />
-        </form>
+            <FluentSelect TOption="Region"
+                          Label="Region"
+                          Items="@_regions"
+                          OptionValue="@(r => r.Id.ToString())"
+                          OptionText="@(r => r.Name)"
+                          SelectedOption="@_selectedRegion"
+                          SelectedOptionChanged="@(r => { _selectedRegion = r; _regionId = r?.Id; })"
+                          Required="true"
+                          Style="width:100%;" />
 
-        <MudForm @ref="_form">
-			<MudSelect T="Guid?" @bind-Value="_regionId" Label="Region"
-					   Variant="Variant.Outlined" Required="true"
-					   RequiredError="Region is required" Class="mb-4"
-					   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Public">
-				@foreach (var region in _regions)
-				{
-					<MudSelectItem T="Guid?" Value="@((Guid?)region.Id)">@region.Name</MudSelectItem>
-				}
-			</MudSelect>
-            <MudTextField T="string" @bind-Value="_email" Label="Work email"
-                          Variant="Variant.Outlined" InputType="InputType.Email"
-                          Immediate="true"
-                          Required="true" RequiredError="Email is required"
-                          Validation="@(new Func<string, string?>(ValidateEmail))"
-                          Placeholder="yourname@siemens.com" Class="mb-4"
-                          OnKeyUp="HandleKeyUp" />
-            <MudTextField T="string" @bind-Value="_password" Label="Password"
-                          Variant="Variant.Outlined"
-                          Immediate="true"
-                          InputType="@(_showPassword ? InputType.Text : InputType.Password)"
-                          Required="true" RequiredError="Password is required"
-                          Adornment="Adornment.End"
-                          AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
-                          OnAdornmentClick="@(() => _showPassword = !_showPassword)"
-                          AdornmentAriaLabel="Show password"
-                          OnKeyUp="HandleKeyUp" />
+            <FluentTextField @bind-Value="_email" Label="Work email" TextFieldType="TextFieldType.Email"
+                               Placeholder="yourname@siemens.com" Required="true"
+                              Immediate="true" @onkeyup="HandleKeyUp" Style="width:100%;" />
 
-            <div class="d-flex justify-space-between align-center gap-4 my-4 flex-wrap">
-                <MudCheckBox T="bool" @bind-Value="_keepSignedIn" Label="Keep me signed in" Dense="true" />
-                <MudLink Href="/forgot-password" Typo="Typo.body2" Class="ml-auto" Style="margin-top:6px;">Forgot password?</MudLink>
-            </div>
+            <FluentTextField @bind-Value="_password" Label="Password"
+                               TextFieldType="@(_showPassword ? TextFieldType.Text : TextFieldType.Password)"
+                              Required="true" Immediate="true" @onkeyup="HandleKeyUp" Style="width:100%;">
+                <FluentButton slot="end" Appearance="Appearance.Stealth"
+                              IconStart="@(new Icons.Regular.Size16.Eye())"
+                              Title="Show password"
+                              OnClick="@(() => _showPassword = !_showPassword)" />
+            </FluentTextField>
 
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
-                       FullWidth="true" Disabled="_busy" OnClick="SignIn">
+            <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+                         HorizontalGap="12" Width="100%">
+                <FluentCheckbox @bind-Value="_keepSignedIn" Label="Keep me signed in" />
+                <FluentSpacer />
+                <FluentAnchor Href="/forgot-password" Appearance="Appearance.Hypertext">Forgot password?</FluentAnchor>
+            </FluentStack>
+
+            <FluentButton Appearance="Appearance.Accent" Disabled="@_busy" OnClick="SignIn"
+                          Style="width:100%;">
                 @(_busy ? "Signing in…" : "Sign in")
-            </MudButton>
-        </MudForm>
+            </FluentButton>
+        </FluentStack>
+    </FluentCard>
 
-    </MudPaper>
-
-    <MudText Typo="Typo.caption" Class="mt-4" Style="color:var(--mud-palette-text-secondary);">
+    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
         © 2026 Siemens · Privacy · Terms · Help
-    </MudText>
-</div>
+    </FluentLabel>
+</FluentStack>
 
 @code {
-    private MudForm _form = default!;
     private string _email = "";
     private string _password = "";
     private bool _showPassword;
@@ -96,6 +98,7 @@
     private string? _error;
     private bool _busy;
     private List<Region> _regions = [];
+    private Region? _selectedRegion;
     private Guid? _regionId;
 
     [CascadingParameter]
@@ -129,27 +132,31 @@
             _error = "Invalid email, password, or region.";
         }
 
-		_regions = await Employees.GetRegionsAsync(activeOnly: true);
-		_regionId = _regions.FirstOrDefault(region => region.Code == "RO")?.Id
-			?? _regions.FirstOrDefault()?.Id;
+        _regions = await Employees.GetRegionsAsync(activeOnly: true);
+        _selectedRegion = _regions.FirstOrDefault(region => region.Code == "RO") ?? _regions.FirstOrDefault();
+        _regionId = _selectedRegion?.Id;
     }
 
-    private static string? ValidateEmail(string value) =>
-        string.IsNullOrWhiteSpace(value) || value.Contains('@') ? null : "Enter a valid email address";
-
-    private Task HandleKeyUp(KeyboardEventArgs args)
-    {
-        if (args.Key == "Enter")
-            return SignIn();
-
-        return Task.CompletedTask;
-    }
+    private Task HandleKeyUp(KeyboardEventArgs args) =>
+        args.Key == "Enter" ? SignIn() : Task.CompletedTask;
 
     private async Task SignIn()
     {
         _error = null;
-        await _form.ValidateAsync();
-        if (!_form.IsValid) return;
+
+        // Fluent has no MudForm equivalent that validates a loose set of fields, so the three
+        // required values are checked here before the form is posted.
+        if (_regionId is null || string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Region, email and password are all required.";
+            return;
+        }
+
+        if (!_email.Contains('@'))
+        {
+            _error = "Enter a valid email address.";
+            return;
+        }
 
         _busy = true;
 

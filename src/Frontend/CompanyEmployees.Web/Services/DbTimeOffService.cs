@@ -103,11 +103,18 @@ public class DbTimeOffService : ITimeOffService
             var requests = await _employee.GetTeamRequestsAsync(user.Id, monthStart, monthEnd);
 
             // Flatten each request into one entry per day, clamped to the visible month.
-            return requests
+            var absences = requests
                 .SelectMany(r => DaysInRange(Max(r.StartDate, monthStart), Min(r.EndDate, monthEnd))
                     .Select(day => new TeamAbsence(
                         r.User.Name, Initials(r.User.Name), DepartmentName(r.User), MapType(r.Type), day)))
                 .ToList();
+
+            absences.AddRange((await GetOwnApprovedRequestsAsync(user, monthStart, monthEnd))
+                .SelectMany(r => DaysInRange(Max(r.StartDate, monthStart), Min(r.EndDate, monthEnd))
+                    .Select(day => new TeamAbsence(
+                        user.Name, Initials(user.Name), DepartmentName(user), MapType(r.Type), day))));
+
+            return absences;
         }
         finally
         {
@@ -149,6 +156,10 @@ public class DbTimeOffService : ITimeOffService
                 .Select(r => new TeamTimeOff(
                     r.User.Name, Initials(r.User.Name), DepartmentName(r.User),
                     MapType(r.Type), r.StartDate, r.EndDate, r.User.Role.ToString()))
+                .Concat((await GetOwnApprovedRequestsAsync(user, from, to))
+                    .Select(r => new TeamTimeOff(
+                        user.Name, Initials(user.Name), DepartmentName(user),
+                        MapType(r.Type), r.StartDate, r.EndDate, user.Role.ToString())))
                 .OrderBy(t => t.StartDate)
                 .ToList();
         }
@@ -321,6 +332,26 @@ public class DbTimeOffService : ITimeOffService
 
     // Users without a department (admins, the PM) show a dash rather than an empty label.
     private static string DepartmentName(User user) => user.Department?.Name ?? "—";
+
+    /// <summary>
+    /// The signed-in user's own approved leave overlapping a window.
+    ///
+    /// <c>EmployeeContext.GetTeamRequestsAsync</c> is the single definition of "team" — the
+    /// manager plus everyone sharing a manager, <em>excluding the person asking</em>. Right for
+    /// the Team page and the dashboard's "Team time off"; wrong for your own calendar, where it
+    /// meant your approved days never appeared on it at all, and someone with no teammates saw
+    /// an empty month. Composed here rather than by widening the team definition, which every
+    /// other caller depends on.
+    /// </summary>
+    private async Task<List<LeaveRequest>> GetOwnApprovedRequestsAsync(User user, DateOnly from, DateOnly to)
+    {
+        var mine = await _employee.GetMyRequestsAsync(user.Id);
+
+        return mine
+            .Where(r => r.Status == DomainEnums.LeaveStatus.Approved
+                        && r.StartDate <= to && r.EndDate >= from)
+            .ToList();
+    }
 
     private static string RoleAndDepartment(User user) =>
         user.Department == null ? user.Role.ToString() : $"{user.Role} · {user.Department.Name}";

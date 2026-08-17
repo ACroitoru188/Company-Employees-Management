@@ -1,0 +1,39 @@
+using CompanyEmployees.Domain.Enums;
+
+namespace CompanyEmployees.Application
+{
+    public enum DelegationHistoryScope
+    {
+        // Things other people did while covering for this account.
+        DoneInMyName,
+
+        // Things this person did while covering for someone else.
+        DoneByMe,
+
+        // Oversight across the caller's region. Admins only — enforced in ManagerContext,
+        // not merely by hiding the tab.
+        EveryoneInRegion
+    }
+
+    // Flattened for the page, like the dashboard results: the Web layer gets names, not
+    // entities with navigations it would have to know how to walk.
+    public class DelegationHistoryResult
+    {
+        public List<DelegationHistoryEntry> Items { get; set; } = new();
+        public int Total { get; set; }
+
+        // Set for the region scope, from the same row the rows were filtered by — a label
+        // taken from the sign-in claim would still say the old region after a transfer.
+        public string? RegionName { get; set; }
+    }
+
+    public class DelegationHistoryEntry
+    {
+        public DateTime When { get; set; }
+        public string RealUserName { get; set; } = "";
+        public string ActedAsName { get; set; } = "";
+        public string TargetName { get; set; } = "";
+        public DelegatedActionType ActionType { get; set; }
+        public string? Details { get; set; }
+    }
+}

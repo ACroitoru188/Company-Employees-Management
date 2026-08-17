@@ -5,6 +5,7 @@
 @using CompanyEmployees.Application.Contexts
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using DomainInvalidOperationException = CompanyEmployees.Domain.Exceptions.InvalidOperationException
 @inject EmployeeContext Employees
 @inject NavigationManager Nav
 @inject IDialogService DialogService
@@ -13,255 +14,218 @@
 
 @if (_data is null)
 {
-	<p>Loading…</p>
+	<FluentProgressRing />
 }
 else
 {
-	<div class="hr-dashboard-container">
+	<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+				 HorizontalGap="12" Wrap="true" Width="100%">
+		<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">HR Dashboard</FluentLabel>
+		<FluentSpacer />
+		<FluentAnchor Href="/api/employees/export.csv" Appearance="Appearance.Outline"
+					  IconStart="@(new Icons.Regular.Size20.ArrowDownload())">
+			Download latest CSV
+		</FluentAnchor>
+		<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Welcome, @_name</FluentLabel>
+	</FluentStack>
 
-		<!-- Header -->
-		<header class="hr-header">
-			<div class="hr-title">
-				<MudText Typo="Typo.h5" Style="font-weight:600;">HR Dashboard</MudText>
-			</div>
-			<div class="d-flex align-center gap-3 flex-wrap">
-				<MudButton Href="/api/employees/export.csv"
-						   Variant="Variant.Outlined" Color="Color.Primary"
-						   Size="Size.Small" StartIcon="@Icons.Material.Filled.Download">
-					Download latest CSV
-				</MudButton>
-				<div class="hr-user">Welcome, @_name</div>
-			</div>
-		</header>
+	<FluentGrid Spacing="3" Style="margin:16px 0 24px;">
+		<FluentGridItem xs="12" sm="6" md="3">
+			<FluentCard Style="padding:16px;">
+				<FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+					<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-overline">Active employees</FluentLabel>
+					<FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@_data.ActiveEmployees</FluentLabel>
+				</FluentStack>
+			</FluentCard>
+		</FluentGridItem>
+		<FluentGridItem xs="12" sm="6" md="3">
+			<FluentCard Style="padding:16px;">
+				<FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+					<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-overline">New employees (30 days)</FluentLabel>
+					<FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@_data.NewEmployees</FluentLabel>
+				</FluentStack>
+			</FluentCard>
+		</FluentGridItem>
+		<FluentGridItem xs="12" sm="6" md="3">
+			<FluentCard Style="padding:16px;">
+				<FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+					<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-overline">Leave requests</FluentLabel>
+					<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="6"
+								 VerticalAlignment="VerticalAlignment.Bottom">
+						<FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold" Color="Color.Warning">
+							@_data.PendingRequests
+						</FluentLabel>
+						<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">pending</FluentLabel>
+					</FluentStack>
+				</FluentStack>
+			</FluentCard>
+		</FluentGridItem>
+		<FluentGridItem xs="12" sm="6" md="3">
+			<FluentCard Style="padding:16px;">
+				<FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+					<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-overline">On leave today</FluentLabel>
+					<FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@_data.OnLeaveToday</FluentLabel>
+				</FluentStack>
+			</FluentCard>
+		</FluentGridItem>
+	</FluentGrid>
 
-		<!-- Metrics Cards -->
-		<MudGrid Spacing="3" Class="mb-6">
-			<MudItem xs="12" sm="6" md="3">
-				<MudCard Elevation="1">
-					<MudCardContent>
-						<MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
-							Active employees
-						</MudText>
-						<MudText Typo="Typo.h4" Style="font-weight:700;">@_data.ActiveEmployees</MudText>
-					</MudCardContent>
-				</MudCard>
-			</MudItem>
-			<MudItem xs="12" sm="6" md="3">
-				<MudCard Elevation="1">
-					<MudCardContent>
-						<MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
-							New employees (30 days)
-						</MudText>
-						<MudText Typo="Typo.h4" Style="font-weight:700;">@_data.NewEmployees</MudText>
-					</MudCardContent>
-				</MudCard>
-			</MudItem>
-			<MudItem xs="12" sm="6" md="3">
-				<MudCard Elevation="1">
-					<MudCardContent>
-						<MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
-							Leave requests
-						</MudText>
-						<div class="d-flex align-baseline gap-1">
-							<MudText Typo="Typo.h4" Style="font-weight:700;" Color="Color.Warning">@_data.PendingRequests</MudText>
-							<MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">pending</MudText>
-						</div>
-					</MudCardContent>
-				</MudCard>
-			</MudItem>
-			<MudItem xs="12" sm="6" md="3">
-				<MudCard Elevation="1">
-					<MudCardContent>
-						<MudText Typo="Typo.overline" Style="color:var(--mud-palette-text-secondary); letter-spacing:.08em;">
-							On leave today
-						</MudText>
-						<MudText Typo="Typo.h4" Style="font-weight:700;">@_data.OnLeaveToday</MudText>
-					</MudCardContent>
-				</MudCard>
-			</MudItem>
-		</MudGrid>
+	<FluentGrid Spacing="3">
+		<FluentGridItem xs="12" md="8">
+			<FluentCard Style="padding:16px;">
+				<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+					<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+								 VerticalAlignment="VerticalAlignment.Center">
+						<FluentIcon Value="@(new Icons.Regular.Size20.Clock())" Color="Color.Accent" />
+						<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Requests to approve</FluentLabel>
+					</FluentStack>
 
-		<!-- Panels -->
-		<div class="panels-grid">
+					<FluentSearch @bind-Value="SearchTerm" @bind-Value:after="StateHasChanged"
+								  Placeholder="Search by name..." Style="width:100%;" />
 
-			<!-- Requests awaiting approval -->
-			<div class="hr-panel requests-panel">
-				<div class="panel-header">
-					<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<circle cx="12" cy="12" r="10"></circle>
-						<polyline points="12 6 12 12 16 14"></polyline>
-					</svg>
-					Requests to approve
-				</div>
-				<div class="px-4 py-2 border-bottom">
-					<MudTextField @bind-value="SearchTerm"
-								  PlaceHolder="Search by name..."
-								  Adornment="Adornment.Start"
-								  AdornmentIcon="@Icons.Material.Filled.Search"
-								  IconSize="Size.Small"
-								  Margin="Margin.Dense"
-								  Variant="Variant.Outlined"
-								  Immediate="true"></MudTextField>
-				</div>
-				<div class="requests-list">
 					@if (!FilteredRequests.Any())
 					{
-						<div class="request-row">
-							<div class="req-info">
-								<div class="req-desc">No requests are waiting for approval.</div>
-							</div>
-						</div>
+						<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+							No requests are waiting for approval.
+						</FluentLabel>
 					}
-					@{
-						var requestList = FilteredRequests.ToList();
-					}
-					@for (int i = 0; i < requestList.Count; i++)
+					else
 					{
-						var request = requestList[i];
-						var isLast = i == requestList.Count - 1;
-						<div class="request-item" style="border-bottom: @(isLast ? "none" : "1px solid var(--mud-palette-lines-default)");">
-							<div class="request-row" style="cursor: pointer; border-bottom: none; padding-bottom: @(_selectedRequest == request ? "0.5rem" : "1rem");" @onclick="() => ToggleRequest(request)">
-								<div class="req-info">
-									<div class="req-name">@request.Name</div>
-									<div class="req-desc">
-										@request.Type &middot; @request.Days @(request.Days == 1 ? "working day" : "working days") &middot; @request.Department
-										&middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)–@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-									</div>
-								</div>
-								<div class="req-status status-pending">pending</div>
-							</div>
-							
-							@if (_selectedRequest == request)
+						@* The accordion replaces the hand-rolled expand/collapse row: one panel open
+						   at a time, which is exactly what ToggleRequest used to do by hand. *@
+						<FluentAccordion>
+							@foreach (var request in FilteredRequests)
 							{
-								<div class="request-details-panel mt-2 mb-4 p-4 rounded" style="background-color: var(--mud-palette-background-grey); border: 1px solid var(--mud-palette-lines-default);">
-									@{
-										var nameParts = request.Name.Split(' ', 2);
-										var firstName = nameParts.Length > 0 ? nameParts[0] : "";
-										var lastName = nameParts.Length > 1 ? nameParts[1] : "";
-										var role = request.Role == "LineManager" ? "Manager" : request.Role;
-									}
+								<FluentAccordionItem Id="@request.RequestId.ToString()">
+									<HeadingTemplate>
+										<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+													 VerticalAlignment="VerticalAlignment.Center" Width="100%">
+											<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+												<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+													@request.Name
+												</FluentLabel>
+												<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+											@request.Type &middot; @request.Days @(request.Days == 1 ? "working day" : "working days")
+													&middot; @request.Department
+													&middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)–@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+												</FluentLabel>
+											</FluentStack>
+											<FluentSpacer />
+											@* Amber, the colour this app gives a pending decision everywhere else —
+											   accent blue read as "approved" next to the green and red ones. *@
+											<FluentBadge Fill="highlight" BackgroundColor="var(--warning)" Color="white">pending</FluentBadge>
+										</FluentStack>
+									</HeadingTemplate>
 
-									<div class="d-flex justify-space-between mb-4">
-										<div>
-											<MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Name</MudText>
-											<MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-2">@firstName</MudText>
-											<MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Surname</MudText>
-											<MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-2">@lastName</MudText>
-											<MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Department</MudText>
-											<MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-2">@request.Department</MudText>
-											<MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Role</MudText>
-											<MudText Typo="Typo.body1" Style="font-weight:500;">@role</MudText>
-										</div>
-										<div class="d-flex align-center justify-center rounded border border-solid border-dark" style="width: 120px; height: 150px; background-color: var(--mud-palette-background-grey); border-width: 2px;">
-											<MudIcon Icon="@Icons.Material.Filled.Person" Style="font-size: 5rem; color: var(--mud-palette-text-secondary);" />
-										</div>
-									</div>
+									<ChildContent>
+										@{
+											var nameParts = request.Name.Split(' ', 2);
+											var firstName = nameParts.Length > 0 ? nameParts[0] : "";
+											var lastName = nameParts.Length > 1 ? nameParts[1] : "";
+											var role = request.Role == "LineManager" ? "Manager" : request.Role;
+											var reason = string.IsNullOrWhiteSpace(request.Reason)
+												|| request.Reason.Equals(request.Type, StringComparison.OrdinalIgnoreCase)
+												|| request.Reason.Equals(request.Type + " leave", StringComparison.OrdinalIgnoreCase)
+													? "No reason specified"
+													: request.Reason;
+										}
 
-									<MudDivider Class="my-4" />
+										<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="24" Width="100%">
+											<FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+												<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Name</FluentLabel>
+													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@firstName</FluentLabel>
+												</FluentStack>
+												<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Surname</FluentLabel>
+													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@lastName</FluentLabel>
+												</FluentStack>
+												<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Department</FluentLabel>
+													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.Department</FluentLabel>
+												</FluentStack>
+												<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Role</FluentLabel>
+													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@role</FluentLabel>
+												</FluentStack>
+											</FluentStack>
+										</FluentStack>
 
-									<MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Leave type</MudText>
-									<MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-3">@request.Type</MudText>
+										<FluentDivider Role="DividerRole.Presentation" Style="margin:16px 0;" />
 
-									<MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Reason</MudText>
-									<MudText Typo="Typo.body1" Class="mb-3">@(string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Equals(request.Type, StringComparison.OrdinalIgnoreCase) || request.Reason.Equals(request.Type + " leave", StringComparison.OrdinalIgnoreCase) ? "No reason specified" : request.Reason)</MudText>
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+											<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+												<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Leave type</FluentLabel>
+												<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.Type</FluentLabel>
+											</FluentStack>
+											<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+												<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Reason</FluentLabel>
+												<FluentLabel Typo="Typography.Body">@reason</FluentLabel>
+											</FluentStack>
+											<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+												<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Period</FluentLabel>
+												<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+													@request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy")
+													(@request.Days @(request.Days == 1 ? "working day" : "working days"))
+												</FluentLabel>
+											</FluentStack>
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+												Submitted @request.SubmittedAt.ToString("dd.MM.yyyy - HH:mm")
+											</FluentLabel>
+										</FluentStack>
 
-									<MudText Typo="Typo.body2" Style="color:var(--mud-palette-text-secondary);">Period</MudText>
-									<MudText Typo="Typo.body1" Style="font-weight:500;" Class="mb-3">
-										@request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy") (@request.Days @(request.Days == 1 ? "working day" : "working days"))
-									</MudText>
-
-									<MudText Typo="Typo.caption" Style="color:var(--mud-palette-text-secondary);">Submitted @request.SubmittedAt.ToString("dd.MM.yyyy - HH:mm")</MudText>
-									
-									<div class="d-flex justify-end mt-4">
-										<MudButton Variant="Variant.Filled" OnClick="() => ToggleRequest(request)" Class="mr-2">CLOSE</MudButton>
-										<MudButton Variant="Variant.Filled" OnClick="() => EditDates(request)" Class="mr-2">EDIT DATES</MudButton>
-										<MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="RejectRequest" Class="mr-2">REJECT</MudButton>
-										<MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="ApproveRequest">APPROVE</MudButton>
-									</div>
-								</div>
+										<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+													 HorizontalAlignment="HorizontalAlignment.End" Width="100%"
+													 Style="margin-top:16px;">
+											<FluentButton Appearance="Appearance.Neutral"
+														  OnClick="@(() => EditDates(request))">Edit dates</FluentButton>
+											<FluentButton Appearance="Appearance.Neutral"
+														  OnClick="@(() => DecideAsync(request, false))">Reject</FluentButton>
+											<FluentButton Appearance="Appearance.Accent"
+														  OnClick="@(() => DecideAsync(request, true))">Approve</FluentButton>
+										</FluentStack>
+									</ChildContent>
+								</FluentAccordionItem>
 							}
-						</div>
+						</FluentAccordion>
 					}
-				</div>
-			</div>
+				</FluentStack>
+			</FluentCard>
+		</FluentGridItem>
 
-			<!-- Employees per department -->
-			<div class="hr-panel depts-panel">
-				<div class="panel-header">
-					Employees per department
-				</div>
-				<div class="depts-list">
+		<FluentGridItem xs="12" md="4">
+			<FluentCard Style="padding:16px;">
+				<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+					<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Employees per department</FluentLabel>
+
 					@foreach (var department in _data.Departments)
 					{
-						<div class="dept-row">
-							<div class="dept-info">
-								<span>@department.Name</span>
-								<span>@department.Count</span>
-							</div>
-							<div class="dept-bar-track">
-								<div class="dept-bar-fill" style="width: @BarWidth(department.Count)"></div>
-							</div>
-						</div>
+						<FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+							<FluentStack Orientation="Orientation.Horizontal" Width="100%">
+								<FluentLabel Typo="Typography.Body">@department.Name</FluentLabel>
+								<FluentSpacer />
+								<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@department.Count</FluentLabel>
+							</FluentStack>
+							@* Bars are relative to the largest department, so the biggest one fills the track. *@
+							<FluentProgress Value="@BarPercent(department.Count)" Min="0" Max="100" />
+						</FluentStack>
 					}
-				</div>
-			</div>
-		</div>
+				</FluentStack>
+			</FluentCard>
+		</FluentGridItem>
+	</FluentGrid>
 
-		<!-- Alert Banner -->
-		@if (_data.StaleRequests > 0)
-		{
-			<div class="hr-alert">
-				<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-					<line x1="12" y1="9" x2="12" y2="13"></line>
-					<line x1="12" y1="17" x2="12.01" y2="17"></line>
-				</svg>
-				<span>
-					@_data.StaleRequests @(_data.StaleRequests == 1 ? "request has" : "requests have")
-					been waiting for approval for more than 7 days
-				</span>
-			</div>
-		}
-
-	</div>
-
+	@if (_data.StaleRequests > 0)
+	{
+		<FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false" Style="margin-top:24px;">
+			@_data.StaleRequests @(_data.StaleRequests == 1 ? "request has" : "requests have")
+			been waiting for approval for more than 7 days
+		</FluentMessageBar>
+	}
 }
 
 @code {
-	private HrPendingRequest? _selectedRequest;
 	private Guid _myId;
-
-	private void ToggleRequest(HrPendingRequest request)
-	{
-		if (_selectedRequest == request)
-		{
-			_selectedRequest = null;
-		}
-		else
-		{
-			_selectedRequest = request;
-		}
-	}
-
-	private async Task ApproveRequest()
-	{
-		if (_selectedRequest != null)
-		{
-			await Employees.HrDecideRequestAsync(_myId, _selectedRequest.RequestId, true);
-			_selectedRequest = null;
-			_data = await Employees.GetHrDashboardAsync(_myId);
-		}
-	}
-
-	private async Task RejectRequest()
-	{
-		if (_selectedRequest != null)
-		{
-			await Employees.HrDecideRequestAsync(_myId, _selectedRequest.RequestId, false);
-			_selectedRequest = null;
-			_data = await Employees.GetHrDashboardAsync(_myId);
-		}
-	}
 
 	[CascadingParameter]
 	private Task<AuthenticationState>? AuthStateTask { get; set; }
@@ -273,16 +237,58 @@ else
 	private HrDashboardResult? _data;
 	private string SearchTerm { get; set; } = "";
 
+	private async Task DecideAsync(HrPendingRequest request, bool approved)
+	{
+		await Employees.HrDecideRequestAsync(_myId, request.RequestId, approved);
+		_data = await Employees.GetHrDashboardAsync(_myId);
+	}
+
 	private async Task EditDates(HrPendingRequest request)
 	{
-		var parameters = new DialogParameters<EditLeaveDatesDialog>
+		var content = EditLeaveDatesDialog.Model.From(request);
+
+		var parameters = new DialogParameters
 		{
-			{ d => d.Request, request }
+			Title = "Edit leave period",
+			PrimaryAction = "Save",
+			SecondaryAction = "Cancel",
+			Width = "420px",
+			// Runs before the dialog is allowed to close; returning false keeps it open with
+			// the message written back onto the content the dialog is rendering.
+			ValidateDialogAsync = () => SaveDatesAsync(content)
 		};
-		var dialog = await DialogService.ShowAsync<EditLeaveDatesDialog>("Edit leave period", parameters);
+
+		var dialog = await DialogService.ShowDialogAsync<EditLeaveDatesDialog, EditLeaveDatesDialog.Model>(
+			content, parameters);
+
 		var result = await dialog.Result;
-		if (result is { Canceled: false })
+		if (!result.Cancelled)
 			_data = await Employees.GetHrDashboardAsync(_myId);
+	}
+
+	private async Task<bool> SaveDatesAsync(EditLeaveDatesDialog.Model content)
+	{
+		content.SetError(null);
+
+		if (content.Start is null || content.End is null)
+		{
+			content.SetError("Both dates are required.");
+			return false;
+		}
+
+		try
+		{
+			await Employees.UpdateRequestDatesAsync(
+				content.RequestId,
+				DateOnly.FromDateTime(content.Start.Value),
+				DateOnly.FromDateTime(content.End.Value));
+			return true;
+		}
+		catch (DomainInvalidOperationException ex)
+		{
+			content.SetError(ex.Message);
+			return false;
+		}
 	}
 
 	private IEnumerable<HrPendingRequest> FilteredRequests => string.IsNullOrWhiteSpace(SearchTerm)
@@ -314,8 +320,7 @@ else
 		_data = await Employees.GetHrDashboardAsync(_myId);
 	}
 
-	// Bars are relative to the largest department, so the biggest one fills the track.
-	private string BarWidth(int count)
+	private int BarPercent(int count)
 	{
 		var largest = 0;
 		foreach (var department in _data!.Departments)
@@ -324,10 +329,6 @@ else
 				largest = department.Count;
 		}
 
-		if (largest == 0)
-			return "0%";
-
-		var percent = count * 100.0 / largest;
-		return percent.ToString("0.##", CultureInfo.InvariantCulture) + "%";
+		return largest == 0 ? 0 : (int)Math.Round(count * 100.0 / largest);
 	}
 }

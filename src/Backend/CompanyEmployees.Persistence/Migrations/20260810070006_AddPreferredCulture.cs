@@ -5,6 +5,9 @@
 namespace CompanyEmployees.Persistence.Migrations
 {
     /// <inheritdoc />
+    // Deliberately carries main's migration id: it is the same schema change, and a database
+    // that already ran it on main has that id in __EFMigrationsHistory. A freshly generated id
+    // would try to add the column a second time and fail on startup.
     public partial class AddPreferredCulture : Migration
     {
         /// <inheritdoc />
