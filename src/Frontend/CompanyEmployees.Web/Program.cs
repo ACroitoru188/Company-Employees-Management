@@ -133,6 +133,7 @@ if (databaseState.IsFailoverActive)
     using var scope = app.Services.CreateScope();
     await PostgreSqlStandbyBootstrapper.EnsureReadyAsync(builder.Configuration);
     var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
+    await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(db);
     if (app.Environment.IsDevelopment())
         SeedCarryOverDemo(db);
     SeedContracts(db);
@@ -147,8 +148,17 @@ else if (app.Environment.IsDevelopment())
 
     var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
     db.Database.Migrate();
+    await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(db);
     SeedCarryOverDemo(db);
     SeedContracts(db);
+}
+
+// Production migrations can be applied out of process, but the cross-provider outbox is
+// deliberately provider-managed and must exist before the first business write.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
+    await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(db);
 }
 
 app.UseMiddleware<GlobalExceptionHandler>();
@@ -250,7 +260,7 @@ app.MapGet("/api/auth/database-switched", async (SignInManager<User> signInManag
 {
     await signInManager.SignOutAsync();
     return Results.Redirect("/");
-}).RequireAuthorization(policy => policy.RequireRole(UserRole.Admin.ToString()));
+}).RequireAuthorization();
 
 // Borrowing an account swaps the auth cookie, so it has to happen over a plain request
 // like login does. The rules live in ImpersonationContext; this only maps them to a

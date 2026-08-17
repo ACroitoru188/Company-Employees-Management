@@ -22,7 +22,9 @@ public static class PostgreSqlStandbyBootstrapper
             .Options;
 
         await using var db = new CompanyEmployeesDbContext(options);
+        db.SuppressOutboxCapture = true;
         await db.Database.EnsureCreatedAsync(cancellationToken);
+        await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(db, cancellationToken);
 
         if (!bool.TryParse(configuration["DatabaseFailover:SeedFallbackAdmin"], out var seed)
             || !seed)

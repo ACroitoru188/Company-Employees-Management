@@ -11,7 +11,9 @@ namespace CompanyEmployees.Persistence
             DatabaseRuntimeState databaseState)
         {
             services.AddSingleton(databaseState);
+            services.AddSingleton<DatabaseWriteGate>();
             services.AddSingleton<PostgreSqlStandbySynchronizer>();
+            services.AddSingleton<DatabaseReplicationCoordinator>();
             services.AddSingleton<DatabaseProviderSwitcher>();
             services.AddDbContext<CompanyEmployeesDbContext>(options =>
             {

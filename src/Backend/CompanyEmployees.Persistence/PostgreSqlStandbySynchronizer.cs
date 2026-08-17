@@ -47,6 +47,22 @@ public sealed class PostgreSqlStandbySynchronizer(
             await using (var postgres = new CompanyEmployeesDbContext(postgreSqlOptions))
                 await ReplaceStandbyAsync(postgres, snapshot, cancellationToken);
 
+            // The baseline already contains every change currently in SQL Server. Mark any
+            // older envelopes complete so the delta worker starts exactly after the snapshot.
+            await using (var sql = new CompanyEmployeesDbContext(sqlOptions))
+            {
+                sql.SuppressOutboxCapture = true;
+                await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(sql, cancellationToken);
+                var pending = await sql.DatabaseOutbox
+                    .Where(message => message.ProcessedAtUtc == null)
+                    .ToListAsync(cancellationToken);
+                var completedAt = DateTime.UtcNow;
+                foreach (var message in pending)
+                    message.ProcessedAtUtc = completedAt;
+                await sql.SaveChangesAsync(cancellationToken);
+                state.UpdateReplication(0, null, completedAt, null);
+            }
+
             LastSuccessfulSynchronizationUtc = DateTimeOffset.UtcNow;
             logger.LogInformation(
                 "Synchronized the complete SQL Server backend to PostgreSQL ({UserCount} users).",
@@ -93,6 +109,7 @@ public sealed class PostgreSqlStandbySynchronizer(
         DatabaseSnapshot snapshot,
         CancellationToken cancellationToken)
     {
+        db.SuppressOutboxCapture = true;
         // PostgreSQL is a disposable standby while SQL Server is active. Recreating its
         // schema avoids stale/deleted rows and guarantees that it exactly matches SQL Server.
         await db.Database.EnsureDeletedAsync(cancellationToken);
@@ -137,8 +154,25 @@ public sealed class PostgreSqlStandbySynchronizer(
         db.ImpersonationSessions.AddRange(snapshot.ImpersonationSessions);
         db.DelegatedActions.AddRange(snapshot.DelegatedActions);
         await db.SaveChangesAsync(cancellationToken);
+        await ResetPostgreSqlIdentitySequencesAsync(db, cancellationToken);
         db.ChangeTracker.Clear();
     }
+
+    internal static Task ResetPostgreSqlIdentitySequencesAsync(
+        CompanyEmployeesDbContext db,
+        CancellationToken cancellationToken = default) =>
+        db.Database.ExecuteSqlRawAsync("""
+            SELECT setval(
+                pg_get_serial_sequence('"AspNetUserClaims"', 'Id'),
+                COALESCE(MAX("Id"), 1),
+                COUNT(*) > 0)
+            FROM "AspNetUserClaims";
+            SELECT setval(
+                pg_get_serial_sequence('"AspNetRoleClaims"', 'Id'),
+                COALESCE(MAX("Id"), 1),
+                COUNT(*) > 0)
+            FROM "AspNetRoleClaims";
+            """, cancellationToken);
 
     private sealed record DatabaseSnapshot(
         List<Region> Regions,

@@ -17,6 +17,10 @@ public sealed class DatabaseRuntimeState
     private bool _primaryAvailable;
     private bool _postgreSqlAvailable;
     private string? _failoverReason;
+    private int _pendingReplicationChanges;
+    private DateTime? _oldestPendingChangeUtc;
+    private DateTime? _lastSynchronizedUtc;
+    private string? _replicationError;
 
     public DatabaseRuntimeState(
         DatabaseProvider activeProvider,
@@ -56,6 +60,22 @@ public sealed class DatabaseRuntimeState
 
     public string SupportContact { get; }
     public bool IsFailoverActive => ActiveProvider == DatabaseProvider.PostgreSql;
+    public int PendingReplicationChanges
+    {
+        get { lock (_sync) return _pendingReplicationChanges; }
+    }
+    public DateTime? OldestPendingChangeUtc
+    {
+        get { lock (_sync) return _oldestPendingChangeUtc; }
+    }
+    public DateTime? LastSynchronizedUtc
+    {
+        get { lock (_sync) return _lastSynchronizedUtc; }
+    }
+    public string? ReplicationError
+    {
+        get { lock (_sync) return _replicationError; }
+    }
 
     public void UpdateAvailability(
         bool primaryAvailable,
@@ -75,6 +95,22 @@ public sealed class DatabaseRuntimeState
 
         if (changed)
             Changed?.Invoke();
+    }
+
+    public void UpdateReplication(
+        int pendingChanges,
+        DateTime? oldestPendingChangeUtc,
+        DateTime? lastSynchronizedUtc,
+        string? error)
+    {
+        lock (_sync)
+        {
+            _pendingReplicationChanges = pendingChanges;
+            _oldestPendingChangeUtc = oldestPendingChangeUtc;
+            _lastSynchronizedUtc = lastSynchronizedUtc;
+            _replicationError = error;
+        }
+        Changed?.Invoke();
     }
 
     internal void SelectProvider(DatabaseProvider provider)

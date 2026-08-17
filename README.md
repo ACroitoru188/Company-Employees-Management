@@ -28,12 +28,22 @@ dotnet run --project src/Frontend/CompanyEmployees.Web
 ```
 
 Development defaults are in `appsettings.Development.json`. PostgreSQL data persists in the
-`company-employees-postgres-data` Docker volume. While SQL Server is active and both databases
-are reachable, the application refreshes PostgreSQL every 60 seconds with a complete backend
-snapshot: users and password hashes, regions, departments, contracts, leave data, notifications,
-delegations, audit data, and ASP.NET Identity tables. It also performs a final refresh immediately
-before an administrator manually switches while SQL Server is reachable. If SQL Server fails, the
-administrator switches to the latest completed PostgreSQL snapshot and uses the same login details.
+`company-employees-postgres-data` Docker volume. While SQL Server is active, the application first
+creates a complete PostgreSQL baseline: users and password hashes, regions, departments, contracts,
+leave data, notifications, delegations, audit data, and ASP.NET Identity tables. After that baseline,
+every EF Core business transaction records a change envelope in a durable outbox in the same
+transaction. A worker applies those envelopes to the standby every two seconds.
+
+Replication is bidirectional. Writes made while PostgreSQL is active queue there and are applied
+back to SQL Server after it recovers. Failback is blocked until PostgreSQL has zero pending changes.
+During a provider change, a process-wide write gate waits for in-flight saves, prevents a save from
+crossing the switch boundary, and forces every signed-in Blazor circuit to sign in again with a new
+DbContext. The admin status bar reports the active provider, standby health, last successful sync,
+pending change count, and replication errors.
+
+If SQL Server fails, the administrator switches to the latest completed PostgreSQL state and uses
+the same login details. Changes already queued but not replicated before an abrupt primary failure
+cannot be recovered from the unavailable primary; the status bar exposes that replication window.
 Only when no snapshot has ever been created does startup add the emergency account
 (`itadmin@siemens.com` / `User123!`, Romania).
 Override secrets outside development with environment variables such as
@@ -46,8 +56,10 @@ app is already running on SQL Server, a background health check also
 warns administrators within about five seconds if SQL Server goes down. The warning lets an admin
 select PostgreSQL without restarting the process; the browser reloads and asks them to sign in to
 the fallback database. When SQL Server recovers, the PostgreSQL banner offers the reverse switch.
-The built-in synchronization is intended for this application/demo deployment. Production use
-still requires transactional replication, monitored backups, and a tested recovery plan.
+The outbox table is initialized with provider-specific idempotent DDL because the existing SQL
+Server migrations contain T-SQL and cannot be replayed on PostgreSQL. Production deployment still
+requires monitored backups, provider-specific schema migration automation, retention/cleanup for
+processed outbox rows, alerting, and a tested disaster-recovery procedure.
 
 LocalDB automatically starts itself when it is probed, so stopping `MSSQLLocalDB` is not a stable
 outage simulation. While the app is running, create the development marker below, wait up to five
