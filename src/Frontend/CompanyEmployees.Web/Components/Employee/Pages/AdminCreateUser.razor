@@ -1,0 +1,211 @@
+@page "/admin/users/create"
+@layout EmployeeLayout
+@using System.Security.Claims
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
+@inject EmployeeContext Employees
+@inject EmployeeAccountService Accounts
+@inject ManagerContext Manager
+@inject NavigationManager Nav
+@inject IToastService Toast
+@inject AppLocalizer Text
+
+<PageTitle>@Text["Create employee account"] · @Text["Admin"]</PageTitle>
+
+@if (!_authorized)
+{
+	<FluentProgressRing />
+}
+else
+{
+	<div class="page-shell">
+		<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+					 VerticalAlignment="VerticalAlignment.Center" Width="100%" Style="margin-bottom:20px;">
+			<FluentAnchor Href="/admin/users" Appearance="Appearance.Stealth"
+						  IconStart="@(new Icons.Regular.Size20.ArrowLeft())"
+						  Title="@Text["Back to users"]" />
+			<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+				<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text["Create employee account"]</FluentLabel>
+				<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+				@Text["Create employees in your assigned region. Their Siemens login and employee ID are generated automatically."]
+				</FluentLabel>
+			</FluentStack>
+		</FluentStack>
+
+		<FluentGrid Spacing="3" Justify="JustifyContent.Center">
+			<FluentGridItem xs="12" md="8" lg="7">
+				<FluentCard Style="padding:24px;">
+				@if (_createdAccount is null)
+				{
+					<FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+						<FluentTextField @bind-Value="_employeeName" Label="@Text["Full name"]"
+									 AutoFocus="true" Disabled="@_creating" Style="width:100%;" />
+						<FluentTextField @bind-Value="_invitationEmail" Label="@Text["Real email address"]"
+									 TextFieldType="TextFieldType.Email" Disabled="@_creating" Style="width:100%;" />
+						<FluentSelect TOption="Department" Label="@Text["Department"]"
+								  Items="@_departments.OrderBy(d => d.Name)"
+								  OptionValue="@(d => d.Id.ToString())" OptionText="@(d => d.Name)"
+								  SelectedOption="@SelectedDepartment"
+								  SelectedOptionChanged="OnDepartmentChanged"
+								  Disabled="@_creating" Style="width:100%;" />
+						<FluentTextField Value="@GetRegionName(_adminRegionId)" Label="@Text["Region"]"
+									 Disabled="true" Style="width:100%;" />
+
+						<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+									 HorizontalAlignment="HorizontalAlignment.End" Width="100%" Style="margin-top:8px;">
+							<FluentAnchor Href="/admin/users" Appearance="Appearance.Stealth">@Text["Cancel"]</FluentAnchor>
+							<FluentButton Appearance="Appearance.Accent"
+										  IconStart="@(new Icons.Regular.Size20.PersonAdd())"
+										  OnClick="CreateEmployeeAsync" Disabled="@_creating">
+								@(_creating ? Text["Creating..."] : Text["Create account"])
+							</FluentButton>
+						</FluentStack>
+					</FluentStack>
+				}
+				else
+				{
+					<FluentMessageBar Intent="MessageIntent.Success" AllowDismiss="false">
+						<FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+							<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@Text["Account created"]</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text.Format("Name: {0}", _createdAccount.Name)</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text.Format("Department: {0}", _createdAccount.Department)</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text.Format("Region: {0}", _createdAccount.Region)</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text.Format("Siemens login: {0}", _createdAccount.Email)</FluentLabel>
+							<FluentLabel Typo="Typography.Body">@Text.Format("Invitation email: {0}", _createdAccount.InvitationEmail)</FluentLabel>
+						@if (_createdAccount.EmailDelivered)
+						{
+							<FluentLabel Typo="Typography.Body">@Text["A password setup email was sent to the employee."]</FluentLabel>
+						}
+						else
+						{
+							<FluentLabel Typo="Typography.Body">@Text["SMTP is not configured. Use this development-only setup link:"]</FluentLabel>
+							<FluentAnchor Href="@_createdAccount.DevelopmentSetupLink" Appearance="Appearance.Hypertext">@Text["Set password"]</FluentAnchor>
+						}
+						</FluentStack>
+					</FluentMessageBar>
+
+					<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+								 HorizontalAlignment="HorizontalAlignment.End" Width="100%" Style="margin-top:16px;">
+						<FluentAnchor Href="/admin/users" Appearance="Appearance.Outline">@Text["Back to users"]</FluentAnchor>
+						<FluentButton Appearance="Appearance.Accent" OnClick="ResetForm">
+							@Text["Create another account"]
+						</FluentButton>
+					</FluentStack>
+				}
+				</FluentCard>
+			</FluentGridItem>
+		</FluentGrid>
+	</div>
+}
+
+@code {
+	[CascadingParameter]
+	private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+	private Guid _adminId;
+	private Guid _adminRegionId;
+	private bool _authorized;
+	private bool _creating;
+	private string _employeeName = "";
+	private string _invitationEmail = "";
+	private Guid? _departmentId;
+	private List<Department> _departments = new();
+	private List<Region> _regions = new();
+	private EmployeeAccountResult? _createdAccount;
+	private Department? SelectedDepartment => _departments.FirstOrDefault(d => d.Id == _departmentId);
+
+	private void OnDepartmentChanged(Department? department) => _departmentId = department?.Id;
+
+	protected override async Task OnInitializedAsync()
+	{
+		if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+			return;
+
+		var principal = (await AuthStateTask!).User;
+		var role = principal.FindFirst(ClaimTypes.Role)?.Value;
+		var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+		if (!Guid.TryParse(userId, out _adminId))
+		{
+			Nav.NavigateTo("/employee/dashboard");
+			return;
+		}
+
+		if (role != UserRole.Admin.ToString())
+		{
+			var receivedDelegations = await Manager.GetActiveDelegationsAssignedToMeAsync(_adminId);
+			if (!receivedDelegations.Any(delegation => delegation.Manager.Role == UserRole.Admin))
+			{
+				Nav.NavigateTo("/employee/dashboard");
+				return;
+			}
+		}
+
+		var currentAdmin = await Employees.GetEmployeeByEmailAsync(principal.Identity!.Name!);
+		_adminId = currentAdmin.Id;
+		_adminRegionId = currentAdmin.RegionId;
+		_departments = await Employees.GetDepartmentsAsync();
+		_regions = await Employees.GetRegionsAsync();
+		_authorized = true;
+	}
+
+	private async Task CreateEmployeeAsync()
+	{
+		if (string.IsNullOrWhiteSpace(_employeeName))
+		{
+			Toast.ShowWarning(Text["Employee name is required."]);
+			return;
+		}
+
+		if (string.IsNullOrWhiteSpace(_invitationEmail))
+		{
+			Toast.ShowWarning(Text["Employee email is required."]);
+			return;
+		}
+
+		if (_departmentId is null)
+		{
+			Toast.ShowWarning(Text["Select a department."]);
+			return;
+		}
+
+		_creating = true;
+		try
+		{
+			_createdAccount = await Accounts.CreateAsync(
+				_adminId,
+				_employeeName,
+				_invitationEmail,
+				_departmentId.Value,
+				_adminRegionId,
+				Nav.BaseUri);
+
+			if (_createdAccount.EmailDelivered)
+				Toast.ShowSuccess(Text["Employee account created and setup email sent."]);
+			else
+				Toast.ShowWarning(Text["Employee account created; SMTP is not configured."]);
+		}
+		catch (Exception exception)
+		{
+			Toast.ShowError(exception.Message);
+		}
+		finally
+		{
+			_creating = false;
+		}
+	}
+
+	private void ResetForm()
+	{
+		_employeeName = "";
+		_invitationEmail = "";
+		_departmentId = null;
+		_createdAccount = null;
+	}
+
+	private string GetRegionName(Guid id) =>
+		_regions.FirstOrDefault(region => region.Id == id)?.Name ?? Text["Unknown"];
+}

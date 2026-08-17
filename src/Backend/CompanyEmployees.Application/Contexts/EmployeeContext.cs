@@ -55,7 +55,10 @@ namespace CompanyEmployees.Application.Contexts
             return _leaveRequestGateway.GetRequestsByUserAsync(userId);
         }
 
-        public async Task<List<LeaveBalanceResult>> GetMyBalancesAsync(Guid userId, int year)
+        public async Task<List<LeaveBalanceResult>> GetMyBalancesAsync(
+            Guid userId,
+            int year,
+            DateOnly? asOf = null)
         {
             var user = await _userGateway.GetUserByIdAsync(userId);
             if (user == null)
@@ -64,9 +67,37 @@ namespace CompanyEmployees.Application.Contexts
             await _leaveRequestGateway.EnsureDefaultAllocationsAsync(userId, year);
             var allocations = await _leaveRequestGateway.GetAllocationsByUserAsync(userId, year);
             var requests = await _leaveRequestGateway.GetRequestsByUserAsync(userId);
+            var companyStartDate = (await _contractGateway.GetContractsByUserIdAsync(userId))
+                .OrderBy(contract => contract.StartDate)
+                .Select(contract => (DateOnly?)contract.StartDate)
+                .FirstOrDefault();
             var holidays = (await _holidayProvider.GetHolidaysAsync(user.Region.Code, year))
                 .Select(holiday => holiday.Date)
                 .ToHashSet();
+            var annualEntitlement = LeaveAllocationPolicy.AnnualDaysForRegion(
+                user.Region.Code,
+                companyStartDate,
+                year);
+            var annualCarryOver = await GetAnnualCarryOverAsync(
+                user,
+                year,
+                requests,
+                companyStartDate);
+            var carryOverExpiryDate = LeaveAllocationPolicy.AnnualCarryOverExpiryDate(year);
+            var annualDaysUsedBeforeExpiry = requests
+                .Where(r => r.Status == LeaveStatus.Approved
+                            && r.Type == LeaveType.Annual
+                            && r.StartDate.Year == year
+                            && r.StartDate <= carryOverExpiryDate)
+                .Sum(r => CountWorkingDays(
+                    r.StartDate,
+                    r.EndDate < carryOverExpiryDate ? r.EndDate : carryOverExpiryDate,
+                    holidays));
+            var expiredAnnualCarryOver = LeaveAllocationPolicy.ExpiredAnnualCarryOverDays(
+                annualCarryOver,
+                Math.Min(annualCarryOver, annualDaysUsedBeforeExpiry),
+                year,
+                asOf ?? DateOnly.FromDateTime(DateTime.Today));
 
             var balances = new List<LeaveBalanceResult>();
             foreach (var allocation in allocations)
@@ -80,11 +111,60 @@ namespace CompanyEmployees.Application.Contexts
                 balances.Add(new LeaveBalanceResult
                 {
                     Type = allocation.LeaveType,
-                    DaysTotal = allocation.NumberOfDays,
-                    DaysUsed = daysUsed
+                    DaysTotal = (allocation.LeaveType == LeaveType.Annual
+                            ? annualEntitlement
+                            : allocation.NumberOfDays)
+                        + (allocation.LeaveType == LeaveType.Annual ? annualCarryOver : 0),
+                    DaysUsed = daysUsed,
+                    CarriedOverDays = allocation.LeaveType == LeaveType.Annual
+                        ? annualCarryOver
+                        : 0,
+                    ExpiredCarriedOverDays = allocation.LeaveType == LeaveType.Annual
+                        ? expiredAnnualCarryOver
+                        : 0,
+                    CarryOverExpiryDate = allocation.LeaveType == LeaveType.Annual
+                        && annualCarryOver > 0
+                            ? carryOverExpiryDate
+                            : null
                 });
             }
             return balances;
+        }
+
+        private async Task<int> GetAnnualCarryOverAsync(
+            User user,
+            int year,
+            IReadOnlyCollection<LeaveRequest> requests,
+            DateOnly? companyStartDate)
+        {
+            var previousYear = year - 1;
+            var previousAnnualAllocation = (await _leaveRequestGateway
+                    .GetAllocationsByUserAsync(user.Id, previousYear))
+                .FirstOrDefault(allocation => allocation.LeaveType == LeaveType.Annual);
+
+            // No allocation means the employee had no annual entitlement in that year.
+            if (previousAnnualAllocation == null)
+                return 0;
+
+            var previousYearHolidays = (await _holidayProvider
+                    .GetHolidaysAsync(user.Region.Code, previousYear))
+                .Select(holiday => holiday.Date)
+                .ToHashSet();
+            var previousYearUsed = requests
+                .Where(request => request.Status == LeaveStatus.Approved
+                                  && request.Type == LeaveType.Annual
+                                  && request.StartDate.Year == previousYear)
+                .Sum(request => CountWorkingDays(
+                    request.StartDate,
+                    request.EndDate,
+                    previousYearHolidays));
+
+            return LeaveAllocationPolicy.AnnualCarryOverDays(
+                LeaveAllocationPolicy.AnnualDaysForRegion(
+                    user.Region.Code,
+                    companyStartDate,
+                    previousYear),
+                previousYearUsed);
         }
 
         public async Task<IReadOnlyList<PublicHoliday>> GetRegionalHolidaysAsync(Guid userId, int year)
@@ -96,13 +176,35 @@ namespace CompanyEmployees.Application.Contexts
             return await _holidayProvider.GetHolidaysAsync(user.Region.Code, year);
         }
 
-        // Approved leave of the user's team (same manager, excluding the user,
-        // plus the manager themself) that touches the [from, to] interval.
+        // Everyone sees pending and approved requests for their own team so employees
+        // have the same staffing visibility as their line manager. Team membership and
+        // region boundaries are still enforced below.
         public async Task<List<LeaveRequest>> GetTeamRequestsAsync(Guid userId, DateOnly from, DateOnly to)
         {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            if (user.Role == UserRole.LineManager)
+            {
+                var directReports = await _userGateway.GetDirectReportsAsync(userId);
+                var directReportIds = directReports
+                    .Where(report => report.RegionId == user.RegionId)
+                    .Select(report => report.Id)
+                    .ToList();
+
+                return directReportIds.Count == 0
+                    ? []
+                    : await _leaveRequestGateway.GetActiveRequestsForUsersAsync(
+                        directReportIds, from, to);
+            }
+
             var team = await GetTeamMembersAsync(userId);
 
-            var teamIds = new List<Guid>();
+            // Include the signed-in employee as well as their manager and peers. Without
+            // this, an employee's own leave appeared on the line-manager calendar but
+            // disappeared when that employee opened the same team calendar.
+            var teamIds = new List<Guid> { userId };
             foreach (var member in team)
             {
                 teamIds.Add(member.Id);
@@ -111,7 +213,7 @@ namespace CompanyEmployees.Application.Contexts
             if (teamIds.Count == 0)
                 return [];
 
-            return await _leaveRequestGateway.GetApprovedRequestsForUsersAsync(teamIds, from, to);
+            return await _leaveRequestGateway.GetActiveRequestsForUsersAsync(teamIds, from, to);
         }
 
         public async Task<List<OrgChartNode>> GetOrgChartChildrenAsync(OrgChartNode parentNode, Guid currentUserId, bool isAdmin)
@@ -458,7 +560,7 @@ namespace CompanyEmployees.Application.Contexts
                     Type = request.Type.ToString(),
                     StartDate = request.StartDate,
                     EndDate = request.EndDate,
-                    Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
+                    Days = await CountWorkingDaysAsync(hrUser, request.StartDate, request.EndDate),
                     WaitingDays = waiting,
                     Role = request.User.Role.ToString(),
                     Reason = request.Reason,
@@ -670,9 +772,9 @@ namespace CompanyEmployees.Application.Contexts
             var requestedDays = await CountWorkingDaysAsync(requester, start, end);
             if (requestedDays == 0)
                 throw new InvalidOperationException("The selected period contains no working days.");
-            var balances = await GetMyBalancesAsync(userId, start.Year);
+            var balances = await GetMyBalancesAsync(userId, start.Year, start);
             var balance = balances.FirstOrDefault(b => b.Type == type);
-            if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
+            if (balance == null || balance.DaysRemaining < requestedDays)
                 throw new InvalidOperationException("Not enough days left for this leave type.");
 
             // Admins sit outside the approval workflow entirely (no approve/reject UI
@@ -700,10 +802,103 @@ namespace CompanyEmployees.Application.Contexts
                 CreatedAt = DateTime.UtcNow
             };
             await _leaveRequestGateway.CreateRequestAsync(request);
+            await TryWarnManagerAboutLowAvailabilityAsync(requester, request);
 
             _logger.LogInformation("User {UserId} submitted a {Type} leave request {Start}–{End}{AutoApproved}.",
                 userId, type, start, end, requirement.AutoApproved ? " (auto-approved)" : "");
             return request;
+        }
+
+        private async Task TryWarnManagerAboutLowAvailabilityAsync(
+            User requester,
+            LeaveRequest submittedRequest)
+        {
+            try
+            {
+                await WarnManagerAboutLowAvailabilityAsync(requester, submittedRequest);
+            }
+            catch (Exception exception)
+            {
+                // The request is already saved. Conflict notifications are best-effort.
+                _logger.LogWarning(exception,
+                    "Could not evaluate or send a low-availability warning for request {RequestId}.",
+                    submittedRequest.Id);
+            }
+        }
+
+        private async Task WarnManagerAboutLowAvailabilityAsync(
+            User requester,
+            LeaveRequest submittedRequest)
+        {
+            if (requester.ManagerId is not { } managerId)
+                return;
+
+            var manager = await _userGateway.GetUserByIdAsync(managerId);
+            if (manager == null
+                || manager.Role != UserRole.LineManager
+                || manager.RegionId != requester.RegionId)
+                return;
+
+            var team = (await _userGateway.GetDirectReportsAsync(managerId))
+                .Where(member => member.RegionId == manager.RegionId)
+                .ToList();
+            if (team.Count == 0)
+                return;
+
+            var requests = await _leaveRequestGateway.GetActiveRequestsForUsersAsync(
+                team.Select(member => member.Id).ToList(),
+                submittedRequest.StartDate,
+                submittedRequest.EndDate);
+
+            var holidays = new HashSet<DateOnly>();
+            for (var year = submittedRequest.StartDate.Year;
+                 year <= submittedRequest.EndDate.Year;
+                 year++)
+            {
+                foreach (var holiday in await _holidayProvider.GetHolidaysAsync(
+                             requester.Region.Code, year))
+                    holidays.Add(holiday.Date);
+            }
+
+            var warningDates = new List<DateOnly>();
+            var maximumUnavailable = 0;
+            for (var day = submittedRequest.StartDate;
+                 day <= submittedRequest.EndDate;
+                 day = day.AddDays(1))
+            {
+                if (day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday
+                    || holidays.Contains(day))
+                    continue;
+
+                var unavailable = requests
+                    .Where(request => request.StartDate <= day && request.EndDate >= day)
+                    .Select(request => request.UserId)
+                    .Distinct()
+                    .Count();
+
+                if (!TeamAvailabilityPolicy.IsBelowMinimum(team.Count, unavailable))
+                    continue;
+
+                warningDates.Add(day);
+                maximumUnavailable = Math.Max(maximumUnavailable, unavailable);
+            }
+
+            if (warningDates.Count == 0)
+                return;
+
+            var firstDate = warningDates[0];
+            var lastDate = warningDates[^1];
+            var availability = TeamAvailabilityPolicy.AvailabilityPercent(
+                team.Count, maximumUnavailable);
+            var period = firstDate == lastDate
+                ? $"on {firstDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}"
+                : $"from {firstDate.ToString("MMM d", CultureInfo.InvariantCulture)} "
+                  + $"to {lastDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
+            var message = $"Low team availability: only {availability}% of the team is available {period}. "
+                + $"{maximumUnavailable} of {team.Count} members have pending or approved leave. "
+                + "Review before approving.";
+
+            await _notifications.SendNotificationAsync(managerId, message, "/manager/team");
         }
 
         public async Task UpdateRequestDatesAsync(Guid requestId, DateOnly newStart, DateOnly newEnd)
@@ -734,14 +929,15 @@ namespace CompanyEmployees.Application.Contexts
             await EnsureWorkingDayAsync(requester, newStart);
             await EnsureWorkingDayAsync(requester, newEnd);
             var requestedDays = await CountWorkingDaysAsync(requester, newStart, newEnd);
-            var balances = await GetMyBalancesAsync(request.UserId, newStart.Year);
+            var balances = await GetMyBalancesAsync(request.UserId, newStart.Year, newStart);
             var balance = balances.FirstOrDefault(b => b.Type == request.Type);
-            if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
+            if (balance == null || balance.DaysRemaining < requestedDays)
                 throw new InvalidOperationException("Not enough days left for this leave type.");
 
             request.StartDate = newStart;
             request.EndDate = newEnd;
             await _leaveRequestGateway.UpdateRequestDatesAsync(request);
+            await TryWarnManagerAboutLowAvailabilityAsync(requester, request);
 
             _logger.LogInformation("Leave request {RequestId} dates updated to {Start}–{End}.",
                 requestId, newStart, newEnd);
@@ -933,7 +1129,7 @@ namespace CompanyEmployees.Application.Contexts
                     cmNode.Subordinates = new List<OrgChartNode> { cityNode };
                     cmNode.IsExpanded = true;
                     MarkFocus(cmNode, null);
-                    
+
                     root = cmNode; // For country manager, they are the root of the tree
                 }
                 else if (requestingUser.Role == UserRole.Admin)

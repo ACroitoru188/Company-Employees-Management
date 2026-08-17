@@ -16,6 +16,7 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IUserGateway _userGateway;
         private readonly IContractGateway _contractGateway;
         private readonly IManagerDelegationGateway _delegationGateway;
+        private readonly IPublicHolidayProvider _holidayProvider;
         private readonly NotificationContext _notifications;
         private readonly ImpersonationContext _impersonation;
         private readonly IDelegatedActionGateway _delegatedActions;
@@ -26,6 +27,7 @@ namespace CompanyEmployees.Application.Contexts
             IUserGateway userGateway,
             IContractGateway contractGateway,
             IManagerDelegationGateway delegationGateway,
+            IPublicHolidayProvider holidayProvider,
             NotificationContext notifications,
             ImpersonationContext impersonation,
             IDelegatedActionGateway delegatedActions) : base(logger)
@@ -34,6 +36,7 @@ namespace CompanyEmployees.Application.Contexts
             _userGateway = userGateway;
             _contractGateway = contractGateway;
             _delegationGateway = delegationGateway;
+            _holidayProvider = holidayProvider;
             _notifications = notifications;
             _impersonation = impersonation;
             _delegatedActions = delegatedActions;
@@ -177,7 +180,7 @@ namespace CompanyEmployees.Application.Contexts
                     Type = request.Type.ToString(),
                     StartDate = request.StartDate,
                     EndDate = request.EndDate,
-                    Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
+                    Days = await CountWorkingDaysAsync(manager, request.StartDate, request.EndDate),
                     WaitingDays = waiting,
                     IsDelegated = false,
                     Role = request.User.Role.ToString(),
@@ -207,7 +210,7 @@ namespace CompanyEmployees.Application.Contexts
                         Type = request.Type.ToString(),
                         StartDate = request.StartDate,
                         EndDate = request.EndDate,
-                        Days = request.EndDate.DayNumber - request.StartDate.DayNumber + 1,
+                        Days = await CountWorkingDaysAsync(manager, request.StartDate, request.EndDate),
                         WaitingDays = waiting,
                         IsDelegated = true,
                         DelegatedFromManagerName = delegation.Manager?.Name ?? "Delegated Manager",
@@ -220,6 +223,26 @@ namespace CompanyEmployees.Application.Contexts
 
             result.PendingRequests = result.Pending.Count;
             return result;
+        }
+
+        private async Task<int> CountWorkingDaysAsync(User user, DateOnly start, DateOnly end)
+        {
+            var holidays = new HashSet<DateOnly>();
+            for (var year = start.Year; year <= end.Year; year++)
+            {
+                foreach (var holiday in await _holidayProvider.GetHolidaysAsync(user.Region.Code, year))
+                    holidays.Add(holiday.Date);
+            }
+
+            var count = 0;
+            for (var day = start; day <= end; day = day.AddDays(1))
+            {
+                if (day.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday
+                    && !holidays.Contains(day))
+                    count++;
+            }
+
+            return count;
         }
 
         public async Task<LeaveRequest> DecideRequestAsync(

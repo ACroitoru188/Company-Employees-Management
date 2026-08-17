@@ -59,12 +59,12 @@
                           Style="width:100%;" />
 
             <FluentTextField @bind-Value="_email" Label="Work email" TextFieldType="TextFieldType.Email"
-                             Placeholder="yourname@siemens.com" Required="true"
-                             @onkeydown="HandleKeyDown" Style="width:100%;" />
+                               Placeholder="yourname@siemens.com" Required="true"
+                              Immediate="true" @onkeyup="HandleKeyUp" Style="width:100%;" />
 
             <FluentTextField @bind-Value="_password" Label="Password"
-                             TextFieldType="@(_showPassword ? TextFieldType.Text : TextFieldType.Password)"
-                             Required="true" @onkeydown="HandleKeyDown" Style="width:100%;">
+                               TextFieldType="@(_showPassword ? TextFieldType.Text : TextFieldType.Password)"
+                              Required="true" Immediate="true" @onkeyup="HandleKeyUp" Style="width:100%;">
                 <FluentButton slot="end" Appearance="Appearance.Stealth"
                               IconStart="@(new Icons.Regular.Size16.Eye())"
                               Title="Show password"
@@ -137,7 +137,7 @@
         _regionId = _selectedRegion?.Id;
     }
 
-    private Task HandleKeyDown(KeyboardEventArgs args) =>
+    private Task HandleKeyUp(KeyboardEventArgs args) =>
         args.Key == "Enter" ? SignIn() : Task.CompletedTask;
 
     private async Task SignIn()
