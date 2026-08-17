@@ -11,6 +11,7 @@ using CompanyEmployees.Persistence;
 using CompanyEmployees.Web.Components;
 using CompanyEmployees.Web.Security;
 using CompanyEmployees.Web.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -20,6 +21,28 @@ using Microsoft.FluentUI.AspNetCore.Components;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
+var databaseState = await DatabaseFailoverSelector.SelectAsync(builder.Configuration);
+
+if (builder.Environment.IsDevelopment())
+{
+    // The Windows Event Log provider can require elevated access and must never make a local
+    // authentication request fail merely because a warning could not be written there.
+    builder.Logging.ClearProviders();
+    builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
+    builder.Logging.AddConsole();
+    builder.Logging.AddDebug();
+
+    // Keep development authentication independent of the current Windows profile. This also
+    // lets the app run from restricted shells and containers that cannot write ASP.NET's
+    // per-user default key directory.
+    var relativeKeyPath = builder.Configuration["DataProtection:KeysPath"]
+        ?? "../../../.tmp/data-protection-keys";
+    var keyPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, relativeKeyPath));
+    Directory.CreateDirectory(keyPath);
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(keyPath))
+        .SetApplicationName("CompanyEmployees");
+}
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -30,6 +53,8 @@ builder.Services.AddScoped<EmployeeAccountService>();
 builder.Services.AddScoped<ActingContext>();
 builder.Services.AddScoped<EmployeeCsvExportService>();
 builder.Services.AddScoped<LanguagePreferenceService>();
+builder.Services.AddHostedService<DatabaseAvailabilityMonitor>();
+builder.Services.AddHostedService<PostgreSqlStandbySynchronizationService>();
 // Singleton: the translation files are read once at startup and never change at runtime.
 builder.Services.AddSingleton<AppLocalizer>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
@@ -46,7 +71,7 @@ builder.Services.AddSignalR(options =>
 // remains available as a mock if the DB is unreachable.
 builder.Services.AddScoped<ITimeOffService, DbTimeOffService>();
 
-builder.Services.AddPersistenceLayer(builder.Configuration);
+builder.Services.AddPersistenceLayer(builder.Configuration, databaseState);
 builder.Services.AddGatewayLayer();
 builder.Services.AddApplicationLayer();
 builder.Services.AddInfrastructureLayer();
@@ -67,12 +92,20 @@ builder.Services.AddScoped<AuthenticationStateProvider, CompanyEmployees.Web.Sec
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
+    // An identity authenticated against SQL Server may not exist in the PostgreSQL standby.
+    // Provider-specific cookies prevent a failover from reusing that stale login session.
+    options.Cookie.Name = $"CompanyEmployees.Auth.{databaseState.ActiveProvider}";
     options.LoginPath = "/";
     options.ExpireTimeSpan = TimeSpan.FromHours(5);
     options.SlidingExpiration = true;
 });
 
 var app = builder.Build();
+
+app.Logger.LogInformation(
+    "Active database provider: {DatabaseProvider}. SQL Server available: {PrimaryAvailable}.",
+    databaseState.ActiveProvider,
+    databaseState.PrimaryAvailable);
 
 // The language is carried by the standard culture cookie, written either at login (from the
 // account's saved preference) or by the picker in the layout. No other provider is registered:
@@ -92,7 +125,19 @@ app.UseRequestLocalization(new RequestLocalizationOptions
     ]
 });
 
-if (app.Environment.IsDevelopment())
+if (databaseState.IsFailoverActive)
+{
+    // The SQL Server migrations include T-SQL seed scripts and cannot be replayed by
+    // PostgreSQL. Its persisted Docker volume is initialized directly from the current model.
+    // Schema changes therefore require recreating/upgrading that standby deliberately.
+    using var scope = app.Services.CreateScope();
+    await PostgreSqlStandbyBootstrapper.EnsureReadyAsync(builder.Configuration);
+    var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
+    if (app.Environment.IsDevelopment())
+        SeedCarryOverDemo(db);
+    SeedContracts(db);
+}
+else if (app.Environment.IsDevelopment())
 {
     // Applies any pending migrations (creating the database if it does not exist yet).
     // The demo accounts and their leave data arrive through the SeedDemoData migration,
@@ -102,6 +147,7 @@ if (app.Environment.IsDevelopment())
 
     var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
     db.Database.Migrate();
+    SeedCarryOverDemo(db);
     SeedContracts(db);
 }
 
@@ -195,6 +241,14 @@ app.MapGet("/api/auth/logout", async (
     return Results.Redirect("/");
 });
 
+// A provider change requires a new HTTP scope so every repository receives a DbContext built
+// for the newly selected provider. It also clears the old database's identity cookie.
+app.MapGet("/api/auth/database-switched", async (SignInManager<User> signInManager) =>
+{
+    await signInManager.SignOutAsync();
+    return Results.Redirect("/");
+}).RequireAuthorization(policy => policy.RequireRole(UserRole.Admin.ToString()));
+
 // Borrowing an account swaps the auth cookie, so it has to happen over a plain request
 // like login does. The rules live in ImpersonationContext; this only maps them to a
 // redirect. Both endpoints require an already-signed-in user.
@@ -278,6 +332,94 @@ app.MapGet("/api/employees/export.csv", async (
 
 
 app.Run();
+
+static void SeedCarryOverDemo(CompanyEmployeesDbContext db)
+{
+    const string email = "carryover.test@siemens.com";
+    const string password = "User123!";
+    var normalizedEmail = email.ToUpperInvariant();
+    var user = db.Users.SingleOrDefault(item => item.NormalizedEmail == normalizedEmail);
+
+    if (user == null)
+    {
+        var region = db.Regions.FirstOrDefault(item => item.Code == "RO")
+            ?? throw new InvalidOperationException("The Romania region is required for the carry-over demo account.");
+        user = new User
+        {
+            Id = new Guid("aaaaaaaa-0000-0000-0000-000000000001"),
+            Name = "Carry-over Test",
+            UserName = email,
+            NormalizedUserName = normalizedEmail,
+            Email = email,
+            NormalizedEmail = normalizedEmail,
+            EmailConfirmed = true,
+            Role = UserRole.Employee,
+            Status = UserStatus.Active,
+            RegionId = region.Id,
+            SecurityStamp = Guid.NewGuid().ToString("D"),
+            ConcurrencyStamp = Guid.NewGuid().ToString("D"),
+            LockoutEnabled = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        user.PasswordHash = new PasswordHasher<User>().HashPassword(user, password);
+        db.Users.Add(user);
+        db.SaveChanges();
+    }
+
+    var currentYear = DateTime.Today.Year;
+    var previousYear = currentYear - 1;
+    if (!db.LeaveAllocations.Any(item => item.UserId == user.Id
+                                        && item.Year == previousYear
+                                        && item.LeaveType == LeaveType.Annual))
+    {
+        db.LeaveAllocations.Add(new LeaveAllocation
+        {
+            Id = new Guid("aaaaaaaa-0000-0000-0000-000000000002"),
+            UserId = user.Id,
+            LeaveType = LeaveType.Annual,
+            Year = previousYear,
+            NumberOfDays = 21,
+            CreatedAt = DateTime.UtcNow
+        });
+    }
+
+    if (!db.LeaveAllocations.Any(item => item.UserId == user.Id
+                                        && item.Year == currentYear
+                                        && item.LeaveType == LeaveType.Annual))
+    {
+        db.LeaveAllocations.Add(new LeaveAllocation
+        {
+            Id = new Guid("aaaaaaaa-0000-0000-0000-000000000003"),
+            UserId = user.Id,
+            LeaveType = LeaveType.Annual,
+            Year = currentYear,
+            NumberOfDays = 21,
+            CreatedAt = DateTime.UtcNow
+        });
+    }
+
+    // Five approved working days last year leave 16 days to demonstrate carry-over.
+    var previousSeptember = new DateOnly(previousYear, 9, 1);
+    while (previousSeptember.DayOfWeek != DayOfWeek.Monday)
+        previousSeptember = previousSeptember.AddDays(1);
+    if (!db.LeaveRequests.Any(item => item.Id == new Guid("aaaaaaaa-0000-0000-0000-000000000004")))
+    {
+        db.LeaveRequests.Add(new LeaveRequest
+        {
+            Id = new Guid("aaaaaaaa-0000-0000-0000-000000000004"),
+            UserId = user.Id,
+            Type = LeaveType.Annual,
+            StartDate = previousSeptember,
+            EndDate = previousSeptember.AddDays(4),
+            Reason = "Carry-over demonstration",
+            Status = LeaveStatus.Approved,
+            CreatedAt = previousSeptember.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)
+        });
+    }
+
+    db.SaveChanges();
+}
 
 static void SeedContracts(CompanyEmployeesDbContext db)
 {

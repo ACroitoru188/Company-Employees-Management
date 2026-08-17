@@ -55,7 +55,10 @@ namespace CompanyEmployees.Application.Contexts
             return _leaveRequestGateway.GetRequestsByUserAsync(userId);
         }
 
-        public async Task<List<LeaveBalanceResult>> GetMyBalancesAsync(Guid userId, int year)
+        public async Task<List<LeaveBalanceResult>> GetMyBalancesAsync(
+            Guid userId,
+            int year,
+            DateOnly? asOf = null)
         {
             var user = await _userGateway.GetUserByIdAsync(userId);
             if (user == null)
@@ -67,6 +70,13 @@ namespace CompanyEmployees.Application.Contexts
             var holidays = (await _holidayProvider.GetHolidaysAsync(user.Region.Code, year))
                 .Select(holiday => holiday.Date)
                 .ToHashSet();
+            var annualCarryOver = await GetAnnualCarryOverAsync(
+                user,
+                year,
+                requests,
+                holidays,
+                asOf ?? DateOnly.FromDateTime(DateTime.Today));
+            var annualCarryOverDays = annualCarryOver.Sum(portion => portion.Days);
 
             var balances = new List<LeaveBalanceResult>();
             foreach (var allocation in allocations)
@@ -80,12 +90,109 @@ namespace CompanyEmployees.Application.Contexts
                 balances.Add(new LeaveBalanceResult
                 {
                     Type = allocation.LeaveType,
-                    DaysTotal = allocation.NumberOfDays,
-                    DaysUsed = daysUsed
+                    DaysTotal = allocation.NumberOfDays
+                        + (allocation.LeaveType == LeaveType.Annual ? annualCarryOverDays : 0),
+                    DaysUsed = daysUsed,
+                    CarryOverPortions = allocation.LeaveType == LeaveType.Annual
+                        ? annualCarryOver
+                        : []
                 });
             }
             return balances;
         }
+
+        private async Task<List<AnnualCarryOverPortionResult>> GetAnnualCarryOverAsync(
+            User user,
+            int year,
+            IReadOnlyCollection<LeaveRequest> requests,
+            HashSet<DateOnly> currentYearHolidays,
+            DateOnly asOf)
+        {
+            var previousYear = year - 1;
+            var previousAnnualAllocation = (await _leaveRequestGateway
+                    .GetAllocationsByUserAsync(user.Id, previousYear))
+                .FirstOrDefault(allocation => allocation.LeaveType == LeaveType.Annual);
+
+            if (previousAnnualAllocation == null)
+                return [];
+
+            var previousYearHolidays = (await _holidayProvider
+                    .GetHolidaysAsync(user.Region.Code, previousYear))
+                .Select(holiday => holiday.Date)
+                .ToHashSet();
+            var previousYearUsed = AnnualDaysUsed(requests, previousYear, previousYearHolidays);
+
+            // A carry-over lasts into a second calendar year. Work out how much of that
+            // older portion was consumed first during the previous year, then preserve its
+            // remainder until its own 18-month expiry date.
+            var twoYearsAgo = year - 2;
+            var twoYearsAgoAllocation = (await _leaveRequestGateway
+                    .GetAllocationsByUserAsync(user.Id, twoYearsAgo))
+                .FirstOrDefault(allocation => allocation.LeaveType == LeaveType.Annual);
+            var olderCarryAtPreviousYearStart = 0;
+            if (twoYearsAgoAllocation != null)
+            {
+                var twoYearsAgoHolidays = (await _holidayProvider
+                        .GetHolidaysAsync(user.Region.Code, twoYearsAgo))
+                    .Select(holiday => holiday.Date)
+                    .ToHashSet();
+                var twoYearsAgoUsed = AnnualDaysUsed(requests, twoYearsAgo, twoYearsAgoHolidays);
+                olderCarryAtPreviousYearStart = LeaveAllocationPolicy.AnnualCarryOverDays(
+                    twoYearsAgoAllocation.NumberOfDays,
+                    twoYearsAgoUsed);
+            }
+
+            var olderCarryAtYearStart = Math.Max(
+                0,
+                olderCarryAtPreviousYearStart - previousYearUsed);
+            var previousEntitlementUsed = Math.Max(
+                0,
+                previousYearUsed - olderCarryAtPreviousYearStart);
+            var recentCarryAtYearStart = LeaveAllocationPolicy.AnnualCarryOverDays(
+                previousAnnualAllocation.NumberOfDays,
+                previousEntitlementUsed);
+
+            var portions = new List<AnnualCarryOverPortionResult>();
+            if (olderCarryAtYearStart > 0)
+            {
+                var olderExpiry = LeaveAllocationPolicy.AnnualCarryOverExpiryDate(previousYear);
+                var usedBeforeOlderExpiry = requests
+                    .Where(request => request.Status == LeaveStatus.Approved
+                                      && request.Type == LeaveType.Annual
+                                      && request.StartDate.Year == year
+                                      && request.StartDate <= olderExpiry)
+                    .Sum(request => CountWorkingDays(
+                        request.StartDate,
+                        request.EndDate < olderExpiry ? request.EndDate : olderExpiry,
+                        currentYearHolidays));
+                var expired = LeaveAllocationPolicy.ExpiredAnnualCarryOverDays(
+                    olderCarryAtYearStart,
+                    Math.Min(olderCarryAtYearStart, usedBeforeOlderExpiry),
+                    previousYear,
+                    asOf);
+                portions.Add(new(olderCarryAtYearStart, olderExpiry, expired));
+            }
+
+            if (recentCarryAtYearStart > 0)
+            {
+                portions.Add(new(
+                    recentCarryAtYearStart,
+                    LeaveAllocationPolicy.AnnualCarryOverExpiryDate(year),
+                    0));
+            }
+
+            return portions;
+        }
+
+        private static int AnnualDaysUsed(
+            IEnumerable<LeaveRequest> requests,
+            int year,
+            HashSet<DateOnly> holidays) =>
+            requests
+                .Where(request => request.Status == LeaveStatus.Approved
+                                  && request.Type == LeaveType.Annual
+                                  && request.StartDate.Year == year)
+                .Sum(request => CountWorkingDays(request.StartDate, request.EndDate, holidays));
 
         public async Task<IReadOnlyList<PublicHoliday>> GetRegionalHolidaysAsync(Guid userId, int year)
         {
@@ -670,9 +777,9 @@ namespace CompanyEmployees.Application.Contexts
             var requestedDays = await CountWorkingDaysAsync(requester, start, end);
             if (requestedDays == 0)
                 throw new InvalidOperationException("The selected period contains no working days.");
-            var balances = await GetMyBalancesAsync(userId, start.Year);
+            var balances = await GetMyBalancesAsync(userId, start.Year, start);
             var balance = balances.FirstOrDefault(b => b.Type == type);
-            if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
+            if (balance == null || balance.DaysRemaining < requestedDays)
                 throw new InvalidOperationException("Not enough days left for this leave type.");
 
             // Admins sit outside the approval workflow entirely (no approve/reject UI
@@ -734,9 +841,9 @@ namespace CompanyEmployees.Application.Contexts
             await EnsureWorkingDayAsync(requester, newStart);
             await EnsureWorkingDayAsync(requester, newEnd);
             var requestedDays = await CountWorkingDaysAsync(requester, newStart, newEnd);
-            var balances = await GetMyBalancesAsync(request.UserId, newStart.Year);
+            var balances = await GetMyBalancesAsync(request.UserId, newStart.Year, newStart);
             var balance = balances.FirstOrDefault(b => b.Type == request.Type);
-            if (balance == null || balance.DaysTotal - balance.DaysUsed < requestedDays)
+            if (balance == null || balance.DaysRemaining < requestedDays)
                 throw new InvalidOperationException("Not enough days left for this leave type.");
 
             request.StartDate = newStart;

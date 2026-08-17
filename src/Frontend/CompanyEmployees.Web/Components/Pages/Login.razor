@@ -162,7 +162,16 @@
 
         try
         {
-            await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('hiddenLoginForm').submit();");
+            // Write the current component values into the real HTML form immediately before
+            // submitting it. Fluent text fields can raise their change event in the same browser
+            // turn as this click, before Blazor has rendered the updated hidden inputs.
+            await JSRuntime.InvokeVoidAsync(
+                "companyEmployeesLogin.submit",
+                "hiddenLoginForm",
+                _email,
+                _password,
+                _regionId.Value.ToString(),
+                ReturnUrl ?? string.Empty);
         }
         catch (Exception ex)
         {

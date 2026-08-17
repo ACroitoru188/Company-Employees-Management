@@ -34,13 +34,29 @@
                                  VerticalAlignment="VerticalAlignment.Bottom">
                         <FluentLabel Typo="Typography.PageTitle" Weight="FontWeight.Bold">@balance.Remaining</FluentLabel>
                         <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
-                            / @Text.Format("{0} days", balance.DaysTotal)
+                            / @Text.Format("{0} days", balance.EffectiveDaysTotal)
                         </FluentLabel>
                     </FluentStack>
 
+                    @foreach (var portion in balance.CarryOverPortions)
+                    {
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--status-success-foreground-1)" Class="app-caption">
+                            @Text.Format(
+                                "{0} carried annual-leave days expire on {1}",
+                                portion.Days,
+                                portion.ExpiryDate.ToString("d", CultureInfo.CurrentCulture))
+                        </FluentLabel>
+                    }
+                    @if (balance.ExpiredCarriedOverDays > 0)
+                    {
+                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--status-danger-foreground-1)" Class="app-caption">
+                            @Text.Format("{0} expired", balance.ExpiredCarriedOverDays)
+                        </FluentLabel>
+                    }
+
                     @* The leave-type colour is per category, which Fluent's single-accent
                        palette has no slot for — hence the local custom colour. *@
-                    <FluentProgress Min="0" Max="@balance.DaysTotal" Value="@balance.Remaining"
+                    <FluentProgress Min="0" Max="@Math.Max(1, balance.EffectiveDaysTotal)" Value="@balance.Remaining"
                                     Stroke="ProgressStroke.Normal"
                                     Style="@($"--accent-fill-rest:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
 

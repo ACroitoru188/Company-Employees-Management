@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: company-employees-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: company_employees
+      POSTGRES_USER: company_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-company_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - company-employees-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U company_app -d company_employees"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+     
+volumes:
+  company-employees-postgres-data:
