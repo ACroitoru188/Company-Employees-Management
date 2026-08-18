@@ -21,12 +21,19 @@ internal sealed class DatabaseAvailabilityMonitor(
         do
         {
             var simulatedOutage = IsSqlServerOutageSimulated();
-            var (sqlAvailable, sqlFailure) = simulatedOutage
-                ? (false, "Development outage simulation is active.")
-                : await ProbeAsync(DatabaseFailoverSelector.ProbeSqlServerAsync, stoppingToken);
-            var (postgreSqlAvailable, _) = await ProbeAsync(
+            var sqlProbe = simulatedOutage
+                ? Task.FromResult<(bool Available, string? Failure)>(
+                    (false, "Development outage simulation is active."))
+                : ProbeAsync(DatabaseFailoverSelector.ProbeSqlServerAsync, stoppingToken);
+            var postgreSqlProbe = ProbeAsync(
                 DatabaseFailoverSelector.ProbePostgreSqlAsync,
                 stoppingToken);
+
+            // Neither availability check depends on the other. Running them together keeps a
+            // slow standby probe from delaying the SQL Server recovery banner.
+            await Task.WhenAll(sqlProbe, postgreSqlProbe);
+            var (sqlAvailable, sqlFailure) = await sqlProbe;
+            var (postgreSqlAvailable, _) = await postgreSqlProbe;
 
             var wasSqlAvailable = state.PrimaryAvailable;
             state.UpdateAvailability(sqlAvailable, postgreSqlAvailable, sqlFailure);
