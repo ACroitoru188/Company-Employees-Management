@@ -53,7 +53,7 @@ after a fresh clone run `dotnet tool restore` once.
 
 ```sh
 dotnet build                                             # build the solution
-dotnet test                                              # 19 tests, all green
+dotnet test                                              # 96 tests, all green
 dotnet run --project src/Frontend/CompanyEmployees.Web   # run, http://localhost:5269
 dotnet watch --project src/Frontend/CompanyEmployees.Web # hot reload
 dotnet dotnet-ef migrations add <Name> --project src/Backend/CompanyEmployees.Persistence
@@ -89,10 +89,12 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
     so `database update` fails against it. Drop it once
     (`dotnet dotnet-ef database drop --force --project src/Backend/CompanyEmployees.Persistence`), then
     `database update`.
-- **Tests exist** (they did not when this file was first written): xunit, two projects under
-  `tests/`, 19 tests, `dotnet test` green. They cover domain policies and two Application
-  contexts; there is no Web/component test project, so Razor pages are still only verified by
-  running the app.
+- **Tests exist** (they did not when this file was first written): xunit + NSubstitute, two
+  projects under `tests/`, 96 tests, `dotnet test` green. They cover domain policies and the
+  Application contexts — `ManagerContextTests`, `NotificationContextTests`,
+  `EmployeeContextSearchTests` (global-search region scoping), `EmployeeContextDelegationTests`
+  (the guard and audit on a borrowed employee account). There is no Web/component test project,
+  so Razor pages are still only verified by running the app.
 
 ## Domain model (`Domain/Entities`, `Domain/Enums`)
 
@@ -282,10 +284,12 @@ at `/employee/org-chart`; all `@layout EmployeeLayout`.
   `AccentColor` (`#0F6CBD`) must stay in step with the value `app.css` uses for light-DOM
   elements, or the app runs two slightly different blues.
 - `Components/Layout/EmployeeLayout.razor` ("WORKSPACE" nav: Dashboard / Calendar / Team / My
-  Requests / Org Chart + user footer, plus role/department-conditional sections — "HR" for
-  HR-department users, "Department" for LineManager, "IT ADMIN" for Admin).
+  Requests / Org Chart / Delegations + user footer, plus role/department-conditional sections —
+  "HR" for HR-department users, "Department" for LineManager, "IT ADMIN" for Admin).
   It reads the user's name/role from the auth cookie's claims, never the DB — the layout shares
-  the page's scoped DbContext and a second in-flight query on it throws.
+  the page's scoped DbContext and a second in-flight query on it throws. **Anything in the
+  layout that does query the DB must open its own scope** via `IServiceScopeFactory`, as
+  `NotificationBell` and `GlobalSearchBox` do.
 - **Microsoft.FluentUI.AspNetCore.Components 4.14.4** (pinned, plus the matching `.Icons`
   package); `AddFluentUIComponents()` in `Program.cs`. Icons come from the icon package as
   `new Icons.Regular.Size20.Foo()`, not inline SVG as on the older pages.
@@ -391,11 +395,141 @@ Undocumented until now, and it touches every page you will edit.
   changes it); `Program.cs` calls `UseRequestLocalization`, which is what makes
   `CultureInfo.CurrentCulture` correct on user-facing pages.
 - Arabic and Urdu are in the set, so **do not hard-code left-to-right layout assumptions**.
+- **Keys are matched case-insensitively** (`StringComparer.OrdinalIgnoreCase` in the
+  constructor), so `"People"` and `"people"` are the *same key* — adding both makes the
+  dictionary throw `ArgumentException` while the singleton is being built, which surfaces as a
+  500 on **every** page, not as a missing translation. Compose counts with a placeholder
+  (`Text.Format("{0} people", n)`) rather than appending a bare lowercase word to a number.
 
 Other Web services worth knowing before adding a feature: `EmployeeAccountService` (account
 creation + invite), `AccountEmailSender`/`SmtpAccountEmailSender` (setup links; falls back to a
 dev link when SMTP is unconfigured), `EmployeeCsvExportService` (the region-scoped export behind
 `/api/employees/export.csv`), `ThemeState` (dark/light, persisted), `LanguagePreferenceService`.
+
+## The org chart is lazy (rewritten 2026-08-17)
+
+`/employee/org-chart` shows the whole company, which is several hundred accounts, so it loads a
+branch at a time.
+
+- **`GetCompanyOrgChartAsync(currentUserId)`** returns a synthetic `Company` root (`UserId ==
+  Guid.Empty` — that is how the action checks recognise a row nobody can act on) holding everyone
+  who reports to nobody. Only two things are open on arrival: the chain of managers above the
+  viewer, and each of those managers' full teams, so the chart reads as an organisation rather
+  than a single line. Everything else is `HasUnloadedChildren = true, IsExpanded = false`.
+- **`GetOrgChartChildrenAsync(parentUserId)`** returns one level, fetched by
+  `CompanyDirectory.LoadChildrenAsync` when a node is first opened. It clears
+  `HasUnloadedChildren` whatever comes back, so a reopen does not re-query.
+- **`CompanyDirectory` runs its reads in its own DI scope, behind a `SemaphoreSlim`**, and does
+  not inject `EmployeeContext` at all. Injecting it directly hands the page the *circuit's*
+  DbContext, shared with `DbTimeOffService` and with whatever the previous page left running —
+  and two overlapping operations on one context is EF's "a second operation was started on this
+  context instance", which killed the chart on every client-side navigation carrying `?focus=`.
+  A full reload survived only because prerender and circuit get a scope each. The lock is
+  separate from the scope and still needed: this page's own reads (init, parameter set, an
+  expand) can overlap each other.
+- **`OnInitializedAsync` and `OnParametersSetAsync` are not event handlers**, so the project's
+  usual "wrap DB work in try/catch → `IToastService`" rule bites harder there: an exception
+  escaping either one kills the circuit, and the user gets the generic red bar on a half-drawn
+  page with nothing to act on. `CompanyDirectory` catches in both and falls back to the ordinary
+  tree. `CircuitOptions.DetailedErrors` is on in Development so that bar names the exception.
+- Arriving with `?focus=` skips building the company tree entirely — `OnParametersSetAsync` is
+  about to replace it, so building it first was a second whole-roster read thrown straight away.
+- **A node with unloaded children must still render a child, or it can never be opened.**
+  `FluentTreeItem` draws its expand chevron only when it actually contains child items, so a
+  stub with an empty `Subordinates` renders as a leaf and lazy loading can never start.
+  `OrgTreeNode` emits a disabled placeholder row for exactly this, replaced on expand.
+- A user whose manager is **inactive** is treated as a top of the chart; otherwise they hang
+  under a parent that is never drawn and vanish from the org entirely.
+- This replaced a builder that assembled the tree around the viewer — a non-admin got their own
+  team branch and nothing else, an admin got one level of synthetic department-group nodes that
+  could never expand because the loader was never wired up. `GetOrgChartPathAsync` and the old
+  `GetOrgChartChildrenAsync` (unscoped, uncalled) are gone with it.
+
+## Who can see whom (changed 2026-08-17)
+
+**Looking is worldwide; acting is regional.** These are two separate rules and the split is
+deliberate — widening one without keeping the other is the mistake to avoid.
+
+- **Worldwide**: the org chart (`/employee/org-chart`) and the global search. Any account,
+  including a plain Employee, may look up anybody in any region and see their name, role,
+  department, region and contract dates. The only gate left is that the *caller* must exist —
+  `GlobalSearchAsync`, `GetCompanyOrgChartAsync` and `GetOrgChartFocusedOnAsync` all throw
+  `EntityNotFoundException` for an unknown id and otherwise filter nothing by region.
+- **Still region-scoped, unchanged**: manager and HR dashboards, team rosters, leave decisions,
+  contract actions, delegation candidates and every CSV export. `ManagerContext` refuses a
+  decision or a contract across regions (`DecideRequestAsync`, `ExtendContractAsync`,
+  `TerminateContractAsync`) and so does `EmployeeContext.HrDecideRequestAsync`.
+- **The org chart's own action buttons** are gated by `CanManageRequests`/`CanManageContract` in
+  `CompanyDirectory`: a LineManager gets them on their own reports, HR and Admin on their own
+  region, nobody on anybody else. `OrgChartNode` carries `RegionId`/`Region` for exactly this —
+  without it the page cannot tell its own rows from the ones it may only read.
+- **`EmployeeContext.GetManagedUserIdsAsync`** answers "may I act on this row?" — the transitive
+  reports of a manager, region-scoped. Computed from the reporting graph, **not** by walking the
+  rendered tree: the focused view is built around somebody else and usually does not contain the
+  viewer at all, which silently took a manager's own buttons away.
+
+## Global search (header box + `/search`)
+
+Added 2026-08-17. One search behind both surfaces, answering two different questions with the
+same control: "take me to this person, I know the name" and "who is in Design, in Romania?".
+
+- **`EmployeeContext.GlobalSearchAsync(userId, query, regionId?, departmentId?, type, take)`**
+  is the only implementation; it replaced the dead `SearchUsersAsync` (written, never called,
+  and unscoped). Returns `GlobalSearchResult` — people/departments/regions plus a total per
+  type. In memory over `GetAllUsersAsync()`, like the org chart; at a hundred accounts that is
+  fine, and it is the first thing to push into the gateway if the roster grows.
+- **No region filter** (see "Who can see whom"): the caller only has to exist. `regionId`/
+  `departmentId` are the scope *pills*, and since everything is visible they simply narrow.
+- **Counts are computed for every type regardless of `type`**, because the chips are how the
+  user switches type and each has to report what is behind it. A count that does not match what
+  the drill-in produces sends people down dead ends, which is what facet counts exist to prevent.
+- **Departments and regions are grouped by `DepartmentId`/`RegionId`, never by the navigation
+  property.** `GetAllUsersAsync` reads `AsNoTracking` without identity resolution, so every user
+  carries its *own* `Department` and `Region` instances; grouping on those groups by reference
+  and turns each employee into a one-person department. That shipped once — 101 "departments"
+  and 106 "regions" for 106 people. There is a regression test whose fixture reproduces the
+  duplicate instances.
+- **`DepartmentHit.ManagerName` comes from `IDepartmentGateway`**, not from a user's
+  `Department.Manager`: the user query does not `ThenInclude` the manager, so that path is always
+  null and the column renders empty.
+- Empty query with no pill is the dropdown's opening state: it returns regions and departments
+  (places to drill into) and no people.
+- **`Components/GlobalSearchBox.razor`** sits in the `FluentHeader`, so it is on every
+  authenticated page. Clicking a region or department result **does not navigate** — it becomes
+  a scope pill and the search continues inside it, which is how region → department → person
+  works without anyone learning a query syntax. Enter opens `/search`.
+  - It opens its **own DI scope** (layout DbContext, see above) and cancels the in-flight
+    search on each keystroke so a slow early query cannot overwrite a later one.
+  - `@onfocusin`/`@onkeydown` are on the wrapping `<div>`, not on `FluentSearch`: `@on*` on a
+    *component* is not a DOM handler at all — it is splatted onto the underlying element as an
+    attribute whose value is a delegate, and nothing fires. Both events bubble.
+- **`Components/Employee/Pages/GlobalSearch.razor`** (`/search`) is the same search with the
+  lid off. Every narrowing goes through the query string (`q`, `type`, `region`, `department`)
+  and `OnParametersSetAsync` re-runs the search, so a drilled-down view is linkable and a
+  pasted URL behaves exactly like a click.
+- A person result lands on `/employee/org-chart?focus={userId}`, which `CompanyDirectory` answers
+  with **`EmployeeContext.GetOrgChartFocusedOnAsync`** — a second tree, built around the target
+  rather than around the viewer: their whole manager chain, the colleagues sharing their manager,
+  and their own direct reports, with `IsFocusNode` set on the one node to scroll to. Worldwide
+  like the search that produced the link; returns null (page shows a notice) only for an unknown
+  or deactivated target.
+  - It exists because the ordinary tree cannot answer this: it opens on the *viewer*, so an
+    arbitrary person is somewhere behind an unexpanded branch. Expanding a path to them failed —
+    `ExpandPathToNode` only walks nodes already materialised.
+  - Both org-chart builders must stay cycle-safe in the *node graph*, not just in the user walk:
+    `SetAllExpanded` and the renderer recurse over `Subordinates`, so one cyclic edge is a stack
+    overflow rather than a wrong picture. The focused builder keeps a `placed` set for this; there
+    is a test that reproduces it.
+  - `CompanyDirectory` reads `?focus=` in **`OnParametersSetAsync`**, not `OnInitializedAsync`:
+    searching for a second person while already on the page reuses the component, so
+    `OnInitializedAsync` never runs again and the new parameter would be silently ignored. A
+    `_loadedFocus` field stops the same value reloading on every parameter set.
+  - Selecting the row is two mechanisms that must agree: `OrgTreeNode` binds `Selected` from
+    `_selectedNode`, and `companyOrgChart.focusNode` clears the others and scrolls. The JS
+    **waits for `customElements.whenDefined('fluent-tree-item')` and retries across frames until
+    the row has a `shadowRoot`** — set before the custom element is upgraded, `selected` is
+    discarded by the component's own initialisation, which showed up as the detail panel being
+    right while the row stayed unmarked, intermittently.
 
 ## Delegation = borrowed accounts (not delegated permissions)
 
@@ -435,6 +569,28 @@ trace. The compensating controls below are what make that acceptable; don't remo
   "everyone" tab for Admins that `ManagerContext` refuses for anyone else (hiding the tab is
   convenience, not the control). Nav entry appears only for admins and people who have
   actually delegated or been delegated to.
+- **Anyone may delegate, not only managers** (2026-08-17). `CreateDelegationAsync` never
+  checked the delegator's role — only the UI did, so the backend needed nothing. `MyDelegations`
+  (`/employee/delegations`, in the drawer for everyone) is the page: delegations you gave, with
+  cancel, and the accounts you may act for, with the same hidden-form switch the drawer uses.
+  Managers keep their own card on `/manager/team`; this page duplicates it deliberately rather
+  than moving it, so nobody's dashboard changes.
+  - Nominating is **optional** for everyone except Admins, who still cannot take leave without
+    a stand-in. The wording and target of the delegation notification are role-dependent:
+    `/manager/team` is meaningless (and inaccessible) to an employee delegate, so it points at
+    `/employee/delegations` for everybody.
+  - Borrowing an employee's account grants no approval rights, so the only mark a delegate can
+    leave is a leave request in that person's name. `EmployeeContext.SubmitRequestAsync` takes
+    the same optional `ActingOnBehalf`, guarded through `EmployeeContext.GuardAsync` and
+    audited as `DelegatedActionType.LeaveRequested`. `DbTimeOffService` resolves it from the
+    auth state and passes it, so `ITimeOffService` — and the in-memory mock behind it — stayed
+    untouched.
+  - **Known gap, pre-existing:** `EmployeeContext.UpdateRequestDatesAsync` takes no
+    `ActingOnBehalf`. Its only callers are the manager and HR dashboards, where the borrowed
+    account is the *reviewer's* and not the request owner's, so the guard would have to be
+    against a caller id the method does not receive. A delegate editing leave dates from a
+    borrowed manager account is therefore unaudited. Fixing it means adding the acting-as id
+    to the signature and to both call sites.
 - **Admins must nominate a stand-in before taking leave**: nobody reviews their requests, so
   `EmployeeContext.SubmitRequestAsync` throws `DelegationRequiredException` unless an active
   delegation overlaps the period. `EmployeeCalendar` catches that one exception, offers the

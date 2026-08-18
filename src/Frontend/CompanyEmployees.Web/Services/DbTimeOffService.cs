@@ -1,6 +1,8 @@
+using CompanyEmployees.Application;
 using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Web.Models;
+using CompanyEmployees.Web.Security;
 using Microsoft.AspNetCore.Components.Authorization;
 using DomainEnums = CompanyEmployees.Domain.Enums;
 
@@ -34,6 +36,21 @@ public class DbTimeOffService : ITimeOffService
             ?? throw new InvalidOperationException("No authenticated user.");
 
         return _currentUser = await _employee.GetEmployeeByEmailAsync(email);
+    }
+
+    // Who is really at the keyboard. GetDomainUserAsync resolves the *borrowed* account while
+    // an account is being borrowed, which is the right author for the request — but it says
+    // nothing about the human, and that is what the audit row needs. Resolved here rather than
+    // taken as a parameter so ITimeOffService (and the in-memory mock behind it) stay as they
+    // are: delegation has no business on that interface.
+    private async Task<ActingOnBehalf?> GetOnBehalfAsync()
+    {
+        var state = await _authStateProvider.GetAuthenticationStateAsync();
+        var acting = ActingUser.Resolve(state.User);
+
+        return acting is { IsImpersonating: true, DelegationId: { } delegationId }
+            ? new ActingOnBehalf(acting.RealUserId, delegationId)
+            : null;
     }
 
     public async Task<TeamMember> GetCurrentUserAsync()
@@ -238,7 +255,8 @@ public class DbTimeOffService : ITimeOffService
         try
         {
             var user = await GetDomainUserAsync();
-            var created = await _employee.SubmitRequestAsync(user.Id, MapTypeToDomain(type), start, end, reason);
+            var created = await _employee.SubmitRequestAsync(
+                user.Id, MapTypeToDomain(type), start, end, reason, await GetOnBehalfAsync());
             var holidays = await GetHolidayDatesAsync(user, [created]);
             return MapRequest(created, holidays);
         }

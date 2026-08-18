@@ -14,6 +14,12 @@ namespace CompanyEmployees.Application
         public string Initials { get; set; } = string.Empty;
         public Guid? ManagerId { get; set; }
 
+        // The chart is worldwide, but acting on somebody is not: the page needs the region to
+        // tell its own rows from the ones it may only look at. Empty on the synthetic grouping
+        // nodes (HQ, department headings, sites), which nobody can act on anyway.
+        public Guid RegionId { get; set; }
+        public string Region { get; set; } = string.Empty;
+
         // Request information
         public bool HasPendingRequest { get; set; }
         public Guid? PendingRequestId { get; set; }

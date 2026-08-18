@@ -1,0 +1,314 @@
+@page "/employee/delegations"
+@layout EmployeeLayout
+@using System.Globalization
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Logging
+@using CompanyEmployees.Application
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Web.Security
+@inject ManagerContext Manager
+@inject EmployeeContext Employees
+@inject ActingContext Acting
+@inject NavigationManager Nav
+@inject IDialogService DialogService
+@inject IToastService Toast
+@inject IJSRuntime JSRuntime
+@inject AppLocalizer Text
+@inject ILogger<MyDelegations> Logger
+
+<PageTitle>Delegations · Time Off Management</PageTitle>
+
+<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text["Delegations"]</FluentLabel>
+<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" MarginBlock="4px 16px">
+    @Text["A delegate signs in as you for the period you choose, and sees everything your account sees."]
+</FluentLabel>
+
+@if (_failed)
+{
+    <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">
+        @Text["Could not load your delegations."]
+    </FluentMessageBar>
+}
+else if (_loading)
+{
+    <FluentProgressRing />
+}
+else
+{
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="24">
+
+        @* ---- who covers for me ------------------------------------------------------ *@
+        <FluentCard Style="padding:16px;">
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+                             HorizontalGap="8">
+                    <FluentIcon Value="@(new Icons.Regular.Size20.PersonArrowRight())" Color="Color.Accent" />
+                    <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">
+                        @Text["Who covers for me"]
+                    </FluentLabel>
+                    <FluentSpacer />
+                    @* Hidden while borrowing rather than disabled: CreateDelegationAsync refuses
+                       it anyway, and a button that always errors reads as a bug. *@
+                    @if (_acting?.IsImpersonating != true)
+                    {
+                        <FluentButton Appearance="Appearance.Accent"
+                                      IconStart="@(new Icons.Regular.Size20.PersonAdd())"
+                                      OnClick="OpenCreateDelegationDialogAsync">
+                            @Text["Nominate a colleague"]
+                        </FluentButton>
+                    }
+                </FluentStack>
+
+                @if (_given.Count == 0)
+                {
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                        @Text["Nobody is covering for you. Nominating someone is optional — do it when you are away and something may need attention in your name."]
+                    </FluentLabel>
+                }
+                else
+                {
+                    <FluentDataGrid Items="@_given.AsQueryable()" TGridItem="ManagerDelegation"
+                                    GridTemplateColumns="1.5fr 1.5fr 2fr 1fr 140px" ShowHover="true">
+                        <TemplateColumn Title="@Text["Delegate"]">
+                            @(context.Delegate?.Name ?? Text["Colleague"])
+                        </TemplateColumn>
+                        <TemplateColumn Title="@Text["Period"]">
+                            @Period(context)
+                        </TemplateColumn>
+                        <TemplateColumn Title="@Text["Reason"]">
+                            @(string.IsNullOrWhiteSpace(context.Reason) ? "—" : context.Reason)
+                        </TemplateColumn>
+                        <TemplateColumn Title="@Text["Status"]">
+                            <FluentBadge Appearance="@(IsRunning(context) ? Appearance.Accent : Appearance.Neutral)">
+                                @StatusLabel(context)
+                            </FluentBadge>
+                        </TemplateColumn>
+                        <TemplateColumn Align="Align.End">
+                            @* Only what is still live can be called off; a finished window has
+                               nothing left to cancel. *@
+                            @if (context.IsActive && context.EndDate >= Today && _acting?.IsImpersonating != true)
+                            {
+                                <FluentButton Appearance="Appearance.Outline"
+                                              OnClick="@(() => CancelAsync(context.Id))">
+                                    @Text["Cancel"]
+                                </FluentButton>
+                            }
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                }
+            </FluentStack>
+        </FluentCard>
+
+        @* ---- accounts I can act for -------------------------------------------------- *@
+        <FluentCard Style="padding:16px;">
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+                             HorizontalGap="8">
+                    <FluentIcon Value="@(new Icons.Regular.Size20.ArrowSwap())" Color="Color.Accent" />
+                    <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">
+                        @Text["Accounts I can act for"]
+                    </FluentLabel>
+                </FluentStack>
+
+                @if (_received.Count == 0)
+                {
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                        @Text["Nobody has asked you to cover for them."]
+                    </FluentLabel>
+                }
+                else
+                {
+                    @* Switching swaps the auth cookie, which a circuit cannot do — hence a real
+                       form post, the same hop login makes. One form per delegation with its id
+                       already in the markup: filling a single shared form on click races the
+                       render and the post leaves with an empty id. *@
+                    @foreach (var delegation in _received)
+                    {
+                        <form id="@ImpersonateFormId(delegation.Id)" method="post"
+                              action="/api/auth/impersonate" style="display:none;">
+                            <input type="hidden" name="delegationId" value="@delegation.Id" />
+                        </form>
+                    }
+
+                    <FluentDataGrid Items="@_received.AsQueryable()" TGridItem="ManagerDelegation"
+                                    GridTemplateColumns="1.5fr 1.5fr 2fr 160px" ShowHover="true">
+                        <TemplateColumn Title="@Text["Account"]">
+                            @(context.Manager?.Name ?? Text["Colleague"])
+                        </TemplateColumn>
+                        <TemplateColumn Title="@Text["Period"]">
+                            @Period(context)
+                        </TemplateColumn>
+                        <TemplateColumn Title="@Text["Reason"]">
+                            @(string.IsNullOrWhiteSpace(context.Reason) ? "—" : context.Reason)
+                        </TemplateColumn>
+                        <TemplateColumn Align="Align.End">
+                            @* Chaining is refused by the endpoint, so the entry is not offered
+                               from inside a borrowed account either. *@
+                            @if (_acting?.IsImpersonating != true)
+                            {
+                                <FluentButton Appearance="Appearance.Accent"
+                                              IconStart="@(new Icons.Regular.Size20.ArrowSwap())"
+                                              OnClick="@(() => StartImpersonationAsync(context.Id))">
+                                    @Text["Act as them"]
+                                </FluentButton>
+                            }
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                }
+            </FluentStack>
+        </FluentCard>
+    </FluentStack>
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private Guid _userId;
+    private ActingUser? _acting;
+    private bool _loading = true;
+    private bool _failed;
+
+    private List<ManagerDelegation> _given = new();
+    private List<ManagerDelegation> _received = new();
+
+    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
+
+    // No role check on purpose: delegating is now something anyone may do, and the two
+    // queries below are filtered to this account, so the page can only ever show your own
+    // two sides of it.
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+            return;
+
+        _acting = await Acting.GetAsync();
+        if (_acting is null)
+        {
+            _failed = true;
+            _loading = false;
+            return;
+        }
+
+        // The effective account is the one whose delegations are on show: while borrowing,
+        // this page describes the borrowed account, exactly as the rest of the app does.
+        _userId = _acting.EffectiveUserId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _given = await Manager.GetMyDelegationsAsync(_userId);
+            _received = await Manager.GetActiveDelegationsAssignedToMeAsync(_userId);
+            _failed = false;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Could not load delegations for {UserId}.", _userId);
+            _failed = true;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenCreateDelegationDialogAsync()
+    {
+        List<User> candidates;
+        try
+        {
+            // The same circle CreateDelegationAsync enforces — colleagues in your own region.
+            candidates = (await Employees.GetUsersInMyRegionAsync(_userId))
+                .Where(user => user.Id != _userId)
+                .ToList();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Could not load delegate candidates for {UserId}.", _userId);
+            Toast.ShowError(Text["Could not load your colleagues."]);
+            return;
+        }
+
+        if (candidates.Count == 0)
+        {
+            Toast.ShowError(Text["There is nobody in your region who could take over."]);
+            return;
+        }
+
+        var content = new CreateDelegationDialog.Model
+        {
+            AvailableUsers = candidates,
+            Intro = Text["While the delegation lasts, this colleague signs in as you and sees everything you see. Keep the window as short as the handover."]
+        };
+
+        var parameters = new DialogParameters
+        {
+            Title = Text["Who takes over while you are away?"],
+            PrimaryAction = Text["Delegate"],
+            SecondaryAction = Text["Cancel"],
+            Width = "520px",
+            ValidateDialogAsync = () => Task.FromResult(content.Validate())
+        };
+
+        var dialog = await DialogService.ShowDialogAsync<CreateDelegationDialog, CreateDelegationDialog.Model>(
+            content, parameters);
+
+        var dialogResult = await dialog.Result;
+        if (dialogResult.Cancelled || !content.IsValid)
+            return;
+
+        var result = content.ToResult();
+        try
+        {
+            await Manager.CreateDelegationAsync(
+                _userId, result.DelegateId, result.StartDate, result.EndDate, result.Reason);
+            Toast.ShowSuccess(Text["Delegation created."]);
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            Toast.ShowError(exception.Message);
+        }
+    }
+
+    private async Task CancelAsync(Guid delegationId)
+    {
+        try
+        {
+            await Manager.CancelDelegationAsync(_userId, delegationId);
+            Toast.ShowInfo(Text["Delegation cancelled."]);
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            Toast.ShowError(exception.Message);
+        }
+    }
+
+    private static string ImpersonateFormId(Guid delegationId) => $"impersonate-{delegationId:D}";
+
+    private Task StartImpersonationAsync(Guid delegationId) =>
+        JSRuntime.InvokeVoidAsync("eval",
+            $"document.getElementById('{ImpersonateFormId(delegationId)}').submit();").AsTask();
+
+    private static bool IsRunning(ManagerDelegation delegation) =>
+        delegation.IsActive && delegation.StartDate <= Today && delegation.EndDate >= Today;
+
+    private string StatusLabel(ManagerDelegation delegation) =>
+        !delegation.IsActive ? Text["Cancelled"]
+        : delegation.EndDate < Today ? Text["Finished"]
+        : delegation.StartDate > Today ? Text["Scheduled"]
+        : Text["Active"];
+
+    // Invariant, like every other date in the app: the server culture may not be English.
+    private static string Period(ManagerDelegation delegation) =>
+        delegation.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
+        + " – "
+        + delegation.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+}

@@ -52,6 +52,9 @@
             }
 
             <FluentSpacer />
+            @* Search sits before the bell and the name, in the one bar that is on every
+               authenticated page — that is what makes it global. *@
+            <CompanyEmployees.Web.Components.GlobalSearchBox />
             <CompanyEmployees.Web.Components.NotificationBell />
             @* The borrowed account is already named on the left of this bar; repeating it here
                left the real person nowhere on screen. *@
@@ -88,6 +91,10 @@
                            Icon="@(new Icons.Regular.Size20.Document())">@Text["My Requests"]</FluentNavLink>
             <FluentNavLink Href="/employee/org-chart" Match="NavLinkMatch.All"
                            Icon="@(new Icons.Regular.Size20.Organization())">@Text["Org Chart"]</FluentNavLink>
+            @* Shown to everyone, unlike the history below: nominating a stand-in is now
+               something any account can do, so the page has a purpose before it has content. *@
+            <FluentNavLink Href="/employee/delegations" Match="NavLinkMatch.All"
+                           Icon="@(new Icons.Regular.Size20.PersonSwap())">@Text["Delegations"]</FluentNavLink>
 
             @if (_canSeeDelegationHistory)
             {
