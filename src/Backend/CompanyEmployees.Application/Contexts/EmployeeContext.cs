@@ -82,22 +82,10 @@ namespace CompanyEmployees.Application.Contexts
                 user,
                 year,
                 requests,
-                companyStartDate);
-            var carryOverExpiryDate = LeaveAllocationPolicy.AnnualCarryOverExpiryDate(year);
-            var annualDaysUsedBeforeExpiry = requests
-                .Where(r => r.Status == LeaveStatus.Approved
-                            && r.Type == LeaveType.Annual
-                            && r.StartDate.Year == year
-                            && r.StartDate <= carryOverExpiryDate)
-                .Sum(r => CountWorkingDays(
-                    r.StartDate,
-                    r.EndDate < carryOverExpiryDate ? r.EndDate : carryOverExpiryDate,
-                    holidays));
-            var expiredAnnualCarryOver = LeaveAllocationPolicy.ExpiredAnnualCarryOverDays(
-                annualCarryOver,
-                Math.Min(annualCarryOver, annualDaysUsedBeforeExpiry),
-                year,
+                companyStartDate,
+                holidays,
                 asOf ?? DateOnly.FromDateTime(DateTime.Today));
+            var annualCarryOverDays = annualCarryOver.Sum(portion => portion.Days);
 
             var balances = new List<LeaveBalanceResult>();
             foreach (var allocation in allocations)
@@ -112,60 +100,117 @@ namespace CompanyEmployees.Application.Contexts
                 {
                     Type = allocation.LeaveType,
                     DaysTotal = (allocation.LeaveType == LeaveType.Annual
-                            ? annualEntitlement
-                            : allocation.NumberOfDays)
-                        + (allocation.LeaveType == LeaveType.Annual ? annualCarryOver : 0),
+                        ? annualEntitlement
+                        : allocation.NumberOfDays)
+                        + (allocation.LeaveType == LeaveType.Annual ? annualCarryOverDays : 0),
                     DaysUsed = daysUsed,
-                    CarriedOverDays = allocation.LeaveType == LeaveType.Annual
+                    CarryOverPortions = allocation.LeaveType == LeaveType.Annual
                         ? annualCarryOver
-                        : 0,
-                    ExpiredCarriedOverDays = allocation.LeaveType == LeaveType.Annual
-                        ? expiredAnnualCarryOver
-                        : 0,
-                    CarryOverExpiryDate = allocation.LeaveType == LeaveType.Annual
-                        && annualCarryOver > 0
-                            ? carryOverExpiryDate
-                            : null
+                        : []
                 });
             }
             return balances;
         }
 
-        private async Task<int> GetAnnualCarryOverAsync(
+        private async Task<List<AnnualCarryOverPortionResult>> GetAnnualCarryOverAsync(
             User user,
             int year,
             IReadOnlyCollection<LeaveRequest> requests,
-            DateOnly? companyStartDate)
+            DateOnly? companyStartDate,
+            HashSet<DateOnly> currentYearHolidays,
+            DateOnly asOf)
         {
             var previousYear = year - 1;
             var previousAnnualAllocation = (await _leaveRequestGateway
                     .GetAllocationsByUserAsync(user.Id, previousYear))
                 .FirstOrDefault(allocation => allocation.LeaveType == LeaveType.Annual);
 
-            // No allocation means the employee had no annual entitlement in that year.
             if (previousAnnualAllocation == null)
-                return 0;
+                return [];
 
             var previousYearHolidays = (await _holidayProvider
                     .GetHolidaysAsync(user.Region.Code, previousYear))
                 .Select(holiday => holiday.Date)
                 .ToHashSet();
-            var previousYearUsed = requests
-                .Where(request => request.Status == LeaveStatus.Approved
-                                  && request.Type == LeaveType.Annual
-                                  && request.StartDate.Year == previousYear)
-                .Sum(request => CountWorkingDays(
-                    request.StartDate,
-                    request.EndDate,
-                    previousYearHolidays));
+            var previousYearUsed = AnnualDaysUsed(requests, previousYear, previousYearHolidays);
 
-            return LeaveAllocationPolicy.AnnualCarryOverDays(
+            // A portion remains available into its second carry-over calendar year.
+            // Previous-year leave consumes that older portion first, preserving the newer
+            // entitlement and its later expiry date.
+            var twoYearsAgo = year - 2;
+            var twoYearsAgoAllocation = (await _leaveRequestGateway
+                    .GetAllocationsByUserAsync(user.Id, twoYearsAgo))
+                .FirstOrDefault(allocation => allocation.LeaveType == LeaveType.Annual);
+            var olderCarryAtPreviousYearStart = 0;
+            if (twoYearsAgoAllocation != null)
+            {
+                var twoYearsAgoHolidays = (await _holidayProvider
+                        .GetHolidaysAsync(user.Region.Code, twoYearsAgo))
+                    .Select(holiday => holiday.Date)
+                    .ToHashSet();
+                var twoYearsAgoUsed = AnnualDaysUsed(requests, twoYearsAgo, twoYearsAgoHolidays);
+                olderCarryAtPreviousYearStart = LeaveAllocationPolicy.AnnualCarryOverDays(
+                    LeaveAllocationPolicy.AnnualDaysForRegion(
+                        user.Region.Code,
+                        companyStartDate,
+                        twoYearsAgo),
+                    twoYearsAgoUsed);
+            }
+
+            var olderCarryAtYearStart = Math.Max(
+                0,
+                olderCarryAtPreviousYearStart - previousYearUsed);
+            var previousEntitlementUsed = Math.Max(
+                0,
+                previousYearUsed - olderCarryAtPreviousYearStart);
+            var recentCarryAtYearStart = LeaveAllocationPolicy.AnnualCarryOverDays(
                 LeaveAllocationPolicy.AnnualDaysForRegion(
                     user.Region.Code,
                     companyStartDate,
                     previousYear),
-                previousYearUsed);
+                previousEntitlementUsed);
+
+            var portions = new List<AnnualCarryOverPortionResult>();
+            if (olderCarryAtYearStart > 0)
+            {
+                var olderExpiry = LeaveAllocationPolicy.AnnualCarryOverExpiryDate(previousYear);
+                var usedBeforeOlderExpiry = requests
+                    .Where(request => request.Status == LeaveStatus.Approved
+                                      && request.Type == LeaveType.Annual
+                                      && request.StartDate.Year == year
+                                      && request.StartDate <= olderExpiry)
+                    .Sum(request => CountWorkingDays(
+                        request.StartDate,
+                        request.EndDate < olderExpiry ? request.EndDate : olderExpiry,
+                        currentYearHolidays));
+                var expired = LeaveAllocationPolicy.ExpiredAnnualCarryOverDays(
+                    olderCarryAtYearStart,
+                    Math.Min(olderCarryAtYearStart, usedBeforeOlderExpiry),
+                    previousYear,
+                    asOf);
+                portions.Add(new(olderCarryAtYearStart, olderExpiry, expired));
+            }
+
+            if (recentCarryAtYearStart > 0)
+            {
+                portions.Add(new(
+                    recentCarryAtYearStart,
+                    LeaveAllocationPolicy.AnnualCarryOverExpiryDate(year),
+                    0));
+            }
+
+            return portions;
         }
+
+        private static int AnnualDaysUsed(
+            IEnumerable<LeaveRequest> requests,
+            int year,
+            HashSet<DateOnly> holidays) =>
+            requests
+                .Where(request => request.Status == LeaveStatus.Approved
+                                  && request.Type == LeaveType.Annual
+                                  && request.StartDate.Year == year)
+                .Sum(request => CountWorkingDays(request.StartDate, request.EndDate, holidays));
 
         public async Task<IReadOnlyList<PublicHoliday>> GetRegionalHolidaysAsync(Guid userId, int year)
         {

@@ -27,8 +27,13 @@ public class InMemoryTimeOffService : ITimeOffService
                 Type = LeaveType.Annual,
                 DaysUsed = 9,
                 DaysTotal = 24,
-                CarriedOverDays = 3,
-                CarryOverExpiryDate = new DateOnly(DateTime.Today.Year, 6, 30)
+                CarryOverPortions =
+                [
+                    new AnnualCarryOverPortion(
+                        3,
+                        new DateOnly(DateTime.Today.Year + 1, 6, 30),
+                        0)
+                ]
             },
             new LeaveBalance { Type = LeaveType.Sick, DaysUsed = 10, DaysTotal = 10 },
             new LeaveBalance { Type = LeaveType.Parental, DaysUsed = 0, DaysTotal = 16 },

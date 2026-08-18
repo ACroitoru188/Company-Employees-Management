@@ -141,7 +141,7 @@ public class LeaveAllocationPolicyTests
     public void AnnualCarryOverExpiryDate_is_eighteen_months_after_entitlement_starts()
     {
         Assert.Equal(new DateOnly(2027, 6, 30),
-            LeaveAllocationPolicy.AnnualCarryOverExpiryDate(2027));
+            LeaveAllocationPolicy.AnnualCarryOverExpiryDate(2026));
     }
 
     [Theory]
@@ -159,7 +159,7 @@ public class LeaveAllocationPolicyTests
         var expired = LeaveAllocationPolicy.ExpiredAnnualCarryOverDays(
             carriedOver,
             usedBeforeExpiry,
-            2027,
+            2026,
             new DateOnly(year, month, day));
 
         Assert.Equal(expectedExpired, expired);
