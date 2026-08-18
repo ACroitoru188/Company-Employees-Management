@@ -1,4 +1,23 @@
 services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: company-employees-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-CompanyEmployees_dev_2026!}
+    ports:
+      - "${SQLSERVER_PORT:-1433}:1433"
+    volumes:
+      - company-employees-sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" -b -o /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
   postgres:
     image: postgres:16-alpine
     container_name: company-employees-postgres
@@ -19,4 +38,5 @@ services:
       start_period: 10s
      
 volumes:
+  company-employees-sqlserver-data:
   company-employees-postgres-data:

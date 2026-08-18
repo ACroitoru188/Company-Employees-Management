@@ -7,15 +7,15 @@
     Use this when you want the schema updated without launching, or to check that your
     database matches everyone else's after a pull.
 
-    Defaults to the LocalDB instance in appsettings.Development.json. Pass a connection
-    string to point somewhere else; it is exported as ConnectionStrings__Default, which is
-    what DesignTimeDbContextFactory reads.
+    Defaults to the SQL Server container configured in compose.yaml. Pass a connection
+    string to use LocalDB, SQL Express, or another server; it is exported as
+    ConnectionStrings__Default, which is what DesignTimeDbContextFactory reads.
 
 .EXAMPLE
     .\scripts\db-update.ps1
 
 .EXAMPLE
-    .\scripts\db-update.ps1 -ConnectionString "Server=.\SQLEXPRESS;Database=CompanyEmployees;Trusted_Connection=True;TrustServerCertificate=True"
+    .\scripts\db-update.ps1 -ConnectionString "Server=(localdb)\MSSQLLocalDB;Database=CompanyEmployees;Trusted_Connection=True"
 #>
 param(
     [string]$ConnectionString
@@ -33,7 +33,7 @@ try {
         Write-Host "Using the supplied connection string." -ForegroundColor Cyan
     }
     else {
-        Write-Host "Using the LocalDB default from DesignTimeDbContextFactory." -ForegroundColor Cyan
+        Write-Host "Using the Docker SQL Server default from DesignTimeDbContextFactory." -ForegroundColor Cyan
     }
 
     Write-Host "`nRestoring dotnet-ef..." -ForegroundColor Cyan

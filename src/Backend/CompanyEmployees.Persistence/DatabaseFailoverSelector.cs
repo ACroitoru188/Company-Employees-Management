@@ -65,7 +65,10 @@ public static class DatabaseFailoverSelector
             ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
         var builder = new SqlConnectionStringBuilder(connectionString)
         {
-            ConnectTimeout = ProbeTimeout(configuration)
+            ConnectTimeout = ProbeTimeout(configuration),
+            // Probe the server rather than the application catalog. On a fresh Docker
+            // volume CompanyEmployees does not exist until EF applies its migrations.
+            InitialCatalog = "master"
         };
 
         await using var connection = new SqlConnection(builder.ConnectionString);
