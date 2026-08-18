@@ -507,6 +507,17 @@ same control: "take me to this person, I know the name" and "who is in Design, i
   lid off. Every narrowing goes through the query string (`q`, `type`, `region`, `department`)
   and `OnParametersSetAsync` re-runs the search, so a drilled-down view is linkable and a
   pasted URL behaves exactly like a click.
+  - Three cards — regions, departments, people — matching the manager/HR pages rather than
+    bare grids on the page background. The **departments card only appears once a region is
+    pinned**: a department list spanning every country is the same five names repeated
+    thirty-two times. It is fed by its own query, not by `_result.Departments`, because the
+    type chip suppresses whole lists and the card would empty itself on "People".
+  - The pinned row in each card swaps "Look inside" for "Clear", so a wrong turn is undone
+    where it was taken instead of only at the pill above.
+  - **A dropdown was tried here first and does not work**: `FluentBodyContent` renders
+    `div.body-content` with `overflow: hidden auto`, so any popup opened from page content is
+    clipped at the viewport of that scroll container — measured, not guessed. Anything that
+    needs to escape the page body has to be a card, a dialog, or anchored outside it.
 - A person result lands on `/employee/org-chart?focus={userId}`, which `CompanyDirectory` answers
   with **`EmployeeContext.GetOrgChartFocusedOnAsync`** — a second tree, built around the target
   rather than around the viewer: their whole manager chain, the colleagues sharing their manager,

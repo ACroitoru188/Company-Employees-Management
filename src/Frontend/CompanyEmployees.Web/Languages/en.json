@@ -200,5 +200,8 @@
   "Delegation cancelled.": "Delegation cancelled.",
   "Finished": "Finished",
   "Scheduled": "Scheduled",
-  "{0} people": "{0} people"
+  "{0} people": "{0} people",
+  "Look up anyone in the company, or pick a region and a department to browse.": "Look up anyone in the company, or pick a region and a department to browse.",
+  "All departments": "All departments",
+  "Clear": "Clear"
 }

@@ -46,9 +46,20 @@
            the input has no matching focusin and the panel closes under the pointer mid-click. *@
         <div class="search-panel" @onclick:stopPropagation="true" @onmousedown="KeepOpen">
 
-            <div class="search-head">
-                @if (_regionPill is not null || _departmentPill is not null)
-                {
+            @* Above everything and always rendered, never conditional: this is the panel's one
+               fixed landmark. Tying it to whether results exist, or parking it under the last
+               row, meant it moved with the content — and a button that moves is a button you
+               look for instead of one you know. *@
+            <button type="button" class="search-all" @onclick="OpenResultsPage">
+                @Text["See all results"]
+            </button>
+
+            @* No close button: clicking outside closes the panel, and so does Escape. A third
+               way to do the same thing only takes room from the results. The head is here for
+               the scope pills alone, so it does not render when there are none. *@
+            @if (_regionPill is not null || _departmentPill is not null)
+            {
+                <div class="search-head">
                     <span class="search-pills-label">@Text["Searching in"]</span>
                     @if (_regionPill is not null)
                     {
@@ -62,11 +73,8 @@
                             🏢 @_departmentPill.Name <span class="search-pill-x">✕</span>
                         </button>
                     }
-                }
-                <span class="search-spacer"></span>
-                @* Escape and a click outside both close it too; this is the one that is visible. *@
-                <button type="button" class="search-close" title="@Text["Close"]" @onclick="Close">✕</button>
-            </div>
+                </div>
+            }
 
             @* ---- type chips, each carrying what is behind it ---------------------- *@
             <div class="search-chips">
@@ -144,13 +152,6 @@
                             </button>
                         }
                     }
-
-                    @if (HasMoreThanShown)
-                    {
-                        <button type="button" class="search-more" @onclick="OpenResultsPage">
-                            @Text["See all results"] →
-                        </button>
-                    }
                 }
             </div>
         </div>
@@ -192,11 +193,6 @@
         new Chip(SearchEntityType.Departments, Text["Departments"], _result?.DepartmentsTotal),
         new Chip(SearchEntityType.Regions, Text["Regions"], _result?.RegionsTotal)
     };
-
-    private bool HasMoreThanShown => _result is not null
-        && (_result.PeopleTotal > _result.People.Count
-            || _result.DepartmentsTotal > _result.Departments.Count
-            || _result.RegionsTotal > _result.Regions.Count);
 
     private bool HasSomethingToShow =>
         _query.Length > 0 || _regionPill is not null || _departmentPill is not null;
@@ -250,8 +246,6 @@
         // as anything changes, and showing yesterday's list is worse than a moment's wait.
         await SearchAsync();
     }
-
-    private void Close() => _open = false;
 
     private void KeepOpen() => _focusWithin = true;
 

@@ -38,17 +38,13 @@
     cursor: default;
 }
 
-/* --- head: pills on the left, close on the right ------------------------------- */
+/* --- head: the scope pills, rendered only when there are any -------------------- */
 
 .search-head {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-}
-
-.search-spacer {
-    flex: 1 1 auto;
 }
 
 .search-pills-label {
@@ -78,23 +74,6 @@
 .search-pill-x {
     color: var(--neutral-foreground-hint);
     font-size: 11px;
-}
-
-.search-close {
-    padding: 2px 6px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--neutral-foreground-hint);
-    font: inherit;
-    font-size: 13px;
-    line-height: normal;
-    cursor: pointer;
-}
-
-.search-close:hover {
-    background: var(--neutral-fill-stealth-hover);
-    color: var(--neutral-foreground-rest);
 }
 
 /* --- type chips ---------------------------------------------------------------- */
@@ -229,19 +208,28 @@
     text-align: center;
 }
 
-.search-more {
-    margin-top: 4px;
-    padding: 8px;
+/* The panel's fixed landmark: first child, centred, always present. align-self centres it
+   without stretching the row, which is what lets it read as a quiet text action rather than a
+   full-width bar. flex-shrink is off because the panel is a scrolling flex column — otherwise
+   this is the first thing squeezed as the results grow. */
+.search-all {
+    flex: 0 0 auto;
+    align-self: center;
+    padding: 2px 4px;
     border: none;
-    border-radius: 4px;
     background: transparent;
     color: var(--accent-foreground-rest);
     font: inherit;
-    font-size: 13px;
+    font-size: 12px;
+    font-weight: 600;
     line-height: normal;
+    white-space: nowrap;
     cursor: pointer;
 }
 
-.search-more:hover {
-    background: var(--neutral-fill-stealth-hover);
+/* Underline rather than a fill: the resting state carries no background, so hover should not
+   introduce a shape that was not there. */
+.search-all:hover {
+    color: var(--accent-foreground-hover, var(--accent-foreground-rest));
+    text-decoration: underline;
 }
