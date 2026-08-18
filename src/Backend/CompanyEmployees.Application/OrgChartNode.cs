@@ -20,6 +20,15 @@ namespace CompanyEmployees.Application
         public Guid RegionId { get; set; }
         public string Region { get; set; } = string.Empty;
 
+        // Free-text physical location, one level finer than Region. Both optional — a person
+        // with neither attaches straight under their Region node, same as before this existed.
+        public string? City { get; set; }
+        public string? Site { get; set; }
+
+        // True for Company/Region/City/Site nodes. These get a random Guid, not Guid.Empty, so
+        // the page's action checks need this flag rather than inferring it from the id.
+        public bool IsSyntheticGroup { get; set; }
+
         // Request information
         public bool HasPendingRequest { get; set; }
         public Guid? PendingRequestId { get; set; }

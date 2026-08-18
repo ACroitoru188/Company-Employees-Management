@@ -250,6 +250,21 @@ else
                                     <FluentLabel Typo="Typography.Body">@_selectedNode.Region</FluentLabel>
                                 </FluentStack>
                             }
+                            @* City/Site are optional — most seed accounts have neither, so the
+                               row only appears once there is something to show. Both on one line
+                               ("Cluj-Napoca · Siemens Advanta") rather than a row apiece: they
+                               are one fact, "where", not two. *@
+                            @if (!string.IsNullOrEmpty(_selectedNode.City) || !string.IsNullOrEmpty(_selectedNode.Site))
+                            {
+                                <FluentStack Orientation="Orientation.Horizontal" Width="100%">
+                                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Location</FluentLabel>
+                                    <FluentSpacer />
+                                    <FluentLabel Typo="Typography.Body">
+                                        @(string.Join(" · ", new[] { _selectedNode.City, _selectedNode.Site }
+                                            .Where(value => !string.IsNullOrEmpty(value))))
+                                    </FluentLabel>
+                                </FluentStack>
+                            }
                             <FluentStack Orientation="Orientation.Horizontal" Width="100%">
                                 <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Contract</FluentLabel>
                                 <FluentSpacer />
@@ -658,7 +673,10 @@ else
 
     private void OnNodeSelected(OrgChartNode node)
     {
-        _selectedNode = node.UserId == Guid.Empty ? null : node;
+        // A synthetic group — HQ, a region, a city, a site — has no email, role or contract of
+        // its own; selecting one would open the detail panel on a person-shaped card with
+        // nothing real in it. Clicking one still expands or collapses it, just does not select.
+        _selectedNode = node.UserId == Guid.Empty || node.IsSyntheticGroup ? null : node;
     }
 
     private Task OnSearchAsync(OptionsSearchEventArgs<OrgChartNode> args)
@@ -776,7 +794,7 @@ else
     // refuse or come up empty for anybody else's row.
     private bool CanManageRequests(OrgChartNode node)
     {
-        if (node == null || node.UserId == Guid.Empty || node.UserId == _currentUserId) return false;
+        if (node == null || node.IsSyntheticGroup || node.UserId == _currentUserId) return false;
         if (_userRole == UserRole.Admin.ToString()) return false;
         if (_userRole == UserRole.LineManager.ToString()) return _subordinateIds.Contains(node.UserId);
         if (_userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase)) return IsMyRegion(node);
@@ -795,7 +813,7 @@ else
     // fail. Its sibling, CanManageRequests, has an HR branch because /hr/dashboard exists.
     private bool CanManageContract(OrgChartNode node)
     {
-        if (node == null || node.UserId == Guid.Empty || node.UserId == _currentUserId) return false;
+        if (node == null || node.IsSyntheticGroup || node.UserId == _currentUserId) return false;
         // /admin/users keeps foreign-region rows read-only, so offering the button on one is a
         // button that can only fail.
         if (_userRole == UserRole.Admin.ToString()) return IsMyRegion(node);

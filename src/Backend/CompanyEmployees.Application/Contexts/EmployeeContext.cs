@@ -309,13 +309,35 @@ namespace CompanyEmployees.Application.Contexts
                 Role = "Headquarters",
                 Department = "All Departments",
                 Initials = "HQ",
-                IsExpanded = true
+                IsExpanded = true,
+                IsSyntheticGroup = true
             };
 
-            root.Subordinates = activeUsers
+            // Root-level users — no manager in the visible set — grouped by region first: the
+            // chart is worldwide, so without this every region's tops landed in one flat
+            // alphabetical list with nothing saying which country they belonged to. Grouped by
+            // RegionId, not by the Region navigation instance: GetAllUsersAsync reads
+            // AsNoTracking without identity resolution, so every user carries its *own* Region
+            // object, and grouping on those groups by reference — the same trap GlobalSearchAsync
+            // hit before it was fixed the same way.
+            var topLevel = activeUsers
                 .Where(user => user.ManagerId is not Guid managerId || !byId.ContainsKey(managerId))
-                .OrderBy(user => user.Name)
-                .Select(NodeFor)
+                .ToList();
+
+            root.Subordinates = topLevel
+                .Where(user => user.Region is not null)
+                .GroupBy(user => user.RegionId)
+                .OrderBy(group => group.First().Region!.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new OrgChartNode
+                {
+                    UserId = Guid.NewGuid(),
+                    Name = group.First().Region!.Name,
+                    Role = "Region",
+                    Initials = InitialsOf(group.First().Region!.Name),
+                    IsExpanded = false,
+                    IsSyntheticGroup = true,
+                    Subordinates = GroupByLocation(group, NodeFor)
+                })
                 .ToList();
 
             // Upwards from the viewer to a top. Add returns false on a repeat, which is also the
@@ -344,8 +366,97 @@ namespace CompanyEmployees.Application.Contexts
                 node.HasUnloadedChildren = false;
             }
 
+            // The chain above only opens the reporting graph; the viewer's top-of-chain is now
+            // behind Region and, maybe, City/Site nodes that the chain knows nothing about. Walk
+            // down from the root to find and open whatever sits above the chain's own top.
+            ExpandPathToNode(root, chain[^1].Id);
+
             NodeFor(viewer).IsFocusNode = true;
             return root;
+        }
+
+        // A region's root-level people, grouped by City then Site where they have them set.
+        // Nobody with neither attaches a level below where they always did: directly under the
+        // region. Small, so built eagerly rather than lazily — a region with a hundred
+        // top-level accounts and no manager between them would be unusual.
+        private static List<OrgChartNode> GroupByLocation(
+            IEnumerable<User> people, Func<User, OrgChartNode> nodeFor)
+        {
+            var byCity = people
+                .GroupBy(user => string.IsNullOrWhiteSpace(user.City) ? null : user.City)
+                .OrderBy(group => group.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+
+            var result = new List<OrgChartNode>();
+            foreach (var cityGroup in byCity)
+            {
+                if (cityGroup.Key is not string city)
+                {
+                    // No city on record: skip straight to the person, same as before this
+                    // hierarchy existed.
+                    result.AddRange(cityGroup.OrderBy(user => user.Name).Select(nodeFor));
+                    continue;
+                }
+
+                var bySite = cityGroup
+                    .GroupBy(user => string.IsNullOrWhiteSpace(user.Site) ? null : user.Site)
+                    .OrderBy(group => group.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+
+                var cityChildren = new List<OrgChartNode>();
+                foreach (var siteGroup in bySite)
+                {
+                    if (siteGroup.Key is not string site)
+                    {
+                        cityChildren.AddRange(siteGroup.OrderBy(user => user.Name).Select(nodeFor));
+                        continue;
+                    }
+
+                    cityChildren.Add(new OrgChartNode
+                    {
+                        UserId = Guid.NewGuid(),
+                        Name = site,
+                        Role = "Site",
+                        Initials = InitialsOf(site),
+                        IsExpanded = false,
+                        IsSyntheticGroup = true,
+                        Subordinates = siteGroup.OrderBy(user => user.Name).Select(nodeFor).ToList()
+                    });
+                }
+
+                result.Add(new OrgChartNode
+                {
+                    UserId = Guid.NewGuid(),
+                    Name = city,
+                    Role = "City",
+                    Initials = InitialsOf(city),
+                    IsExpanded = false,
+                    IsSyntheticGroup = true,
+                    Subordinates = cityChildren
+                });
+            }
+
+            return result;
+        }
+
+        // Walks down from a node looking for targetId, opening every synthetic group on the way
+        // (a real person is opened by the chain-walking caller instead, which also has to fill
+        // in their team). Shared by the two callers that root a tree away from the person they
+        // need visible: the company chart's own viewer, and the focused tree's top-of-chain.
+        private static bool ExpandPathToNode(OrgChartNode node, Guid targetId)
+        {
+            if (node.UserId == targetId)
+                return true;
+
+            foreach (var child in node.Subordinates)
+            {
+                if (!ExpandPathToNode(child, targetId))
+                    continue;
+
+                if (child.IsSyntheticGroup)
+                    child.IsExpanded = true;
+                return true;
+            }
+
+            return false;
         }
 
         // One level of the tree, fetched when a node is expanded. Without this the worldwide
@@ -1130,6 +1241,33 @@ namespace CompanyEmployees.Application.Contexts
             var root = NodeFor(chain[0]);
             SetAllExpanded(root, true);
 
+            // Wraps the top of the chain in the same Region/City/Site path the worldwide chart
+            // would put them behind, innermost first, so a focused tree reads as a branch of
+            // that one rather than a fragment nobody can place. Skipped levels the person has
+            // no value for — most chains stop at Region, since City/Site are optional.
+            var topOfChain = chain[0];
+            var wrappers = new List<(string Name, string Role)>();
+            if (topOfChain.Region is not null)
+                wrappers.Add((topOfChain.Region.Name, "Region"));
+            if (!string.IsNullOrWhiteSpace(topOfChain.City))
+                wrappers.Add((topOfChain.City!, "City"));
+            if (!string.IsNullOrWhiteSpace(topOfChain.Site))
+                wrappers.Add((topOfChain.Site!, "Site"));
+
+            for (var i = wrappers.Count - 1; i >= 0; i--)
+            {
+                root = new OrgChartNode
+                {
+                    UserId = Guid.NewGuid(),
+                    Name = wrappers[i].Name,
+                    Role = wrappers[i].Role,
+                    Initials = InitialsOf(wrappers[i].Name),
+                    IsExpanded = true,
+                    IsSyntheticGroup = true,
+                    Subordinates = new List<OrgChartNode> { root }
+                };
+            }
+
             // The one node the page should highlight and scroll to.
             foreach (var node in nodes.Values)
                 node.IsFocusNode = node.UserId == targetUserId;
@@ -1200,6 +1338,8 @@ namespace CompanyEmployees.Application.Contexts
                 ManagerId = user.ManagerId,
                 RegionId = user.RegionId,
                 Region = user.Region?.Name ?? string.Empty,
+                City = user.City,
+                Site = user.Site,
                 HasPendingRequest = pending != null,
                 PendingRequestId = pending?.Id,
                 PendingRequestType = pending?.Type.ToString(),

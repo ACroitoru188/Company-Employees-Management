@@ -27,6 +27,11 @@ public class User : IdentityUser<Guid>
     public Guid RegionId { get; set; }
     public Region Region { get; set; } = null!;
 
+    // Optional, finer-grained than Region. Free text rather than a lookup table — no admin
+    // page manages these yet.
+    public string? City { get; set; }
+    public string? Site { get; set; }
+
     // UI language chosen by the employee. Null means the application default (English).
     // This preference is deliberately independent from the employee's security region.
     public string? PreferredCulture { get; set; }
