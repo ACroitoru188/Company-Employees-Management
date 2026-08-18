@@ -749,6 +749,7 @@ fluent-select {
 .org-tree fluent-tree-item::part(positioning-region) {
     height: auto;
     min-height: 44px;
+    margin-bottom: 2px;
 }
 
 /* ---- Notification centre -------------------------------------------------------------
@@ -1428,18 +1429,23 @@ fluent-progress {
 
 /* Highlight the path to a selected node in the Org Chart */
 .org-path-highlight::part(positioning-region) {
-    background-color: rgba(0, 136, 153, 0.08);
+    background-color: rgba(230, 138, 0, 0.08) !important;
     border-radius: 4px;
-    border-left: 3px solid #008899;
-    padding-left: 4px;
-    margin-bottom: 2px;
+    box-shadow: inset 3px 0 0 0 #E68A00 !important;
+    margin-bottom: 2px !important;
 }
 
 /* Highlight the current user in the Org Chart */
 .org-current-user::part(positioning-region) {
-    background-color: rgba(230, 138, 0, 0.08);
+    background-color: rgba(255, 193, 7, 0.15) !important;
     border-radius: 4px;
-    border-left: 3px solid #E68A00;
-    padding-left: 4px;
-    margin-bottom: 2px;
+    box-shadow: inset 3px 0 0 0 #FFC107 !important;
+    margin-bottom: 2px !important;
+}
+
+/* Hide the second X (clear button) inside the autocomplete since the pill already has one */
+fluent-autocomplete::part(clear-button),
+fluent-autocomplete::part(clear),
+fluent-autocomplete .clear-button {
+    display: none !important;
 }

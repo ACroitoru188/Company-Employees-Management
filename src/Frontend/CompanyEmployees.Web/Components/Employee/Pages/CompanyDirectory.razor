@@ -70,38 +70,91 @@
        already hidden for the same reason. *@
     @if (_currentLevel == HierarchyLevel.SiteOrgChart)
     {
-    <FluentAutocomplete TOption="OrgChartNode"
-                        Placeholder="Search people..."
-                        autocomplete="off"
-                        OnOptionsSearch="OnSearchAsync"
-                        OptionText="@(node => node.Name)"
-                        OptionValue="@(node => node.UserId.ToString())"
-                        MaximumSelectedOptions="1"
-                        MaximumOptionsSearch="10"
-                        SelectedOptions="@_searchSelection"
-                        SelectedOptionsChanged="OnSearchNodeSelected"
-                        Width="280px">
-        <OptionTemplate Context="node">
-            <FluentPersona Name="@node.Name" Initials="@node.Initials" ImageSize="24px"
-                           TextPosition="TextPosition.End">
-                @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
-                   rendered here explicitly above the secondary line. *@
-                <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@node.Name</FluentLabel>
-                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                    @node.Role@(string.IsNullOrEmpty(node.Department) ? "" : $" · {node.Department}")
-                </FluentLabel>
-            </FluentPersona>
-        </OptionTemplate>
-    </FluentAutocomplete>
-    }
+    <style>
+        /* Force override any cached CSS and hide the extra clear button */
+        fluent-autocomplete::part(clear-button),
+        fluent-search::part(clear-button),
+        fluent-text-field::part(clear-button) {
+            display: none !important;
+        }
+        fluent-autocomplete::part(control)::-webkit-search-cancel-button,
+        fluent-autocomplete::part(control)::-webkit-search-decoration,
+        fluent-autocomplete::part(control)::-webkit-search-results-button,
+        fluent-autocomplete::part(control)::-webkit-search-results-decoration {
+            display: none !important;
+            -webkit-appearance: none !important;
+        }
+        .org-path-highlight::part(positioning-region) {
+            background-color: rgba(230, 138, 0, 0.08) !important;
+            border-radius: 4px !important;
+            box-shadow: inset 3px 0 0 0 #E68A00 !important;
+            border-left: none !important;
+            padding-left: 0 !important;
+        }
+        .org-current-user::part(positioning-region) {
+            background-color: rgba(255, 193, 7, 0.15) !important;
+            border-radius: 4px !important;
+            box-shadow: inset 3px 0 0 0 #FFC107 !important;
+            border-left: none !important;
+            padding-left: 0 !important;
+        }
+    </style>
+    <FluentStack Horizontal="true" Tokens="10" Style="margin-bottom: 20px; align-items: center; flex-wrap: wrap;">
+        <FluentSelect TOption="string"
+                      Items="@_cities"
+                      @bind-SelectedOption="_selectedCityFilter"
+                      @bind-SelectedOption:after="ApplyFilters"
+                      OptionText="@(c => c)"
+                      OptionValue="@(c => c)"
+                      Placeholder="Filtru Oraș"
+                      Width="140px" />
 
-    @if (_currentLevel == HierarchyLevel.SiteOrgChart)
-    {
+        <FluentSelect TOption="string"
+                      Items="@_sites"
+                      @bind-SelectedOption="_selectedSiteFilter"
+                      @bind-SelectedOption:after="ApplyFilters"
+                      OptionText="@(s => s)"
+                      OptionValue="@(s => s)"
+                      Placeholder="Filtru Sediu"
+                      Width="160px" />
+
+        <FluentSelect TOption="string"
+                      Items="@_departments"
+                      @bind-SelectedOption="_selectedDepartmentFilter"
+                      @bind-SelectedOption:after="ApplyFilters"
+                      OptionText="@(d => d)"
+                      OptionValue="@(d => d)"
+                      Placeholder="Filtru Departament"
+                      Width="180px" />
+
+        <FluentAutocomplete TOption="OrgChartNode"
+                            Placeholder="Search people..."
+                            autocomplete="off"
+                            OnOptionsSearch="OnSearchAsync"
+                            OptionText="@(node => node.Name)"
+                            OptionValue="@(node => node.UserId.ToString())"
+                            MaximumSelectedOptions="1"
+                            MaximumOptionsSearch="10"
+                            SelectedOptions="@_searchSelection"
+                            SelectedOptionsChanged="OnSearchNodeSelected"
+                            Width="250px">
+            <OptionTemplate Context="node">
+                <FluentPersona Name="@node.Name" Initials="@node.Initials" ImageSize="24px"
+                               TextPosition="TextPosition.End">
+                    <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@node.Name</FluentLabel>
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                        @node.Role@(string.IsNullOrEmpty(node.Department) ? "" : $" · {node.Department}")
+                    </FluentLabel>
+                </FluentPersona>
+            </OptionTemplate>
+        </FluentAutocomplete>
+
         <FluentButton Appearance="Appearance.Outline"
                       IconStart="@(new Icons.Regular.Size20.Target())"
                       OnClick="FocusOnSelf">
             Focus Me
         </FluentButton>
+    </FluentStack>
     }
 </FluentStack>
 
@@ -308,10 +361,15 @@ else
             <FluentCard Style="padding:16px; height:75vh; overflow:auto;">
                 @* The rows hold a two-line persona, which is taller than a tree item's own
                    fixed row height; app.css lets the row grow to it. *@
-                <FluentTreeView Class="org-tree">
-                    <OrgTreeNode Node="@_root" SelectedId="@(_selectedNode?.UserId ?? Guid.Empty)"
-                                 CurrentUserId="@_currentUserId" OnSelect="OnNodeSelected" />
-                </FluentTreeView>
+                <div class="org-tree-container">
+                    <FluentTreeView Class="org-tree">
+                        @if (_displayRoot != null)
+                        {
+                            <OrgTreeNode @key="_displayRoot.UserId" Node="@_displayRoot" SelectedId="@(_selectedNode?.UserId ?? Guid.Empty)"
+                                         CurrentUserId="@_currentUserId" OnSelect="OnNodeSelected" />
+                        }
+                    </FluentTreeView>
+                </div>
             </FluentCard>
         </FluentGridItem>
 
@@ -463,6 +521,93 @@ else
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
     private OrgChartNode? _root;
+    private OrgChartNode? _displayRoot;
+
+    private List<string> _cities = new() { "Toate" };
+    private List<string> _sites = new() { "Toate" };
+    private List<string> _departments = new() { "Toate" };
+    private string _selectedCityFilter = "Toate";
+    private string _selectedSiteFilter = "Toate";
+    private string _selectedDepartmentFilter = "Toate";
+
+    private void PopulateFilterOptions(OrgChartNode node)
+    {
+        var allNodes = new List<OrgChartNode>();
+        CollectAllNodes(node, allNodes);
+        
+        _cities = allNodes.Where(n => !string.IsNullOrEmpty(n.City)).Select(n => n.City).Distinct().OrderBy(c => c).ToList();
+        _cities.Insert(0, "Toate");
+        
+        _sites = allNodes.Where(n => !string.IsNullOrEmpty(n.Site)).Select(n => n.Site).Distinct().OrderBy(s => s).ToList();
+        _sites.Insert(0, "Toate");
+        
+        _departments = allNodes.Where(n => !string.IsNullOrEmpty(n.Department)).Select(n => n.Department).Distinct().OrderBy(d => d).ToList();
+        _departments.Insert(0, "Toate");
+    }
+
+    private void ApplyFilters()
+    {
+        if (_root == null)
+        {
+            _displayRoot = null;
+            return;
+        }
+
+        bool isCityAll = string.IsNullOrEmpty(_selectedCityFilter) || _selectedCityFilter == "Toate";
+        bool isSiteAll = string.IsNullOrEmpty(_selectedSiteFilter) || _selectedSiteFilter == "Toate";
+        bool isDeptAll = string.IsNullOrEmpty(_selectedDepartmentFilter) || _selectedDepartmentFilter == "Toate";
+
+        if (isCityAll && isSiteAll && isDeptAll)
+        {
+            _displayRoot = _root;
+            return;
+        }
+
+        _displayRoot = CloneAndFilterTree(_root);
+    }
+
+    private OrgChartNode? CloneAndFilterTree(OrgChartNode node)
+    {
+        bool matches = true;
+        if (!string.IsNullOrEmpty(_selectedCityFilter) && _selectedCityFilter != "Toate" && node.City != _selectedCityFilter) matches = false;
+        if (!string.IsNullOrEmpty(_selectedSiteFilter) && _selectedSiteFilter != "Toate" && node.Site != _selectedSiteFilter) matches = false;
+        if (!string.IsNullOrEmpty(_selectedDepartmentFilter) && _selectedDepartmentFilter != "Toate" && node.Department != _selectedDepartmentFilter) matches = false;
+
+        var clonedChildren = new List<OrgChartNode>();
+        foreach(var child in node.Subordinates)
+        {
+            var filteredChild = CloneAndFilterTree(child);
+            if (filteredChild != null)
+                clonedChildren.Add(filteredChild);
+        }
+
+        // If the node is a placeholder (like Department node), we keep it if it has matching children
+        bool isDepartmentNode = node.Role == "Department";
+
+        if (matches || clonedChildren.Count > 0 || (isDepartmentNode && clonedChildren.Count > 0))
+        {
+            // Note: If it's a person and they don't match, but a subordinate does, they are kept
+            // to maintain the tree hierarchy.
+            return new OrgChartNode
+            {
+                UserId = node.UserId,
+                Name = node.Name,
+                Email = node.Email,
+                Role = node.Role,
+                Department = node.Department,
+                City = node.City,
+                Site = node.Site,
+                Initials = node.Initials,
+                ManagerId = node.ManagerId,
+                Subordinates = clonedChildren,
+                IsExpanded = true, // Force expand when filtered
+                HasUnloadedChildren = false,
+                IsFocusNode = node.IsFocusNode
+            };
+        }
+
+        return null;
+    }
     private OrgChartNode? _selectedNode;
 
     private bool _isManagerOrHr = false;
@@ -503,6 +648,7 @@ else
 
             if (_root != null)
             {
+                PopulateFilterOptions(_root);
                 _subordinateIds.Clear();
                 var selfNode = FindNodeInTree(_root, _currentUserId);
                 if (selfNode != null)
@@ -515,6 +661,10 @@ else
                         PruneTreeToUserBranch(_root, _currentUserId);
                     }
                 }
+                
+                // We need to apply filters *after* potentially pruning the tree
+                // so that _displayRoot reflects the pruned _root.
+                ApplyFilters();
             }
         }
     }
@@ -633,12 +783,39 @@ else
 
     private void OpenOrgChartForHub(RomaniaHubModel? hub)
     {
-        SwitchLevel(HierarchyLevel.SiteOrgChart);
-        
-        if (hub != null)
+        if (_activeRomaniaCounty != null)
         {
-            Toast.ShowInfo($"Opening org chart for {hub.Name} (Filter not yet implemented)");
+            _selectedCityFilter = _activeRomaniaCounty.CountySeat;
+            
+            if (hub != null)
+            {
+                // Simple mapping from hub names to DB site names, or fallback to hub.Name
+                if (hub.IsHQ || hub.Name.Contains("HQ"))
+                    _selectedSiteFilter = "Siemens HQ";
+                else if (hub.Name.Contains("Digital Industry") || hub.Name.Contains("Industry Software"))
+                    _selectedSiteFilter = "Siemens Digital Industry Software";
+                else if (hub.Name.Contains("R&D Advanta") || (hub.Name.Contains("R&D") && _selectedCityFilter == "Brașov"))
+                    _selectedSiteFilter = "Siemens R&D"; 
+                else if (hub.Name.Contains("Advanta"))
+                    _selectedSiteFilter = "Siemens Advanta";
+                else if (hub.Name.Contains("R&D") || hub.Name.Contains("Energy") || hub.Name.Contains("Grid"))
+                    _selectedSiteFilter = "Siemens R&D"; // Fallback mapping based on existing DB sites
+                else
+                    _selectedSiteFilter = "Toate"; // If we can't reliably map the specific hub to a DB Site
+            }
+            else
+            {
+                _selectedSiteFilter = "Toate";
+            }
+            
+            // Ensure the city actually exists in our filter list to avoid empty UI states
+            if (!_cities.Contains(_selectedCityFilter))
+                _selectedCityFilter = "Toate";
+                
+            ApplyFilters();
         }
+
+        SwitchLevel(HierarchyLevel.SiteOrgChart);
     }
 
     private void OnContinentClick(ContinentModel continent)
@@ -667,13 +844,18 @@ else
         return Task.CompletedTask;
     }
 
-    private void OnSearchNodeSelected(IEnumerable<OrgChartNode> selection)
+    private async Task OnSearchNodeSelected(IEnumerable<OrgChartNode> selection)
     {
         _searchSelection = selection;
 
         var node = selection.FirstOrDefault();
         if (node is null)
+        {
+            if (_root != null) ClearFocusPath(_root);
+            if (_displayRoot != null) ClearFocusPath(_displayRoot);
+            await JSRuntime.InvokeVoidAsync("companyOrgChart.clearHighlights");
             return;
+        }
 
         if (_currentLevel != HierarchyLevel.SiteOrgChart)
             SwitchLevel(HierarchyLevel.SiteOrgChart);
@@ -686,23 +868,35 @@ else
         if (_currentLevel != HierarchyLevel.SiteOrgChart)
             SwitchLevel(HierarchyLevel.SiteOrgChart);
 
-        FocusOnNode(_currentUserId);
+        FocusOnNode(_currentUserId, keepExistingPath: true);
     }
 
     // Expanding the path opens the way to the node; the tree card is 75vh with its own scrollbar,
     // so the row still has to be brought into view or "Focus Me" lands on somebody selected far
     // below the fold and looks like it did nothing.
-    private void FocusOnNode(Guid targetUserId)
+    private void FocusOnNode(Guid targetUserId, bool keepExistingPath = false)
     {
         if (_root == null) return;
 
-        ClearFocusPath(_root);
-
-        bool found = ExpandPathToNode(_root, targetUserId);
-        if (!found && targetUserId != _root.UserId)
+        if (!keepExistingPath)
         {
-            Toast.ShowInfo("Employee is not within your accessible team structure.");
-            return;
+            ClearFocusPath(_root);
+            if (_displayRoot != null) ClearFocusPath(_displayRoot);
+            _ = JSRuntime.InvokeVoidAsync("companyOrgChart.clearHighlights");
+        }
+
+        bool found = false;
+        if (_displayRoot != null)
+        {
+            found = ExpandPathToNode(_displayRoot, targetUserId);
+            if (!found && targetUserId != _displayRoot.UserId)
+            {
+                _selectedCityFilter = "Toate";
+                _selectedSiteFilter = "Toate";
+                _selectedDepartmentFilter = "Toate";
+                ApplyFilters();
+                if (_displayRoot != null) found = ExpandPathToNode(_displayRoot, targetUserId);
+            }
         }
 
         _selectedNode = FindNodeInTree(_root, targetUserId);

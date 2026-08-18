@@ -814,6 +814,8 @@ namespace CompanyEmployees.Application.Contexts
                     Email = u.Email ?? string.Empty,
                     Role = u.Role.ToString(),
                     Department = u.Department?.Name ?? string.Empty,
+                    City = u.City,
+                    Site = u.Site,
                     Initials = initials,
                     ManagerId = u.ManagerId,
                     HasPendingRequest = pendingReq != null,
@@ -874,11 +876,30 @@ namespace CompanyEmployees.Application.Contexts
                     siteNode.Subordinates.Add(adminNode);
                 }
 
-                // Handle users/departments without an admin
-                var unassignedDepts = siteUsers.Where(u => u.Department != null && u.Department.AdminId == null).Select(u => u.Department!).DistinctBy(d => d.Id);
+                // Handle users/departments without an admin at this site
+                var adminIdsAtThisSite = siteAdmins.Select(a => (Guid?)a.Id).ToList();
+                var unassignedDepts = siteUsers
+                    .Where(u => u.Department != null && 
+                                (u.Department.AdminId == null || !adminIdsAtThisSite.Contains(u.Department.AdminId)))
+                    .Select(u => u.Department!)
+                    .DistinctBy(d => d.Id);
                 foreach (var dept in unassignedDepts)
                 {
                     siteNode.Subordinates.Add(CreateDepartmentNode(dept, siteUsers.Where(u => u.DepartmentId == dept.Id)));
+                }
+
+                // Handle users with no department at all
+                var unassignedUsers = siteUsers.Where(u => u.Role != UserRole.Admin && u.Department == null).ToList();
+                foreach(var u in unassignedUsers)
+                {
+                    var uNode = nodeMap[u.Id];
+                    uNode.Subordinates = unassignedUsers.Where(sub => sub.ManagerId == u.Id).Select(sub => nodeMap[sub.Id]).ToList();
+                    uNode.HasUnloadedChildren = uNode.Subordinates.Count > 0;
+                }
+                var topLevelUnassigned = unassignedUsers.Where(u => u.ManagerId == null || !unassignedUsers.Any(du => du.Id == u.ManagerId)).ToList();
+                foreach (var topUser in topLevelUnassigned)
+                {
+                    siteNode.Subordinates.Add(nodeMap[topUser.Id]);
                 }
 
                 siteNode.HasUnloadedChildren = siteNode.Subordinates.Count > 0;

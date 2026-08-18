@@ -11,6 +11,8 @@ namespace CompanyEmployees.Application
         public string Email { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
         public string Department { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string Site { get; set; } = string.Empty;
         public string Initials { get; set; } = string.Empty;
         public Guid? ManagerId { get; set; }
 

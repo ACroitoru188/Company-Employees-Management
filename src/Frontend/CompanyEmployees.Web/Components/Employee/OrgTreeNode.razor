@@ -15,8 +15,7 @@
    by id when that happens. Keying the item on its selected state was tried first and was worse:
    rebuilding the element on every selection meant no row highlighted at all. *@
 <FluentTreeItem Id="@($"orgnode-{Node.UserId:D}")"
-                Expanded="@Node.IsExpanded"
-                ExpandedChanged="@(expanded => Node.IsExpanded = expanded)"
+                @bind-Expanded="Node.IsExpanded"
                 Selected="@(Node.UserId == SelectedId && Node.UserId != Guid.Empty)"
                 SelectedChanged="@(selected => selected ? OnSelect.InvokeAsync(Node) : Task.CompletedTask)"
                 Class="@((Node.IsFocusNode ? "org-path-highlight " : "") + (Node.UserId == CurrentUserId && Node.UserId != Guid.Empty ? "org-current-user" : ""))">
@@ -33,7 +32,7 @@
 
     @foreach (var child in Node.Subordinates)
     {
-        <OrgTreeNode Node="@child" SelectedId="@SelectedId" CurrentUserId="@CurrentUserId" OnSelect="@OnSelect" />
+        <OrgTreeNode @key="child.UserId" Node="@child" SelectedId="@SelectedId" CurrentUserId="@CurrentUserId" OnSelect="@OnSelect" />
     }
 </FluentTreeItem>
 
