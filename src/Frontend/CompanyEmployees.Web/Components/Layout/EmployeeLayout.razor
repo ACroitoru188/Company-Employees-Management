@@ -145,15 +145,22 @@
             {
                 @* The borrowed account sits above your own, so the drawer always answers
                    "whose account am I in" without opening anything. *@
+                @* Centred rather than left-hung on the avatar: the card already spans the drawer
+                   (Width="100%" two levels up), and a persona left to its own layout packs
+                   avatar-then-text against the left edge, which read as misaligned against the
+                   nav links above it and the "your account" row below. *@
                 <FluentCard Style="@($"background:{ImpersonationTint}; margin:8px;")">
-                    <FluentPersona Name="@_acting.EffectiveUserName"
-                                   Initials="@Initials(_acting.EffectiveUserName)"
-                                   ImageSize="36px" TextPosition="TextPosition.End">
-                        @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
-                           rendered here explicitly above the secondary line. *@
-                        <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold" Color="Color.Custom" CustomColor="#FFFFFF">@_acting.EffectiveUserName</FluentLabel>
-                        <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="#FFFFFF">acting on their behalf</FluentLabel>
-                    </FluentPersona>
+                    <FluentStack Orientation="Orientation.Horizontal"
+                                 HorizontalAlignment="HorizontalAlignment.Center" Width="100%">
+                        <FluentPersona Name="@_acting.EffectiveUserName"
+                                       Initials="@Initials(_acting.EffectiveUserName)"
+                                       ImageSize="36px" TextPosition="TextPosition.End">
+                            @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
+                               rendered here explicitly above the secondary line. *@
+                            <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold" Color="Color.Custom" CustomColor="#FFFFFF">@_acting.EffectiveUserName</FluentLabel>
+                            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="#FFFFFF">acting on their behalf</FluentLabel>
+                        </FluentPersona>
+                    </FluentStack>
                 </FluentCard>
             }
             else if (_availableDelegations.Count > 0)
@@ -175,11 +182,18 @@
                               OnClick="@(() => _switchMenuOpen = !_switchMenuOpen)">
                     Act for someone else (@_availableDelegations.Count)
                 </FluentButton>
-                <FluentMenu Anchor="switch-account" @bind-Open="_switchMenuOpen" VerticalThreshold="170">
+                @* Left to size itself, the menu shrinks to its longest name — narrower than the
+                   250px drawer above it and off-centre under the button that opened it. Matching
+                   the drawer's own width and centring each row is what makes it read as part of
+                   the same rail instead of a stray popup. *@
+                <FluentMenu Class="switch-account-menu" Anchor="switch-account"
+                             @bind-Open="_switchMenuOpen" VerticalThreshold="170" Style="width:250px;">
                     @foreach (var delegation in _availableDelegations)
                     {
                         <FluentMenuItem OnClick="@(() => StartImpersonationAsync(delegation.Id))">
-                            <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+                            <FluentStack Orientation="Orientation.Vertical"
+                                         HorizontalAlignment="HorizontalAlignment.Center"
+                                         VerticalGap="0" Width="100%">
                                 <FluentLabel Typo="Typography.Body">@delegation.Manager.Name</FluentLabel>
                                 <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
                                     until @delegation.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)

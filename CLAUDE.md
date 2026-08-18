@@ -535,6 +535,23 @@ same control: "take me to this person, I know the name" and "who is in Design, i
     searching for a second person while already on the page reuses the component, so
     `OnInitializedAsync` never runs again and the new parameter would be silently ignored. A
     `_loadedFocus` field stops the same value reloading on every parameter set.
+  - **Overriding a Fluent control's height leaves everything sized off that height behind.**
+    `app.css` raises the org-chart row to 44px for the two-line persona, and two separate
+    things stayed on the old 32px arithmetic:
+    - the selected marker, drawn as `:host([selected])::after` with `top: heightNumber/4` and
+      `height: heightNumber/2`, which centres only at the default height — it sat six pixels
+      high on every selection;
+    - `content-region`, whose own `height: 32px` kept it pinned to the top of the 44px band
+      with eleven empty pixels under it, so the persona rode five pixels above its row.
+    Both are fixed there against `--org-row-height`. Three things worth keeping in mind when
+    touching it: the outer document beats a shadow `:host` rule whatever the specificity; the
+    marker is offset from the top of the *host*, which wraps the whole subtree rather than the
+    row, so it cannot be centred with a percentage; and `content-region` is **stretched** into
+    the band rather than given a matching `min-height`, because a min-height adds its borders
+    on top and grows the row to 46px, putting the marker back out by a pixel.
+  - `positioning-region` and `content-region` are two nested parts of one component, not two
+    components: the band that carries the background, hover/selected fills and indent spacer,
+    and the flex row inside it holding the chevron and the slotted content.
   - Selecting the row is two mechanisms that must agree: `OrgTreeNode` binds `Selected` from
     `_selectedNode`, and `companyOrgChart.focusNode` clears the others and scrolls. The JS
     **waits for `customElements.whenDefined('fluent-tree-item')` and retries across frames until
