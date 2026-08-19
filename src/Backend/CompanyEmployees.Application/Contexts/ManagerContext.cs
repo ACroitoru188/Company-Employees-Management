@@ -494,10 +494,15 @@ namespace CompanyEmployees.Application.Contexts
                              + " – " +
                              end.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
 
-                await _notifications.SendNotificationAsync(
-                    delegateId,
-                    $"You have been assigned as temporary Line Manager delegate for {period}.",
-                    "/manager/team");
+                // An employee delegate has no approval duties and no access to /manager/team,
+                // so neither the old wording nor the old link held once employees could
+                // delegate. The delegations page is where every delegate starts, whatever the
+                // borrowed account can do.
+                var message = manager.Role == UserRole.LineManager
+                    ? $"You have been assigned as temporary Line Manager delegate for {manager.Name}, {period}."
+                    : $"{manager.Name} asked you to cover for them, {period}.";
+
+                await _notifications.SendNotificationAsync(delegateId, message, "/employee/delegations");
             }
             catch (Exception ex)
             {

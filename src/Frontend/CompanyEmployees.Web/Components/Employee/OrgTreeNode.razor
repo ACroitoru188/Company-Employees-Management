@@ -14,8 +14,12 @@
    highlighted while the detail panel showed the new person. CompanyDirectory clears and sets it
    by id when that happens. Keying the item on its selected state was tried first and was worse:
    rebuilding the element on every selection meant no row highlighted at all. *@
+@* The chart covers the whole company, so a branch is fetched the first time it is opened
+   rather than up front. OnExpand fires only on the way open and only where there is something
+   left to fetch; the page answers it and fills Subordinates in. *@
 <FluentTreeItem Id="@($"orgnode-{Node.UserId:D}")"
-                @bind-Expanded="Node.IsExpanded"
+                Expanded="@Node.IsExpanded"
+                ExpandedChanged="OnExpandedChangedAsync"
                 Selected="@(Node.UserId == SelectedId && Node.UserId != Guid.Empty)"
                 SelectedChanged="@(selected => selected ? OnSelect.InvokeAsync(Node) : Task.CompletedTask)"
                 Class="@((Node.IsFocusNode ? "org-path-highlight " : "") + (Node.UserId == CurrentUserId && Node.UserId != Guid.Empty ? "org-current-user" : ""))">
@@ -30,9 +34,23 @@
         </FluentLabel>
     </FluentPersona>
 
+    @* Load-bearing, not decoration: FluentTreeItem draws its expand chevron only when it
+       actually contains child items, so a node whose children have not been fetched yet would
+       render as a leaf — with no way to ask for them, and lazy loading could never start. This
+       stand-in gives the branch its chevron, and is replaced by the real rows on expand. *@
+    @if (Node.IsLoading || (Node.HasUnloadedChildren && Node.Subordinates.Count == 0))
+    {
+        <FluentTreeItem Disabled="true">
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                         CustomColor="var(--neutral-foreground-hint)">
+                @(Node.IsLoading ? "Loading…" : "…")
+            </FluentLabel>
+        </FluentTreeItem>
+    }
+
     @foreach (var child in Node.Subordinates)
     {
-        <OrgTreeNode @key="child.UserId" Node="@child" SelectedId="@SelectedId" CurrentUserId="@CurrentUserId" OnSelect="@OnSelect" />
+        <OrgTreeNode @key="child.UserId" Node="@child" SelectedId="@SelectedId" CurrentUserId="@CurrentUserId" OnSelect="@OnSelect" OnExpand="@OnExpand" />
     }
 </FluentTreeItem>
 
@@ -48,4 +66,17 @@
 
     [Parameter]
     public EventCallback<OrgChartNode> OnSelect { get; set; }
+
+    [Parameter]
+    public EventCallback<OrgChartNode> OnExpand { get; set; }
+
+    private async Task OnExpandedChangedAsync(bool expanded)
+    {
+        Node.IsExpanded = expanded;
+
+        // Only on the way open, and only once: HasUnloadedChildren is cleared by the loader, so
+        // collapsing and reopening a branch does not go back to the database.
+        if (expanded && Node.HasUnloadedChildren && Node.Subordinates.Count == 0)
+            await OnExpand.InvokeAsync(Node);
+    }
 }

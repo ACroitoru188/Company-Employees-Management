@@ -22,13 +22,15 @@ public class User : IdentityUser<Guid>
     public Guid? DepartmentId { get; set; }
     public Department? Department { get; set; }
 
-    public string City { get; set; } = string.Empty;
-    public string Site { get; set; } = string.Empty;
-
     // Current employment region. This is the authorization boundary used when
     // showing employees, leave requests, dashboards and exports.
     public Guid RegionId { get; set; }
     public Region Region { get; set; } = null!;
+
+    // Optional, finer-grained than Region. Free text rather than a lookup table — no admin
+    // page manages these yet.
+    public string? City { get; set; }
+    public string? Site { get; set; }
 
     // UI language chosen by the employee. Null means the application default (English).
     // This preference is deliberately independent from the employee's security region.

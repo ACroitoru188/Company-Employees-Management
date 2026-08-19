@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "/home/alex/.dotnet/dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/Frontend/CompanyEmployees.Web",
+        "--urls",
+        "http://localhost:5270"
+      ],
+      "port": 5270
+    }
+  ]
+}

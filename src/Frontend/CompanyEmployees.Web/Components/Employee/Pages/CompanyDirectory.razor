@@ -8,10 +8,14 @@
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Models
 @using CompanyEmployees.Web.Services
-@inject EmployeeContext EmployeeCtx
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
+@inject IServiceScopeFactory ScopeFactory
 @inject NavigationManager Nav
 @inject IToastService Toast
 @inject IJSRuntime JSRuntime
+@inject ILogger<CompanyDirectory> Logger
+@implements IDisposable
 
 <PageTitle>Organization Chart · Global Directory</PageTitle>
 
@@ -361,15 +365,10 @@ else
             <FluentCard Style="padding:16px; height:75vh; overflow:auto;">
                 @* The rows hold a two-line persona, which is taller than a tree item's own
                    fixed row height; app.css lets the row grow to it. *@
-                <div class="org-tree-container">
-                    <FluentTreeView Class="org-tree">
-                        @if (_displayRoot != null)
-                        {
-                            <OrgTreeNode @key="_displayRoot.UserId" Node="@_displayRoot" SelectedId="@(_selectedNode?.UserId ?? Guid.Empty)"
-                                         CurrentUserId="@_currentUserId" OnSelect="OnNodeSelected" />
-                        }
-                    </FluentTreeView>
-                </div>
+                <FluentTreeView Class="org-tree">
+                    <OrgTreeNode @key="_root.UserId" Node="@_root" SelectedId="@(_selectedNode?.UserId ?? Guid.Empty)"
+                                 CurrentUserId="@_currentUserId" OnSelect="OnNodeSelected" OnExpand="LoadChildrenAsync" />
+                </FluentTreeView>
             </FluentCard>
         </FluentGridItem>
 
@@ -419,6 +418,31 @@ else
                                 <FluentSpacer />
                                 <FluentLabel Typo="Typography.Body">@_selectedNode.Role</FluentLabel>
                             </FluentStack>
+                            @* The chart spans every country now, so the row's own is worth
+                               stating: it is also what decides whether the buttons below appear. *@
+                            @if (!string.IsNullOrEmpty(_selectedNode.Region))
+                            {
+                                <FluentStack Orientation="Orientation.Horizontal" Width="100%">
+                                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Region</FluentLabel>
+                                    <FluentSpacer />
+                                    <FluentLabel Typo="Typography.Body">@_selectedNode.Region</FluentLabel>
+                                </FluentStack>
+                            }
+                            @* City/Site are optional — most seed accounts have neither, so the
+                               row only appears once there is something to show. Both on one line
+                               ("Cluj-Napoca · Siemens Advanta") rather than a row apiece: they
+                               are one fact, "where", not two. *@
+                            @if (!string.IsNullOrEmpty(_selectedNode.City) || !string.IsNullOrEmpty(_selectedNode.Site))
+                            {
+                                <FluentStack Orientation="Orientation.Horizontal" Width="100%">
+                                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Location</FluentLabel>
+                                    <FluentSpacer />
+                                    <FluentLabel Typo="Typography.Body">
+                                        @(string.Join(" · ", new[] { _selectedNode.City, _selectedNode.Site }
+                                            .Where(value => !string.IsNullOrEmpty(value))))
+                                    </FluentLabel>
+                                </FluentStack>
+                            }
                             <FluentStack Orientation="Orientation.Horizontal" Width="100%">
                                 <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Contract</FluentLabel>
                                 <FluentSpacer />
@@ -520,6 +544,12 @@ else
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
+    // Where the global search lands: /employee/org-chart?focus={userId}. The page opens on
+    // the world map by default, so arriving with a person named has to switch the level too,
+    // or the link appears to do nothing.
+    [SupplyParameterFromQuery(Name = "focus")]
+    public Guid? Focus { get; set; }
+
     private OrgChartNode? _root;
     private OrgChartNode? _displayRoot;
 
@@ -614,9 +644,47 @@ else
     private string _userRole = "";
     private string _userDepartment = "";
     private Guid _currentUserId = Guid.Empty;
+    private Guid _currentRegionId = Guid.Empty;
     private HashSet<Guid> _subordinateIds = new();
 
     private IEnumerable<OrgChartNode> _searchSelection = [];
+
+    // Which ?focus= the current tree was built for, so the same one is not reloaded on every
+    // parameter set, and a different one always is.
+    private Guid? _loadedFocus;
+
+    // Set when a focused tree has just been built and its row still needs the JS pass.
+    private Guid? _highlightPending;
+
+    // Two separate problems, one helper.
+    //
+    // The scope: injecting EmployeeContext directly hands this page the *circuit's* DbContext,
+    // shared with DbTimeOffService and with whatever the page before it left running. Two
+    // overlapping operations on one context is what EF refuses with "a second operation was
+    // started on this context instance", and it took the org chart down every time it was
+    // reached by a client-side navigation — a full reload worked only because prerender and
+    // circuit each get their own scope. NotificationBell and GlobalSearchBox already do this.
+    //
+    // The lock: the page's own reads can overlap each other too — OnInitializedAsync,
+    // OnParametersSetAsync and an expand can all be in flight at once — and a private scope
+    // would not save us from that.
+    private readonly SemaphoreSlim _dbLock = new(1, 1);
+
+    private async Task<T> QueryAsync<T>(Func<EmployeeContext, Task<T>> query)
+    {
+        await _dbLock.WaitAsync();
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            return await query(scope.ServiceProvider.GetRequiredService<EmployeeContext>());
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+
+    public void Dispose() => _dbLock.Dispose();
 
     protected override async Task OnInitializedAsync()
     {
@@ -630,6 +698,7 @@ else
         var userIdString = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         _userRole = authState.User.FindFirst(ClaimTypes.Role)?.Value ?? "";
         _userDepartment = authState.User.FindFirst("Department")?.Value ?? "";
+        Guid.TryParse(authState.User.FindFirst("RegionId")?.Value, out _currentRegionId);
 
         if (_userRole != UserRole.CountryManager.ToString())
         {
@@ -640,32 +709,147 @@ else
                          _userRole == UserRole.Admin.ToString() ||
                          _userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase);
 
-        if (Guid.TryParse(userIdString, out var userId))
-        {
-            _currentUserId = userId;
-            bool isAdmin = _userRole == UserRole.Admin.ToString();
-            _root = await EmployeeCtx.GetCompanyOrgChartAsync(userId, isAdmin);
+        if (!Guid.TryParse(userIdString, out var userId))
+            return;
 
-            if (_root != null)
-            {
-                PopulateFilterOptions(_root);
-                _subordinateIds.Clear();
-                var selfNode = FindNodeInTree(_root, _currentUserId);
-                if (selfNode != null)
-                {
-                    CollectSubordinateIds(selfNode, _subordinateIds);
-                    
-                    bool isGlobal = _userRole == UserRole.CountryManager.ToString();
-                    if (!isGlobal)
-                    {
-                        PruneTreeToUserBranch(_root, _currentUserId);
-                    }
-                }
-                
-                // We need to apply filters *after* potentially pruning the tree
-                // so that _displayRoot reflects the pruned _root.
-                ApplyFilters();
-            }
+        _currentUserId = userId;
+
+        // An unhandled exception here tears the circuit down and the user gets the red bar with
+        // no idea what happened. These are two whole-company reads; say what went wrong and
+        // leave the page standing.
+        try
+        {
+            // Skipped entirely when arriving with ?focus=: OnParametersSetAsync is about to
+            // replace this tree with one built around the target, so building the company tree
+            // first was a second full-roster read whose result went straight in the bin.
+            if (Focus is null)
+                _root = await QueryAsync(employees => employees.GetCompanyOrgChartAsync(userId));
+
+            // From the reporting graph, once, rather than from whichever tree happens to be on
+            // screen: the focused view is built around somebody else and usually does not
+            // contain the viewer, which used to leave a manager with no buttons on their own
+            // reports.
+            _subordinateIds = await QueryAsync(employees => employees.GetManagedUserIdsAsync(userId));
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Could not load the org chart for {UserId}.", userId);
+            Toast.ShowError($"Could not load the organisation chart: {exception.Message}");
+        }
+    }
+
+    // ?focus= is answered here rather than in OnInitializedAsync: searching for a second person
+    // while already on this page reuses the component, so OnInitializedAsync never runs again
+    // and the new parameter would be ignored — the tree would keep showing the previous one.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_currentUserId == Guid.Empty || Focus == _loadedFocus)
+            return;
+
+        _loadedFocus = Focus;
+        if (Focus is not Guid target)
+            return;
+
+        // The ordinary tree opens on *you*, so the person just searched for sits behind some
+        // unexpanded branch. Ask for the tree built around them instead.
+        //
+        // Wrapped for the same reason as OnInitializedAsync: this runs outside any event
+        // handler, so an exception escaping it kills the circuit — the page freezes on whatever
+        // it had rendered and the user gets the generic red bar with nothing to act on.
+        OrgChartNode? focused;
+        try
+        {
+            focused = await QueryAsync(employees =>
+                employees.GetOrgChartFocusedOnAsync(_currentUserId, target));
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Could not focus the org chart on {TargetId}.", target);
+            Toast.ShowError($"Could not open that person's org chart: {exception.Message}");
+
+            await EnsureDefaultTreeAsync();
+            return;
+        }
+
+        if (focused == null)
+        {
+            // The directory is worldwide, so only a deactivated account or a stale link gets
+            // here — not something to apologise for at length.
+            Toast.ShowInfo("That employee is no longer in the directory.");
+            await EnsureDefaultTreeAsync();
+            return;
+        }
+
+        _root = focused;
+        _currentLevel = HierarchyLevel.SiteOrgChart;
+
+        // Selects the row in the tree; the detail panel on the right reads the same field.
+        _selectedNode = FindNodeInTree(_root, target);
+        _highlightPending = target;
+    }
+
+    // OnInitializedAsync skips the company tree when ?focus= is present. If the focused load
+    // then fails or finds nobody, the page would be left with no tree at all — this puts the
+    // ordinary one back so it degrades to the normal chart instead of an empty card.
+    private async Task EnsureDefaultTreeAsync()
+    {
+        if (_root != null)
+            return;
+
+        try
+        {
+            _root = await QueryAsync(employees => employees.GetCompanyOrgChartAsync(_currentUserId));
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Could not load the org chart for {UserId}.", _currentUserId);
+        }
+    }
+
+    // The highlight and the scroll are JS, so they cannot run while the component is still
+    // building its tree — the rows are not in the DOM yet. Running it after the render that
+    // introduced them is what actually marks the row and brings it into view inside the tree's
+    // own scrollbar. Not gated on firstRender: a second search lands on a later one.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_highlightPending is not Guid target)
+            return;
+
+        _highlightPending = null;
+        await SyncTreeHighlightAsync(target);
+    }
+
+    private bool IsAdmin => _userRole == UserRole.Admin.ToString();
+
+    // Raised by a tree item the first time it is opened. The chart spans the whole company, so
+    // branches are fetched here rather than shipped with the page.
+    private async Task LoadChildrenAsync(OrgChartNode node)
+    {
+        if (node.IsLoading)
+            return;
+
+        node.IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            node.Subordinates = await QueryAsync(employees =>
+                employees.GetOrgChartChildrenAsync(node.UserId));
+
+            // Cleared whatever came back: an empty result means there is nothing under this
+            // person after all, and leaving the flag set would ask again on every reopen.
+            node.HasUnloadedChildren = false;
+        }
+        catch (Exception)
+        {
+            // Left set so the next expand retries; the branch simply stays closed for now.
+            node.IsExpanded = false;
+            Toast.ShowError($"Could not load who reports to {node.Name}.");
+        }
+        finally
+        {
+            node.IsLoading = false;
+            StateHasChanged();
         }
     }
 
@@ -826,7 +1010,10 @@ else
 
     private void OnNodeSelected(OrgChartNode node)
     {
-        _selectedNode = node.UserId == Guid.Empty ? null : node;
+        // A synthetic group — HQ, a region, a city, a site — has no email, role or contract of
+        // its own; selecting one would open the detail panel on a person-shaped card with
+        // nothing real in it. Clicking one still expands or collapses it, just does not select.
+        _selectedNode = node.UserId == Guid.Empty || node.IsSyntheticGroup ? null : node;
     }
 
     private Task OnSearchAsync(OptionsSearchEventArgs<OrgChartNode> args)
@@ -978,14 +1165,23 @@ else
         }
     }
 
+    // The chart is worldwide; acting on somebody is not. Every branch below answers "is this
+    // row mine?" — a manager's own reports, or HR's own region — because /hr/dashboard,
+    // /manager/team and the contract actions in ManagerContext are all region-scoped and would
+    // refuse or come up empty for anybody else's row.
     private bool CanManageRequests(OrgChartNode node)
     {
-        if (node == null || node.UserId == Guid.Empty || node.UserId == _currentUserId) return false;
+        if (node == null || node.IsSyntheticGroup || node.UserId == _currentUserId) return false;
         if (_userRole == UserRole.Admin.ToString()) return false;
         if (_userRole == UserRole.LineManager.ToString()) return _subordinateIds.Contains(node.UserId);
-        if (_userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase)) return true;
+        if (_userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase)) return IsMyRegion(node);
         return false;
     }
+
+    // Guid.Empty on the synthetic grouping nodes — HQ, department headings, sites — which
+    // belong to no region and carry no actions.
+    private bool IsMyRegion(OrgChartNode node) =>
+        node.RegionId != Guid.Empty && node.RegionId == _currentRegionId;
 
     // HR is deliberately absent. The button this gates has two destinations — /admin/users for
     // Admins and /manager/team for a Line Manager's own reports — and no third one, because no
@@ -994,8 +1190,10 @@ else
     // fail. Its sibling, CanManageRequests, has an HR branch because /hr/dashboard exists.
     private bool CanManageContract(OrgChartNode node)
     {
-        if (node == null || node.UserId == Guid.Empty || node.UserId == _currentUserId) return false;
-        if (_userRole == UserRole.Admin.ToString()) return true;
+        if (node == null || node.IsSyntheticGroup || node.UserId == _currentUserId) return false;
+        // /admin/users keeps foreign-region rows read-only, so offering the button on one is a
+        // button that can only fail.
+        if (_userRole == UserRole.Admin.ToString()) return IsMyRegion(node);
         if (_userRole == UserRole.LineManager.ToString()) return _subordinateIds.Contains(node.UserId);
         return false;
     }

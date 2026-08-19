@@ -1,0 +1,416 @@
+@page "/search"
+@layout EmployeeLayout
+@* The header box shows the first few of each kind; this is the same search with the lid off.
+   Everything that narrows it lives in the URL, so a drilled-down view can be linked or
+   reloaded and come back the same. *@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Logging
+@using CompanyEmployees.Application
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Web.Security
+@inject EmployeeContext Employees
+@inject ActingContext Acting
+@inject NavigationManager Nav
+@inject AppLocalizer Text
+@inject ILogger<GlobalSearch> Logger
+
+<PageTitle>Search · Time Off Management</PageTitle>
+
+<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text["Search"]</FluentLabel>
+<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)"
+             MarginBlock="4px 16px">
+    @Text["Look up anyone in the company, or pick a region and a department to browse."]
+</FluentLabel>
+
+@* Cards, headers with an accent icon, one FluentStack per card at gap 12: the same shape as
+   the manager, HR and delegation pages. Bare grids on the page background were the odd one
+   out and read as unfinished. *@
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+
+    <FluentCard Style="padding:16px;">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                         VerticalAlignment="VerticalAlignment.Center">
+                <FluentIcon Value="@(new Icons.Regular.Size20.Search())" Color="Color.Accent" />
+                <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@Text["Search"]</FluentLabel>
+            </FluentStack>
+
+            <FluentSearch Value="@_query"
+                          ValueChanged="OnQueryChangedAsync"
+                          Immediate="true"
+                          ImmediateDelay="300"
+                          Placeholder="@Text["Search people, departments, regions"]"
+                          Autocomplete="off"
+                          Style="width:100%;" />
+
+            @* ---- scope pills ---------------------------------------------------- *@
+            @if (_regionName is not null || _departmentName is not null)
+            {
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                             VerticalAlignment="VerticalAlignment.Center" Wrap="true">
+                    <FluentLabel Typo="Typography.Body" Color="Color.Custom"
+                                 CustomColor="var(--neutral-foreground-hint)">
+                        @Text["Searching in"]
+                    </FluentLabel>
+                    @if (_regionName is not null)
+                    {
+                        <FluentButton Appearance="Appearance.Outline"
+                                      IconEnd="@(new Icons.Regular.Size16.Dismiss())"
+                                      OnClick="ClearRegionAsync">
+                            🌍 @_regionName
+                        </FluentButton>
+                    }
+                    @if (_departmentName is not null)
+                    {
+                        <FluentButton Appearance="Appearance.Outline"
+                                      IconEnd="@(new Icons.Regular.Size16.Dismiss())"
+                                      OnClick="@(() => ApplyAsync(region: RegionId, department: null))">
+                            🏢 @_departmentName
+                        </FluentButton>
+                    }
+                </FluentStack>
+            }
+
+            @* ---- type chips ------------------------------------------------------ *@
+            @* Neutral for the selected side and stealth for the rest, so the accent stays with
+               real actions instead of marking which tab is open. *@
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="4" Wrap="true">
+                @foreach (var chip in Chips)
+                {
+                    <FluentButton Appearance="@(_type == chip.Type ? Appearance.Neutral : Appearance.Stealth)"
+                                  OnClick="@(() => ApplyTypeAsync(chip.Type))">
+                        @chip.Label@(chip.Count is int count ? $" ({count})" : "")
+                    </FluentButton>
+                }
+            </FluentStack>
+        </FluentStack>
+    </FluentCard>
+
+    @if (_loading)
+    {
+        <FluentCard Style="padding:16px;">
+            <FluentProgressRing />
+        </FluentCard>
+    }
+    else if (_result is null || _result.Total == 0)
+    {
+        <FluentCard Style="padding:16px;">
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                @Text["Nothing matches."]
+            </FluentLabel>
+        </FluentCard>
+    }
+    else
+    {
+        @if (_result.Regions.Count > 0)
+        {
+            <FluentCard Style="padding:16px;">
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+                    <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                                 VerticalAlignment="VerticalAlignment.Center">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.Globe())" Color="Color.Accent" />
+                        <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@Text["Regions"]</FluentLabel>
+                        <FluentBadge Appearance="Appearance.Neutral">@_result.RegionsTotal</FluentBadge>
+                    </FluentStack>
+
+                    <FluentDataGrid Items="@_result.Regions.AsQueryable()" TGridItem="RegionHit"
+                                    Pagination="@_regionPages"
+                                    GridTemplateColumns="2fr 1fr 1fr 190px" ShowHover="true">
+                        <PropertyColumn Property="@(hit => hit.Name)" Title="@Text["Region"]" Sortable="true" />
+                        <PropertyColumn Property="@(hit => hit.Code)" Title="@Text["Code"]" Sortable="true" />
+                        <TemplateColumn Title="@Text["People"]">@Members(context.MemberCount)</TemplateColumn>
+                        <TemplateColumn Align="Align.End">
+                            @* Once a region is pinned the card shows only that one, so the row
+                               offers the way back out rather than a second trip inside. Clearing
+                               here is how you recover from picking the wrong country without
+                               hunting for the pill above. *@
+                            @if (context.Id == RegionId)
+                            {
+                                <FluentButton Appearance="Appearance.Stealth"
+                                              IconStart="@(new Icons.Regular.Size16.Dismiss())"
+                                              OnClick="ClearRegionAsync">
+                                    @Text["Clear"]
+                                </FluentButton>
+                            }
+                            else
+                            {
+                                <FluentButton Appearance="Appearance.Outline"
+                                              IconStart="@(new Icons.Regular.Size16.ArrowEnter())"
+                                              OnClick="@(() => ApplyAsync(region: context.Id, department: null))">
+                                    @Text["Look inside"]
+                                </FluentButton>
+                            }
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                    <FluentPaginator State="@_regionPages" />
+                </FluentStack>
+            </FluentCard>
+        }
+
+        @* Only once a region is chosen: a department list spanning every country is the same five
+           names repeated thirty-two times, and picking one says nothing about where. This is the
+           middle step of region → department → person.
+
+           Fed by its own query rather than by _result.Departments: the type chip suppresses whole
+           lists, so the card would empty itself the moment somebody picked "People". *@
+        @if (RegionId is not null && _departmentsInRegion.Count > 0)
+        {
+            <FluentCard Style="padding:16px;">
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+                    <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                                 VerticalAlignment="VerticalAlignment.Center">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.Building())" Color="Color.Accent" />
+                        <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@Text["Departments"]</FluentLabel>
+                        <FluentBadge Appearance="Appearance.Neutral">@_departmentsInRegion.Count</FluentBadge>
+                    </FluentStack>
+
+                    <FluentDataGrid Items="@_departmentsInRegion.AsQueryable()" TGridItem="DepartmentHit"
+                                    GridTemplateColumns="2fr 2fr 1fr 190px" ShowHover="true">
+                        <PropertyColumn Property="@(hit => hit.Name)" Title="@Text["Department"]" Sortable="true" />
+                        <TemplateColumn Title="@Text["Manager"]">
+                            @(string.IsNullOrEmpty(context.ManagerName) ? "—" : context.ManagerName)
+                        </TemplateColumn>
+                        <TemplateColumn Title="@Text["People"]">@Members(context.MemberCount)</TemplateColumn>
+                        <TemplateColumn Align="Align.End">
+                            @if (context.Id == DepartmentId)
+                            {
+                                <FluentButton Appearance="Appearance.Stealth"
+                                              IconStart="@(new Icons.Regular.Size16.Dismiss())"
+                                              OnClick="@(() => ApplyAsync(region: RegionId, department: null))">
+                                    @Text["Clear"]
+                                </FluentButton>
+                            }
+                            else
+                            {
+                                <FluentButton Appearance="Appearance.Outline"
+                                              IconStart="@(new Icons.Regular.Size16.ArrowEnter())"
+                                              OnClick="@(() => ApplyAsync(region: RegionId, department: context.Id))">
+                                    @Text["Look inside"]
+                                </FluentButton>
+                            }
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                </FluentStack>
+            </FluentCard>
+        }
+
+        @if (_result.People.Count > 0)
+        {
+            <FluentCard Style="padding:16px;">
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+                    <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                                 VerticalAlignment="VerticalAlignment.Center">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.People())" Color="Color.Accent" />
+                        <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@Text["People"]</FluentLabel>
+                        <FluentBadge Appearance="Appearance.Neutral">@_result.PeopleTotal</FluentBadge>
+                    </FluentStack>
+
+                    <FluentDataGrid Items="@_result.People.AsQueryable()" TGridItem="PersonHit"
+                                    Pagination="@_pagination"
+                                    GridTemplateColumns="2fr 2fr 1.2fr 1.2fr 1fr 170px"
+                                    ShowHover="true">
+                        <TemplateColumn Title="@Text["Name"]" Sortable="true" SortBy="@_byName">
+                            <FluentPersona Name="@context.Name" Initials="@context.Initials" ImageSize="28px"
+                                           TextPosition="TextPosition.End" />
+                        </TemplateColumn>
+                        <PropertyColumn Property="@(hit => hit.Email)" Title="@Text["Email"]" Sortable="true" />
+                        <PropertyColumn Property="@(hit => hit.Role)" Title="@Text["Role"]" Sortable="true" />
+                        <TemplateColumn Title="@Text["Department"]">
+                            @(string.IsNullOrEmpty(context.Department) ? "—" : context.Department)
+                        </TemplateColumn>
+                        <PropertyColumn Property="@(hit => hit.Region)" Title="@Text["Region"]" Sortable="true" />
+                        <TemplateColumn Align="Align.End">
+                            <FluentButton Appearance="Appearance.Outline"
+                                          IconStart="@(new Icons.Regular.Size16.Organization())"
+                                          OnClick="@(() => Nav.NavigateTo($"/employee/org-chart?focus={context.Id}"))">
+                                @Text["Org Chart"]
+                            </FluentButton>
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                    <FluentPaginator State="@_pagination" />
+                </FluentStack>
+            </FluentCard>
+        }
+    }
+</FluentStack>
+
+@code {
+    private const int PageTake = 200;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? Query { get; set; }
+
+    [SupplyParameterFromQuery(Name = "type")]
+    public string? TypeName { get; set; }
+
+    [SupplyParameterFromQuery(Name = "region")]
+    public Guid? RegionId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "department")]
+    public Guid? DepartmentId { get; set; }
+
+    private Guid _userId;
+    private bool _ready;
+    private bool _loading = true;
+    private string _query = "";
+    private SearchEntityType _type = SearchEntityType.All;
+    private GlobalSearchResult? _result;
+    private string? _regionName;
+    private string? _departmentName;
+
+    // One per grid: sharing a PaginationState across three grids makes paging any of them page
+    // all three, and the regions list alone is 32 rows.
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 15 };
+    private readonly PaginationState _regionPages = new() { ItemsPerPage = 10 };
+
+    // The departments of the pinned region, fetched separately from the results — see the card.
+    private List<DepartmentHit> _departmentsInRegion = new();
+
+    private readonly GridSort<PersonHit> _byName = GridSort<PersonHit>.ByAscending(hit => hit.Name);
+
+    private record Chip(SearchEntityType Type, string Label, int? Count);
+
+    private IEnumerable<Chip> Chips => new[]
+    {
+        new Chip(SearchEntityType.All, Text["All"], _result?.Total),
+        new Chip(SearchEntityType.People, Text["People"], _result?.PeopleTotal),
+        new Chip(SearchEntityType.Regions, Text["Regions"], _result?.RegionsTotal)
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
+            return;
+
+        var acting = await Acting.GetAsync();
+        if (acting is null)
+            return;
+
+        _userId = acting.EffectiveUserId;
+        _ready = true;
+    }
+
+    // Driven by the query string rather than by the click handlers: every narrowing below
+    // navigates, and the reload that follows is what re-runs the search. One path in, so a
+    // pasted URL behaves exactly like a click.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_ready)
+            return;
+
+        _query = Query ?? "";
+        _type = Enum.TryParse<SearchEntityType>(TypeName, ignoreCase: true, out var parsed)
+            ? parsed
+            : SearchEntityType.All;
+
+        await SearchAsync();
+    }
+
+    private async Task SearchAsync()
+    {
+        _loading = true;
+        try
+        {
+            _result = await Employees.GlobalSearchAsync(
+                _userId, _query, RegionId, DepartmentId, _type, PageTake);
+
+            await LoadDepartmentsInRegionAsync();
+            await ResolvePillNamesAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Search page failed for {UserId}.", _userId);
+            _result = new GlobalSearchResult();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // The departments that actually have somebody in the chosen region. Asked for without the
+    // query and without the department itself, so narrowing to one department does not reduce
+    // the card to that single row and strand the user with no way back to the others.
+    private async Task LoadDepartmentsInRegionAsync()
+    {
+        if (RegionId is not Guid region)
+        {
+            _departmentsInRegion = new List<DepartmentHit>();
+            return;
+        }
+
+        var inRegion = await Employees.GlobalSearchAsync(
+            _userId, query: null, regionId: region, departmentId: null,
+            type: SearchEntityType.Departments, take: PageTake);
+
+        _departmentsInRegion = inRegion.Departments;
+    }
+
+    // The ids come from the URL, so the names have to be looked up. Reading them from
+    // _result would only work while the type chip is on All — the other chips empty the
+    // very lists the labels would come from.
+    private async Task ResolvePillNamesAsync()
+    {
+        _regionName = null;
+        _departmentName = null;
+
+        if (RegionId is Guid regionId)
+        {
+            var regions = await Employees.GetRegionsAsync();
+            _regionName = regions.FirstOrDefault(region => region.Id == regionId)?.Name;
+        }
+
+        if (DepartmentId is Guid departmentId)
+        {
+            var departments = await Employees.GetDepartmentsAsync();
+            _departmentName = departments.FirstOrDefault(department => department.Id == departmentId)?.Name;
+        }
+    }
+
+    // Typing replaces the history entry instead of adding one. Every keystroke navigates —
+    // that is what re-runs the search — so pushing each would bury the page the user arrived
+    // from under one entry per letter and make Back useless.
+    private Task OnQueryChangedAsync(string? value)
+    {
+        _query = value ?? "";
+        return NavigateAsync(_query, _type, RegionId, DepartmentId, replace: true);
+    }
+
+    private Task ApplyTypeAsync(SearchEntityType type) =>
+        NavigateAsync(_query, type, RegionId, DepartmentId);
+
+    private Task ApplyAsync(Guid? region, Guid? department) =>
+        NavigateAsync(_query, _type, region, department);
+
+    // Clearing the region clears the department with it: a department pinned inside a region
+    // you have just left describes nothing. Applied only here, at the point of clearing —
+    // folding it into ApplyAsync silently discarded the department on every *other* call too,
+    // which killed the department drill-down entirely until a region happened to be pinned.
+    private Task ClearRegionAsync() => NavigateAsync(_query, _type, null, null);
+
+    private Task NavigateAsync(
+        string query, SearchEntityType type, Guid? region, Guid? department, bool replace = false)
+    {
+        var parameters = new Dictionary<string, object?>
+        {
+            ["q"] = string.IsNullOrWhiteSpace(query) ? null : query,
+            ["type"] = type == SearchEntityType.All ? null : type.ToString(),
+            ["region"] = region?.ToString(),
+            ["department"] = department?.ToString()
+        };
+
+        Nav.NavigateTo(
+            Nav.GetUriWithQueryParameters(Nav.ToAbsoluteUri("/search").ToString(), parameters),
+            forceLoad: false,
+            replace: replace);
+
+        return Task.CompletedTask;
+    }
+
+    // See GlobalSearchBox: keys are matched case-insensitively, so no bare "people" key.
+    private string Members(int count) =>
+        count == 1 ? Text["1 person"] : Text.Format("{0} people", count);
+}

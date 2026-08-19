@@ -111,9 +111,6 @@ namespace CompanyEmployees.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("AdminId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<Guid?>("ManagerId")
                         .HasColumnType("uniqueidentifier");
 
@@ -123,8 +120,6 @@ namespace CompanyEmployees.Persistence.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AdminId");
 
                     b.HasIndex("ManagerId");
 
@@ -369,7 +364,6 @@ namespace CompanyEmployees.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("City")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ConcurrencyStamp")
@@ -433,7 +427,6 @@ namespace CompanyEmployees.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Site")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Status")
@@ -647,17 +640,10 @@ namespace CompanyEmployees.Persistence.Migrations
 
             modelBuilder.Entity("CompanyEmployees.Domain.Entities.Department", b =>
                 {
-                    b.HasOne("CompanyEmployees.Domain.Entities.User", "Admin")
-                        .WithMany()
-                        .HasForeignKey("AdminId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
                     b.HasOne("CompanyEmployees.Domain.Entities.User", "Manager")
                         .WithMany()
                         .HasForeignKey("ManagerId")
                         .OnDelete(DeleteBehavior.NoAction);
-
-                    b.Navigation("Admin");
 
                     b.Navigation("Manager");
                 });

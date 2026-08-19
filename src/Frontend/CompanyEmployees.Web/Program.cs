@@ -45,7 +45,12 @@ if (builder.Environment.IsDevelopment())
 }
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    // Without this the circuit reports every unhandled exception to the browser as the same
+    // "An unhandled error has occurred" bar, and the real message only exists in the server
+    // console — which is no help at all when a page dies on a teammate's machine. Development
+    // only: the detail includes stack traces.
+    .AddInteractiveServerComponents(options =>
+        options.DetailedErrors = builder.Environment.IsDevelopment());
 builder.Services.AddFluentUIComponents();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<ThemeState>();
