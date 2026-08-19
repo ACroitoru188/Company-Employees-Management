@@ -6,17 +6,10 @@
 # Use this when you want the schema updated without launching, or to check that your
 # database matches everyone else's after a pull.
 #
-# LocalDB is Windows-only, so on Linux and macOS a connection string is required. Pass it
-# as the first argument or set ConnectionStrings__Default, which is what
-# DesignTimeDbContextFactory reads.
+# Defaults to the SQL Server container configured in compose.yaml. Pass another connection
+# string as the first argument or set ConnectionStrings__Default to override it.
 #
-#   ./scripts/db-update.sh "Server=localhost,1433;Database=CompanyEmployees;User Id=sa;Password=...;TrustServerCertificate=True"
-#
-# With the mssql Docker image running as a container named "sql1", the password can come
-# from the container instead of your shell history:
-#
-#   SA=$(docker inspect sql1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^MSSQL_SA_PASSWORD=' | cut -d= -f2-)
-#   ./scripts/db-update.sh "Server=localhost,1433;Database=CompanyEmployees;User Id=sa;Password=${SA};TrustServerCertificate=True"
+#   ./scripts/db-update.sh "Server=db.example.test;Database=CompanyEmployees;User Id=company_app;Password=...;TrustServerCertificate=True"
 
 set -euo pipefail
 
@@ -41,18 +34,6 @@ fi
 
 if [ $# -ge 1 ]; then
     export ConnectionStrings__Default="$1"
-fi
-
-if [ -z "${ConnectionStrings__Default:-}" ]; then
-    cat >&2 <<'MSG'
-No connection string.
-
-DesignTimeDbContextFactory falls back to LocalDB, which does not exist on this platform —
-`dotnet ef` would fail with "LocalDB is not supported on this platform". Pass a connection
-string as the first argument, or export ConnectionStrings__Default. See the header of this
-script for the Docker one-liner.
-MSG
-    exit 1
 fi
 
 echo "Restoring dotnet-ef..."

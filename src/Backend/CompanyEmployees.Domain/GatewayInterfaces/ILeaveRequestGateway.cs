@@ -11,6 +11,8 @@ public interface ILeaveRequestGateway
 
     Task<List<LeaveRequest>> GetApprovedRequestsForUsersAsync(
         List<Guid> userIds, DateOnly from, DateOnly to);
+    Task<List<LeaveRequest>> GetActiveRequestsForUsersAsync(
+        List<Guid> userIds, DateOnly from, DateOnly to);
 
     Task CreateRequestAsync(LeaveRequest request);
 

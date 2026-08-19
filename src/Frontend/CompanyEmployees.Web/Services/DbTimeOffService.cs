@@ -63,7 +63,13 @@ public class DbTimeOffService : ITimeOffService
                 {
                     Type = MapType(b.Type),
                     DaysTotal = b.DaysTotal,
-                    DaysUsed = b.DaysUsed
+                    DaysUsed = b.DaysUsed,
+                    CarryOverPortions = b.CarryOverPortions
+                        .Select(portion => new AnnualCarryOverPortion(
+                            portion.Days,
+                            portion.ExpiryDate,
+                            portion.ExpiredDays))
+                        .ToList()
                 })
                 .OrderBy(b => b.Type)
                 .ToList();
@@ -81,7 +87,8 @@ public class DbTimeOffService : ITimeOffService
         {
             var user = await GetDomainUserAsync();
             var requests = await _employee.GetMyRequestsAsync(user.Id);
-            return requests.Select(MapRequest).ToList();
+            var holidays = await GetHolidayDatesAsync(user, requests);
+            return requests.Select(request => MapRequest(request, holidays)).ToList();
         }
         finally
         {
@@ -235,7 +242,8 @@ public class DbTimeOffService : ITimeOffService
         {
             var user = await GetDomainUserAsync();
             var created = await _employee.SubmitRequestAsync(user.Id, MapTypeToDomain(type), start, end, reason);
-            return MapRequest(created);
+            var holidays = await GetHolidayDatesAsync(user, [created]);
+            return MapRequest(created, holidays);
         }
         finally
         {
@@ -245,7 +253,25 @@ public class DbTimeOffService : ITimeOffService
 
     // --- mapping helpers -------------------------------------------------
 
-    private static TimeOffRequest MapRequest(LeaveRequest request)
+    private async Task<HashSet<DateOnly>> GetHolidayDatesAsync(
+        User user,
+        IReadOnlyCollection<LeaveRequest> requests)
+    {
+        var holidays = new HashSet<DateOnly>();
+        var years = requests
+            .SelectMany(request => Enumerable.Range(
+                request.StartDate.Year,
+                request.EndDate.Year - request.StartDate.Year + 1))
+            .Distinct();
+
+        foreach (var year in years)
+            foreach (var holiday in await _employee.GetRegionalHolidaysAsync(user.Id, year))
+                holidays.Add(holiday.Date);
+
+        return holidays;
+    }
+
+    private static TimeOffRequest MapRequest(LeaveRequest request, HashSet<DateOnly> holidays)
     {
         // The decision lives on the approvals; take the latest reviewed step.
         var decision = request.Approvals
@@ -263,8 +289,19 @@ public class DbTimeOffService : ITimeOffService
             Status = MapStatus(request.Status),
             SubmittedAt = request.CreatedAt,
             DecidedBy = decision?.Approver?.Name,
-            DecidedAt = decision?.ReviewedAt
+            DecidedAt = decision?.ReviewedAt,
+            WorkingDayCount = CountWorkingDays(request.StartDate, request.EndDate, holidays)
         };
+    }
+
+    private static int CountWorkingDays(DateOnly start, DateOnly end, HashSet<DateOnly> holidays)
+    {
+        var count = 0;
+        for (var day = start; day <= end; day = day.AddDays(1))
+            if (day.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday
+                && !holidays.Contains(day))
+                count++;
+        return count;
     }
 
     // Explicit per-name mapping: the two enums do not share numeric order,

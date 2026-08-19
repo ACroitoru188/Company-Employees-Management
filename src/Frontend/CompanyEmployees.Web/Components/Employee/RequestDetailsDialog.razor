@@ -21,7 +21,7 @@
         <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">
             @Content.StartDate.ToString("MMM d", CultureInfo.CurrentCulture) –
             @Content.EndDate.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)
-            (@Content.Days @Text[Content.Days == 1 ? "day" : "days"])
+            (@Content.Days @Text[Content.Days == 1 ? "working day" : "working days"])
         </FluentLabel>
 
         <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">

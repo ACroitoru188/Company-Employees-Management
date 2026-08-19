@@ -72,6 +72,20 @@ namespace CompanyEmployees.Gateway.Repositories
                 .ToListAsync();
         }
 
+        public async Task<List<LeaveRequest>> GetActiveRequestsForUsersAsync(
+            List<Guid> userIds, DateOnly from, DateOnly to)
+        {
+            return await _context.LeaveRequests
+                .Include(request => request.User)
+                    .ThenInclude(user => user.Department)
+                .Where(request => userIds.Contains(request.UserId)
+                                  && (request.Status == LeaveStatus.Pending
+                                      || request.Status == LeaveStatus.Approved)
+                                  && request.StartDate <= to
+                                  && request.EndDate >= from)
+                .ToListAsync();
+        }
+
         public async Task CreateRequestAsync(LeaveRequest request)
         {
             await _context.LeaveRequests.AddAsync(request);
