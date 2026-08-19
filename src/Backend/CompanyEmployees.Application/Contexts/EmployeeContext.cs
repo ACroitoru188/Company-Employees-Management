@@ -1031,7 +1031,7 @@ namespace CompanyEmployees.Application.Contexts
             var allUsers = await _userGateway.GetAllUsersAsync();
             var requestingUser = allUsers.FirstOrDefault(user => user.Id == currentUserId);
             if (requestingUser == null)
-                throw new EntityNotFoundException($"No user with id {currentUserId}.");
+                return null; // Gracefully handle stale cookies after DB recreation
 
             var activeUsers = allUsers
                 .Where(user => user.Status == UserStatus.Active
@@ -1055,6 +1055,8 @@ namespace CompanyEmployees.Application.Contexts
                     Email = u.Email ?? string.Empty,
                     Role = u.Role.ToString(),
                     Department = u.Department?.Name ?? string.Empty,
+                    City = u.City,
+                    Site = u.Site,
                     Initials = initials,
                     ManagerId = u.ManagerId,
                     HasPendingRequest = pendingReq != null,
@@ -1066,237 +1068,191 @@ namespace CompanyEmployees.Application.Contexts
                     ContractType = activeContract?.Type,
                     ContractStatus = activeContract?.Status,
                     ContractStartDate = activeContract?.StartDate,
-                    ContractEndDate = activeContract?.EndDate
+                    ContractEndDate = activeContract?.EndDate,
+                    Subordinates = new List<OrgChartNode>(),
+                    HasUnloadedChildren = false,
+                    IsExpanded = false
                 };
             }
 
-            // Cycle detection using upward traversal
-            foreach (var user in activeUsers)
+            // Grouping Functions for New Hierarchy
+            OrgChartNode CreateDepartmentNode(Department dept, IEnumerable<User> deptUsers)
             {
-                var visited = new HashSet<Guid>();
-                var currentId = user.Id;
-                while (currentId != Guid.Empty)
+                var deptNode = new OrgChartNode { UserId = Guid.NewGuid(), Name = dept.Name, Role = "Department", Department = dept.Name, Initials = dept.Name.Length >= 2 ? dept.Name.Substring(0, 2).ToUpperInvariant() : "DP", IsExpanded = false, Subordinates = new List<OrgChartNode>(), HasUnloadedChildren = false };
+                
+                // First, assign subordinates for EVERY user in the department
+                foreach (var u in deptUsers)
                 {
-                    if (!visited.Add(currentId))
+                    var uNode = nodeMap[u.Id];
+                    uNode.Subordinates = deptUsers.Where(sub => sub.ManagerId == u.Id).Select(sub => nodeMap[sub.Id]).ToList();
+                    uNode.HasUnloadedChildren = uNode.Subordinates.Count > 0;
+                }
+
+                // Then, only add top-level users (whose manager is NOT in this department) to the department node
+                var topLevelUsers = deptUsers.Where(u => u.ManagerId == null || !deptUsers.Any(du => du.Id == u.ManagerId)).ToList();
+                foreach (var topUser in topLevelUsers)
+                {
+                    deptNode.Subordinates.Add(nodeMap[topUser.Id]);
+                }
+                
+                deptNode.HasUnloadedChildren = deptNode.Subordinates.Count > 0;
+                return deptNode;
+            }
+
+            OrgChartNode CreateSiteNode(string siteName, IEnumerable<User> siteUsers)
+            {
+                var siteNode = new OrgChartNode { UserId = Guid.NewGuid(), Name = siteName, Role = "Site", Initials = siteName.Length >= 2 ? siteName.Substring(0, 2).ToUpperInvariant() : "ST", IsExpanded = false, Subordinates = new List<OrgChartNode>(), HasUnloadedChildren = false };
+                var siteAdmins = siteUsers.Where(u => u.Role == UserRole.Admin).ToList();
+                
+                foreach (var admin in siteAdmins)
+                {
+                    var adminNode = nodeMap[admin.Id];
+                    adminNode.Subordinates = new List<OrgChartNode>();
+                    var adminDepts = siteUsers.Where(u => u.Department != null && u.Department.AdminId == admin.Id).Select(u => u.Department!).DistinctBy(d => d.Id);
+                    foreach (var dept in adminDepts)
                     {
-                        _logger.LogError("Cycle detected in org chart involving user {UserId}", currentId);
-                        throw new InvalidOperationException("Hierarchy cycle detected in database.");
+                        adminNode.Subordinates.Add(CreateDepartmentNode(dept, siteUsers.Where(u => u.DepartmentId == dept.Id)));
                     }
-                    var current = activeUsers.FirstOrDefault(u => u.Id == currentId);
-                    if (current?.ManagerId == null)
-                        break;
-                    currentId = current.ManagerId.Value;
+                    adminNode.HasUnloadedChildren = adminNode.Subordinates.Count > 0;
+                    siteNode.Subordinates.Add(adminNode);
+                }
+
+                // Handle users/departments without an admin at this site
+                var adminIdsAtThisSite = siteAdmins.Select(a => (Guid?)a.Id).ToList();
+                var unassignedDepts = siteUsers
+                    .Where(u => u.Department != null && 
+                                (u.Department.AdminId == null || !adminIdsAtThisSite.Contains(u.Department.AdminId)))
+                    .Select(u => u.Department!)
+                    .DistinctBy(d => d.Id);
+                foreach (var dept in unassignedDepts)
+                {
+                    siteNode.Subordinates.Add(CreateDepartmentNode(dept, siteUsers.Where(u => u.DepartmentId == dept.Id)));
+                }
+
+                // Handle users with no department at all
+                var unassignedUsers = siteUsers.Where(u => u.Role != UserRole.Admin && u.Department == null).ToList();
+                foreach(var u in unassignedUsers)
+                {
+                    var uNode = nodeMap[u.Id];
+                    uNode.Subordinates = unassignedUsers.Where(sub => sub.ManagerId == u.Id).Select(sub => nodeMap[sub.Id]).ToList();
+                    uNode.HasUnloadedChildren = uNode.Subordinates.Count > 0;
+                }
+                var topLevelUnassigned = unassignedUsers.Where(u => u.ManagerId == null || !unassignedUsers.Any(du => du.Id == u.ManagerId)).ToList();
+                foreach (var topUser in topLevelUnassigned)
+                {
+                    siteNode.Subordinates.Add(nodeMap[topUser.Id]);
+                }
+
+                siteNode.HasUnloadedChildren = siteNode.Subordinates.Count > 0;
+                return siteNode;
+            }
+
+            OrgChartNode CreateCityNode(string cityName, IEnumerable<User> cityUsers)
+            {
+                var cityNode = new OrgChartNode { UserId = Guid.NewGuid(), Name = cityName, Role = "City", Initials = cityName.Length >= 2 ? cityName.Substring(0, 2).ToUpperInvariant() : "CT", IsExpanded = false, Subordinates = new List<OrgChartNode>(), HasUnloadedChildren = false };
+                foreach (var siteGroup in cityUsers.GroupBy(u => u.Site).OrderBy(g => g.Key))
+                {
+                    cityNode.Subordinates.Add(CreateSiteNode(siteGroup.Key, siteGroup));
+                }
+                cityNode.HasUnloadedChildren = cityNode.Subordinates.Count > 0;
+                return cityNode;
+            }
+
+            var countryManager = activeUsers.FirstOrDefault(u => u.Role == UserRole.CountryManager);
+            
+            OrgChartNode root;
+            if (countryManager != null)
+            {
+                var initials = string.Concat(countryManager.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
+                if (initials.Length > 2) initials = initials.Substring(0, 2);
+
+                root = new OrgChartNode
+                {
+                    UserId = countryManager.Id,
+                    Name = countryManager.Name,
+                    Role = "Country Manager",
+                    Department = requestingUser.Region?.Name ?? "Company",
+                    Initials = initials,
+                    IsExpanded = true,
+                    Subordinates = new List<OrgChartNode>(),
+                    HasUnloadedChildren = false
+                };
+            }
+            else
+            {
+                root = new OrgChartNode
+                {
+                    UserId = Guid.Empty,
+                    Name = requestingUser.Region?.Name ?? "Company",
+                    Role = "Headquarters",
+                    Department = "All Departments",
+                    Initials = "HQ",
+                    IsExpanded = true,
+                    Subordinates = new List<OrgChartNode>(),
+                    HasUnloadedChildren = false
+                };
+            }
+
+            var usersToGroup = activeUsers.Where(u => u.Id != root.UserId).ToList();
+
+            foreach (var cityGroup in usersToGroup.GroupBy(u => u.City ?? "Unknown").OrderBy(g => g.Key))
+            {
+                root.Subordinates.Add(CreateCityNode(cityGroup.Key, cityGroup));
+            }
+            root.HasUnloadedChildren = root.Subordinates.Count > 0;
+
+            // Expand path to current user
+            bool ExpandPathToUser(OrgChartNode node, Guid targetId)
+            {
+                if (node.UserId == targetId)
+                {
+                    node.IsExpanded = true;
+                    return true;
+                }
+                bool foundInSubtree = false;
+                foreach (var child in node.Subordinates)
+                {
+                    if (ExpandPathToUser(child, targetId))
+                    {
+                        foundInSubtree = true;
+                    }
+                }
+                if (foundInSubtree)
+                {
+                    node.IsExpanded = true;
+                }
+                return foundInSubtree;
+            }
+
+            // Base expansion logic
+            if (isAdmin)
+            {
+                // Admins see down to departments by default
+                SetAllExpanded(root, false);
+                root.IsExpanded = true;
+                foreach (var city in root.Subordinates)
+                {
+                    city.IsExpanded = true;
+                    foreach (var site in city.Subordinates)
+                    {
+                        site.IsExpanded = true;
+                        foreach (var admin in site.Subordinates)
+                        {
+                            if (admin.UserId == currentUserId || requestingUser.Role == UserRole.CountryManager)
+                            {
+                                admin.IsExpanded = true; // Open their own departments
+                            }
+                        }
+                    }
                 }
             }
 
-            // Build tree
-            var childrenMap = new Dictionary<Guid, List<OrgChartNode>>();
-            var root = new OrgChartNode
-            {
-                UserId = Guid.Empty,
-                Name = "Company",
-                Role = "Headquarters",
-                Department = "All Departments",
-                Initials = "HQ"
-            };
+            // Always ensure the current user's path is expanded so they are visible
+            ExpandPathToUser(root, currentUserId);
 
-            foreach (var user in activeUsers)
-            {
-                var node = nodeMap[user.Id];
-                if (user.ManagerId == null)
-                {
-                    if (!childrenMap.ContainsKey(Guid.Empty))
-                        childrenMap[Guid.Empty] = new List<OrgChartNode>();
-                    childrenMap[Guid.Empty].Add(node);
-                }
-                else
-                {
-                    if (!childrenMap.ContainsKey(user.ManagerId.Value))
-                        childrenMap[user.ManagerId.Value] = new List<OrgChartNode>();
-                    childrenMap[user.ManagerId.Value].Add(node);
-                }
-            }
-
-            // Recursive function to attach children
-            void AttachChildren(OrgChartNode parent)
-            {
-                if (childrenMap.TryGetValue(parent.UserId, out var children))
-                {
-                    if (parent.Role == "Admin" && isAdmin)
-                    {
-                        var deptGroups = children.GroupBy(c => string.IsNullOrWhiteSpace(c.Department) ? "No Department" : c.Department).OrderBy(g => g.Key);
-                        parent.Subordinates = new List<OrgChartNode>();
-                        foreach (var group in deptGroups)
-                        {
-                            var deptName = group.Key;
-                            var deptNode = new OrgChartNode
-                            {
-                                UserId = Guid.NewGuid(),
-                                Name = deptName,
-                                Role = "Department",
-                                Department = deptName,
-                                Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
-                                ManagerId = parent.UserId,
-                                HasUnloadedChildren = true,
-                                IsExpanded = false
-                            };
-                            parent.Subordinates.Add(deptNode);
-                        }
-                    }
-                    else
-                    {
-                        parent.Subordinates = children.OrderBy(c => c.Name).ToList();
-                        foreach (var child in parent.Subordinates)
-                        {
-                            child.HasUnloadedChildren = childrenMap.ContainsKey(child.UserId);
-                            child.IsExpanded = false;
-                        }
-                    }
-                }
-            }
-
-            if (root != null)
-            {
-                if (requestingUser.Role == UserRole.CountryManager)
-                {
-                    var cmNode = nodeMap[requestingUser.Id];
-                    var cityNode = new OrgChartNode
-                    {
-                        UserId = Guid.NewGuid(),
-                        Name = "Brașov",
-                        Role = "City",
-                        Department = "Region",
-                        Initials = "BV",
-                        ManagerId = cmNode.UserId,
-                        HasUnloadedChildren = true,
-                        IsExpanded = false
-                    };
-                    cmNode.Subordinates = new List<OrgChartNode> { cityNode };
-                    cmNode.IsExpanded = true;
-                    MarkFocus(cmNode, null);
-
-                    root = cmNode; // For country manager, they are the root of the tree
-                }
-                else if (requestingUser.Role == UserRole.Admin)
-                {
-                    var adminNode = nodeMap[requestingUser.Id];
-                    AttachChildren(adminNode);
-                    adminNode.IsExpanded = true;
-                    MarkFocus(adminNode, null);
-                    root = adminNode;
-                }
-                else if (isAdmin)
-                {
-                    AttachChildren(root);
-                    root.IsExpanded = true;
-                    foreach(var admin in root.Subordinates) {
-                        admin.IsExpanded = false;
-                    }
-                    MarkFocus(root, null); // HR sees everything focused
-                }
-                else
-                {
-                    var currentUser = activeUsers.FirstOrDefault(u => u.Id == currentUserId);
-                    if (currentUser != null)
-                    {
-                        // Determine team anchor:
-                        // - If currentUser has subordinates (Line Manager), the anchor is currentUser.
-                        // - If currentUser has no subordinates (simple employee), the anchor is their direct manager (so they see their full team).
-                        bool hasSubordinates = childrenMap.TryGetValue(currentUser.Id, out var directSubordinates) && directSubordinates.Count > 0;
-                        Guid teamAnchorId = (hasSubordinates || currentUser.ManagerId == null)
-                            ? currentUser.Id
-                            : currentUser.ManagerId.Value;
-
-                        var teamAnchorUser = activeUsers.FirstOrDefault(u => u.Id == teamAnchorId) ?? currentUser;
-
-                        // Build ancestor path from HQ (Guid.Empty) -> ... -> teamAnchorId
-                        var ancestorChain = new List<Guid>();
-                        var curr = teamAnchorUser;
-                        while (curr != null)
-                        {
-                            ancestorChain.Insert(0, curr.Id);
-                            if (curr.ManagerId == null) break;
-                            curr = activeUsers.FirstOrDefault(u => u.Id == curr.ManagerId.Value);
-                        }
-
-                        // Attach only strict ancestors above teamAnchor and full subtree under teamAnchor
-                        void AttachScopedChildren(OrgChartNode parent)
-                        {
-                            if (childrenMap.TryGetValue(parent.UserId, out var children))
-                            {
-                                int ancestorIdx = ancestorChain.IndexOf(parent.UserId);
-                                if (parent.UserId == Guid.Empty)
-                                {
-                                    // Parent is HQ: attach ONLY the top ancestor in the chain
-                                    var nextAncestorId = ancestorChain.FirstOrDefault();
-                                    var nextChild = children.FirstOrDefault(c => c.UserId == nextAncestorId);
-                                    if (nextChild != null)
-                                    {
-                                        parent.Subordinates = new List<OrgChartNode> { nextChild };
-                                        AttachScopedChildren(nextChild);
-                                    }
-                                }
-                                else if (ancestorIdx >= 0 && ancestorIdx < ancestorChain.Count - 1)
-                                {
-                                    // Parent is an ancestor strictly above teamAnchor
-                                    var nextAncestorId = ancestorChain[ancestorIdx + 1];
-                                    var nextChild = children.FirstOrDefault(c => c.UserId == nextAncestorId);
-                                    if (nextChild != null)
-                                    {
-                                        parent.Subordinates = new List<OrgChartNode> { nextChild };
-                                        AttachScopedChildren(nextChild);
-                                    }
-                                }
-                                else
-                                {
-                                    // Parent is teamAnchor or in teamAnchor's subtree: attach all children
-                                    parent.Subordinates = children.OrderBy(c => c.Name).ToList();
-                                    foreach (var child in parent.Subordinates)
-                                    {
-                                        AttachScopedChildren(child);
-                                    }
-                                }
-                            }
-                        }
-
-                        AttachScopedChildren(root);
-                        SetAllExpanded(root, true);
-
-                        var focusIds = new HashSet<Guid>(ancestorChain) { Guid.Empty, currentUser.Id };
-                        void MarkScopedFocus(OrgChartNode node)
-                        {
-                            if (currentUser.Department != null && node.Department == currentUser.Department.Name)
-                            {
-                                // node.IsFocusNode = true;
-                            }
-                            else if (focusIds.Contains(node.UserId))
-                            {
-                                // node.IsFocusNode = true;
-                            }
-                            else
-                            {
-                                node.IsFocusNode = false;
-                            }
-
-                            foreach (var child in node.Subordinates)
-                            {
-                                MarkScopedFocus(child);
-                            }
-                        }
-                        MarkScopedFocus(root);
-                    }
-                    else
-                    {
-                        AttachChildren(root);
-                        SetAllExpanded(root, true);
-                        MarkFocus(root, null);
-                    }
-                }
-
-                // Math Layout Passes
-                CalculateSubtreeWidths(root);
-                CalculateNodeCoordinates(root, 0, root.SubtreeWidth / 2, 0, 50.0);
-            }
+            // Math Layout Passes
+            CalculateSubtreeWidths(root);
+            CalculateNodeCoordinates(root, 0, root.SubtreeWidth / 2, 0, 50.0);
 
             return root;
         }
@@ -1349,23 +1305,6 @@ namespace CompanyEmployees.Application.Contexts
                     CalculateNodeCoordinates(child, depth + 1, childCenter, i, node.Y + 120.0);
                     currentX += child.SubtreeWidth;
                 }
-            }
-        }
-
-        private void MarkFocus(OrgChartNode node, string? targetDepartment)
-        {
-            if (targetDepartment == null) 
-            {
-                // node.IsFocusNode = true;
-            }
-            else
-            {
-                node.IsFocusNode = node.Department == targetDepartment;
-            }
-            
-            foreach (var child in node.Subordinates)
-            {
-                MarkFocus(child, targetDepartment);
             }
         }
 
@@ -1427,6 +1366,16 @@ namespace CompanyEmployees.Application.Contexts
                 throw new EntityNotFoundException($"No user with id {userId}.");
             if (user.RegionId != admin.RegionId)
                 throw new UnauthorizedException("You can preview other regions, but you cannot edit their employees.");
+
+            // If it's a Site Admin, ensure they have rights over the user's department,
+            // or the user is the admin themselves.
+            if (admin.Role == UserRole.Admin && user.Id != admin.Id)
+            {
+                if (user.Department == null || user.Department.AdminId != admin.Id)
+                {
+                    throw new UnauthorizedException("You can only edit employees in departments assigned to your site administration.");
+                }
+            }
 
             return user;
         }

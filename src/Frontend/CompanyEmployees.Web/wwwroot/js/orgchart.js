@@ -26,5 +26,13 @@ window.companyOrgChart = {
             const row = node.shadowRoot && node.shadowRoot.querySelector('.positioning-region');
             (row || node).scrollIntoView({ block: 'center', behavior: 'smooth' });
         });
+    },
+    clearHighlights: function() {
+        document.querySelectorAll('fluent-tree-item.org-path-highlight').forEach(function(item) {
+            item.classList.remove('org-path-highlight');
+        });
+        document.querySelectorAll('fluent-tree-item').forEach(function (item) {
+            item.selected = false;
+        });
     }
 };

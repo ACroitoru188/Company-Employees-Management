@@ -9,5 +9,9 @@ public class Department
     public Guid? ManagerId { get; set; }
     public User? Manager { get; set; }
 
+    // admin-ul de sediu (Site Admin) responsabil pentru acest departament.
+    public Guid? AdminId { get; set; }
+    public User? Admin { get; set; }
+
     public ICollection<User> Members { get; set; } = new List<User>();
 }

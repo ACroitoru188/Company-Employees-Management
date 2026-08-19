@@ -1,0 +1,2230 @@
+﻿@page "/employee/org-chart"
+@layout CompanyEmployees.Web.Components.Layout.EmployeeLayout
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Application
+@using CompanyEmployees.Domain.Enums
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Models
+@using CompanyEmployees.Web.Services
+@inject EmployeeContext EmployeeCtx
+@inject ManagerContext Manager
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+@inject ThemeState ThemeState
+@implements IDisposable
+
+<PageTitle>Organization Chart ┬Ě Global Directory</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-3 flex-wrap gap-2">
+    <div>
+        <div class="d-flex align-center gap-2">
+            <MudText Typo="Typo.h5" Style="font-weight:700;">Global Organization Chart</MudText>
+            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" Style="font-weight: 600; font-size: 11px;">
+                @(_currentLevel switch {
+                    HierarchyLevel.World => "Level 1: Global Continents",
+                    HierarchyLevel.Continent => $"Level 2: {(_selectedContinent?.Name ?? "Europe")} Continent Map",
+                    HierarchyLevel.Country => $"Level 3: {(_selectedCountry?.Name ?? "Romania")} Regional Hubs Map",
+                    _ => "Level 4: Site Org Chart"
+                })
+            </MudChip>
+        </div>
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="pa-0 mt-1" Separator=">">
+            <ItemTemplate Context="item">
+                <MudLink Href="@item.Href" OnClick="@(() => OnBreadcrumbClick(item))" Typo="Typo.caption" Style="cursor: pointer; font-weight: 600; color: var(--mud-palette-primary);">
+                    @item.Text
+                </MudLink>
+            </ItemTemplate>
+        </MudBreadcrumbs>
+    </div>
+
+    <div class="d-flex align-center gap-3 flex-wrap">
+        @* Level Toggle Button Group *@
+        <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Medium">
+            <MudButton Variant="@(_currentLevel == HierarchyLevel.World ? Variant.Filled : Variant.Outlined)"
+                       StartIcon="@Icons.Material.Filled.Public"
+                       OnClick="@(() => SwitchLevel(HierarchyLevel.World))"
+                       Style="text-transform:none; font-weight:600;">
+                Global Map
+            </MudButton>
+            <MudButton Variant="@(_currentLevel == HierarchyLevel.Continent ? Variant.Filled : Variant.Outlined)"
+                       StartIcon="@Icons.Material.Filled.Map"
+                       OnClick="@(() => { _selectedContinent = _continents.FirstOrDefault(c => c.Id == "europe"); SwitchLevel(HierarchyLevel.Continent); })"
+                       Style="text-transform:none; font-weight:600;">
+                Europe Map
+            </MudButton>
+            <MudButton Variant="@(_currentLevel == HierarchyLevel.Country ? Variant.Filled : Variant.Outlined)"
+                       StartIcon="@Icons.Material.Filled.Place"
+                       OnClick="@(() => { _selectedCountry = _europeCountries.FirstOrDefault(c => c.Id == "rou"); SwitchLevel(HierarchyLevel.Country); })"
+                       Style="text-transform:none; font-weight:600;">
+                Romania Hubs
+            </MudButton>
+            <MudButton Variant="@(_currentLevel == HierarchyLevel.SiteOrgChart ? Variant.Filled : Variant.Outlined)"
+                       StartIcon="@Icons.Material.Filled.AccountTree"
+                       OnClick="@(() => SwitchLevel(HierarchyLevel.SiteOrgChart))"
+                       Style="text-transform:none; font-weight:600;">
+                Org Tree
+            </MudButton>
+        </MudButtonGroup>
+
+        @* Search People Input *@
+        <MudAutocomplete T="OrgChartNode"
+                         Value="_selectedSearchNode"
+                         ValueChanged="OnSearchNodeSelected"
+                         SearchFunc="SearchEmployees"
+                         ToStringFunc="@(node => node?.Name ?? "")"
+                         Placeholder="Search people..."
+                         Variant="Variant.Outlined"
+                         Margin="Margin.Dense"
+                         Adornment="Adornment.Start"
+                         AdornmentIcon="@Icons.Material.Filled.Search"
+                         AdornmentColor="Color.Primary"
+                         Clearable="true"
+                         Class="search-people-input"
+                         Style="min-width: 240px; max-width: 300px;"
+                         CoerceValue="true"
+                         MaxItems="10">
+            <ItemTemplate Context="node">
+                <div class="d-flex align-center gap-2 py-1">
+                    <MudAvatar Size="Size.Small" Color="Color.Primary" Style="font-size: 11px; font-weight: 700;">
+                        @node.Initials
+                    </MudAvatar>
+                    <div class="d-flex flex-column">
+                        <MudText Typo="Typo.body2" Style="font-weight: 600; line-height: 1.2;">@node.Name</MudText>
+                        <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary); font-size: 11px;">
+                            @node.Role @(!string.IsNullOrEmpty(node.Department) ? $"┬Ě {node.Department}" : "")
+                        </MudText>
+                    </div>
+                </div>
+            </ItemTemplate>
+        </MudAutocomplete>
+
+        @if (_currentLevel == HierarchyLevel.SiteOrgChart)
+        {
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Primary" 
+                       StartIcon="@Icons.Material.Filled.CenterFocusStrong"
+                       OnClick="FocusOnSelf"
+                       Class="focus-btn"
+                       Style="border-radius: 8px; font-weight: 700; text-transform: none; padding: 6px 16px; border-width: 2px; height: 40px; white-space: nowrap;">
+                Focus Me
+            </MudButton>
+        }
+    </div>
+</div>
+
+<MudCard Elevation="1" Style="height: 75vh; overflow: hidden; position: relative;" class="@($"org-card {(_currentLevel == HierarchyLevel.World ? "world-view" : "")}")">
+    <MudCardContent Class="pa-0" Style="height: 100%; width: 100%; position: relative; background-color: var(--mud-palette-background-grey); overflow: hidden;" id="orgContainer"
+                    @onwheel="OnWheel" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp" @onmouseleave="OnMouseUp">
+
+        @if (_currentLevel == HierarchyLevel.World)
+        {
+            @* ========================================== *@
+            @* LEVEL 1: INTERACTIVE VECTOR WORLD MAP      *@
+            @* ========================================== *@
+            <svg width="100%" height="100%" viewBox="0 0 1200 650" preserveAspectRatio="xMidYMid slice" class="@($"world-map-svg {(ThemeState.IsDarkMode ? "dark-map" : "light-map")}")">
+                <defs>
+                    <style>
+                        .world-map-svg.dark-map {
+                            background: radial-gradient(circle at 50% 50%, #151d2a 0%, #0d121c 100%);
+                        }
+                        .world-map-svg.light-map {
+                            background: radial-gradient(circle at 50% 50%, #f0f7fa 0%, #d8e8f0 100%);
+                        }
+
+                        /* Continents Dark Mode */
+                        .dark-map .world-continent-path {
+                            fill: rgba(0, 163, 180, 0.12);
+                            stroke: #00E5FF;
+                            stroke-width: 1.6px;
+                            stroke-linejoin: round;
+                            stroke-linecap: round;
+                            transition: fill 0.25s ease, stroke 0.25s ease, stroke-width 0.25s ease;
+                            filter: drop-shadow(0 0 3px rgba(0, 229, 255, 0.3));
+                        }
+                        .dark-map .continent-group:hover .world-continent-path,
+                        .dark-map .world-continent-path.hovered {
+                            fill: rgba(0, 229, 255, 0.28);
+                            stroke: #00FFF0;
+                            stroke-width: 2.5px;
+                            filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.7));
+                            cursor: pointer;
+                        }
+
+                        /* Continents Light Mode */
+                        .light-map .world-continent-path {
+                            fill: #ffffff;
+                            stroke: #008899;
+                            stroke-width: 1.6px;
+                            stroke-linejoin: round;
+                            stroke-linecap: round;
+                            transition: fill 0.25s ease, stroke 0.25s ease, stroke-width 0.25s ease;
+                            filter: drop-shadow(0 2px 5px rgba(0, 70, 90, 0.18));
+                        }
+                        .light-map .continent-group:hover .world-continent-path,
+                        .light-map .world-continent-path.hovered {
+                            fill: #cbeeef;
+                            stroke: #005a66;
+                            stroke-width: 2.4px;
+                            filter: drop-shadow(0 4px 12px rgba(0, 120, 150, 0.35));
+                            cursor: pointer;
+                        }
+
+                        /* Pins Dark Mode */
+                        .dark-map .continent-pin-pulse {
+                            fill: none;
+                            stroke: #00E5FF;
+                            stroke-width: 1.5px;
+                            opacity: 0.7;
+                            animation: continentPulse 2.5s infinite ease-in-out;
+                        }
+                        .dark-map .continent-pin-center {
+                            fill: #00E5FF;
+                            stroke: #ffffff;
+                            stroke-width: 2px;
+                            filter: drop-shadow(0 0 8px #00E5FF);
+                        }
+                        .dark-map .continent-group:hover .continent-pin-center {
+                            fill: #FFFF00;
+                            filter: drop-shadow(0 0 12px #FFFF00);
+                        }
+
+                        /* Pins Light Mode */
+                        .light-map .continent-pin-pulse {
+                            fill: none;
+                            stroke: #008899;
+                            stroke-width: 1.5px;
+                            opacity: 0.7;
+                            animation: continentPulse 2.5s infinite ease-in-out;
+                        }
+                        .light-map .continent-pin-center {
+                            fill: #008899;
+                            stroke: #ffffff;
+                            stroke-width: 2px;
+                            filter: drop-shadow(0 2px 6px rgba(0, 136, 153, 0.4));
+                        }
+                        .light-map .continent-group:hover .continent-pin-center {
+                            fill: #d97706;
+                            stroke: #ffffff;
+                            filter: drop-shadow(0 0 10px rgba(217, 119, 6, 0.6));
+                        }
+
+                        @@keyframes continentPulse {
+                            0% { r: 6px; opacity: 0.9; stroke-width: 2px; }
+                            50% { r: 18px; opacity: 0.15; stroke-width: 1px; }
+                            100% { r: 6px; opacity: 0.9; stroke-width: 2px; }
+                        }
+
+                        /* Labels Dark Mode */
+                        .dark-map .continent-label {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 13px;
+                            font-weight: 700;
+                            fill: #ffffff;
+                            letter-spacing: 0.5px;
+                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9));
+                            pointer-events: none;
+                            user-select: none;
+                        }
+                        .dark-map .continent-sublabel {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 10px;
+                            font-weight: 500;
+                            fill: rgba(0, 229, 255, 0.9);
+                            letter-spacing: 0.2px;
+                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9));
+                            pointer-events: none;
+                            user-select: none;
+                        }
+
+                        /* Labels Light Mode */
+                        .light-map .continent-label {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 13px;
+                            font-weight: 700;
+                            fill: #0f172a;
+                            letter-spacing: 0.5px;
+                            filter: drop-shadow(0 1px 2px rgba(255,255,255,0.9));
+                            pointer-events: none;
+                            user-select: none;
+                        }
+                        .light-map .continent-sublabel {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 10px;
+                            font-weight: 600;
+                            fill: #007788;
+                            letter-spacing: 0.2px;
+                            filter: drop-shadow(0 1px 2px rgba(255,255,255,0.85));
+                            pointer-events: none;
+                            user-select: none;
+                        }
+
+                        /* Flight Lines */
+                        .flight-line {
+                            fill: none !important;
+                            stroke-dasharray: 4, 6;
+                            animation: flightDash 25s linear infinite;
+                            pointer-events: none;
+                        }
+                        .dark-map .flight-line {
+                            stroke: rgba(0, 229, 255, 0.35);
+                            stroke-width: 1.5px;
+                        }
+                        .light-map .flight-line {
+                            stroke: rgba(0, 136, 153, 0.45);
+                            stroke-width: 1.5px;
+                        }
+
+                        @@keyframes flightDash {
+                            to { stroke-dashoffset: -100; }
+                        }
+
+                        /* Munich HQ */
+                        .global-hq-halo {
+                            fill: none;
+                            stroke-width: 2px;
+                            animation: hqHalo 2s infinite ease-out;
+                        }
+                        .dark-map .global-hq-halo { stroke: #FFD700; }
+                        .light-map .global-hq-halo { stroke: #d97706; }
+
+                        .dark-map .global-hq-dot {
+                            fill: #FFD700;
+                            stroke: #ffffff;
+                            stroke-width: 1.5px;
+                            filter: drop-shadow(0 0 6px #FFD700);
+                        }
+                        .light-map .global-hq-dot {
+                            fill: #d97706;
+                            stroke: #ffffff;
+                            stroke-width: 1.5px;
+                            filter: drop-shadow(0 0 5px rgba(217, 119, 6, 0.5));
+                        }
+
+                        .dark-map .global-hq-text {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 11px;
+                            font-weight: 700;
+                            fill: #FFD700;
+                            letter-spacing: 0.5px;
+                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9));
+                        }
+                        .light-map .global-hq-text {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 11px;
+                            font-weight: 700;
+                            fill: #b45309;
+                            letter-spacing: 0.5px;
+                            filter: drop-shadow(0 1px 2px rgba(255,255,255,0.9));
+                        }
+
+                        @@keyframes hqHalo {
+                            0% { r: 5px; opacity: 1; }
+                            100% { r: 18px; opacity: 0; }
+                        }
+                    </style>
+
+                    @* Grid Pattern for Blueprint/Cyber Aesthetics *@
+                    <pattern id="worldGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="@(ThemeState.IsDarkMode ? "rgba(255, 255, 255, 0.04)" : "rgba(0, 100, 140, 0.06)")" stroke-width="1" />
+                    </pattern>
+                    <linearGradient id="continentGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.25" />
+                        <stop offset="100%" stop-color="#007791" stop-opacity="0.08" />
+                    </linearGradient>
+                    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="4" result="blur" />
+                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                </defs>
+
+                @* Background Grid *@
+                <rect width="100%" height="100%" fill="url(#worldGrid)" />
+
+                @* Latitude / Longitude Decorative Grid Lines *@
+                <g class="world-geo-lines">
+                    <line x1="0" y1="325" x2="1200" y2="325" stroke="@(ThemeState.IsDarkMode ? "rgba(0, 229, 255, 0.15)" : "rgba(0, 130, 160, 0.2)")" stroke-dasharray="6,6" stroke-width="1" /> @* Equator *@
+                    <line x1="0" y1="180" x2="1200" y2="180" stroke="@(ThemeState.IsDarkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 100, 140, 0.1)")" stroke-dasharray="4,4" stroke-width="1" /> @* Tropic of Cancer *@
+                    <line x1="0" y1="470" x2="1200" y2="470" stroke="@(ThemeState.IsDarkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 100, 140, 0.1)")" stroke-dasharray="4,4" stroke-width="1" /> @* Tropic of Capricorn *@
+                    <line x1="600" y1="0" x2="600" y2="650" stroke="@(ThemeState.IsDarkMode ? "rgba(0, 229, 255, 0.12)" : "rgba(0, 130, 160, 0.18)")" stroke-dasharray="6,6" stroke-width="1" /> @* Prime Meridian *@
+                </g>
+
+                @* World Map Content Layer (Static Crisp Full-View) *@
+                <g class="world-map-content-layer">
+                    
+                    @* Continental Landmasses (High Precision Vector Contours) *@
+                    @foreach (var continent in _continents)
+                    {
+                        bool isSelected = _activeContinent?.Id == continent.Id;
+                        <g class="continent-group @(isSelected ? "continent-active" : "")"
+                           @onclick="() => OnContinentClick(continent)"
+                           @ondblclick="() => OnContinentDblClick(continent)"
+                           cursor="pointer">
+                            
+                            @* Main Continent SVG Outline with non-scaling-stroke for crisp performance *@
+                            <path d="@continent.SvgPath" 
+                                  vector-effect="non-scaling-stroke"
+                                  class="world-continent-path @(isSelected ? "selected" : "")" />
+                            <text x="0" y="7" class="continent-label" text-anchor="middle">@continent.Name</text>
+                        </g>
+                    }
+
+                    @* Global Connections (Curved Inter-Continental HQ Network from Munich HQ) *@
+                    <g class="world-flight-lines">
+                        @* Siemens Global HQ in Munich, Germany (638.6, 258.0) to Other Continents *@
+                        <path d="M 638.6 258.0 Q 440 130 244.5 285.3" fill="none" class="flight-line" vector-effect="non-scaling-stroke" /> @* Munich -> North America *@
+                        <path d="M 638.6 258.0 Q 520 370 440.4 440.5" fill="none" class="flight-line" vector-effect="non-scaling-stroke" /> @* Munich -> South America *@
+                        <path d="M 638.6 258.0 Q 640 330 672.5 397.9" fill="none" class="flight-line" vector-effect="non-scaling-stroke" /> @* Munich -> Africa *@
+                        <path d="M 638.6 258.0 Q 800 200 947.3 297.6" fill="none" class="flight-line" vector-effect="non-scaling-stroke" /> @* Munich -> Asia *@
+                        <path d="M 638.6 258.0 Q 850 400 1045.9 467.0" fill="none" class="flight-line" vector-effect="non-scaling-stroke" /> @* Munich -> Oceania *@
+                    </g>
+
+                    @* Global Executive Anchor: Siemens Global HQ (Munich, Germany - 638.6, 258.0) *@
+                    <g transform="@($"translate({WorldMapData.MunichHQ_X.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {WorldMapData.MunichHQ_Y.ToString(System.Globalization.CultureInfo.InvariantCulture)})")" class="global-hq-group">
+                        <circle r="14" class="global-hq-halo" />
+                        <circle r="5.5" class="global-hq-dot" />
+                        <text x="0" y="16" class="global-hq-text" text-anchor="middle">Siemens Global HQ (Munich)</text>
+                    </g>
+                </g>
+            </svg>
+
+            @* Floating Continent Executive Inspection Card (Glassmorphism) - Opens on Click *@
+            @if (_activeContinent != null)
+            {
+                <div class="@($"continent-floating-card elevation-4 {(ThemeState.IsDarkMode ? "dark-card" : "light-card")}")" style="left: 40px; top: 40px;">
+                    <div class="card-header-row">
+                        <div class="d-flex align-center gap-3">
+                            <span class="continent-flag">@_activeContinent.FlagEmoji</span>
+                            <div>
+                                <div class="continent-title">@_activeContinent.Name</div>
+                                <div class="continent-region-code">@_activeContinent.RegionCode</div>
+                            </div>
+                        </div>
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _activeContinent = null)" aria-label="Close" Style="opacity: 0.7;" />
+                    </div>
+
+                    <div class="card-details-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Regional Leader</span>
+                            <span class="detail-val highlight">--</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Title</span>
+                            <span class="detail-val">--</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Total Workforce</span>
+                            <span class="detail-val">0 Employees</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Active Hubs</span>
+                            <span class="detail-val">0 Campus Sites</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Active Countries</span>
+                            <span class="detail-val">0 Countries</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card-actions mt-2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                                   OnClick="@(() => OnContinentDblClick(_activeContinent))">
+                            @(_activeContinent.Id == "europe" ? "Explore Europe Hubs" : "Drill Down")
+                        </MudButton>
+                    </div>
+                </div>
+            }
+
+            @* Quick Continent Selector (Direct Buttons, No Bar Container) *@
+            <div class="continent-button-row">
+                @foreach (var cont in _continents)
+                {
+                    bool isSelected = _activeContinent?.Id == cont.Id;
+                    <MudButton Size="Size.Small"
+                               Variant="@(isSelected ? Variant.Filled : Variant.Outlined)"
+                               Color="Color.Primary"
+                               OnClick="@(() => SelectAndCenterContinent(cont))"
+                               Class="continent-nav-btn"
+                               Style="@(isSelected ? "font-weight: 700; text-transform: none; white-space: nowrap;" : "font-weight: 600; text-transform: none; white-space: nowrap;")">
+                        @cont.Name
+                    </MudButton>
+                }
+            </div>
+        }
+        else if (_currentLevel == HierarchyLevel.Continent)
+        {
+            @* ========================================== *@
+            @* LEVEL 2: INTERACTIVE EUROPE CONTINENT MAP *@
+            @* ========================================== *@
+            <svg width="100%" height="100%" viewBox="0 0 1000 650" preserveAspectRatio="xMidYMid meet" class="@($"europe-map-svg {(ThemeState.IsDarkMode ? "dark-map" : "light-map")}")">
+                <defs>
+                    <style>
+                        .europe-map-svg.dark-map {
+                            background: radial-gradient(circle at 50% 50%, #151d2a 0%, #0d121c 100%);
+                        }
+                        .europe-map-svg.light-map {
+                            background: radial-gradient(circle at 50% 50%, #f0f7fa 0%, #d8e8f0 100%);
+                        }
+
+                        /* Country paths dark */
+                        .dark-map .europe-country-path {
+                            fill: rgba(0, 163, 180, 0.14);
+                            stroke: #00E5FF;
+                            stroke-width: 1.8px;
+                            stroke-linejoin: round;
+                            stroke-linecap: round;
+                            transition: fill 0.25s ease, stroke 0.25s ease, stroke-width 0.25s ease, filter 0.25s ease;
+                            filter: drop-shadow(0 0 3px rgba(0, 229, 255, 0.35));
+                            cursor: pointer;
+                        }
+                        .dark-map .europe-country-group:hover .europe-country-path,
+                        .dark-map .europe-country-path.hovered {
+                            fill: rgba(0, 229, 255, 0.32);
+                            stroke: #00FFF0;
+                            stroke-width: 2.8px;
+                            filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.85));
+                        }
+
+                        /* Country paths light */
+                        .light-map .europe-country-path {
+                            fill: #ffffff;
+                            stroke: #008899;
+                            stroke-width: 1.8px;
+                            stroke-linejoin: round;
+                            stroke-linecap: round;
+                            transition: fill 0.25s ease, stroke 0.25s ease, stroke-width 0.25s ease, filter 0.25s ease;
+                            filter: drop-shadow(0 2px 6px rgba(0, 70, 90, 0.2));
+                            cursor: pointer;
+                        }
+                        .light-map .europe-country-group:hover .europe-country-path,
+                        .light-map .europe-country-path.hovered {
+                            fill: #cbeeef;
+                            stroke: #005a66;
+                            stroke-width: 2.8px;
+                            filter: drop-shadow(0 4px 14px rgba(0, 120, 150, 0.4));
+                        }
+
+                        /* Pin styles */
+                        .dark-map .europe-pin-dot {
+                            fill: #00E5FF;
+                            filter: drop-shadow(0 0 6px #00E5FF);
+                        }
+                        .dark-map .europe-pin-hq {
+                            fill: #FFD700;
+                            filter: drop-shadow(0 0 8px #FFD700);
+                        }
+                        .light-map .europe-pin-dot {
+                            fill: #008899;
+                            filter: drop-shadow(0 1px 3px rgba(0,0,0,0.3));
+                        }
+                        .light-map .europe-pin-hq {
+                            fill: #E68A00;
+                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+                        }
+
+                        @@keyframes europePulse {
+                            0% { r: 5; opacity: 1; }
+                            100% { r: 16; opacity: 0; }
+                        }
+                        .europe-pulse-ring {
+                            animation: europePulse 2s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+                        }
+                    </style>
+
+                    <pattern id="europeCyberGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="@(ThemeState.IsDarkMode ? "rgba(0, 229, 255, 0.05)" : "rgba(0, 136, 153, 0.07)")" stroke-width="1"/>
+                    </pattern>
+                </defs>
+
+                <!-- Grid Background -->
+                <rect width="100%" height="100%" fill="url(#europeCyberGrid)" />
+
+                <!-- Europe Countries Group -->
+                @foreach (var country in _europeCountries)
+                {
+                    bool isSelected = _activeCountry?.Id == country.Id;
+                    <g class="europe-country-group @(isSelected ? "country-active" : "")"
+                       @onclick="() => OnCountryClick(country)"
+                       @ondblclick="() => OnCountryDblClick(country)"
+                       cursor="pointer">
+                        
+                        <!-- Main Country Boundary -->
+                        <path d="@country.SvgPath"
+                              class="@($"europe-country-path {(isSelected ? "selected" : "")}")" />
+
+                        <!-- Major Hub Pins for this Country -->
+                        @foreach (var hub in country.Hubs)
+                        {
+                            <g transform="@($"translate({hub.X.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {hub.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)})")">
+                                @if (hub.IsHQ)
+                                {
+                                    <circle r="7" class="europe-pulse-ring" fill="none" stroke="@(ThemeState.IsDarkMode ? "#FFD700" : "#E68A00")" stroke-width="1.8" />
+                                    <circle r="5" class="europe-pin-hq" />
+                                    <circle r="2" fill="#ffffff" />
+                                }
+                                else
+                                {
+                                    <circle r="3.5" class="europe-pin-dot" />
+                                    <circle r="1.5" fill="#ffffff" />
+                                }
+                            </g>
+                        }
+                    </g>
+                }
+            </svg>
+
+            <!-- Floating Country Inspection Card (Consistent with Continent Card) - Opens on Click -->
+            @if (_activeCountry != null)
+            {
+                <div class="@($"continent-floating-card elevation-4 {(ThemeState.IsDarkMode ? "dark-card" : "light-card")}")" style="left: 40px; top: 40px; max-width: 280px;">
+                    <div class="card-header-row">
+                        <div class="d-flex align-center gap-3">
+                            <span class="continent-flag">@_activeCountry.Flag</span>
+                            <div>
+                                <div class="continent-title">@_activeCountry.Name</div>
+                                <div class="continent-region-code">@_activeCountry.Capital (Capital) ┬Ě @_activeCountry.Code</div>
+                            </div>
+                        </div>
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _activeCountry = null)" aria-label="Close" Style="opacity: 0.7;" />
+                    </div>
+
+                    <div class="card-details-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Managing Director</span>
+                            <span class="detail-val highlight">--</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Total Workforce</span>
+                            <span class="detail-val">0 Employees</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Active Hubs</span>
+                            <span class="detail-val">0 Campus Sites</span>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <!-- Hubs preview list -->
+                        <div class="d-flex flex-column gap-1 mt-1">
+                            @foreach (var hub in _activeCountry.Hubs)
+                            {
+                                <div class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@(hub.IsHQ ? Icons.Material.Filled.Star : Icons.Material.Filled.Business)" Size="Size.Small" Color="Color.Primary" Style="font-size: 14px;" />
+                                    <span style="font-size: 12px; font-weight: 500;">
+                                        @(hub.IsHQ ? "ÔşÉ " : "")@hub.Name
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="card-actions mt-2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                                   OnClick="@(() => OnCountryDblClick(_activeCountry))"
+                                   Style="text-transform:none; font-weight:700; white-space:nowrap;">
+                            Drill Down
+                        </MudButton>
+                    </div>
+                </div>
+            }
+
+            <!-- Back to Global Map button (bottom left) -->
+            <div class="europe-bottom-nav">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="@(() => SwitchLevel(HierarchyLevel.World))"
+                           Class="map-nav-back-btn">
+                    Global Map
+                </MudButton>
+            </div>
+        }
+        else if (_currentLevel == HierarchyLevel.Country)
+        {
+            @* ==================================================== *@
+            @* LEVEL 3: INTERACTIVE ROMANIA COUNTIES & SIEMENS HUBS *@
+            @* ==================================================== *@
+            <svg width="100%" height="100%" viewBox="0 0 1000 650" preserveAspectRatio="xMidYMid meet" class="@($"romania-map-svg {(ThemeState.IsDarkMode ? "dark-map" : "light-map")}")">
+                <defs>
+                    <style>
+                        .romania-map-svg.dark-map {
+                            background: radial-gradient(circle at 50% 50%, #151d2a 0%, #0d121c 100%);
+                        }
+                        .romania-map-svg.light-map {
+                            background: radial-gradient(circle at 50% 50%, #f0f7fa 0%, #d8e8f0 100%);
+                        }
+
+                        /* County paths dark */
+                        .dark-map .romania-county-path {
+                            fill: rgba(0, 163, 180, 0.10);
+                            stroke: #00D5FF;
+                            stroke-width: 1.4px;
+                            stroke-linejoin: round;
+                            stroke-linecap: round;
+                            transition: fill 0.25s ease, stroke 0.25s ease, stroke-width 0.25s ease, filter 0.25s ease;
+                            filter: drop-shadow(0 0 3px rgba(0, 213, 255, 0.25));
+                            cursor: pointer;
+                        }
+                        .dark-map .romania-county-path.has-presence {
+                            fill: rgba(0, 163, 180, 0.22);
+                            stroke: #00FFF0;
+                            stroke-width: 1.8px;
+                            filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.45));
+                        }
+                        .dark-map .romania-county-group:hover .romania-county-path,
+                        .dark-map .romania-county-path.selected {
+                            fill: rgba(0, 229, 255, 0.35);
+                            stroke: #00FFF0;
+                            stroke-width: 2.5px;
+                            filter: drop-shadow(0 0 14px rgba(0, 229, 255, 0.9));
+                        }
+
+                        /* County paths light */
+                        .light-map .romania-county-path {
+                            fill: #ffffff;
+                            stroke: #008899;
+                            stroke-width: 1.4px;
+                            stroke-linejoin: round;
+                            stroke-linecap: round;
+                            transition: fill 0.25s ease, stroke 0.25s ease, stroke-width 0.25s ease, filter 0.25s ease;
+                            filter: drop-shadow(0 2px 5px rgba(0, 70, 90, 0.15));
+                            cursor: pointer;
+                        }
+                        .light-map .romania-county-path.has-presence {
+                            fill: #e0f4f7;
+                            stroke: #006677;
+                            stroke-width: 1.8px;
+                            filter: drop-shadow(0 3px 8px rgba(0, 90, 120, 0.25));
+                        }
+                        .light-map .romania-county-group:hover .romania-county-path,
+                        .light-map .romania-county-path.selected {
+                            fill: #cbeeef;
+                            stroke: #005a66;
+                            stroke-width: 2.5px;
+                            filter: drop-shadow(0 4px 14px rgba(0, 120, 150, 0.4));
+                        }
+
+                        /* Siemens Pin styles - Dark Mode */
+                        .dark-map .siemens-pin-dot {
+                            fill: #00E5FF;
+                            filter: drop-shadow(0 0 8px #00E5FF);
+                        }
+                        .dark-map .siemens-pin-hq {
+                            fill: #FFD700;
+                            filter: drop-shadow(0 0 12px #FFD700);
+                        }
+                        .dark-map .siemens-hq-pulse-ring {
+                            fill: none;
+                            stroke: #FFD700;
+                            stroke-width: 2px;
+                            animation: romaniaPulse 2s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+                        }
+                        .dark-map .siemens-hub-pulse-ring {
+                            fill: none;
+                            stroke: #00E5FF;
+                            stroke-width: 1.8px;
+                            animation: romaniaPulse 2.2s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+                        }
+
+                        /* City Tag Badges Dark */
+                        .dark-map .siemens-city-tag-hq {
+                            fill: rgba(20, 28, 44, 0.90);
+                            stroke: #FFD700;
+                            stroke-width: 1.5px;
+                            filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
+                        }
+                        .dark-map .siemens-city-text-hq {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 11px;
+                            font-weight: 800;
+                            fill: #FFD700;
+                            letter-spacing: 0.5px;
+                        }
+                        .dark-map .siemens-city-tag {
+                            fill: rgba(13, 22, 36, 0.88);
+                            stroke: #00E5FF;
+                            stroke-width: 1.2px;
+                            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+                        }
+                        .dark-map .siemens-city-text {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 10px;
+                            font-weight: 700;
+                            fill: #00FFF0;
+                            letter-spacing: 0.4px;
+                        }
+
+                        /* Siemens Pin styles - Light Mode */
+                        .light-map .siemens-pin-dot {
+                            fill: #008899;
+                            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+                        }
+                        .light-map .siemens-pin-hq {
+                            fill: #E68A00;
+                            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+                        }
+                        .light-map .siemens-hq-pulse-ring {
+                            fill: none;
+                            stroke: #E68A00;
+                            stroke-width: 2px;
+                            animation: romaniaPulse 2s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+                        }
+                        .light-map .siemens-hub-pulse-ring {
+                            fill: none;
+                            stroke: #008899;
+                            stroke-width: 1.8px;
+                            animation: romaniaPulse 2.2s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+                        }
+
+                        /* City Tag Badges Light */
+                        .light-map .siemens-city-tag-hq {
+                            fill: #ffffff;
+                            stroke: #E68A00;
+                            stroke-width: 1.5px;
+                            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+                        }
+                        .light-map .siemens-city-text-hq {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 11px;
+                            font-weight: 800;
+                            fill: #C07000;
+                            letter-spacing: 0.5px;
+                        }
+                        .light-map .siemens-city-tag {
+                            fill: #ffffff;
+                            stroke: #008899;
+                            stroke-width: 1.2px;
+                            filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
+                        }
+                        .light-map .siemens-city-text {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 10px;
+                            font-weight: 700;
+                            fill: #006677;
+                            letter-spacing: 0.4px;
+                        }
+
+                        @@keyframes romaniaPulse {
+                            0% { r: 6; opacity: 1; }
+                            100% { r: 18; opacity: 0; }
+                        }
+                    </style>
+
+                    <pattern id="romaniaCyberGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="@(ThemeState.IsDarkMode ? "rgba(0, 229, 255, 0.05)" : "rgba(0, 136, 153, 0.07)")" stroke-width="1"/>
+                    </pattern>
+                </defs>
+
+                <!-- Grid Background -->
+                <rect width="100%" height="100%" fill="url(#romaniaCyberGrid)" />
+
+                <!-- Romanian Counties Group (Authentic geographical vector boundaries) -->
+                @foreach (var county in _romaniaCounties)
+                {
+                    bool isSelected = _activeRomaniaCounty?.Id == county.Id;
+                    <g class="romania-county-group @(isSelected ? "county-active" : "")"
+                       @onclick="() => OnRomaniaCountyClick(county)"
+                       @ondblclick="() => OnRomaniaCountyDblClick(county)"
+                       cursor="pointer">
+                        
+                        <!-- County Boundary Path -->
+                        <path d="@county.SvgPath"
+                              class="@($"romania-county-path {(county.HasSiemensPresence ? "has-presence" : "")} {(isSelected ? "selected" : "")}")" />
+                    </g>
+                }
+
+                <!-- Accentuated Siemens Presence Cities (EXACTLY ONE PIN & LABEL PER CITY) -->
+                @foreach (var county in _romaniaCounties.Where(c => c.HasSiemensPresence))
+                {
+                    bool isHubSelected = _activeRomaniaCounty?.Id == county.Id;
+                    string tagText = county.IsHQ ? "ÔşÉ BUCURE╚śTI HQ" : county.CountySeat.ToUpper();
+                    
+                    // Specific non-colliding offsets for city tag badges
+                    string tagTransform = county.CountySeat switch
+                    {
+                        "Bra╚Öov" => "translate(10, 8)",
+                        "Sibiu" => "translate(-75, -12)",
+                        "Craiova" => "translate(10, 8)",
+                        "Timi╚Öoara" => "translate(10, -12)",
+                        "Bucure╚Öti" => "translate(14, -14)",
+                        _ => "translate(10, -12)"
+                    };
+
+                    int badgeWidth = county.IsHQ ? 135 : (county.CountySeat.Length > 8 ? 120 : 90);
+
+                    <g class="siemens-hub-pin-group @(isHubSelected ? "selected-hub" : "")"
+                       transform="@($"translate({county.CenterX.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {county.CenterY.ToString(System.Globalization.CultureInfo.InvariantCulture)})")"
+                       @onclick="() => OnRomaniaCountyClick(county)"
+                       @ondblclick="() => OnRomaniaCountyDblClick(county)"
+                       cursor="pointer">
+                        @if (county.IsHQ)
+                        {
+                            <!-- Bucharest HQ: Prominent Golden Radar & Badge -->
+                            <circle r="14" class="siemens-hq-pulse-ring" />
+                            <circle r="7" class="siemens-pin-hq" />
+                            <circle r="3" fill="#ffffff" />
+                            <g transform="@tagTransform">
+                                <rect width="@badgeWidth" height="24" rx="12" class="siemens-city-tag-hq" />
+                                <text x="12" y="16" class="siemens-city-text-hq">@tagText</text>
+                            </g>
+                        }
+                        else
+                        {
+                            <!-- Regional Hubs: Luminous Cyan Pulsing Ring & Clean City Label Tag -->
+                            <circle r="10" class="siemens-hub-pulse-ring" />
+                            <circle r="5" class="siemens-pin-dot" />
+                            <circle r="2" fill="#ffffff" />
+                            <g transform="@tagTransform">
+                                <rect width="@badgeWidth" height="20" rx="10" class="siemens-city-tag" />
+                                <text x="10" y="14" class="siemens-city-text">@tagText</text>
+                            </g>
+                        }
+                    </g>
+                }
+            </svg>
+
+            <!-- Floating Romania County Inspection Card (Consistent with World & Europe Cards) -->
+            @if (_activeRomaniaCounty != null)
+            {
+                <div class="@($"continent-floating-card elevation-4 {(ThemeState.IsDarkMode ? "dark-card" : "light-card")}")" style="left: 40px; top: 40px; max-width: 320px;">
+                    <div class="card-header-row">
+                        <div class="d-flex align-center gap-3">
+                            <span class="continent-flag">­čçĚ­čç┤</span>
+                            <div>
+                                <div class="continent-title">@_activeRomaniaCounty.Name</div>
+                                <div class="continent-region-code">@_activeRomaniaCounty.CountySeat (Re╚Öedin╚Ť─â) ┬Ě @_activeRomaniaCounty.Region</div>
+                            </div>
+                        </div>
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _activeRomaniaCounty = null)" aria-label="Close" Style="opacity: 0.7;" />
+                    </div>
+                    <div class="card-body">
+                    @if (_activeRomaniaCounty.HasSiemensPresence)
+                    {
+                        <!-- Siemens Hubs preview list -->
+                        <div class="d-flex flex-column gap-1 mt-1">
+                            <span style="font-size: 11px; font-weight: 600; color: var(--mud-palette-text-secondary);">Siemens Sites:</span>
+                            @foreach (var hub in _activeRomaniaCounty.Hubs)
+                            {
+                                <div style="font-size: 11px; padding: 4px 8px; border-radius: 6px; background: @(ThemeState.IsDarkMode ? "rgba(0,229,255,0.10)" : "rgba(0,136,153,0.10)"); color: @(ThemeState.IsDarkMode ? "#00E5FF" : "#008899");">
+                                    <div class="d-flex justify-space-between align-center">
+                                        <span style="font-weight: 700;">@(hub.IsHQ ? "ÔşÉ " : "­čĆó ")@hub.Name</span>
+                                        <span style="font-weight: 600; opacity: 0.9; white-space: nowrap; flex-shrink: 0;">0 staff</span>
+                                    </div>
+                                    <div style="font-size: 9.5px; opacity: 0.8; margin-top: 1px;">@hub.Division ┬Ě @hub.Address</div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    </div>
+
+                    <div class="d-flex justify-space-between align-center mt-3 pt-2" style="@(ThemeState.IsDarkMode ? "border-top: 1px solid rgba(255,255,255,0.08);" : "border-top: 1px solid rgba(0,0,0,0.08);")">
+                        <span class="explore-hint">Double-click county to explore site tree</span>
+                        <MudButton Size="Size.Small"
+                                   Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   EndIcon="@Icons.Material.Filled.ArrowForward"
+                                   OnClick="@(() => OnRomaniaCountyDblClick(_activeRomaniaCounty))"
+                                   Style="text-transform:none; font-weight:700; white-space:nowrap;">
+                            @(_activeRomaniaCounty.Id == "ro_bv" || _activeRomaniaCounty.Name.Contains("Bra╚Öov") || _activeRomaniaCounty.Name.Contains("Brasov") ? "Explore Bra╚Öov Hubs (2)" : "Drill Down")
+                        </MudButton>
+                    </div>
+                </div>
+            }
+
+            <!-- Back to Europe Map button (bottom left) -->
+            <div class="romania-bottom-nav">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="@(() => SwitchLevel(HierarchyLevel.Continent))"
+                           Class="map-nav-back-btn">
+                    Europe Map
+                </MudButton>
+            </div>
+        }
+        else if (_currentLevel == HierarchyLevel.City)
+        {
+            @* ==================================================== *@
+            @* LEVEL 4: INTERACTIVE BRA╚śOV CITY & SIEMENS SITES     *@
+            @* ==================================================== *@
+            <svg width="100%" height="100%" viewBox="0 0 1000 650" preserveAspectRatio="xMidYMid meet" class="@($"brasov-map-svg {(ThemeState.IsDarkMode ? "dark-map" : "light-map")}")">
+                <defs>
+                    <style>
+                        .brasov-map-svg.dark-map {
+                            background: radial-gradient(circle at 50% 50%, #151d2a 0%, #0d121c 100%);
+                        }
+                        .brasov-map-svg.light-map {
+                            background: radial-gradient(circle at 50% 50%, #f0f7fa 0%, #d8e8f0 100%);
+                        }
+
+                        /* Bra╚Öov Detailed City Contour (Steady, no hover glow on map) */
+                        .dark-map .brasov-city-path {
+                            fill: rgba(0, 163, 180, 0.12);
+                            stroke: #00FFF0;
+                            stroke-width: 2.2px;
+                            stroke-linejoin: round;
+                            stroke-linecap: round;
+                            filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.35));
+                            pointer-events: none;
+                        }
+
+                        .light-map .brasov-city-path {
+                            fill: #ffffff;
+                            stroke: #008899;
+                            stroke-width: 2.2px;
+                            stroke-linejoin: round;
+                            stroke-linecap: round;
+                            filter: drop-shadow(0 4px 12px rgba(0, 70, 90, 0.15));
+                            pointer-events: none;
+                        }
+
+                        /* Interactive Building / Site Pin & Badge (Both Blue with Hover Glow) */
+                        .siemens-brasov-site-group {
+                            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+                            cursor: pointer;
+                        }
+
+                        .dark-map .siemens-brasov-site-group:hover,
+                        .dark-map .siemens-brasov-site-group.selected-site {
+                            filter: drop-shadow(0 0 16px rgba(0, 229, 255, 0.95)) drop-shadow(0 0 28px rgba(0, 229, 255, 0.7));
+                        }
+
+                        .light-map .siemens-brasov-site-group:hover,
+                        .light-map .siemens-brasov-site-group.selected-site {
+                            filter: drop-shadow(0 4px 16px rgba(0, 140, 180, 0.55));
+                        }
+
+                        /* Dark Mode: Both sites in Siemens Cyber Blue / Electric Cyan */
+                        .dark-map .bv-site-pulse-plm,
+                        .dark-map .bv-site-pulse-rd {
+                            fill: none;
+                            stroke: #00E5FF;
+                            stroke-width: 2px;
+                            animation: romaniaPulse 2.2s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+                        }
+                        .dark-map .bv-site-dot-plm,
+                        .dark-map .bv-site-dot-rd {
+                            fill: #00E5FF;
+                            filter: drop-shadow(0 0 10px #00E5FF);
+                        }
+                        .dark-map .bv-site-tag-plm,
+                        .dark-map .bv-site-tag-rd {
+                            fill: rgba(10, 22, 38, 0.92);
+                            stroke: #00E5FF;
+                            stroke-width: 1.4px;
+                            filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.7));
+                            transition: stroke 0.2s ease, stroke-width 0.2s ease;
+                        }
+                        .dark-map .bv-site-text-plm,
+                        .dark-map .bv-site-text-rd {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 11px;
+                            font-weight: 800;
+                            fill: #00FFF0;
+                            letter-spacing: 0.4px;
+                        }
+
+                        /* Light Mode: Both sites in Deep Tech Blue */
+                        .light-map .bv-site-pulse-plm,
+                        .light-map .bv-site-pulse-rd {
+                            fill: none;
+                            stroke: #0088AA;
+                            stroke-width: 2px;
+                            animation: romaniaPulse 2.2s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+                        }
+                        .light-map .bv-site-dot-plm,
+                        .light-map .bv-site-dot-rd {
+                            fill: #007A99;
+                            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+                        }
+                        .light-map .bv-site-tag-plm,
+                        .light-map .bv-site-tag-rd {
+                            fill: #ffffff;
+                            stroke: #0088AA;
+                            stroke-width: 1.4px;
+                            filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.12));
+                            transition: stroke 0.2s ease, stroke-width 0.2s ease;
+                        }
+                        .light-map .bv-site-text-plm,
+                        .light-map .bv-site-text-rd {
+                            font-family: 'Roboto', 'Inter', sans-serif;
+                            font-size: 11px;
+                            font-weight: 800;
+                            fill: #005566;
+                            letter-spacing: 0.4px;
+                        }
+                    </style>
+                </defs>
+
+                <!-- Grid Background & Deselect Area -->
+                <rect width="100%" height="100%" fill="url(#romaniaCyberGrid)" cursor="default" @onclick="() => _activeBrasovSite = null" />
+
+                <!-- Bra╚Öov Detailed City Contour (No hover glow) -->
+                <g class="brasov-city-group">
+                    <path d="@BrasovMapData.CitySvgPath" class="brasov-city-path" />
+                </g>
+
+                <!-- Header Title -->
+                <text x="75" y="80" style="font-family:'Roboto', 'Inter', sans-serif; font-size:18px; font-weight:800; fill:@(ThemeState.IsDarkMode ? "rgba(0,229,255,0.85)" : "#006677"); letter-spacing:1px; pointer-events:none;">
+                    ORA╚śUL BRA╚śOV ┬Ě SIEMENS HUBS
+                </text>
+                <text x="75" y="102" style="font-family:'Roboto', 'Inter', sans-serif; font-size:12px; font-weight:500; fill:@(ThemeState.IsDarkMode ? "rgba(255,255,255,0.6)" : "#557788"); pointer-events:none;">
+                    Cele 2 Centre Tehnologice & R&D Siemens
+                </text>
+
+                <!-- The 2 Distinct Siemens Sites in Bra╚Öov (Both Blue with Glowing Effect on Hover) -->
+                @foreach (var site in _brasovSites)
+                {
+                    bool isSiteSelected = _activeBrasovSite?.Id == site.Id;
+
+                    <g class="siemens-brasov-site-group @(isSiteSelected ? "selected-site" : "")"
+                       transform="@($"translate({site.X.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {site.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)})")"
+                       @onclick="() => OnBrasovSiteClick(site)"
+                       @ondblclick="() => OnBrasovSiteDblClick(site)">
+                        <circle r="14" class="bv-site-pulse-plm" />
+                        <circle r="7" class="bv-site-dot-plm" />
+                        <circle r="3" fill="#ffffff" />
+                    </g>
+                }
+            </svg>
+
+            <!-- Floating Inspection Card for Bra╚Öov Sites -->
+            @if (_activeBrasovSite != null)
+            {
+                <div class="@($"continent-floating-card animate-fade-in {(ThemeState.IsDarkMode ? "dark-card" : "light-card")}")"
+                     style="pointer-events: auto; left: 40px; top: 40px;">
+                    <div class="card-header-row">
+                        <div class="d-flex align-center gap-2">
+                            <span class="continent-flag">@(_activeBrasovSite.Id.Contains("rd") ? "­čöČ" : "­čĺ╗")</span>
+                            <div>
+                                <div class="continent-title">@_activeBrasovSite.Name</div>
+                                <div class="continent-region-code">@_activeBrasovSite.Division ┬Ě Bra╚Öov</div>
+                            </div>
+                        </div>
+                        <div class="d-flex align-center gap-1">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" Style="font-weight:700;">
+                                0 Staff
+                            </MudChip>
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _activeBrasovSite = null)" aria-label="Close" Style="opacity: 0.7;" />
+                        </div>
+                    </div>
+
+                    <MudDivider Class="my-2" Style="@(ThemeState.IsDarkMode ? "background-color: rgba(255,255,255,0.1);" : "background-color: rgba(0,0,0,0.08);")" />
+
+                    <div class="card-details-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Site Leadership</span>
+                            <span class="detail-val highlight">--</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Building & Address</span>
+                            <span class="detail-val">@_activeBrasovSite.Building ┬Ě @_activeBrasovSite.Address</span>
+                        </div>
+                        <div class="detail-item" style="grid-column: span 2;">
+                            <span class="detail-label">Engineering Focus & Tech Stack</span>
+                            <span class="detail-val" style="font-size: 11.5px; line-height: 1.4;">@_activeBrasovSite.Focus</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-space-between align-center mt-3 pt-2" style="@(ThemeState.IsDarkMode ? "border-top: 1px solid rgba(255,255,255,0.08);" : "border-top: 1px solid rgba(0,0,0,0.08);")">
+                        <span class="explore-hint">Double-click site to explore org chart</span>
+                        <MudButton Size="Size.Small"
+                                   Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   EndIcon="@Icons.Material.Filled.ArrowForward"
+                                   OnClick="@(() => OnBrasovSiteDblClick(_activeBrasovSite))"
+                                   Style="text-transform:none; font-weight:700; white-space:nowrap;">
+                            View Org Chart
+                        </MudButton>
+                    </div>
+                </div>
+            }
+
+            <!-- Back to Romania Map button (bottom left) -->
+            <div class="romania-bottom-nav">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="@(() => SwitchLevel(HierarchyLevel.Country))"
+                           Class="map-nav-back-btn">
+                    Romania Map
+                </MudButton>
+            </div>
+        }
+        else
+        {
+            @* ========================================== *@
+            @* LEVEL 5: TREE ORGANIZATION CHART           *@
+            @* ========================================== *@
+            @if (_root == null)
+            {
+                <div class="d-flex justify-center align-center" style="height: 100%;">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <svg width="100%" height="100%">
+                    <g transform="@($"translate({_translateX.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {_translateY.ToString(System.Globalization.CultureInfo.InvariantCulture)}) scale({_scale.ToString(System.Globalization.CultureInfo.InvariantCulture)})")">
+                        @* Lines Layer (Orthogonal 90-degree connectors) *@
+                        @foreach (var edge in _edges)
+                        {
+                            <path d="@GetOrthogonalPath(edge.Source, edge.Target)" 
+                                  class="@(edge.Target.IsFocusNode && edge.Source.IsFocusNode ? "org-line-focus" : "org-line")" />
+                        }
+
+                        @* Nodes Layer *@
+                        @foreach (var node in _nodes)
+                        {
+                            bool isSelf = node.UserId == _currentUserId;
+                            <g transform="translate(@node.X, @node.Y)">
+                                @if (isSelf)
+                                {
+                                    <circle r="33" class="org-node-self-aura" />
+                                }
+
+                                <circle r="25" class="@(isSelf ? "org-node-circle-self" : (node.IsFocusNode ? "org-node-circle-focus" : "org-node-circle"))" 
+                                        @onmouseenter="() => OnNodeMouseEnter(node)" 
+                                        @onmouseleave="OnNodeMouseLeave"
+                                        @onclick="() => OnNodeClick(node)" />
+                                @((MarkupString)$"<text x=\"0\" y=\"0\" class=\"{(isSelf ? "org-text-self" : (node.IsFocusNode ? "org-text-focus" : "org-text"))}\" dominant-baseline=\"central\" text-anchor=\"middle\" style=\"pointer-events: none;\">{node.Initials}</text>")
+
+                                @if (node.HasChildren)
+                                {
+                                    <g class="org-expand-btn" transform="translate(0, 25)"
+                                       @onclick="() => ToggleNodeExpand(node)" @onclick:stopPropagation="true">
+                                        <circle r="9" class="expand-btn-bg" />
+                                        @((MarkupString)$"<text x=\"0\" y=\"0\" class=\"expand-btn-icon\" text-anchor=\"middle\" dominant-baseline=\"central\">{(node.IsExpanded ? "Ôłĺ" : "+")}</text>")
+                                    </g>
+                                }
+                            </g>
+                        }
+
+                        @* Hover / Focus Info Panel (Rendered last to ensure top z-order) *@
+                        @if (_hoveredNode != null && _hoveredNode.UserId != _currentUserId)
+                        {
+                            <foreignObject x="@(_hoveredNode.X + 32)" y="@(_hoveredNode.Y - 60)" width="345" height="@(_isManagerOrHr ? "245" : "175")" style="pointer-events: auto;">
+                                <div class="org-info-panel"
+                                     @onmouseenter="OnPanelMouseEnter"
+                                     @onmouseleave="OnPanelMouseLeave">
+                                    <div class="org-info-header">
+                                        <div class="org-info-details">
+                                            <div class="info-row">
+                                                <span class="info-label">Name:</span>
+                                                <span class="info-value" title="@_hoveredNode.Name">@_hoveredNode.Name</span>
+                                            </div>
+                                            <div class="info-row">
+                                                <span class="info-label">Department:</span>
+                                                <span class="info-value" title="@_hoveredNode.Department">@_hoveredNode.Department</span>
+                                            </div>
+                                            <div class="info-row">
+                                                <span class="info-label">Role:</span>
+                                                <span class="info-value" title="@_hoveredNode.Role">@_hoveredNode.Role</span>
+                                            </div>
+                                            <div class="info-row">
+                                                <span class="info-label">Contract:</span>
+                                                <span class="info-value">@GetContractPeriodText(_hoveredNode)</span>
+                                            </div>
+                                            <div class="info-row">
+                                                <span class="info-label">Contract Status:</span>
+                                                <span class="info-value">
+                                                    @if (_hoveredNode.HasContract && _hoveredNode.ContractType != null)
+                                                    {
+                                                        <span class="badge @(_hoveredNode.ContractType == ContractType.Determinate ? "determinate" : "indeterminate")">
+                                                            @GetContractStatusText(_hoveredNode)
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>ÔÇö</span>
+                                                    }
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="org-info-avatar-box">
+                                            <div class="avatar-frame">
+                                                <span class="avatar-initials">@_hoveredNode.Initials</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    @if (_isManagerOrHr)
+                                    {
+                                        <div class="org-info-actions">
+                                            @if (!CanManageRequests(_hoveredNode))
+                                            {
+                                                <button class="action-btn btn-locked disabled" disabled title="Leave requests can only be approved by Line Managers or HR">
+                                                    ­čöĺ
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                @if (_hoveredNode.HasPendingRequest)
+                                                {
+                                                    <button class="action-btn btn-request active" @onclick="@(() => OnViewRequestClicked(_hoveredNode))" title="View pending leave request">
+                                                        <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+                                                        View Request
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="action-btn btn-request disabled" @onclick="@(() => OnViewRequestClicked(_hoveredNode))" title="No pending leave requests">
+                                                        <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+                                                        No Request
+                                                    </button>
+                                                }
+                                            }
+
+                                            @if (!CanManageContract(_hoveredNode))
+                                            {
+                                                <button class="action-btn btn-locked disabled" disabled title="Contract management locked for superiors or unauthorized roles">
+                                                    ­čöĺ
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="action-btn btn-contract" @onclick="@(() => OnManageContractClicked(_hoveredNode))" title="Manage contract for this employee">
+                                                    <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                                                    Manage Contract
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </foreignObject>
+                        }
+                    </g>
+                </svg>
+            }
+        }
+
+        @* Viewport Zoom Controls (Floating Bottom-Left, only for Site Org Chart) *@
+        @if (_currentLevel == HierarchyLevel.SiteOrgChart)
+        {
+            <div class="viewport-controls-toolbar">
+                <MudPaper Class="d-flex flex-column pa-1 gap-1" Style="background-color: rgba(26, 32, 44, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;">
+                    <MudTooltip Text="Zoom In" Placement="Placement.Right">
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Inherit" OnClick="ZoomIn" />
+                    </MudTooltip>
+                    <MudTooltip Text="Zoom Out" Placement="Placement.Right">
+                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Color="Color.Inherit" OnClick="ZoomOut" />
+                    </MudTooltip>
+                    <MudTooltip Text="Reset View" Placement="Placement.Right">
+                        <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Small" Color="Color.Inherit" OnClick="ResetView" />
+                    </MudTooltip>
+                </MudPaper>
+            </div>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private enum HierarchyLevel
+    {
+        World,
+        Continent,
+        Country,
+        City,
+        SiteOrgChart
+    }
+
+    private HierarchyLevel _currentLevel = HierarchyLevel.World;
+    private ContinentModel? _selectedContinent;
+    private EuropeCountryModel? _selectedCountry;
+    private List<EuropeCountryModel> _europeCountries = new();
+    private EuropeCountryModel? _activeCountry;
+
+    private List<RomaniaCountyModel> _romaniaCounties = new();
+    private RomaniaCountyModel? _selectedCounty;
+    private RomaniaCountyModel? _activeRomaniaCounty;
+
+    private List<BrasovSiteModel> _brasovSites = new();
+    private BrasovSiteModel? _activeBrasovSite;
+
+    private class ContinentModel
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string RegionCode { get; set; } = "";
+        public string FlagEmoji { get; set; } = "";
+        public string LeadRole { get; set; } = "";
+        public string LeadName { get; set; } = "";
+        public int TotalEmployeesCount { get; set; }
+        public int ActiveCountriesCount { get; set; }
+        public int ActiveHubsCount { get; set; }
+        public double CenterPointX { get; set; }
+        public double CenterPointY { get; set; }
+        public double MinX { get; set; }
+        public double MinY { get; set; }
+        public double MaxX { get; set; }
+        public double MaxY { get; set; }
+        public string SvgPath { get; set; } = "";
+    }
+
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+    private List<ContinentModel> _continents = new();
+    private ContinentModel? _activeContinent;
+
+    // World Map Pan & Zoom state
+    private double _mapScale = 1.0;
+    private double _mapTranslateX = 0;
+    private double _mapTranslateY = 0;
+
+    // Tree Pan & Zoom state
+    private double _scale = 1.0;
+    private double _translateX = 0;
+    private double _translateY = 0;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private OrgChartNode? _root;
+    private List<OrgChartNode> _nodes = new();
+    private List<(OrgChartNode Source, OrgChartNode Target)> _edges = new();
+    
+    private OrgChartNode? _hoveredNode = null;
+    private CancellationTokenSource? _hoverCts;
+    private bool _isMouseOverPanel = false;
+
+    private bool _isManagerOrHr = false;
+    private string _userRole = "";
+    private string _userDepartment = "";
+    private Guid _currentUserId = Guid.Empty;
+    private HashSet<Guid> _subordinateIds = new();
+    
+    private bool _isDragging = false;
+    private double _startX = 0;
+    private double _startY = 0;
+    private bool _hasDragged = false;
+
+    private OrgChartNode? _selectedSearchNode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ThemeState.OnChange += StateHasChanged;
+        InitializeContinentsData();
+        _europeCountries = EuropeMapData.GetCountries();
+        _romaniaCounties = RomaniaMapData.GetCounties();
+        _brasovSites = BrasovMapData.GetSites();
+        UpdateBreadcrumbs();
+
+        if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, true))
+            return;
+
+        var authState = await AuthStateTask!;
+        var userIdString = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        _userRole = authState.User.FindFirst(ClaimTypes.Role)?.Value ?? "";
+        _userDepartment = authState.User.FindFirst("Department")?.Value ?? "";
+
+        bool isActingAdmin = false;
+        if (Guid.TryParse(userIdString, out var userId))
+        {
+            _currentUserId = userId;
+            
+            if (_userRole != UserRole.Admin.ToString())
+            {
+                var delegationsReceived = await Manager.GetActiveDelegationsAssignedToMeAsync(userId);
+                isActingAdmin = delegationsReceived.Any(d => d.Manager.Role == UserRole.Admin);
+            }
+
+            _isManagerOrHr = _userRole == UserRole.LineManager.ToString() ||
+                             _userRole == UserRole.Admin.ToString() ||
+                             isActingAdmin ||
+                             _userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase);
+
+            bool isAdmin = _userRole == UserRole.Admin.ToString() || isActingAdmin;
+            _root = await EmployeeCtx.GetCompanyOrgChartAsync(userId, isAdmin);
+
+            if (_root != null)
+            {
+                _nodes.Clear();
+                _edges.Clear();
+                FlattenTree(_root);
+
+                _subordinateIds.Clear();
+                var selfNode = FindNodeInTree(_root, _currentUserId);
+                if (selfNode != null)
+                {
+                    CollectSubordinateIds(selfNode, _subordinateIds);
+                }
+                
+                _translateX = 450 - _root.X;
+                _translateY = 50;
+            }
+        }
+    }
+
+    private void InitializeContinentsData()
+    {
+        _continents = new List<ContinentModel>
+        {
+            new ContinentModel
+            {
+                Id = "north-america",
+                Name = "North America",
+                RegionCode = "Americas (North America)",
+                FlagEmoji = "­čç║­čçŞ",
+                LeadRole = "Regional VP North America",
+                LeadName = "Barbara Humpton",
+                TotalEmployeesCount = 45000,
+                ActiveCountriesCount = 3,
+                ActiveHubsCount = 28,
+                CenterPointX = WorldMapData.CenterX_north_america,
+                CenterPointY = WorldMapData.CenterY_north_america,
+                MinX = 27.4,
+                MinY = 93.2,
+                MaxX = 559.3,
+                MaxY = 378.5,
+                SvgPath = WorldMapData.Path_north_america
+            },
+            new ContinentModel
+            {
+                Id = "south-america",
+                Name = "South America",
+                RegionCode = "Americas (South & Latin America)",
+                FlagEmoji = "­čçž­čçĚ",
+                LeadRole = "Regional VP Latin America",
+                LeadName = "Alejandro Preinfalk",
+                TotalEmployeesCount = 18500,
+                ActiveCountriesCount = 8,
+                ActiveHubsCount = 14,
+                CenterPointX = WorldMapData.CenterX_south_america,
+                CenterPointY = WorldMapData.CenterY_south_america,
+                MinX = 328.6,
+                MinY = 364.4,
+                MaxX = 484.2,
+                MaxY = 564.5,
+                SvgPath = WorldMapData.Path_south_america
+            },
+            new ContinentModel
+            {
+                Id = "europe",
+                Name = "Europe",
+                RegionCode = "Europe & Middle East",
+                FlagEmoji = "­čç¬­čç║",
+                LeadRole = "Regional VP Europe & Middle East",
+                LeadName = "Dr. Martin Weber",
+                TotalEmployeesCount = 135000,
+                ActiveCountriesCount = 28,
+                ActiveHubsCount = 65,
+                CenterPointX = WorldMapData.CenterX_europe,
+                CenterPointY = WorldMapData.CenterY_europe,
+                MinX = 418.3,
+                MinY = 112.7,
+                MaxX = 733.6,
+                MaxY = 392.4,
+                SvgPath = WorldMapData.Path_europe
+            },
+            new ContinentModel
+            {
+                Id = "africa",
+                Name = "Africa",
+                RegionCode = "Africa",
+                FlagEmoji = "­čç┐­čçŽ",
+                LeadRole = "Regional VP Africa",
+                LeadName = "Sabine Dall'Omo",
+                TotalEmployeesCount = 22000,
+                ActiveCountriesCount = 16,
+                ActiveHubsCount = 18,
+                CenterPointX = WorldMapData.CenterX_africa,
+                CenterPointY = WorldMapData.CenterY_africa,
+                MinX = 541.2,
+                MinY = 293.0,
+                MaxX = 835.2,
+                MaxY = 543.4,
+                SvgPath = WorldMapData.Path_africa
+            },
+            new ContinentModel
+            {
+                Id = "asia",
+                Name = "Asia",
+                RegionCode = "Asia Pacific",
+                FlagEmoji = "­čçŞ­čçČ",
+                LeadRole = "Regional VP Asia-Pacific",
+                LeadName = "Dr. Xiao Zheng",
+                TotalEmployeesCount = 82000,
+                ActiveCountriesCount = 19,
+                ActiveHubsCount = 48,
+                CenterPointX = WorldMapData.CenterX_asia,
+                CenterPointY = WorldMapData.CenterY_asia,
+                MinX = 600.0,
+                MinY = 109.0,
+                MaxX = 1200.0,
+                MaxY = 425.7,
+                SvgPath = WorldMapData.Path_asia
+            },
+            new ContinentModel
+            {
+                Id = "oceania",
+                Name = "Australia & Oceania",
+                RegionCode = "Australia & Oceania",
+                FlagEmoji = "­čçŽ­čç║",
+                LeadRole = "Regional VP Australia & NZ",
+                LeadName = "Peter Halliday",
+                TotalEmployeesCount = 9200,
+                ActiveCountriesCount = 4,
+                ActiveHubsCount = 9,
+                CenterPointX = WorldMapData.CenterX_oceania,
+                CenterPointY = WorldMapData.CenterY_oceania,
+                MinX = 900.0,
+                MinY = 404.6,
+                MaxX = 1200.0,
+                MaxY = 532.7,
+                SvgPath = WorldMapData.Path_oceania
+            }
+        };
+    }
+
+    /// <summary>
+    /// Lazy Loading / Viewport Culling for SVG elements.
+    /// Determines whether a continent is within or intersects the current visible viewBox.
+    /// </summary>
+    private bool IsContinentVisible(ContinentModel continent)
+    {
+        // At normal zoom or zoomed-out, render all continents
+        if (_mapScale <= 1.05 && Math.Abs(_mapTranslateX) < 100 && Math.Abs(_mapTranslateY) < 100)
+            return true;
+
+        // Viewport bounds in SVG map coordinate space
+        double margin = 80; // Safety margin for pin labels, halos, and coastlines
+        double visibleMinX = (0 - _mapTranslateX) / _mapScale - margin;
+        double visibleMaxX = (1200 - _mapTranslateX) / _mapScale + margin;
+        double visibleMinY = (0 - _mapTranslateY) / _mapScale - margin;
+        double visibleMaxY = (650 - _mapTranslateY) / _mapScale + margin;
+
+        // Bounding box intersection check
+        bool overlapsX = continent.MinX <= visibleMaxX && continent.MaxX >= visibleMinX;
+        bool overlapsY = continent.MinY <= visibleMaxY && continent.MaxY >= visibleMinY;
+
+        return overlapsX && overlapsY;
+    }
+
+    /// <summary>
+    /// Viewport check for individual point markers (e.g. Munich HQ).
+    /// </summary>
+    private bool IsPointVisible(double x, double y, double margin = 40)
+    {
+        double visibleMinX = (0 - _mapTranslateX) / _mapScale - margin;
+        double visibleMaxX = (1200 - _mapTranslateX) / _mapScale + margin;
+        double visibleMinY = (0 - _mapTranslateY) / _mapScale - margin;
+        double visibleMaxY = (650 - _mapTranslateY) / _mapScale + margin;
+
+        return x >= visibleMinX && x <= visibleMaxX && y >= visibleMinY && y <= visibleMaxY;
+    }
+
+    private void UpdateBreadcrumbs()
+    {
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("­čîŹ Global World Map", href: "#", disabled: _currentLevel == HierarchyLevel.World)
+        };
+
+        if (_currentLevel == HierarchyLevel.Continent)
+        {
+            _breadcrumbItems.Add(new BreadcrumbItem($"­čç¬­čç║ {(_selectedContinent?.Name ?? "Europe")} (Continent)", href: "#", disabled: true));
+        }
+        else if (_currentLevel == HierarchyLevel.Country)
+        {
+            _breadcrumbItems.Add(new BreadcrumbItem($"­čç¬­čç║ {(_selectedContinent?.Name ?? "Europe")}", href: "#", disabled: false));
+            _breadcrumbItems.Add(new BreadcrumbItem($"­čçĚ­čç┤ {(_selectedCountry?.Name ?? "Romania")} (Country)", href: "#", disabled: true));
+        }
+        else if (_currentLevel == HierarchyLevel.City)
+        {
+            _breadcrumbItems.Add(new BreadcrumbItem($"­čç¬­čç║ {(_selectedContinent?.Name ?? "Europe")}", href: "#", disabled: false));
+            _breadcrumbItems.Add(new BreadcrumbItem($"­čçĚ­čç┤ {(_selectedCountry?.Name ?? "Romania")}", href: "#", disabled: false));
+            _breadcrumbItems.Add(new BreadcrumbItem("­čĆö´ŞĆ Bra╚Öov Sites (2)", href: "#", disabled: true));
+        }
+        else if (_currentLevel == HierarchyLevel.SiteOrgChart)
+        {
+            if (_selectedContinent != null)
+            {
+                _breadcrumbItems.Add(new BreadcrumbItem($"­čç¬­čç║ {_selectedContinent.Name}", href: "#", disabled: false));
+            }
+            if (_selectedCountry != null)
+            {
+                _breadcrumbItems.Add(new BreadcrumbItem($"{_selectedCountry.Flag} {_selectedCountry.Name}", href: "#", disabled: false));
+            }
+            if (_selectedCounty != null)
+            {
+                _breadcrumbItems.Add(new BreadcrumbItem($"­čôŹ {_selectedCounty.Name}", href: "#", disabled: false));
+            }
+            if (_activeBrasovSite != null)
+            {
+                _breadcrumbItems.Add(new BreadcrumbItem($"ÔÜí {_activeBrasovSite.ShortName}", href: "#", disabled: false));
+            }
+            _breadcrumbItems.Add(new BreadcrumbItem("­čĆó Site Org Chart", href: "#", disabled: true));
+        }
+    }
+
+    private void SwitchLevel(HierarchyLevel level)
+    {
+        _currentLevel = level;
+        _activeContinent = null;
+        _activeCountry = null;
+        _activeRomaniaCounty = null;
+        _activeBrasovSite = null;
+        UpdateBreadcrumbs();
+        StateHasChanged();
+    }
+
+    private void OnBreadcrumbClick(BreadcrumbItem item)
+    {
+        if (item.Text.Contains("World"))
+        {
+            SwitchLevel(HierarchyLevel.World);
+        }
+        else if (item.Text.Contains("Europe") || item.Text.Contains("Continent"))
+        {
+            _selectedContinent = _continents.FirstOrDefault(c => c.Id == "europe");
+            SwitchLevel(HierarchyLevel.Continent);
+        }
+        else if (item.Text.Contains("Romania") || item.Text.Contains("Country"))
+        {
+            _selectedCountry = _europeCountries.FirstOrDefault(c => c.Id == "rou");
+            SwitchLevel(HierarchyLevel.Country);
+        }
+        else if (item.Text.Contains("Bra╚Öov") || item.Text.Contains("Brasov") || item.Text.Contains("Sites"))
+        {
+            SwitchLevel(HierarchyLevel.City);
+        }
+        else if (item.Text.Contains("Org Chart"))
+        {
+            SwitchLevel(HierarchyLevel.SiteOrgChart);
+        }
+    }
+
+    private void OnContinentClick(ContinentModel continent)
+    {
+        if (_activeContinent?.Id == continent.Id)
+        {
+            _activeContinent = null;
+        }
+        else
+        {
+            _activeContinent = continent;
+        }
+        StateHasChanged();
+    }
+
+    private void OnContinentDblClick(ContinentModel continent)
+    {
+        _activeContinent = null;
+        if (continent.Id == "europe")
+        {
+            _selectedContinent = continent;
+            SwitchLevel(HierarchyLevel.Continent);
+            Snackbar.Add($"Drilling down into {continent.Name} ({continent.RegionCode})...", Severity.Info);
+        }
+        else
+        {
+            _selectedContinent = continent;
+            Snackbar.Add($"Selected region: {continent.Name} ({continent.RegionCode}). Opening local organization tree...", Severity.Info);
+            SwitchLevel(HierarchyLevel.SiteOrgChart);
+        }
+    }
+
+    private void SelectAndCenterContinent(ContinentModel cont)
+    {
+        if (_activeContinent?.Id == cont.Id)
+        {
+            _activeContinent = null;
+        }
+        else
+        {
+            _activeContinent = cont;
+        }
+        StateHasChanged();
+    }
+
+    private void OnCountryClick(EuropeCountryModel country)
+    {
+        if (_activeCountry?.Id == country.Id)
+        {
+            _activeCountry = null;
+        }
+        else
+        {
+            _activeCountry = country;
+        }
+        StateHasChanged();
+    }
+
+    private void OnCountryDblClick(EuropeCountryModel country)
+    {
+        _activeCountry = null;
+        _selectedCountry = country;
+        if (country.Id == "rou")
+        {
+            Snackbar.Add($"Opening {country.Flag} {country.Name}...", Severity.Info);
+            SwitchLevel(HierarchyLevel.Country);
+        }
+        else
+        {
+            Snackbar.Add($"Opening {country.Flag} {country.Name}...", Severity.Info);
+            SwitchLevel(HierarchyLevel.SiteOrgChart);
+        }
+    }
+
+    private void SelectCountry(EuropeCountryModel country)
+    {
+        if (_activeCountry?.Id == country.Id)
+        {
+            _activeCountry = null;
+        }
+        else
+        {
+            _activeCountry = country;
+        }
+        StateHasChanged();
+    }
+
+    private void OnRomaniaCountyClick(RomaniaCountyModel county)
+    {
+        if (_activeRomaniaCounty?.Id == county.Id)
+        {
+            _activeRomaniaCounty = null;
+        }
+        else
+        {
+            _activeRomaniaCounty = county;
+        }
+        StateHasChanged();
+    }
+
+    private void OnRomaniaCountyDblClick(RomaniaCountyModel county)
+    {
+        _activeRomaniaCounty = null;
+        _selectedCounty = county;
+        if (county.Id == "ro_bv" || county.Name.Contains("Bra╚Öov") || county.Name.Contains("Brasov"))
+        {
+            _activeBrasovSite = null;
+            SwitchLevel(HierarchyLevel.City);
+            Snackbar.Add("Drilling down into Jude╚Ťul Bra╚Öov (2 Siemens Sites)...", Severity.Info);
+        }
+        else
+        {
+            Snackbar.Add($"Opening {county.Name} ({county.CountySeat}) Organization Tree...", Severity.Info);
+            SwitchLevel(HierarchyLevel.SiteOrgChart);
+        }
+    }
+
+    private void OnBrasovSiteClick(BrasovSiteModel site)
+    {
+        if (_activeBrasovSite?.Id == site.Id)
+        {
+            _activeBrasovSite = null;
+        }
+        else
+        {
+            _activeBrasovSite = site;
+        }
+        StateHasChanged();
+    }
+
+    private void OnBrasovSiteDblClick(BrasovSiteModel site)
+    {
+        _activeBrasovSite = site;
+        Snackbar.Add($"Opening {site.Name} Organization Tree...", Severity.Info);
+        SwitchLevel(HierarchyLevel.SiteOrgChart);
+    }
+
+    private void ZoomIn()
+    {
+        _scale = Math.Min(_scale * 1.25, 5.0);
+    }
+
+    private void ZoomOut()
+    {
+        _scale = Math.Max(_scale * 0.8, 0.1);
+    }
+
+    private void ResetView()
+    {
+        if (_root != null)
+        {
+            _scale = 1.0;
+            _translateX = 450 - _root.X;
+            _translateY = 50;
+        }
+    }
+
+    private void OnWheel(WheelEventArgs e)
+    {
+        if (_currentLevel == HierarchyLevel.World || _currentLevel == HierarchyLevel.Continent) return;
+
+        double zoomFactor = e.DeltaY < 0 ? 1.1 : 0.9;
+        double newScale = _scale * zoomFactor;
+        if (newScale < 0.1) newScale = 0.1;
+        if (newScale > 5.0) newScale = 5.0;
+
+        double centerX = 600;
+        double centerY = 300;
+        double graphX = (centerX - _translateX) / _scale;
+        double graphY = (centerY - _translateY) / _scale;
+
+        _translateX = centerX - graphX * newScale;
+        _translateY = centerY - graphY * newScale;
+        _scale = newScale;
+    }
+
+    private void OnMouseDown(MouseEventArgs e)
+    {
+        if (_currentLevel == HierarchyLevel.World) return;
+        _isDragging = true;
+        _hasDragged = false;
+        _startX = e.ClientX - _translateX;
+        _startY = e.ClientY - _translateY;
+    }
+
+    private void OnMouseMove(MouseEventArgs e)
+    {
+        if (_currentLevel == HierarchyLevel.World) return;
+        if (_isDragging)
+        {
+            _hasDragged = true;
+            _translateX = e.ClientX - _startX;
+            _translateY = e.ClientY - _startY;
+        }
+    }
+
+    private void OnMouseUp(MouseEventArgs e)
+    {
+        if (_currentLevel == HierarchyLevel.World) return;
+        _isDragging = false;
+    }
+
+    private async Task OnSearchNodeSelected(OrgChartNode? node)
+    {
+        _selectedSearchNode = node;
+        if (node == null) return;
+
+        if (_currentLevel != HierarchyLevel.SiteOrgChart)
+        {
+            SwitchLevel(HierarchyLevel.SiteOrgChart);
+            await Task.Delay(100);
+        }
+
+        await FocusOnNode(node.UserId);
+    }
+
+    private async Task FocusOnSelf()
+    {
+        if (_currentLevel != HierarchyLevel.SiteOrgChart)
+        {
+            SwitchLevel(HierarchyLevel.SiteOrgChart);
+            await Task.Delay(100);
+        }
+        await FocusOnNode(_currentUserId);
+    }
+
+    private async Task FocusOnNode(Guid targetUserId)
+    {
+        if (_root == null) return;
+
+        bool found = ExpandPathToNode(_root, targetUserId);
+        if (!found && targetUserId != _root.UserId)
+        {
+            Snackbar.Add("Employee is not within your accessible team structure.", Severity.Info);
+            return;
+        }
+
+        RecalculateLayout();
+
+        var targetNode = _nodes.FirstOrDefault(n => n.UserId == targetUserId) ?? _root;
+
+        double containerWidth = 1100;
+        double containerHeight = 550;
+
+        try
+        {
+            var bounds = await JSRuntime.InvokeAsync<ElementBounds>("eval", "(() => { const el = document.getElementById('orgContainer'); return el ? { width: el.clientWidth, height: el.clientHeight } : { width: 1100, height: 550 }; })()");
+            if (bounds != null && bounds.Width > 0 && bounds.Height > 0)
+            {
+                containerWidth = bounds.Width;
+                containerHeight = bounds.Height;
+            }
+        }
+        catch { }
+
+        _scale = 1.0;
+        _translateX = (containerWidth / 2.0) - (targetNode.X * _scale);
+        _translateY = (containerHeight / 2.0) - (targetNode.Y * _scale);
+
+        if (targetNode.UserId != _currentUserId && targetNode.UserId != Guid.Empty)
+        {
+            _hoveredNode = targetNode;
+        }
+        else
+        {
+            _hoveredNode = null;
+        }
+
+        StateHasChanged();
+    }
+
+    private bool ExpandPathToNode(OrgChartNode current, Guid targetUserId)
+    {
+        if (current.UserId == targetUserId) return true;
+
+        foreach (var child in current.Subordinates)
+        {
+            if (ExpandPathToNode(child, targetUserId))
+            {
+                current.IsExpanded = true;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private class ElementBounds
+    {
+        public double Width { get; set; }
+        public double Height { get; set; }
+    }
+
+    private void FlattenTree(OrgChartNode node)
+    {
+        _nodes.Add(node);
+        if (node.IsExpanded)
+        {
+            foreach (var child in node.Subordinates)
+            {
+                _edges.Add((node, child));
+                FlattenTree(child);
+            }
+        }
+    }
+
+    private void ToggleNodeExpand(OrgChartNode node)
+    {
+        node.IsExpanded = !node.IsExpanded;
+        RecalculateLayout();
+    }
+
+    private void RecalculateLayout()
+    {
+        if (_root == null) return;
+        EmployeeContext.CalculateSubtreeWidths(_root);
+        EmployeeContext.CalculateNodeCoordinates(_root, 0, _root.SubtreeWidth / 2.0, 0, 50.0);
+        _nodes.Clear();
+        _edges.Clear();
+        FlattenTree(_root);
+
+        _subordinateIds.Clear();
+        var selfNode = FindNodeInTree(_root, _currentUserId);
+        if (selfNode != null)
+        {
+            CollectSubordinateIds(selfNode, _subordinateIds);
+        }
+
+        StateHasChanged();
+    }
+
+    private OrgChartNode? FindNodeInTree(OrgChartNode current, Guid targetId)
+    {
+        if (current.UserId == targetId) return current;
+        foreach (var child in current.Subordinates)
+        {
+            var found = FindNodeInTree(child, targetId);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private void CollectSubordinateIds(OrgChartNode node, HashSet<Guid> result)
+    {
+        foreach (var child in node.Subordinates)
+        {
+            result.Add(child.UserId);
+            CollectSubordinateIds(child, result);
+        }
+    }
+
+    private bool CanManageRequests(OrgChartNode node)
+    {
+        if (node == null || node.UserId == Guid.Empty || node.UserId == _currentUserId) return false;
+        if (_userRole == UserRole.Admin.ToString() || _isManagerOrHr && _userDepartment != "HR" && _userRole != UserRole.LineManager.ToString()) return false;
+        if (_userRole == UserRole.LineManager.ToString()) return _subordinateIds.Contains(node.UserId);
+        if (_userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    private bool CanManageContract(OrgChartNode node)
+    {
+        if (node == null || node.UserId == Guid.Empty || node.UserId == _currentUserId) return false;
+        if (_userRole == UserRole.Admin.ToString() || (_isManagerOrHr && _userDepartment != "HR" && _userRole != UserRole.LineManager.ToString()) || _userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase)) return true;
+        if (_userRole == UserRole.LineManager.ToString()) return _subordinateIds.Contains(node.UserId);
+        return false;
+    }
+
+    private void OnNodeMouseEnter(OrgChartNode node)
+    {
+        if (_isDragging || node.UserId == _currentUserId) return;
+        _hoverCts?.Cancel();
+        _hoveredNode = node;
+    }
+
+    private void OnNodeMouseLeave()
+    {
+        _hoverCts?.Cancel();
+        _hoverCts = new CancellationTokenSource();
+        var token = _hoverCts.Token;
+
+        Task.Delay(250, token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled && !_isMouseOverPanel)
+            {
+                InvokeAsync(() =>
+                {
+                    _hoveredNode = null;
+                    StateHasChanged();
+                });
+            }
+        });
+    }
+
+    private void OnPanelMouseEnter()
+    {
+        _isMouseOverPanel = true;
+        _hoverCts?.Cancel();
+    }
+
+    private void OnPanelMouseLeave()
+    {
+        _isMouseOverPanel = false;
+        OnNodeMouseLeave();
+    }
+
+    private void OnNodeClick(OrgChartNode node)
+    {
+        if (_hasDragged || node.UserId == _currentUserId) return;
+        _hoveredNode = node;
+    }
+
+    private void OnViewRequestClicked(OrgChartNode node)
+    {
+        if (!node.HasPendingRequest)
+        {
+            Snackbar.Add($"No pending requests for {node.Name}.", Severity.Info);
+            return;
+        }
+
+        if (_userRole == UserRole.LineManager.ToString())
+        {
+            Nav.NavigateTo($"/manager/team?search={Uri.EscapeDataString(node.Name)}");
+        }
+        else if (_userDepartment.Equals("HR", StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo($"/hr/dashboard?search={Uri.EscapeDataString(node.Name)}");
+        }
+        else
+        {
+            Nav.NavigateTo($"/admin/users?search={Uri.EscapeDataString(node.Name)}");
+        }
+    }
+
+    private void OnManageContractClicked(OrgChartNode node)
+    {
+        if (_userRole == UserRole.LineManager.ToString())
+        {
+            Nav.NavigateTo($"/manager/team?search={Uri.EscapeDataString(node.Name)}");
+        }
+        else
+        {
+            Nav.NavigateTo($"/admin/users?search={Uri.EscapeDataString(node.Name)}");
+        }
+    }
+
+    private static string GetContractPeriodText(OrgChartNode node)
+    {
+        if (!node.HasContract || !node.ContractStartDate.HasValue) return "ÔÇö";
+        var start = node.ContractStartDate.Value.ToString("dd.MM.yyyy");
+        if (node.ContractEndDate.HasValue) return $"{start} - {node.ContractEndDate.Value:dd.MM.yyyy}";
+        return $"{start} - Indefinite";
+    }
+
+    private static string GetContractStatusText(OrgChartNode node)
+    {
+        if (!node.HasContract || node.ContractType == null) return "ÔÇö";
+        return node.ContractType == ContractType.Determinate ? "Determinate" : "Indeterminate";
+    }
+
+    private static string GetOrthogonalPath(OrgChartNode source, OrgChartNode target)
+    {
+        var c = System.Globalization.CultureInfo.InvariantCulture;
+        double startX = source.X;
+        double startY = source.Y + 25;
+        double endX = target.X;
+        double endY = target.Y - 25;
+        double midY = (startY + endY) / 2.0;
+        return $"M {startX.ToString(c)} {startY.ToString(c)} V {midY.ToString(c)} H {endX.ToString(c)} V {endY.ToString(c)}";
+    }
+
+    private Task<IEnumerable<OrgChartNode>> SearchEmployees(string value, CancellationToken token)
+    {
+        var searchable = GetSearchableNodes();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Task.FromResult<IEnumerable<OrgChartNode>>(searchable.Take(8));
+        }
+
+        var results = searchable
+            .Where(n => (!string.IsNullOrWhiteSpace(n.Name) && n.Name.Contains(value, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrWhiteSpace(n.Role) && n.Role.Contains(value, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrWhiteSpace(n.Department) && n.Department.Contains(value, StringComparison.OrdinalIgnoreCase)))
+            .Take(10);
+
+        return Task.FromResult<IEnumerable<OrgChartNode>>(results);
+    }
+
+    private List<OrgChartNode> GetSearchableNodes()
+    {
+        var list = new List<OrgChartNode>();
+        if (_root == null) return list;
+
+        bool isAdmin = _userRole == UserRole.Admin.ToString() || (_isManagerOrHr && _userDepartment != "HR" && _userRole != UserRole.LineManager.ToString());
+        bool isManager = _userRole == UserRole.LineManager.ToString();
+
+        if (isAdmin)
+        {
+            CollectAllNodes(_root, list);
+        }
+        else if (isManager)
+        {
+            var selfNode = FindNodeInTree(_root, _currentUserId);
+            if (selfNode != null)
+            {
+                CollectAllNodes(selfNode, list);
+            }
+        }
+        else
+        {
+            var selfNode = FindNodeInTree(_root, _currentUserId);
+            if (selfNode != null)
+            {
+                list.Add(selfNode);
+            }
+        }
+
+        return list.Where(n => !string.IsNullOrWhiteSpace(n.Name) && n.Name != "Company HQ").ToList();
+    }
+
+    private void CollectAllNodes(OrgChartNode node, List<OrgChartNode> list)
+    {
+        list.Add(node);
+        foreach (var child in node.Subordinates)
+        {
+            CollectAllNodes(child, list);
+        }
+    }
+
+    public void Dispose()
+    {
+        ThemeState.OnChange -= StateHasChanged;
+        _hoverCts?.Cancel();
+        _hoverCts?.Dispose();
+    }
+}

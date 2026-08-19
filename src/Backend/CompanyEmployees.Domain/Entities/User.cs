@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Enums;
+using CompanyEmployees.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 
 namespace CompanyEmployees.Domain.Entities;
@@ -21,6 +21,9 @@ public class User : IdentityUser<Guid>
     //departamentul din care face parte (echipa)
     public Guid? DepartmentId { get; set; }
     public Department? Department { get; set; }
+
+    public string City { get; set; } = string.Empty;
+    public string Site { get; set; } = string.Empty;
 
     // Current employment region. This is the authorization boundary used when
     // showing employees, leave requests, dashboards and exports.

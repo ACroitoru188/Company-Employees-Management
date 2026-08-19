@@ -749,6 +749,7 @@ fluent-select {
 .org-tree fluent-tree-item::part(positioning-region) {
     height: auto;
     min-height: 44px;
+    margin-bottom: 2px;
 }
 
 /* ---- Notification centre -------------------------------------------------------------
@@ -1227,6 +1228,224 @@ fluent-progress {
 }
 #blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 1rem; top: .75rem; }
 .blazor-error-boundary { background: #b91c1c; padding: 1rem; color: #fff; }
+    border-radius: 50%;
+    font-weight: 600;
+}
+
+/* A holiday shares the date's line rather than taking three red lines of its own below it,
+   which is what left no room for the day's entries. Full name on hover. */
+.cal-holiday {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    font-size: var(--type-ramp-minus-1-font-size);
+}
+
+.cal-holiday-block {
+    font-size: var(--type-ramp-minus-1-font-size);
+    line-height: 1.25;
+}
+
+/* An entry, across the whole cell. */
+.cal-entry {
+    width: 100%;
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+
+.cal-entry-block {
+    padding: 4px 6px;
+}
+
+.cal-entry-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--type-ramp-minus-1-font-size);
+    line-height: 18px;
+    font-weight: 600;
+}
+
+.cal-entry-wrap {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+}
+
+.cal-more {
+    cursor: default;
+    padding-inline-start: 2px;
+}
+
+/* The request bar, as the last row of the surface. */
+.cal-submit {
+    flex: 0 0 auto;
+    margin-top: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--neutral-stroke-divider-rest);
+    border-radius: calc(var(--control-corner-radius) * 1px);
+    background: var(--neutral-layer-1);
+}
+
+/* ---- Grid and List views ---- */
+
+/* FluentDataGrid's own rule is `flex: 1`, and the surface around it is a flex column with a
+   real height — so the grid grew to fill it and spread its handful of rows from the top of the
+   card to the bottom, header alone at the top. A table is as tall as its rows.
+
+   The `div` prefix is load-bearing: the library's rule is `.fluent-data-grid[b-…]`, one class
+   and an attribute, which a two-class selector only ties with — and a tie goes to the sheet that
+   loads last, which is theirs. */
+div.cal-surface .fluent-data-grid {
+    flex: 0 0 auto;
+}
+
+/* ---- Grid view: the month as a timeline ---- */
+
+/* The day columns. Their padding goes, because at roughly 25px per day the cell's own 16px side
+   padding leaves nothing to draw in — and because a bar has to reach both cell edges for
+   consecutive days to meet. */
+.cal-surface .fluent-data-grid td.leave-day,
+.cal-surface .fluent-data-grid th.leave-day {
+    padding-left: 0;
+    padding-right: 0;
+    text-align: center;
+}
+
+/* A day cell is about 25.4px wide, so cell edges land between pixels and consecutive bars were
+   measured 1px apart — a dotted seam down a period that should read as one bar. Each bar runs a
+   pixel into its neighbour to close it, which needs the cell to stop clipping. */
+.cal-surface .fluent-data-grid td.leave-day {
+    overflow: visible;
+}
+
+/* A guide down each day, so a bar can be read off against the date above it. An inset shadow
+   rather than a border: it is painted between the cell's background and its content, so a bar
+   crossing the day covers it and a period still reads as one unbroken run. */
+.cal-surface .fluent-data-grid td.leave-day,
+.cal-surface .fluent-data-grid th.leave-day {
+    box-shadow: inset 1px 0 0 var(--neutral-stroke-divider-rest);
+}
+
+/* The day headers went blank with the columns this narrow: the title keeps 16px of padding on
+   each side and is sized `calc(100% - 10px)` inline, which on a 25px track leaves a negative
+   content width, and the number was clipped away entirely. */
+.cal-surface .fluent-data-grid th.leave-day .col-title {
+    width: 100% !important;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* One period, one bar: square where it continues into the next cell, rounded only at the two
+   ends of the range. A range running past the edge of the month keeps its square end, which is
+   the honest way to show it carries on. */
+.leave-bar {
+    height: 18px;
+    width: calc(100% + 1px);
+    border-radius: 0;
+}
+
+.leave-bar.is-end {
+    width: 100%;
+}
+
+.leave-bar.is-start {
+    border-start-start-radius: 9px;
+    border-end-start-radius: 9px;
+    /* The label is written in the opening cell and runs along the bar past it, so it has to sit
+       above the days that follow — they come later in the document and would paint over it. */
+    position: relative;
+    z-index: 1;
+}
+
+.leave-bar.is-end {
+    border-start-end-radius: 9px;
+    border-end-end-radius: 9px;
+}
+
+.leave-bar-label {
+    /* The app's responsive floor gives every child of a horizontal stack `min-width: 0`, which
+       squeezed this box to the 25px of its own day. The inline max-width caps it at the range's
+       own span, and anything longer than that is cut here rather than across its neighbour. */
+    flex: 0 0 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-inline-start: 8px;
+    font-size: var(--type-ramp-minus-1-font-size);
+    line-height: 18px;
+    pointer-events: none;
+}
+
+/* ---- Loading indicators ---------------------------------------------------------------
+
+   Eight pages render a progress ring while their first load runs. Against a local database that
+   load takes about four milliseconds — measured on /manager/delegation-history, the ring was
+   added at 20ms and removed at 24ms — so every navigation blinked a spinner for a single frame.
+   That flicker is what a button press looked like it was doing.
+
+   The ring is held invisible for the first 250ms and only then fades in: a fast page shows
+   nothing at all, a genuinely slow one still explains itself. No page had to change.
+------------------------------------------------------------------------------------- */
+fluent-progress-ring {
+    opacity: 0;
+    animation: spinner-appears 120ms ease-out 250ms forwards;
+    /* Eight pages render the ring as their entire body while loading. Left where it falls it
+       sits in the top-left corner of an otherwise blank page, which reads as a broken layout
+       rather than as work in progress. Centred, with the page's own rhythm above it, a slow
+       load looks deliberate. */
+    display: block;
+    margin: 15vh auto;
+}
+
+@keyframes spinner-appears {
+    to { opacity: 1; }
+}
+
+/* A progress bar has no width of its own, and a vertical FluentStack writes `align-items: start`
+   as an inline style — so every bar laid out in one collapsed to 0px and simply was not there.
+   The inline align-items cannot be overridden from a stylesheet; an explicit width can. This is
+   the same trap FluentBadge fell into higher up in this file. */
+fluent-progress {
+    width: 100%;
+}
+
+/* ---- Blazor framework UI ------------------------------------------------------------
+   Not components and cannot become components: blazor.web.js finds these by id and class.
+------------------------------------------------------------------------------------- */
+#blazor-error-ui {
+    color: #fff; background: #b91c1c; display: none;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: .8rem 1.25rem; box-shadow: 0 -1px 6px rgba(0, 0, 0, .2); z-index: 1000;
+}
+#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 1rem; top: .75rem; }
+.blazor-error-boundary { background: #b91c1c; padding: 1rem; color: #fff; }
 
 /* Error.razor is a plain framework page outside the Fluent shell. */
 .text-danger { color: var(--error); }
+
+/* Highlight the path to a selected node in the Org Chart */
+.org-path-highlight::part(positioning-region) {
+    background-color: rgba(230, 138, 0, 0.08) !important;
+    border-radius: 4px;
+    box-shadow: inset 3px 0 0 0 #E68A00 !important;
+    margin-bottom: 2px !important;
+}
+
+/* Highlight the current user in the Org Chart */
+.org-current-user::part(positioning-region) {
+    background-color: rgba(255, 193, 7, 0.15) !important;
+    border-radius: 4px;
+    box-shadow: inset 3px 0 0 0 #FFC107 !important;
+    margin-bottom: 2px !important;
+}
+
+/* Hide the second X (clear button) inside the autocomplete since the pill already has one */
+fluent-autocomplete::part(clear-button),
+fluent-autocomplete::part(clear),
+fluent-autocomplete .clear-button {
+    display: none !important;
+}
