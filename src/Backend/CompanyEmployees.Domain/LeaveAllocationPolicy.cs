@@ -96,18 +96,18 @@ public static class LeaveAllocationPolicy
         return Math.Max(0, previousYearTotal - previousYearUsed);
     }
 
-    // Annual entitlement starts on January 1. Carried days therefore reach their
-    // 18-month lifetime at the end of June in the following balance year.
-    public static DateOnly AnnualCarryOverExpiryDate(int balanceYear) =>
-        new(balanceYear, 6, 30);
+    // Carry-over becomes available on January 1 of carryStartYear and remains
+    // available for 18 months, through June 30 of the following year.
+    public static DateOnly AnnualCarryOverExpiryDate(int carryStartYear) =>
+        new(carryStartYear + 1, 6, 30);
 
     public static int ExpiredAnnualCarryOverDays(
         int carriedOverDays,
         int carriedOverDaysUsed,
-        int balanceYear,
+        int carryStartYear,
         DateOnly asOf)
     {
-        if (asOf <= AnnualCarryOverExpiryDate(balanceYear))
+        if (asOf <= AnnualCarryOverExpiryDate(carryStartYear))
             return 0;
 
         return Math.Max(0, carriedOverDays - carriedOverDaysUsed);

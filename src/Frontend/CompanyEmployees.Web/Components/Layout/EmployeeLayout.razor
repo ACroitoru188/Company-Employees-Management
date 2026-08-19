@@ -5,6 +5,7 @@
 @using Microsoft.Extensions.Logging
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Persistence
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inherits LayoutComponentBase
@@ -17,6 +18,8 @@
 @inject IDialogService DialogService
 @inject LanguagePreferenceService LanguagePreferences
 @inject ILogger<EmployeeLayout> Logger
+@inject DatabaseRuntimeState DatabaseState
+@inject DatabaseProviderSwitcher DatabaseSwitcher
 @implements IDisposable
 
 <CompanyEmployees.Web.Components.Employee.EmployeeProviders />
@@ -262,6 +265,75 @@
            including the 250px drawer, so the page was always that much too wide and the window
            grew a horizontal scrollbar. min-width:0 lets it shrink past its content instead. *@
         <FluentBodyContent Style="padding:24px; flex:1 1 auto; min-width:0;">
+            @if (_role == "Admin" && !DatabaseState.PrimaryAvailable && !DatabaseState.IsFailoverActive)
+            {
+                <FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false"
+                                  Style="margin-bottom:16px;">
+                    SQL Server is down. Contact the database team at
+                    <strong>@DatabaseState.SupportContact</strong>.
+                    Latest standby sync: <strong>@LastSynchronizationLabel</strong>.
+                    Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
+                    @if (DatabaseState.PostgreSqlAvailable)
+                    {
+                        <FluentButton Appearance="Appearance.Accent"
+                                      Disabled="_switchingDatabase"
+                                      OnClick="@(() => SwitchDatabaseAsync(DatabaseProvider.PostgreSql))"
+                                      Style="margin-left:12px;">
+                            @(_switchingDatabase ? "Switching…" : "Switch to PostgreSQL")
+                        </FluentButton>
+                    }
+                    else
+                    {
+                        <strong> PostgreSQL is also unavailable.</strong>
+                    }
+                </FluentMessageBar>
+            }
+            else if (_role == "Admin" && DatabaseState.IsFailoverActive)
+            {
+                <FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false"
+                                  Style="margin-bottom:16px;">
+                    PostgreSQL is the active database.
+                    @(DatabaseState.PrimaryAvailable
+                        ? "SQL Server is available again."
+                        : "SQL Server is still down.")
+                    Contact the database team at <strong>@DatabaseState.SupportContact</strong>.
+                    Latest sync: <strong>@LastSynchronizationLabel</strong>.
+                    Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
+                    @if (DatabaseState.PrimaryAvailable)
+                    {
+                        <FluentButton Appearance="Appearance.Accent"
+                                      Disabled="_switchingDatabase"
+                                      OnClick="@(() => SwitchDatabaseAsync(DatabaseProvider.SqlServer))"
+                                      Style="margin-left:12px;">
+                            @(_switchingDatabase ? "Switching…" : "Switch back to SQL Server")
+                        </FluentButton>
+                    }
+                </FluentMessageBar>
+            }
+            else if (_role == "Admin")
+            {
+                <FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false"
+                                  Style="margin-bottom:16px;">
+                    SQL Server is the active database.
+                    PostgreSQL is @(DatabaseState.PostgreSqlAvailable ? "healthy" : "unavailable").
+                    Latest sync: <strong>@LastSynchronizationLabel</strong>.
+                    Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
+                </FluentMessageBar>
+            }
+            @if (_role == "Admin" && DatabaseState.ReplicationError is not null)
+            {
+                <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false"
+                                  Style="margin-bottom:16px;">
+                    Replication error: @DatabaseState.ReplicationError
+                </FluentMessageBar>
+            }
+            @if (_role == "Admin" && _databaseSwitchError is not null)
+            {
+                <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false"
+                                  Style="margin-bottom:16px;">
+                    @_databaseSwitchError
+                </FluentMessageBar>
+            }
             @Body
         </FluentBodyContent>
     </FluentStack>
@@ -299,6 +371,13 @@
     private bool _switchErrorShown;
     private bool _switchMenuOpen;
     private bool _profileMenuOpen;
+    private bool _switchingDatabase;
+    private string? _databaseSwitchError;
+    private DatabaseProvider _observedDatabaseProvider;
+
+    private string LastSynchronizationLabel => DatabaseState.LastSynchronizedUtc is { } value
+        ? value.ToLocalTime().ToString("G", CultureInfo.CurrentCulture)
+        : "not completed yet";
 
     private string HeaderStyle => _acting?.IsImpersonating == true
         ? $"background:{ImpersonationTint};"
@@ -313,7 +392,9 @@
     // flight on the same context throws. Claims are already in memory.
     protected override async Task OnInitializedAsync()
     {
+        _observedDatabaseProvider = DatabaseState.ActiveProvider;
         ThemeState.OnChange += StateHasChanged;
+        DatabaseState.Changed += OnDatabaseStateChanged;
 
         if (AuthStateTask is null)
             return;
@@ -440,5 +521,40 @@
     private static string Initials(string name) =>
         string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
 
-    public void Dispose() => ThemeState.OnChange -= StateHasChanged;
+    private void OnDatabaseStateChanged() => _ = InvokeAsync(() =>
+    {
+        if (_observedDatabaseProvider != DatabaseState.ActiveProvider)
+        {
+            _observedDatabaseProvider = DatabaseState.ActiveProvider;
+            // Every open Blazor circuit owns scoped repositories and a DbContext built for
+            // the previous provider. A full authenticated hop prevents split-brain writes.
+            Nav.NavigateTo("/api/auth/database-switched", forceLoad: true);
+            return;
+        }
+
+        StateHasChanged();
+    });
+
+    private async Task SwitchDatabaseAsync(DatabaseProvider provider)
+    {
+        _switchingDatabase = true;
+        _databaseSwitchError = null;
+        try
+        {
+            await DatabaseSwitcher.SwitchAsync(provider);
+            Nav.NavigateTo("/api/auth/database-switched", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not switch to database provider {Provider}.", provider);
+            _databaseSwitchError = $"Could not switch to {provider}. Verify that it is running.";
+            _switchingDatabase = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        ThemeState.OnChange -= StateHasChanged;
+        DatabaseState.Changed -= OnDatabaseStateChanged;
+    }
 }

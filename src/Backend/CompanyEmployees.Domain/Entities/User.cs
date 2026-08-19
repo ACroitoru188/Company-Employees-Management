@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Enums;
+using CompanyEmployees.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 
 namespace CompanyEmployees.Domain.Entities;

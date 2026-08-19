@@ -36,15 +36,20 @@
                         <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
                             / @Text.Format("{0} days", balance.BaseDays)
                         </FluentLabel>
-                        @if (balance.CarriedOverDays > 0)
+                        @for (var i = 0; i < balance.CarryOverPortions.Count; i++)
                         {
+                            var portion = balance.CarryOverPortions[i];
+                            var anchor = $"carry-over-{balance.Type}-{i}";
                             <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--success)" Class="app-caption">
-                                + @Text.Format("{0} days", balance.CarriedOverDays)
+                                + @Text.Format("{0} days", portion.Days)
                             </FluentLabel>
-                            <FluentTooltip Anchor="@($"carry-over-{balance.Type}")">
-                                @Text.Format("{0} days carried over from last year; unused days expire on {1}", balance.CarriedOverDays, balance.CarryOverExpiryDate?.ToString("d", CultureInfo.CurrentCulture))
+                            <FluentTooltip Anchor="@anchor">
+                                @Text.Format(
+                                    "{0} carried annual-leave days expire on {1}",
+                                    portion.Days,
+                                    portion.ExpiryDate.ToString("d", CultureInfo.CurrentCulture))
                             </FluentTooltip>
-                            <FluentIcon Id="@($"carry-over-{balance.Type}")" Value="@(new Icons.Regular.Size16.Info())"
+                            <FluentIcon Id="@anchor" Value="@(new Icons.Regular.Size16.Info())"
                                         Color="Color.Neutral" />
                         }
                         @if (balance.ExpiredCarriedOverDays > 0)
@@ -57,7 +62,7 @@
 
                     @* The leave-type colour is per category, which Fluent's single-accent
                        palette has no slot for — hence the local custom colour. *@
-                    <FluentProgress Min="0" Max="@balance.EffectiveDaysTotal" Value="@balance.Remaining"
+                    <FluentProgress Min="0" Max="@Math.Max(1, balance.EffectiveDaysTotal)" Value="@balance.Remaining"
                                     Stroke="ProgressStroke.Normal"
                                     Style="@($"--accent-fill-rest:{LeaveTypePalette.Hex(balance.Type, ThemeState.IsDarkMode)};")" />
 

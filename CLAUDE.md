@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Company Employees Management — an internship project built by a team of 4 developers. A leave
 (time-off) management app: Blazor Web App (**.NET 9**, Interactive Server) + **Microsoft Fluent UI
-Blazor** on top of a layered backend with EF Core 8 and SQL Server LocalDB.
+Blazor** on top of a layered backend with EF Core 8 and SQL Server 2022 in Docker.
 
 > The UI was **migrated from MudBlazor to Fluent UI Blazor** in commit `a25e53d`. MudBlazor is
 > gone from the source entirely — the only remaining hits are build debris under the deleted
@@ -38,7 +38,7 @@ tests/CompanyEmployees.Application.Tests     # xunit: ManagerContext, Notificati
 **Data flow (follow it, don't bypass it):**
 Razor page → `ITimeOffService` (`Web/Services/DbTimeOffService`) → `EmployeeContext`
 (Application) → `I*Gateway` (Domain/GatewayInterfaces) → `*Repository` (Gateway) →
-`CompanyEmployeesDbContext` → LocalDB. Application never references Persistence — the gateway
+`CompanyEmployeesDbContext` → SQL Server. Application never references Persistence — the gateway
 interfaces live in Domain precisely so the dependency points inward. Web components never touch
 the DbContext directly (only Identity's `UserManager`/`SignInManager` do, via DI).
 
@@ -68,13 +68,12 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   succeeds — but **it silently stops whatever instance is running**, including one started from
   an IDE. Expect to restart the app after any build.
 - Connection string: `ConnectionStrings:Default` in `Web/appsettings.Development.json`
-  (LocalDB `CompanyEmployees`). `Persistence/DesignTimeDbContextFactory.cs` keeps its own copy
-  for `dotnet ef` tooling, overridable with the `ConnectionStrings__Default` **environment
-  variable** — LocalDB is Windows-only, so on Linux/macOS that variable is required or every
-  `dotnet ef` command dies with "LocalDB is not supported on this platform".
+  (Docker SQL Server `CompanyEmployees` on `localhost:1433`).
+  `Persistence/DesignTimeDbContextFactory.cs` keeps its own copy for `dotnet ef` tooling,
+  overridable with the `ConnectionStrings__Default` **environment variable**.
 - **Everyone ends up on the same schema by just running the app** — `Database.Migrate()` on
-  startup applies whatever is pending. `scripts/db-update.ps1` (Windows/LocalDB) and
-  `scripts/db-update.sh` (Linux/macOS, connection string required) do the same without
+  startup applies whatever is pending. `scripts/db-update.ps1` and `scripts/db-update.sh`
+  use the Docker SQL Server default and do the same without
   launching, and print the migration list so you can confirm you are in sync after a pull.
   `scripts/sql/reset-delegation-test-data.sql` empties the delegation tables — testing leftovers
   only, a no-op on a machine that has not run the feature.

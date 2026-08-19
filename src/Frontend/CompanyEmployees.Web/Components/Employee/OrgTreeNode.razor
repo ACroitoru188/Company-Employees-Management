@@ -21,7 +21,8 @@
                 Expanded="@Node.IsExpanded"
                 ExpandedChanged="OnExpandedChangedAsync"
                 Selected="@(Node.UserId == SelectedId && Node.UserId != Guid.Empty)"
-                SelectedChanged="@(selected => selected ? OnSelect.InvokeAsync(Node) : Task.CompletedTask)">
+                SelectedChanged="@(selected => selected ? OnSelect.InvokeAsync(Node) : Task.CompletedTask)"
+                Class="@((Node.IsFocusNode ? "org-path-highlight " : "") + (Node.UserId == CurrentUserId && Node.UserId != Guid.Empty ? "org-current-user" : ""))">
     <FluentPersona Name="@Node.Name" Initials="@Node.Initials" ImageSize="28px"
                    TextPosition="TextPosition.End">
         @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
@@ -49,7 +50,7 @@
 
     @foreach (var child in Node.Subordinates)
     {
-        <OrgTreeNode Node="@child" SelectedId="@SelectedId" OnSelect="@OnSelect" OnExpand="@OnExpand" />
+        <OrgTreeNode @key="child.UserId" Node="@child" SelectedId="@SelectedId" CurrentUserId="@CurrentUserId" OnSelect="@OnSelect" OnExpand="@OnExpand" />
     }
 </FluentTreeItem>
 
@@ -59,6 +60,9 @@
 
     [Parameter]
     public Guid SelectedId { get; set; }
+
+    [Parameter]
+    public Guid CurrentUserId { get; set; }
 
     [Parameter]
     public EventCallback<OrgChartNode> OnSelect { get; set; }

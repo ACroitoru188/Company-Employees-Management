@@ -10,7 +10,7 @@
 --
 -- Run it from your IDE's database console (Rider: the Database tool window), or:
 --   Windows  sqlcmd -S "(localdb)\MSSQLLocalDB" -d CompanyEmployees -i scripts\sql\reset-delegation-test-data.sql
---   Docker   docker exec -i sql1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d CompanyEmployees -i /dev/stdin < scripts/sql/reset-delegation-test-data.sql
+--   Docker   docker compose exec -T sqlserver /bin/bash -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d CompanyEmployees -i /dev/stdin' < scripts/sql/reset-delegation-test-data.sql
 
 SET NOCOUNT ON;
 
