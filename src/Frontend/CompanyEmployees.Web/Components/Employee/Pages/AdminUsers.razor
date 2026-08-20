@@ -10,7 +10,6 @@
 @using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
 @inject AppLocalizer Text
-@inject EmployeeAccountService Accounts
 @inject NavigationManager Nav
 @inject IToastService Toast
 @inject IDialogService DialogService
@@ -39,106 +38,16 @@ else
 					  IconStart="@(new Icons.Regular.Size20.ArrowDownload())">
 			@Text["Download latest CSV"]
 		</FluentAnchor>
+		@* IconStart is slotted content, so it never receives the color FAST computes for the
+		   button's own label — --accent-fill-rest and --accent-foreground-rest are the same
+		   #0F6CBD in light mode, so the icon was the same blue as the button under it and
+		   vanished. --app-icon-on-accent-fill is white there and a no-op on dark, where the
+		   icon's default already reads fine against the fill. *@
 		<FluentAnchor Href="/admin/users/create" Appearance="Appearance.Accent"
-					  IconStart="@(new Icons.Regular.Size20.PersonAdd())">
+					  IconStart="@(new Icons.Regular.Size20.PersonAdd().WithColor("var(--app-icon-on-accent-fill)"))">
 			@Text["Create employee account"]
 		</FluentAnchor>
 	</FluentStack>
-
-	@* Folded away by default. Creating an account is something an administrator does occasionally,
-	   while reading the table is what this page is for — and the open form was pushing the grid a
-	   third of the way down the screen every single visit. It springs open on its own after a
-	   successful create, so the confirmation and its setup link are not hidden behind a chevron. *@
-	<FluentAccordion Style="margin:16px 0 24px;">
-		<FluentAccordionItem Heading="@Text["Create employee account"]" Expanded="@_createFormOpen">
-			<span slot="start">
-				<FluentIcon Value="@(new Icons.Regular.Size20.PersonAdd())" Color="Color.Neutral" />
-			</span>
-		<FluentStack Orientation="Orientation.Vertical" VerticalGap="12" Style="padding:8px 0 4px;">
-			<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-				@Text["Create employees in your assigned region. Their Siemens login and employee ID are generated automatically."]
-			</FluentLabel>
-
-			@if (!CanManageSelectedRegion)
-			{
-				<FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false">
-					@Text.Format("This regional preview is read-only. Return to {0} to create an account.", GetRegionName(_adminRegionId))
-				</FluentMessageBar>
-			}
-
-			@* A grid, not a wrapping row. A Fluent field renders its label and its control as two
-			   siblings, so a wrapping flex row is free to break between them — which is exactly
-			   what happened: "Department" stayed on the first line and its select dropped to the
-			   second, leaving a label pointing at nothing and a stray "Design" box below. A grid
-			   item is one box per field, so the two can never be separated, and the fields line
-			   up in columns instead of packing left to right. *@
-			<FluentGrid Spacing="3">
-				<FluentGridItem xs="12" sm="6" md="3">
-					<FluentTextField @bind-Value="_newEmployeeName" Label="@Text["Full name"]"
-									 Style="width:100%;" Disabled="@(_creating || !CanManageSelectedRegion)" />
-				</FluentGridItem>
-				<FluentGridItem xs="12" sm="6" md="3">
-					<FluentTextField @bind-Value="_newEmployeeInvitationEmail" Label="@Text["Real email address"]"
-									 TextFieldType="TextFieldType.Email" Style="width:100%;"
-									 Disabled="@(_creating || !CanManageSelectedRegion)" />
-				</FluentGridItem>
-				<FluentGridItem xs="12" sm="6" md="3">
-					<FluentSelect TOption="Department" Label="@Text["Department"]"
-								  Items="@_departments.OrderBy(d => d.Name)"
-								  OptionValue="@(d => d.Id.ToString())"
-								  OptionText="@(d => d.Name)"
-								  SelectedOption="@_departments.FirstOrDefault(d => d.Id == _newEmployeeDepartmentId)"
-								  SelectedOptionChanged="@(d => _newEmployeeDepartmentId = d?.Id)"
-								  Style="width:100%;" Disabled="@(_creating || !CanManageSelectedRegion)" />
-				</FluentGridItem>
-				@* Region is fixed to the administrator's own: creating outside it is refused by the
-				   application layer anyway, so the field only reports which one it will be. *@
-				<FluentGridItem xs="12" sm="6" md="3">
-					<FluentSelect TOption="Region" Label="@Text["Region"]"
-								  Items="@ActiveRegions"
-								  OptionValue="@(r => r.Id.ToString())"
-								  OptionText="@(r => r.Name)"
-								  SelectedOption="@_regions.FirstOrDefault(r => r.Id == _newEmployeeRegionId)"
-								  Style="width:100%;" Disabled="true" />
-				</FluentGridItem>
-				@* The action gets its own line rather than a fifth column. Squeezed in beside the
-				   fields it had ~180px to live in, which is narrower than a select is willing to
-				   be, so it ended up sitting on top of the Region dropdown. *@
-				<FluentGridItem xs="12" Style="display:flex; justify-content:flex-start;">
-					<FluentButton Appearance="Appearance.Accent"
-								  IconStart="@(new Icons.Regular.Size20.PersonAdd())"
-								  OnClick="CreateEmployeeAsync" Disabled="@(_creating || !CanManageSelectedRegion)">
-						@(_creating ? Text["Creating..."] : Text["Create account"])
-					</FluentButton>
-				</FluentGridItem>
-			</FluentGrid>
-
-			@if (_createdAccount != null)
-			{
-				<FluentMessageBar Intent="MessageIntent.Success" AllowDismiss="false">
-					<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
-						<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@Text["Account created"]</FluentLabel>
-						<FluentLabel Typo="Typography.Body">@Text.Format("Name: {0}", _createdAccount.Name)</FluentLabel>
-						<FluentLabel Typo="Typography.Body">@Text.Format("Department: {0}", _createdAccount.Department)</FluentLabel>
-						<FluentLabel Typo="Typography.Body">@Text.Format("Region: {0}", _createdAccount.Region)</FluentLabel>
-						<FluentLabel Typo="Typography.Body">@Text.Format("Siemens login: {0}", _createdAccount.Email)</FluentLabel>
-						<FluentLabel Typo="Typography.Body">@Text.Format("Invitation email: {0}", _createdAccount.InvitationEmail)</FluentLabel>
-						@if (_createdAccount.EmailDelivered)
-						{
-							<FluentLabel Typo="Typography.Body">@Text["A password setup email was sent to the employee."]</FluentLabel>
-						}
-						else
-						{
-							<FluentLabel Typo="Typography.Body">@Text["SMTP is not configured. Use this development-only setup link:"]</FluentLabel>
-							<FluentAnchor Href="@_createdAccount.DevelopmentSetupLink"
-										  Appearance="Appearance.Hypertext">@Text["Set password"]</FluentAnchor>
-						}
-					</FluentStack>
-				</FluentMessageBar>
-			}
-		</FluentStack>
-		</FluentAccordionItem>
-	</FluentAccordion>
 
 	@if (_regionFilterId.HasValue)
 	{
@@ -324,21 +233,11 @@ else
 	private List<Department> _departments = new();
 	private List<Region> _regions = new();
 	private string _quickSearch = "";
-	private string _newEmployeeName = "";
-	private string _newEmployeeInvitationEmail = "";
-	private Guid? _newEmployeeDepartmentId;
-	private Guid? _newEmployeeRegionId;
 	private Guid? _regionFilterId;
 	private Guid _adminId;
 	private Guid _adminRegionId;
-	private bool _creating;
-	private EmployeeAccountResult? _createdAccount;
 
 	private readonly PaginationState _pagination = new() { ItemsPerPage = 15 };
-
-	// The create panel is collapsed until it is needed, and stays open once a create has left a
-	// confirmation and a setup link inside it to read.
-	private bool _createFormOpen;
 
 	// Fluent's pickers select an object out of a list rather than resolving a value through a
 	// search callback, so the "no department" / "all regions" entries need a real row of their
@@ -444,7 +343,6 @@ else
 		_adminId = currentAdmin.Id;
 		_adminRegionId = currentAdmin.RegionId;
 		_regionFilterId = currentAdmin.RegionId;
-		_newEmployeeRegionId = currentAdmin.RegionId;
 	}
 
 	private async Task LoadAsync()
@@ -621,69 +519,6 @@ else
 	private void OnViewingRegionChanged(RegionOption? option)
 	{
 		_regionFilterId = option is null || option.Id == Guid.Empty ? null : option.Id;
-	}
-
-	private async Task CreateEmployeeAsync()
-	{
-		if (string.IsNullOrWhiteSpace(_newEmployeeName))
-		{
-			Toast.ShowWarning(Text["Employee name is required."]);
-			return;
-		}
-
-		if (string.IsNullOrWhiteSpace(_newEmployeeInvitationEmail))
-		{
-			Toast.ShowWarning(Text["Employee email is required."]);
-			return;
-		}
-
-		if (_newEmployeeDepartmentId == null)
-		{
-			Toast.ShowWarning(Text["Select a department."]);
-			return;
-		}
-
-		if (_newEmployeeRegionId == null)
-		{
-			Toast.ShowWarning(Text["Select a region."]);
-			return;
-		}
-
-		_creating = true;
-		_createdAccount = null;
-
-		try
-		{
-			_createdAccount = await Accounts.CreateAsync(
-				_adminId,
-				_newEmployeeName,
-				_newEmployeeInvitationEmail,
-				_newEmployeeDepartmentId.Value,
-				_newEmployeeRegionId.Value,
-				Nav.BaseUri);
-
-			_newEmployeeName = "";
-			_newEmployeeInvitationEmail = "";
-			_newEmployeeDepartmentId = null;
-			_newEmployeeRegionId = _adminRegionId;
-			// The panel holds the new account's login and, without SMTP, the only copy of its
-			// password-setup link. Collapsing it now would hide the one thing worth reading.
-			_createFormOpen = true;
-			await LoadAsync();
-
-			if (_createdAccount.EmailDelivered)
-				Toast.ShowSuccess(Text["Employee account created and setup email sent."]);
-			else
-				Toast.ShowWarning(Text["Employee account created; SMTP is not configured."]);
-		}
-		catch (Exception exception)
-		{
-			Toast.ShowError(exception.Message);
-		}
-		finally
-		{
-			_creating = false;
-		}
 	}
 
 	private string GetDepartmentName(Guid? id) =>

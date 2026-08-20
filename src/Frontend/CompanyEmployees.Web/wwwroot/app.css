@@ -112,6 +112,18 @@ html, body { margin: 0; padding: 0; height: 100%; }
        one place in the light DOM that paints on the accent itself. */
     --app-on-accent: #FFFFFF;
 
+    /* An IconStart is slotted content, not shadow content, so it never receives the `color`
+       the runtime computes for .control's own text — that pairing is what keeps the button's
+       label readable, and the icon just doesn't inherit it. Left alone it renders in
+       --accent-foreground-rest, which in light mode is #0F6CBD — identical to --accent-fill-rest
+       two tokens up, so an icon on an accent-filled button was the same blue on the same blue.
+       Dark mode's --accent-foreground-rest (#62ABF5, below) is a different shade from its accent
+       fill and happened to be visible, which is why only light mode showed the bug. Repeating
+       that same fallback here on dark keeps this token a no-op there — same value the icon was
+       already resolving to — while light gets the readable pairing FAST already gives the text
+       next to it. */
+    --app-icon-on-accent-fill: #FFFFFF;
+
     --neutral-foreground-rest: #1A1A1A;
     --neutral-foreground-hover: #1A1A1A;
     --neutral-foreground-hint: #616161;
@@ -185,6 +197,9 @@ body:has(fluent-design-theme[mode="dark"]) {
 
     --accent-foreground-rest: #62ABF5;
     --accent-foreground-hover: #83BDF7;
+    /* Same value the icon already resolves to on this theme — see the light-mode definition
+       above. This is what keeps dark mode untouched rather than also being forced white. */
+    --app-icon-on-accent-fill: var(--accent-foreground-rest);
 
     --error: #E37D80;
     --success: #54B054;
@@ -440,6 +455,22 @@ fluent-anchor[appearance="lightweight"]:not([disabled]):active::part(control) {
     background: var(--app-btn-subtle-active);
 }
 
+/* An icon-only stealth button in a grid's Actions column — /admin/users, /admin/departments —
+   sits inside a row that gets its own hover fill (FluentDataGrid's `.hover`, which reads
+   --neutral-fill-stealth-hover: #EDEDED in light mode). The rule above then paints the button
+   itself with --app-btn-subtle-hover, #F5F5F5 — eight values apart on a 0-255 scale, close
+   enough that hovering the button read as no reaction at all; the row's own fill already
+   covered it. An outline answers the cursor regardless of what the row underneath is doing,
+   and outline rather than border costs no layout: it paints outside the box instead of
+   claiming space inside it, so the icon does not shift when it appears. More specific than the
+   rule above (a class plus the same attribute chain beats the attribute chain alone), so this
+   wins without needing !important. */
+.grid-card fluent-button[appearance="stealth"]:not([disabled]):hover::part(control) {
+    background: transparent;
+    outline: 1px solid var(--app-btn-stroke-hover);
+    outline-offset: -1px;
+}
+
 /* Last, so it settles the tie against the appearance rules above at equal specificity: disabled
    reads as unavailable rather than as a low-contrast enabled button. */
 fluent-button[disabled]::part(control),
@@ -662,8 +693,17 @@ fluent-card {
 }
 
 .fluent-nav-menu.collapsed .drawer-footer fluent-card {
-    margin: 4px 2px !important;
-    padding: 2px !important;
+    /* A percentage of the card's own parent, not of the 40px rail — measured at 31px, not the
+       36px the arithmetic below suggests, and worse, not centred under it (1px clear on the
+       left, 6px on the right). Chasing that parent's real width is fragile; fixing the card to
+       the disc's own size and centring it with margin:auto sidesteps needing to know it. */
+    box-sizing: border-box;
+    width: 36px !important;
+    margin: 4px auto !important;
+    /* The avatar is a fixed 36px disc (ImageSize="36px" in the markup). Any padding here eats
+       into that same 36px, so the disc no longer fits at its own size and overflows the card's
+       rounded corners — which is what let the square card peek out from behind the circle. */
+    padding: 0 !important;
 }
 
 /* FluentPersona sizes the initials disc from ImageSize but leaves the initials themselves at the
@@ -692,6 +732,29 @@ fluent-card {
        never showed, and #242424 against a #171717 canvas in dark, which drew a grey slab behind
        the account row. */
     background: var(--neutral-fill-layer-rest);
+}
+
+/* The impersonation card is `width: 100%` (FluentCard's own default) *and* carries `margin: 8px`
+   inline — margin is never subtracted from a percentage width, it is added outside it, so the
+   card's box was 250px plus 16px of margin and the right edge ran 8px past the drawer, under the
+   scrollbar gutter. calc() gives back exactly what the margin takes, so 8px + 234px + 8px lands
+   flush with both edges of the 250px rail. Scoped off `.collapsed`: that state already sets its
+   own 2px margin further down, and this 16px figure is not it. */
+.fluent-nav-menu:not(.collapsed) .drawer-footer fluent-card {
+    box-sizing: border-box;
+    width: calc(100% - 16px);
+}
+
+/* The `Style="width:250px"` on the component sets the menu's own box, but fluent-menu-item does
+   not inherit a width from it — left alone, each item still shrinks to its own text, so the
+   250px popup showed narrow left-aligned rows inside a wide box, not the centred, drawer-width
+   look asked for. Stretching the items is what makes the box's width actually visible. */
+.switch-account-menu fluent-menu-item {
+    width: 100%;
+}
+
+.switch-account-menu fluent-menu-item::part(content) {
+    width: 100%;
 }
 
 /* An editor dropped into a data-grid cell is sized for a form, not for a column: without
@@ -746,9 +809,45 @@ fluent-select {
    a 28px avatar with a name and a role line under it, 40px in all. The row does not clip, so
    every entry spilled 7px into the one below and the whole tree read as overlapping text.
    The row grows to its content instead; the floor keeps the short ones even. */
+.org-tree {
+    --org-row-height: 44px;
+}
+
 .org-tree fluent-tree-item::part(positioning-region) {
     height: auto;
-    min-height: 44px;
+    min-height: var(--org-row-height);
+    margin-bottom: 2px;
+}
+
+/* The row is two nested parts, not two components: positioning-region is the full-width band
+   that carries the background, the hover and selected fills and the indent spacer, and
+   content-region is the flex row inside it holding the chevron and the slotted persona.
+   Raising the band alone left the inner one at its hardcoded 32px, pinned to the top with
+   eleven empty pixels under it — so the 40px persona centred five pixels above the row it
+   sits in. It has to grow with the band for its own `align-items: center` to mean anything.
+
+   Stretched into the band rather than given a min-height of its own: the band is a flex row,
+   so dropping the fixed height is enough for it to fill. Setting a matching min-height instead
+   added its borders on top and pushed the row to 46px, which then put the selected marker back
+   out by a pixel. */
+.org-tree fluent-tree-item::part(content-region) {
+    height: auto;
+    align-self: stretch;
+}
+
+/* Taking the row off its default height leaves the selected marker behind. The component draws
+   it as `:host([selected])::after` with `top: heightNumber/4` and `height: heightNumber/2` —
+   geometry that centres only while the row is exactly heightNumber tall. Measured here: the bar
+   sat at 8px over 16px, centre 16px, against a row centre of 22px, so it rode six pixels high
+   on every selection.
+
+   Re-centred against our own row instead. Two things make this work: the outer document wins
+   over a shadow `:host` rule whatever the specificity, and the marker is positioned from the
+   top of the *host* — which wraps the whole subtree, not just the row — so it has to be offset
+   from that top edge rather than centred with a percentage. */
+.org-tree fluent-tree-item[selected]::after {
+    top: calc((var(--org-row-height) - 16px) / 2);
+    height: 16px;
 }
 
 /* ---- Notification centre -------------------------------------------------------------
@@ -1227,6 +1326,224 @@ fluent-progress {
 }
 #blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 1rem; top: .75rem; }
 .blazor-error-boundary { background: #b91c1c; padding: 1rem; color: #fff; }
+    border-radius: 50%;
+    font-weight: 600;
+}
+
+/* A holiday shares the date's line rather than taking three red lines of its own below it,
+   which is what left no room for the day's entries. Full name on hover. */
+.cal-holiday {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    font-size: var(--type-ramp-minus-1-font-size);
+}
+
+.cal-holiday-block {
+    font-size: var(--type-ramp-minus-1-font-size);
+    line-height: 1.25;
+}
+
+/* An entry, across the whole cell. */
+.cal-entry {
+    width: 100%;
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+
+.cal-entry-block {
+    padding: 4px 6px;
+}
+
+.cal-entry-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--type-ramp-minus-1-font-size);
+    line-height: 18px;
+    font-weight: 600;
+}
+
+.cal-entry-wrap {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+}
+
+.cal-more {
+    cursor: default;
+    padding-inline-start: 2px;
+}
+
+/* The request bar, as the last row of the surface. */
+.cal-submit {
+    flex: 0 0 auto;
+    margin-top: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--neutral-stroke-divider-rest);
+    border-radius: calc(var(--control-corner-radius) * 1px);
+    background: var(--neutral-layer-1);
+}
+
+/* ---- Grid and List views ---- */
+
+/* FluentDataGrid's own rule is `flex: 1`, and the surface around it is a flex column with a
+   real height — so the grid grew to fill it and spread its handful of rows from the top of the
+   card to the bottom, header alone at the top. A table is as tall as its rows.
+
+   The `div` prefix is load-bearing: the library's rule is `.fluent-data-grid[b-…]`, one class
+   and an attribute, which a two-class selector only ties with — and a tie goes to the sheet that
+   loads last, which is theirs. */
+div.cal-surface .fluent-data-grid {
+    flex: 0 0 auto;
+}
+
+/* ---- Grid view: the month as a timeline ---- */
+
+/* The day columns. Their padding goes, because at roughly 25px per day the cell's own 16px side
+   padding leaves nothing to draw in — and because a bar has to reach both cell edges for
+   consecutive days to meet. */
+.cal-surface .fluent-data-grid td.leave-day,
+.cal-surface .fluent-data-grid th.leave-day {
+    padding-left: 0;
+    padding-right: 0;
+    text-align: center;
+}
+
+/* A day cell is about 25.4px wide, so cell edges land between pixels and consecutive bars were
+   measured 1px apart — a dotted seam down a period that should read as one bar. Each bar runs a
+   pixel into its neighbour to close it, which needs the cell to stop clipping. */
+.cal-surface .fluent-data-grid td.leave-day {
+    overflow: visible;
+}
+
+/* A guide down each day, so a bar can be read off against the date above it. An inset shadow
+   rather than a border: it is painted between the cell's background and its content, so a bar
+   crossing the day covers it and a period still reads as one unbroken run. */
+.cal-surface .fluent-data-grid td.leave-day,
+.cal-surface .fluent-data-grid th.leave-day {
+    box-shadow: inset 1px 0 0 var(--neutral-stroke-divider-rest);
+}
+
+/* The day headers went blank with the columns this narrow: the title keeps 16px of padding on
+   each side and is sized `calc(100% - 10px)` inline, which on a 25px track leaves a negative
+   content width, and the number was clipped away entirely. */
+.cal-surface .fluent-data-grid th.leave-day .col-title {
+    width: 100% !important;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* One period, one bar: square where it continues into the next cell, rounded only at the two
+   ends of the range. A range running past the edge of the month keeps its square end, which is
+   the honest way to show it carries on. */
+.leave-bar {
+    height: 18px;
+    width: calc(100% + 1px);
+    border-radius: 0;
+}
+
+.leave-bar.is-end {
+    width: 100%;
+}
+
+.leave-bar.is-start {
+    border-start-start-radius: 9px;
+    border-end-start-radius: 9px;
+    /* The label is written in the opening cell and runs along the bar past it, so it has to sit
+       above the days that follow — they come later in the document and would paint over it. */
+    position: relative;
+    z-index: 1;
+}
+
+.leave-bar.is-end {
+    border-start-end-radius: 9px;
+    border-end-end-radius: 9px;
+}
+
+.leave-bar-label {
+    /* The app's responsive floor gives every child of a horizontal stack `min-width: 0`, which
+       squeezed this box to the 25px of its own day. The inline max-width caps it at the range's
+       own span, and anything longer than that is cut here rather than across its neighbour. */
+    flex: 0 0 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-inline-start: 8px;
+    font-size: var(--type-ramp-minus-1-font-size);
+    line-height: 18px;
+    pointer-events: none;
+}
+
+/* ---- Loading indicators ---------------------------------------------------------------
+
+   Eight pages render a progress ring while their first load runs. Against a local database that
+   load takes about four milliseconds — measured on /manager/delegation-history, the ring was
+   added at 20ms and removed at 24ms — so every navigation blinked a spinner for a single frame.
+   That flicker is what a button press looked like it was doing.
+
+   The ring is held invisible for the first 250ms and only then fades in: a fast page shows
+   nothing at all, a genuinely slow one still explains itself. No page had to change.
+------------------------------------------------------------------------------------- */
+fluent-progress-ring {
+    opacity: 0;
+    animation: spinner-appears 120ms ease-out 250ms forwards;
+    /* Eight pages render the ring as their entire body while loading. Left where it falls it
+       sits in the top-left corner of an otherwise blank page, which reads as a broken layout
+       rather than as work in progress. Centred, with the page's own rhythm above it, a slow
+       load looks deliberate. */
+    display: block;
+    margin: 15vh auto;
+}
+
+@keyframes spinner-appears {
+    to { opacity: 1; }
+}
+
+/* A progress bar has no width of its own, and a vertical FluentStack writes `align-items: start`
+   as an inline style — so every bar laid out in one collapsed to 0px and simply was not there.
+   The inline align-items cannot be overridden from a stylesheet; an explicit width can. This is
+   the same trap FluentBadge fell into higher up in this file. */
+fluent-progress {
+    width: 100%;
+}
+
+/* ---- Blazor framework UI ------------------------------------------------------------
+   Not components and cannot become components: blazor.web.js finds these by id and class.
+------------------------------------------------------------------------------------- */
+#blazor-error-ui {
+    color: #fff; background: #b91c1c; display: none;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: .8rem 1.25rem; box-shadow: 0 -1px 6px rgba(0, 0, 0, .2); z-index: 1000;
+}
+#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 1rem; top: .75rem; }
+.blazor-error-boundary { background: #b91c1c; padding: 1rem; color: #fff; }
 
 /* Error.razor is a plain framework page outside the Fluent shell. */
 .text-danger { color: var(--error); }
+
+/* Highlight the path to a selected node in the Org Chart */
+.org-path-highlight::part(positioning-region) {
+    background-color: rgba(230, 138, 0, 0.08) !important;
+    border-radius: 4px;
+    box-shadow: inset 3px 0 0 0 #E68A00 !important;
+    margin-bottom: 2px !important;
+}
+
+/* Highlight the current user in the Org Chart */
+.org-current-user::part(positioning-region) {
+    background-color: rgba(255, 193, 7, 0.15) !important;
+    border-radius: 4px;
+    box-shadow: inset 3px 0 0 0 #FFC107 !important;
+    margin-bottom: 2px !important;
+}
+
+/* Hide the second X (clear button) inside the autocomplete since the pill already has one */
+fluent-autocomplete::part(clear-button),
+fluent-autocomplete::part(clear),
+fluent-autocomplete .clear-button {
+    display: none !important;
+}

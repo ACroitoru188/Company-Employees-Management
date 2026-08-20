@@ -1,0 +1,390 @@
+@* The one search box in the app. It answers two different questions with the same control:
+   "take me to this person, I know the name" (type it) and "who is in Design, in Romania?"
+   (click the region, click the department, read the list). Clicking a region or a department
+   result does not navigate — it becomes a scope pill and the search continues inside it.
+
+   The results panel is our own absolutely-positioned element rather than a FluentPopover.
+   FluentPopover has no light dismiss anywhere in the package — it closes only when its Open
+   parameter is set back — and being a sibling of the input rather than a descendant, it never
+   saw the keydown either, so Escape stopped working the moment focus moved into it. As a child
+   of this wrapper, focusin/focusout/keydown all reach the same handlers. *@
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
+@using CompanyEmployees.Application
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Web.Security
+@inject IServiceScopeFactory ScopeFactory
+@inject ActingContext Acting
+@inject NavigationManager Nav
+@inject AppLocalizer Text
+@inject ILogger<GlobalSearchBox> Logger
+@implements IDisposable
+
+@* The handlers sit on the wrapper, not on FluentSearch: @on* on a *component* is not a DOM
+   handler at all — it is splatted onto the underlying element as an attribute whose value is a
+   delegate, and nothing ever fires. All three events bubble, so the wrapper hears them. *@
+<div class="global-search"
+     @onfocusin="OnFocusInAsync"
+     @onfocusout="OnFocusOutAsync"
+     @onkeydown="OnKeyDownAsync"
+     @onclick="OnWrapperClickAsync">
+    <FluentSearch Value="@_query"
+                  ValueChanged="OnQueryChangedAsync"
+                  Immediate="true"
+                  ImmediateDelay="250"
+                  Placeholder="@PlaceholderText"
+                  Autocomplete="off"
+                  Style="width:100%;" />
+
+    @if (_open)
+    {
+        @* stopPropagation so a click on a result does not bubble back to the wrapper and
+           reopen the panel the result just closed.
+
+           onmousedown fires before the focusout it is about to cause, and marks the interaction
+           as ours: Firefox does not focus a <button> on click, so without this the focusout from
+           the input has no matching focusin and the panel closes under the pointer mid-click. *@
+        <div class="search-panel" @onclick:stopPropagation="true" @onmousedown="KeepOpen">
+
+            @* Above everything and always rendered, never conditional: this is the panel's one
+               fixed landmark. Tying it to whether results exist, or parking it under the last
+               row, meant it moved with the content — and a button that moves is a button you
+               look for instead of one you know. *@
+            <button type="button" class="search-all" @onclick="OpenResultsPage">
+                @Text["See all results"]
+            </button>
+
+            @* No close button: clicking outside closes the panel, and so does Escape. A third
+               way to do the same thing only takes room from the results. The head is here for
+               the scope pills alone, so it does not render when there are none. *@
+            @if (_regionPill is not null || _departmentPill is not null)
+            {
+                <div class="search-head">
+                    <span class="search-pills-label">@Text["Searching in"]</span>
+                    @if (_regionPill is not null)
+                    {
+                        <button type="button" class="search-pill" @onclick="ClearRegionAsync">
+                            🌍 @_regionPill.Name <span class="search-pill-x">✕</span>
+                        </button>
+                    }
+                    @if (_departmentPill is not null)
+                    {
+                        <button type="button" class="search-pill" @onclick="ClearDepartmentAsync">
+                            🏢 @_departmentPill.Name <span class="search-pill-x">✕</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            @* ---- type chips, each carrying what is behind it ---------------------- *@
+            <div class="search-chips">
+                @foreach (var chip in Chips)
+                {
+                    <button type="button"
+                            class="@(_type == chip.Type ? "search-chip search-chip-on" : "search-chip")"
+                            @onclick="@(() => SetTypeAsync(chip.Type))">
+                        @chip.Label@(chip.Count is int count ? $" ({count})" : "")
+                    </button>
+                }
+            </div>
+
+            @* ---- results ---------------------------------------------------------- *@
+            <div class="search-results">
+                @if (_result is null)
+                {
+                    <div class="search-status">@Text["Type a name, or pick a region to look inside."]</div>
+                }
+                else if (_result.Total == 0)
+                {
+                    <div class="search-status">@Text["Nothing matches."]</div>
+                }
+                else
+                {
+                    @if (_result.Regions.Count > 0)
+                    {
+                        <div class="search-group">@Text["Regions"]</div>
+                        @foreach (var region in _result.Regions)
+                        {
+                            <button type="button" class="search-row" @onclick="@(() => PickRegionAsync(region))">
+                                <span class="search-row-icon">🌍</span>
+                                <span class="search-row-text">
+                                    <span class="search-row-title">@region.Name</span>
+                                    <span class="search-row-sub">@Text["Region"] · @region.Code · @Members(region.MemberCount)</span>
+                                </span>
+                                <span class="search-row-go">@Text["Look inside"]</span>
+                            </button>
+                        }
+                    }
+
+                    @if (_result.Departments.Count > 0)
+                    {
+                        <div class="search-group">@Text["Departments"]</div>
+                        @foreach (var department in _result.Departments)
+                        {
+                            <button type="button" class="search-row" @onclick="@(() => PickDepartmentAsync(department))">
+                                <span class="search-row-icon">🏢</span>
+                                <span class="search-row-text">
+                                    <span class="search-row-title">@department.Name</span>
+                                    <span class="search-row-sub">
+                                        @Text["Department"]@(string.IsNullOrEmpty(department.ManagerName) ? "" : $" · {department.ManagerName}") · @Members(department.MemberCount)
+                                    </span>
+                                </span>
+                                <span class="search-row-go">@Text["Look inside"]</span>
+                            </button>
+                        }
+                    }
+
+                    @if (_result.People.Count > 0)
+                    {
+                        <div class="search-group">@Text["People"]</div>
+                        @foreach (var person in _result.People)
+                        {
+                            <button type="button" class="search-row" @onclick="@(() => OpenPerson(person))">
+                                <span class="search-row-avatar">@person.Initials</span>
+                                <span class="search-row-text">
+                                    <span class="search-row-title">@person.Name</span>
+                                    @* Icon, name, and the kind of thing it is: two colleagues with
+                                       similar names are told apart by the line underneath. *@
+                                    <span class="search-row-sub">
+                                        @person.Role@(string.IsNullOrEmpty(person.Department) ? "" : $" · {person.Department}") · @person.Region
+                                    </span>
+                                </span>
+                            </button>
+                        }
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private const int DropdownTake = 5;
+
+    // Long enough for the focusin on the element just clicked to arrive before we decide the
+    // focus has left for good, short enough not to feel like a stuck panel.
+    private const int FocusSettleMs = 150;
+
+    private string _query = "";
+    private bool _open;
+    private bool _focusWithin;
+    private SearchEntityType _type = SearchEntityType.All;
+    private GlobalSearchResult? _result;
+    private Guid _userId;
+    private bool _ready;
+
+    private RegionHit? _regionPill;
+    private DepartmentHit? _departmentPill;
+
+    // Cancels the search still in flight when the next keystroke arrives, so a slow early
+    // query cannot land after a later one and overwrite the newer results.
+    private CancellationTokenSource? _inFlight;
+
+    private string PlaceholderText => _regionPill is null && _departmentPill is null
+        ? Text["Search people, departments, regions"]
+        : Text["Search inside the selection"];
+
+    private record Chip(SearchEntityType Type, string Label, int? Count);
+
+    private IEnumerable<Chip> Chips => new[]
+    {
+        new Chip(SearchEntityType.All, Text["All"], _result?.Total),
+        new Chip(SearchEntityType.People, Text["People"], _result?.PeopleTotal),
+        new Chip(SearchEntityType.Departments, Text["Departments"], _result?.DepartmentsTotal),
+        new Chip(SearchEntityType.Regions, Text["Regions"], _result?.RegionsTotal)
+    };
+
+    private bool HasSomethingToShow =>
+        _query.Length > 0 || _regionPill is not null || _departmentPill is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Prerendering has no circuit and no acting user; the box stays inert until then.
+        if (!RendererInfo.IsInteractive)
+            return;
+
+        var acting = await Acting.GetAsync();
+        if (acting is null)
+            return;
+
+        // The effective account, not the real one: while borrowing, the app answers as the
+        // borrowed account everywhere else, and search must not be the exception that leaks
+        // the delegate's own region.
+        _userId = acting.EffectiveUserId;
+        _ready = true;
+    }
+
+    private Task OnFocusInAsync()
+    {
+        _focusWithin = true;
+        return _open ? Task.CompletedTask : OpenAsync();
+    }
+
+    // Closing on focus leaving is the only dismiss Blazor can express without JS:
+    // FocusEventArgs carries no relatedTarget, so "did focus land inside?" has to be answered
+    // by waiting for the matching focusin instead of by inspecting the event.
+    private async Task OnFocusOutAsync()
+    {
+        _focusWithin = false;
+        await Task.Delay(FocusSettleMs);
+
+        if (_focusWithin || !_open)
+            return;
+
+        _open = false;
+        StateHasChanged();
+    }
+
+    // Escape closes it; clicking the box again after that has to reopen it, and focusin will
+    // not fire a second time because focus never left the input.
+    private Task OnWrapperClickAsync() => _open ? Task.CompletedTask : OpenAsync();
+
+    private async Task OpenAsync()
+    {
+        _open = true;
+        // Always re-run: results cached from the last time the box had focus go stale as soon
+        // as anything changes, and showing yesterday's list is worse than a moment's wait.
+        await SearchAsync();
+    }
+
+    private void KeepOpen() => _focusWithin = true;
+
+    private async Task OnQueryChangedAsync(string? value)
+    {
+        _query = value ?? "";
+        _open = true;
+        await SearchAsync();
+    }
+
+    private async Task SetTypeAsync(SearchEntityType type)
+    {
+        _type = type;
+        await SearchAsync();
+    }
+
+    private async Task PickRegionAsync(RegionHit region)
+    {
+        // The click narrows the search instead of leaving it: this is the drill step, and
+        // the box above now searches inside the region.
+        _regionPill = region;
+        _departmentPill = null;
+        _query = "";
+        _type = SearchEntityType.All;
+        await SearchAsync();
+    }
+
+    private async Task PickDepartmentAsync(DepartmentHit department)
+    {
+        _departmentPill = department;
+        _query = "";
+        _type = SearchEntityType.All;
+        await SearchAsync();
+    }
+
+    private async Task ClearRegionAsync()
+    {
+        // Dropping the region drops the department with it: a department pill on its own is
+        // still meaningful, but one left over from a region you are no longer in is not.
+        _regionPill = null;
+        _departmentPill = null;
+        await SearchAsync();
+    }
+
+    private async Task ClearDepartmentAsync()
+    {
+        _departmentPill = null;
+        await SearchAsync();
+    }
+
+    private async Task SearchAsync()
+    {
+        if (!_ready)
+            return;
+
+        _inFlight?.Cancel();
+        _inFlight?.Dispose();
+        var cancellation = _inFlight = new CancellationTokenSource();
+
+        try
+        {
+            // Own scope: this component lives in the layout and would otherwise share the
+            // page's scoped DbContext, where a second query in flight throws.
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var employees = scope.ServiceProvider.GetRequiredService<EmployeeContext>();
+
+            var result = await employees.GlobalSearchAsync(
+                _userId, _query, _regionPill?.Id, _departmentPill?.Id, _type, DropdownTake);
+
+            // The results already on screen stay until the new ones arrive: blanking them for
+            // a spinner on every keystroke makes the list flash and reads as a fault.
+            if (!cancellation.IsCancellationRequested)
+            {
+                _result = result;
+                StateHasChanged();
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Global search failed for {UserId}.", _userId);
+            _result = new GlobalSearchResult();
+            StateHasChanged();
+        }
+    }
+
+    private Task OnKeyDownAsync(KeyboardEventArgs args)
+    {
+        switch (args.Key)
+        {
+            case "Enter" when HasSomethingToShow:
+                OpenResultsPage();
+                break;
+            case "Escape":
+                _open = false;
+                break;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void OpenPerson(PersonHit person)
+    {
+        Reset();
+        Nav.NavigateTo($"/employee/org-chart?focus={person.Id}");
+    }
+
+    private void OpenResultsPage()
+    {
+        var parameters = new Dictionary<string, object?>
+        {
+            ["q"] = string.IsNullOrWhiteSpace(_query) ? null : _query,
+            ["type"] = _type == SearchEntityType.All ? null : _type.ToString(),
+            ["region"] = _regionPill?.Id.ToString(),
+            ["department"] = _departmentPill?.Id.ToString()
+        };
+
+        var uri = Nav.GetUriWithQueryParameters(Nav.ToAbsoluteUri("/search").ToString(), parameters);
+        Reset();
+        Nav.NavigateTo(uri);
+    }
+
+    // The box lives in the layout and survives navigation, so without this the query and the
+    // pills from the search you just left are still sitting there on the next page.
+    private void Reset()
+    {
+        _open = false;
+        _query = "";
+        _type = SearchEntityType.All;
+        _regionPill = null;
+        _departmentPill = null;
+        _result = null;
+    }
+
+    private string Members(int count) =>
+        count == 1 ? Text["1 person"] : Text.Format("{0} people", count);
+
+    public void Dispose()
+    {
+        _inFlight?.Cancel();
+        _inFlight?.Dispose();
+    }
+}

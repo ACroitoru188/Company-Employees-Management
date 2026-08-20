@@ -20,6 +20,8 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IContractGateway _contractGateway;
         private readonly IManagerDelegationGateway _delegationGateway;
         private readonly NotificationContext _notifications;
+        private readonly ImpersonationContext _impersonation;
+        private readonly IDelegatedActionGateway _delegatedActions;
 
         public EmployeeContext(
             ILogger<EmployeeContext> logger,
@@ -30,7 +32,9 @@ namespace CompanyEmployees.Application.Contexts
             IPublicHolidayProvider holidayProvider,
             IContractGateway contractGateway,
             IManagerDelegationGateway delegationGateway,
-            NotificationContext notifications) : base(logger)
+            NotificationContext notifications,
+            ImpersonationContext impersonation,
+            IDelegatedActionGateway delegatedActions) : base(logger)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
@@ -40,6 +44,41 @@ namespace CompanyEmployees.Application.Contexts
             _contractGateway = contractGateway;
             _delegationGateway = delegationGateway;
             _notifications = notifications;
+            _impersonation = impersonation;
+            _delegatedActions = delegatedActions;
+        }
+
+        // The same shape as ManagerContext's guard, and deliberately not shared with it: both
+        // defer to ImpersonationContext, which is where the single implementation of "is this
+        // delegation still good" lives. Null means the caller is acting as themselves.
+        private async Task<ManagerDelegation?> GuardAsync(Guid actingAsUserId, ActingOnBehalf? onBehalf)
+        {
+            if (onBehalf is null)
+                return null;
+
+            return await _impersonation.ValidateDelegationAsync(
+                onBehalf.RealUserId, onBehalf.DelegationId, actingAsUserId);
+        }
+
+        private Task RecordDelegatedActionAsync(
+            ManagerDelegation? delegation, Guid actingAsUserId, Guid targetUserId,
+            DelegatedActionType actionType, Guid targetEntityId, string? details)
+        {
+            if (delegation is null)
+                return Task.CompletedTask;
+
+            return _delegatedActions.CreateAsync(new DelegatedAction
+            {
+                Id = Guid.NewGuid(),
+                DelegationId = delegation.Id,
+                RealUserId = delegation.DelegateId,
+                ActedAsUserId = actingAsUserId,
+                TargetUserId = targetUserId,
+                ActionType = actionType,
+                TargetEntityId = targetEntityId,
+                Details = details,
+                CreatedAt = DateTime.UtcNow
+            });
         }
 
         public async Task<User> GetEmployeeByEmailAsync(string email)
@@ -261,256 +300,379 @@ namespace CompanyEmployees.Application.Contexts
             return await _leaveRequestGateway.GetActiveRequestsForUsersAsync(teamIds, from, to);
         }
 
-        public async Task<List<OrgChartNode>> GetOrgChartChildrenAsync(OrgChartNode parentNode, Guid currentUserId, bool isAdmin)
+
+
+        // The whole company, lazily. Everyone may see everyone (2026-08-17), which is several
+        // hundred accounts — so exactly two things are open when the chart loads: the chain of
+        // managers above the viewer, and the viewer's own reports. Every other branch arrives
+        // through GetOrgChartChildrenAsync when somebody expands it.
+        //
+        // This replaced a builder that assembled the tree around the *viewer* — a non-admin got
+        // their own team branch and nothing else, an admin got one level of synthetic
+        // department-group nodes that could never be expanded because the loader was never
+        // wired up. Neither could show the company.
+        public async Task<OrgChartNode?> GetCompanyOrgChartAsync(Guid currentUserId)
         {
-            var allUsers = await _userGateway.GetAllUsersAsync();
-            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
-            var allPendingRequests = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
+            var activeUsers = (await _userGateway.GetAllUsersAsync())
+                .Where(user => user.Status == UserStatus.Active)
+                .ToList();
 
-            var nodeMap = new Dictionary<Guid, OrgChartNode>();
-            foreach (var u in activeUsers)
+            var viewer = activeUsers.FirstOrDefault(user => user.Id == currentUserId)
+                ?? throw new EntityNotFoundException($"No user with id {currentUserId}.");
+
+            var byId = activeUsers.ToDictionary(user => user.Id);
+
+            // A manager who is inactive is not in byId, so their reports are treated as tops of
+            // the chart rather than vanishing under a parent that is never drawn.
+            var childrenOf = activeUsers
+                .Where(user => user.ManagerId is Guid managerId && byId.ContainsKey(managerId))
+                .GroupBy(user => user.ManagerId!.Value)
+                .ToDictionary(group => group.Key, group => group.OrderBy(user => user.Name).ToList());
+
+            var pending = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
+
+            var nodes = new Dictionary<Guid, OrgChartNode>();
+            OrgChartNode NodeFor(User user)
             {
-                var initials = string.Concat(u.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
-                if (initials.Length > 2) initials = initials.Substring(0, 2);
-
-                var activeContract = u.Contracts?.FirstOrDefault(c => c.Status == ContractStatus.Active);
-                var pendingReq = allPendingRequests.FirstOrDefault(r => r.UserId == u.Id);
-
-                nodeMap[u.Id] = new OrgChartNode
+                if (!nodes.TryGetValue(user.Id, out var node))
                 {
-                    UserId = u.Id,
-                    Name = u.Name,
-                    Email = u.Email ?? string.Empty,
-                    Role = u.Role.ToString(),
-                    Department = u.Department?.Name ?? string.Empty,
-                    Initials = initials,
-                    ManagerId = u.ManagerId,
-                    HasPendingRequest = pendingReq != null,
-                    PendingRequestId = pendingReq?.Id,
-                    PendingRequestType = pendingReq?.Type.ToString(),
-                    PendingRequestDates = pendingReq != null ? $"{pendingReq.StartDate:MMM d} – {pendingReq.EndDate:MMM d, yyyy}" : null,
-                    HasContract = activeContract != null,
-                    ContractId = activeContract?.Id,
-                    ContractType = activeContract?.Type,
-                    ContractStatus = activeContract?.Status,
-                    ContractStartDate = activeContract?.StartDate,
-                    ContractEndDate = activeContract?.EndDate,
-                    HasUnloadedChildren = activeUsers.Any(child => child.ManagerId == u.Id),
-                    IsExpanded = false
-                };
-            }
-
-            var subordinates = new List<OrgChartNode>();
-
-            if (parentNode.Role == "City")
-            {
-                var siteNode1 = new OrgChartNode
-                {
-                    UserId = Guid.NewGuid(),
-                    Name = "Siemens Industry Software Center",
-                    Role = "Site",
-                    Department = "Region",
-                    Initials = "SI",
-                    ManagerId = parentNode.UserId,
-                    HasUnloadedChildren = true,
-                    IsExpanded = false
-                };
-                var siteNode2 = new OrgChartNode
-                {
-                    UserId = Guid.NewGuid(),
-                    Name = "Siemens R&D Advanta Center",
-                    Role = "Site",
-                    Department = "Region",
-                    Initials = "SR",
-                    ManagerId = parentNode.UserId,
-                    HasUnloadedChildren = true,
-                    IsExpanded = false
-                };
-                subordinates.Add(siteNode1);
-                subordinates.Add(siteNode2);
-            }
-            else if (parentNode.Role == "Site")
-            {
-                // Return all admins in the system (or filtered by region if preferred)
-                var adminUsers = activeUsers.Where(u => u.Role == UserRole.Admin).OrderBy(u => u.Name).ToList();
-                // Split them based on Department to allow specific assignment
-                if (parentNode.Name == "Siemens Industry Software Center")
-                {
-                    adminUsers = adminUsers.Where(u => u.Department?.Name == "Industry Software").ToList();
-                }
-                else
-                {
-                    // Fallback for Advanta: everyone else (existing demo users)
-                    adminUsers = adminUsers.Where(u => u.Department?.Name != "Industry Software").ToList();
-                }
-
-                foreach (var u in adminUsers)
-                {
-                    var node = nodeMap[u.Id];
-                    node.HasUnloadedChildren = true;
+                    nodes[user.Id] = node = BuildOrgChartNode(user, pending);
+                    node.HasUnloadedChildren = childrenOf.ContainsKey(user.Id);
                     node.IsExpanded = false;
-                    // Site is artificial, so we override ManagerId to render correctly under Site
-                    node.ManagerId = parentNode.UserId;
-                    subordinates.Add(node);
                 }
+
+                return node;
             }
-            else if (parentNode.Role == "Department")
+
+            // Every region has its own top, so there is no single chief executive to root the
+            // chart on — hence the heading. Its empty id is what the page's action checks use to
+            // recognise a node nobody can act on.
+            var root = new OrgChartNode
             {
-                // For CountryManager's admins, their ManagerId was overridden to Site's UserId in the UI memory.
-                // However, in DB, the Admin's ManagerId is still HQ (null) or someone else.
-                // But activeUsers will match if we use the original logic if we look at real managers.
-                // Wait, if parentNode.Role == "Department", the parentNode.ManagerId is the Admin's UserId!
-                var adminSubordinates = activeUsers.Where(u => u.ManagerId == parentNode.ManagerId).ToList();
-                var deptUsers = adminSubordinates.Where(u => (u.Department?.Name ?? "No Department") == parentNode.Department).ToList();
-                
-                foreach (var u in deptUsers)
+                UserId = Guid.Empty,
+                Name = "Company",
+                Role = "Headquarters",
+                Department = "All Departments",
+                Initials = "HQ",
+                IsExpanded = true,
+                IsSyntheticGroup = true
+            };
+
+            // Root-level users — no manager in the visible set — grouped by region first: the
+            // chart is worldwide, so without this every region's tops landed in one flat
+            // alphabetical list with nothing saying which country they belonged to. Grouped by
+            // RegionId, not by the Region navigation instance: GetAllUsersAsync reads
+            // AsNoTracking without identity resolution, so every user carries its *own* Region
+            // object, and grouping on those groups by reference — the same trap GlobalSearchAsync
+            // hit before it was fixed the same way.
+            var topLevel = activeUsers
+                .Where(user => user.ManagerId is not Guid managerId || !byId.ContainsKey(managerId))
+                .ToList();
+
+            root.Subordinates = topLevel
+                .Where(user => user.Region is not null)
+                .GroupBy(user => user.RegionId)
+                .OrderBy(group => group.First().Region!.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new OrgChartNode
                 {
-                    subordinates.Add(nodeMap[u.Id]);
+                    UserId = Guid.NewGuid(),
+                    Name = group.First().Region!.Name,
+                    Role = "Region",
+                    Initials = InitialsOf(group.First().Region!.Name),
+                    IsExpanded = false,
+                    IsSyntheticGroup = true,
+                    Subordinates = GroupByLocation(group, NodeFor)
+                })
+                .ToList();
+
+            // Upwards from the viewer to a top. Add returns false on a repeat, which is also the
+            // guard against a cycle in the reporting data.
+            var chain = new List<User>();
+            var seen = new HashSet<Guid>();
+            var current = viewer;
+            while (current != null && seen.Add(current.Id))
+            {
+                chain.Add(current);
+                current = current.ManagerId is Guid managerId && byId.TryGetValue(managerId, out var manager)
+                    ? manager
+                    : null;
+            }
+
+            // Opening the path attaches each step's whole team, not just the next step, so the
+            // chart reads as an organisation on arrival instead of a single line of boxes.
+            foreach (var person in chain)
+            {
+                if (!childrenOf.TryGetValue(person.Id, out var reports))
+                    continue;
+
+                var node = NodeFor(person);
+                node.Subordinates = reports.Select(NodeFor).ToList();
+                node.IsExpanded = true;
+                node.HasUnloadedChildren = false;
+            }
+
+            // The chain above only opens the reporting graph; the viewer's top-of-chain is now
+            // behind Region and, maybe, City/Site nodes that the chain knows nothing about. Walk
+            // down from the root to find and open whatever sits above the chain's own top.
+            ExpandPathToNode(root, chain[^1].Id);
+
+            NodeFor(viewer).IsFocusNode = true;
+            return root;
+        }
+
+        // A region's root-level people, grouped by City then Site where they have them set.
+        // Nobody with neither attaches a level below where they always did: directly under the
+        // region. Small, so built eagerly rather than lazily — a region with a hundred
+        // top-level accounts and no manager between them would be unusual.
+        private static List<OrgChartNode> GroupByLocation(
+            IEnumerable<User> people, Func<User, OrgChartNode> nodeFor)
+        {
+            var byCity = people
+                .GroupBy(user => string.IsNullOrWhiteSpace(user.City) ? null : user.City)
+                .OrderBy(group => group.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+
+            var result = new List<OrgChartNode>();
+            foreach (var cityGroup in byCity)
+            {
+                if (cityGroup.Key is not string city)
+                {
+                    // No city on record: skip straight to the person, same as before this
+                    // hierarchy existed.
+                    result.AddRange(cityGroup.OrderBy(user => user.Name).Select(nodeFor));
+                    continue;
                 }
-            }
-            else if (parentNode.Role == "Admin")
-            {
-                var children = activeUsers.Where(u => u.ManagerId == parentNode.UserId).ToList();
-                var deptGroups = children.GroupBy(c => string.IsNullOrWhiteSpace(c.Department?.Name) ? "No Department" : c.Department.Name).OrderBy(g => g.Key);
-                foreach (var group in deptGroups)
+
+                var bySite = cityGroup
+                    .GroupBy(user => string.IsNullOrWhiteSpace(user.Site) ? null : user.Site)
+                    .OrderBy(group => group.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+
+                var cityChildren = new List<OrgChartNode>();
+                foreach (var siteGroup in bySite)
                 {
-                    var deptName = group.Key;
-                    var deptNode = new OrgChartNode
+                    if (siteGroup.Key is not string site)
+                    {
+                        cityChildren.AddRange(siteGroup.OrderBy(user => user.Name).Select(nodeFor));
+                        continue;
+                    }
+
+                    cityChildren.Add(new OrgChartNode
                     {
                         UserId = Guid.NewGuid(),
-                        Name = deptName,
-                        Role = "Department",
-                        Department = deptName,
-                        Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
-                        ManagerId = parentNode.UserId,
-                        HasUnloadedChildren = true,
-                        IsExpanded = false
-                    };
-                    subordinates.Add(deptNode);
+                        Name = site,
+                        Role = "Site",
+                        Initials = InitialsOf(site),
+                        IsExpanded = false,
+                        IsSyntheticGroup = true,
+                        Subordinates = siteGroup.OrderBy(user => user.Name).Select(nodeFor).ToList()
+                    });
                 }
-            }
-            else
-            {
-                var children = activeUsers.Where(u => u.ManagerId == parentNode.UserId).ToList();
-                foreach (var u in children)
+
+                result.Add(new OrgChartNode
                 {
-                    subordinates.Add(nodeMap[u.Id]);
-                }
-            }
-
-            return subordinates.OrderBy(c => c.Name).ToList();
-        }
-
-        public async Task<List<OrgChartNode>> GetOrgChartPathAsync(Guid targetUserId, bool isAdmin, Guid currentUserId)
-        {
-            var allUsers = await _userGateway.GetAllUsersAsync();
-            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active).ToList();
-            
-            var target = activeUsers.FirstOrDefault(u => u.Id == targetUserId);
-            if (target == null) return new List<OrgChartNode>();
-
-            // Find the anchor (same logic as GetCompanyOrgChartAsync)
-            Guid anchorId = Guid.Empty;
-            if (!isAdmin)
-            {
-                var currentUser = activeUsers.FirstOrDefault(u => u.Id == currentUserId);
-                if (currentUser != null)
-                {
-                    bool hasSubordinates = activeUsers.Any(u => u.ManagerId == currentUser.Id);
-                    anchorId = (hasSubordinates || currentUser.ManagerId == null) ? currentUser.Id : currentUser.ManagerId.Value;
-                }
-            }
-
-            var chain = new List<User>();
-            var curr = target;
-            while (curr != null)
-            {
-                chain.Add(curr);
-                if (curr.Id == anchorId) break; // Reached the root of their vision
-                if (curr.ManagerId == null) break;
-                curr = activeUsers.FirstOrDefault(u => u.Id == curr.ManagerId);
-            }
-            chain.Reverse();
-
-            var path = new List<OrgChartNode>();
-            for (int i = 0; i < chain.Count; i++)
-            {
-                var u = chain[i];
-                var initials = string.Concat(u.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
-                if (initials.Length > 2) initials = initials.Substring(0, 2);
-
-                path.Add(new OrgChartNode
-                {
-                    UserId = u.Id,
-                    Name = u.Name,
-                    Role = u.Role.ToString(),
-                    Department = u.Department?.Name ?? string.Empty,
-                    Initials = initials,
-                    ManagerId = u.ManagerId
+                    UserId = Guid.NewGuid(),
+                    Name = city,
+                    Role = "City",
+                    Initials = InitialsOf(city),
+                    IsExpanded = false,
+                    IsSyntheticGroup = true,
+                    Subordinates = cityChildren
                 });
-
-                if (i < chain.Count - 1)
-                {
-                    var nextUser = chain[i + 1];
-
-                    if (u.Role == UserRole.CountryManager && nextUser.Role == UserRole.Admin)
-                    {
-                        var cityId = Guid.NewGuid();
-                        path.Add(new OrgChartNode
-                        {
-                            UserId = cityId,
-                            Name = "Brașov",
-                            Role = "City",
-                            Department = "Region",
-                            Initials = "BV",
-                            ManagerId = u.Id
-                        });
-
-                        var isIndustry = nextUser.Department?.Name == "Industry Software";
-                        var siteName = isIndustry ? "Siemens Industry Software Center" : "Siemens R&D Advanta Center";
-                        var siteInitials = isIndustry ? "SI" : "SR";
-
-                        path.Add(new OrgChartNode
-                        {
-                            UserId = Guid.NewGuid(),
-                            Name = siteName,
-                            Role = "Site",
-                            Department = "Region",
-                            Initials = siteInitials,
-                            ManagerId = cityId
-                        });
-                    }
-
-                    if (u.Role == UserRole.Admin)
-                    {
-                        var deptName = string.IsNullOrWhiteSpace(nextUser.Department?.Name) ? "No Department" : nextUser.Department.Name;
-                        path.Add(new OrgChartNode
-                        {
-                            UserId = Guid.NewGuid(),
-                            Name = deptName,
-                            Role = "Department",
-                            Department = deptName,
-                            Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
-                            ManagerId = u.Id
-                        });
-                    }
-                }
             }
 
-            return path;
+            return result;
         }
 
-        public async Task<List<User>> SearchUsersAsync(string query, int count = 10)
+        // Walks down from a node looking for targetId, opening every synthetic group on the way
+        // (a real person is opened by the chain-walking caller instead, which also has to fill
+        // in their team). Shared by the two callers that root a tree away from the person they
+        // need visible: the company chart's own viewer, and the focused tree's top-of-chain.
+        private static bool ExpandPathToNode(OrgChartNode node, Guid targetId)
         {
-            var allUsers = await _userGateway.GetAllUsersAsync();
-            var activeUsers = allUsers.Where(u => u.Status == UserStatus.Active);
-            
-            return activeUsers
-                .Where(u => (!string.IsNullOrWhiteSpace(u.Name) && u.Name.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
-                            (!string.IsNullOrWhiteSpace(u.Role.ToString()) && u.Role.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)) ||
-                            (!string.IsNullOrWhiteSpace(u.Department?.Name) && u.Department.Name.Contains(query, StringComparison.OrdinalIgnoreCase)))
-                .Take(count)
+            if (node.UserId == targetId)
+                return true;
+
+            foreach (var child in node.Subordinates)
+            {
+                if (!ExpandPathToNode(child, targetId))
+                    continue;
+
+                if (child.IsSyntheticGroup)
+                    child.IsExpanded = true;
+                return true;
+            }
+
+            return false;
+        }
+
+        // One level of the tree, fetched when a node is expanded. Without this the worldwide
+        // chart would have to materialise every account up front; with it, a branch costs one
+        // query at the moment somebody asks for it.
+        public async Task<List<OrgChartNode>> GetOrgChartChildrenAsync(Guid parentUserId)
+        {
+            var activeUsers = (await _userGateway.GetAllUsersAsync())
+                .Where(user => user.Status == UserStatus.Active)
                 .ToList();
+
+            var managersWithReports = activeUsers
+                .Where(user => user.ManagerId is not null)
+                .Select(user => user.ManagerId!.Value)
+                .ToHashSet();
+
+            var pending = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
+
+            return activeUsers
+                .Where(user => user.ManagerId == parentUserId)
+                .OrderBy(user => user.Name)
+                .Select(user =>
+                {
+                    var node = BuildOrgChartNode(user, pending);
+                    node.HasUnloadedChildren = managersWithReports.Contains(user.Id);
+                    node.IsExpanded = false;
+                    return node;
+                })
+                .ToList();
+        }
+
+
+        // One search behind the whole app: the header box, and the /search page it opens.
+        //
+        // regionId and departmentId are the scope pills, not text the user typed — picking a
+        // region or a department out of the results narrows everything that follows, which is
+        // how "Romania, then Design, then the person" is answered without anyone learning a
+        // query syntax. An empty query with a pill set is a legitimate search: it means
+        // "show me what is in here".
+        //
+        // In memory over GetAllUsersAsync, like the org chart and every other cross-cutting
+        // read in this class. At a hundred accounts that is a non-issue; if the roster ever
+        // grows past a few thousand this is the first thing to push into the gateway.
+        public async Task<GlobalSearchResult> GlobalSearchAsync(
+            Guid userId,
+            string? query,
+            Guid? regionId = null,
+            Guid? departmentId = null,
+            SearchEntityType type = SearchEntityType.All,
+            int take = 8)
+        {
+            // Resolved even though the result is no longer filtered by it: an unknown caller
+            // must still be refused rather than served the whole company.
+            _ = await _userGateway.GetUserByIdAsync(userId)
+                ?? throw new EntityNotFoundException($"No user with id {userId}.");
+
+            // The company directory is deliberately worldwide (2026-08-17): everyone may look
+            // up anyone, in any region, exactly as they can in the org chart. What stays
+            // region-scoped is *doing* things — decisions, contracts, team rosters, dashboards
+            // and every CSV export. Widening this without keeping those scoped is the mistake
+            // to avoid; see "Who can see whom" in CLAUDE.md.
+            var visible = (await _userGateway.GetAllUsersAsync())
+                .Where(user => user.Status == UserStatus.Active)
+                .ToList();
+
+            if (regionId is Guid region)
+                visible = visible.Where(user => user.RegionId == region).ToList();
+            if (departmentId is Guid department)
+                visible = visible.Where(user => user.DepartmentId == department).ToList();
+
+            var terms = (query ?? string.Empty).Trim();
+            var hasQuery = terms.Length > 0;
+
+            var people = visible
+                .Where(user => !hasQuery || MatchesPerson(user, terms))
+                .OrderBy(user => user.Name)
+                .ToList();
+
+            // Grouped by the foreign key, never by the navigation instance. GetAllUsersAsync
+            // reads AsNoTracking without identity resolution, so every user carries its *own*
+            // Department and Region objects — grouping by those groups by reference and yields
+            // one "department" per employee, each with a member count of 1.
+            // The manager's name comes from the department gateway, not from the users: the user
+            // query includes Department but not Department.Manager, so reading it off a user's
+            // navigation gives null every time and the column renders permanently empty.
+            var departmentsById = (await _departmentGateway.GetAllAsync())
+                .ToDictionary(department => department.Id);
+
+            var departments = visible
+                .Where(user => user.DepartmentId is not null && user.Department is not null)
+                .GroupBy(user => user.DepartmentId!.Value)
+                .Select(group => new DepartmentHit(
+                    group.Key,
+                    group.First().Department!.Name,
+                    departmentsById.TryGetValue(group.Key, out var department)
+                        ? department.Manager?.Name ?? string.Empty
+                        : string.Empty,
+                    group.Count()))
+                .Where(hit => !hasQuery || Contains(hit.Name, terms) || Contains(hit.ManagerName, terms))
+                .OrderBy(hit => hit.Name)
+                .ToList();
+
+            var regions = visible
+                .Where(user => user.Region is not null)
+                .GroupBy(user => user.RegionId)
+                .Select(group => new RegionHit(
+                    group.Key,
+                    group.First().Region!.Name,
+                    group.First().Region!.Code,
+                    group.Count()))
+                .Where(hit => !hasQuery || Contains(hit.Name, terms) || Contains(hit.Code, terms))
+                .OrderBy(hit => hit.Name)
+                .ToList();
+
+            // Counted before the cap and before the type filter: the chips are how the user
+            // switches type, so each has to report what is waiting behind it — including the
+            // people chip in the opening state, which is what makes it worth pressing.
+            var result = new GlobalSearchResult
+            {
+                PeopleTotal = people.Count,
+                DepartmentsTotal = departments.Count,
+                RegionsTotal = regions.Count
+            };
+
+            // Nothing typed and nothing pinned is the dropdown's opening state: the places to
+            // drill into are more use there than the first few names in the company in
+            // alphabetical order. Asking for People explicitly overrides that — then listing
+            // everyone is exactly what was asked for.
+            var browsing = !hasQuery
+                           && regionId is null
+                           && departmentId is null
+                           && type != SearchEntityType.People;
+
+            if (!browsing && type is SearchEntityType.All or SearchEntityType.People)
+                result.People = people.Take(take).Select(ToPersonHit).ToList();
+            if (type is SearchEntityType.All or SearchEntityType.Departments)
+                result.Departments = departments.Take(take).ToList();
+            if (type is SearchEntityType.All or SearchEntityType.Regions)
+                result.Regions = regions.Take(take).ToList();
+
+            return result;
+        }
+
+        private static bool MatchesPerson(User user, string terms) =>
+            Contains(user.Name, terms)
+            || Contains(user.Email, terms)
+            || Contains(user.Role.ToString(), terms)
+            || Contains(user.Department?.Name, terms)
+            || Contains(user.Region?.Name, terms);
+
+        private static bool Contains(string? value, string terms) =>
+            !string.IsNullOrWhiteSpace(value)
+            && value.Contains(terms, StringComparison.OrdinalIgnoreCase);
+
+        private static PersonHit ToPersonHit(User user) => new(
+            user.Id,
+            user.Name,
+            user.Email ?? string.Empty,
+            user.Role.ToString(),
+            user.Department?.Name ?? string.Empty,
+            user.Region?.Name ?? string.Empty,
+            InitialsOf(user.Name));
+
+        private static string InitialsOf(string name)
+        {
+            var initials = string.Concat(name
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part[0]))
+                .ToUpperInvariant();
+
+            return initials.Length > 2 ? initials[..2] : initials;
         }
 
         // The user's team: their manager first, then the active colleagues who
@@ -791,8 +953,11 @@ namespace CompanyEmployees.Application.Contexts
         }
 
         public async Task<LeaveRequest> SubmitRequestAsync(
-            Guid userId, LeaveType type, DateOnly start, DateOnly end, string? reason)
+            Guid userId, LeaveType type, DateOnly start, DateOnly end, string? reason,
+            ActingOnBehalf? onBehalf = null)
         {
+            var delegation = await GuardAsync(userId, onBehalf);
+
             var today = DateOnly.FromDateTime(DateTime.Today);
 
             if (end < start)
@@ -847,6 +1012,11 @@ namespace CompanyEmployees.Application.Contexts
                 CreatedAt = DateTime.UtcNow
             };
             await _leaveRequestGateway.CreateRequestAsync(request);
+
+            await RecordDelegatedActionAsync(
+                delegation, userId, userId, DelegatedActionType.LeaveRequested, request.Id,
+                $"{type} leave {Period(start, end)}");
+
             await TryWarnManagerAboutLowAvailabilityAsync(requester, request);
 
             _logger.LogInformation("User {UserId} submitted a {Type} leave request {Start}–{End}{AutoApproved}.",
@@ -988,6 +1158,13 @@ namespace CompanyEmployees.Application.Contexts
                 requestId, newStart, newEnd);
         }
 
+        // "Mar 3 – Mar 14, 2026". Invariant on purpose: audit rows are read by whoever opens
+        // the history, in whatever language, and must not shift meaning with the server locale.
+        private static string Period(DateOnly start, DateOnly end) =>
+            start.ToString("MMM d", CultureInfo.InvariantCulture)
+            + " – "
+            + end.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+
         private async Task EnsureWorkingDayAsync(User user, DateOnly day)
         {
             if (day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
@@ -1026,279 +1203,201 @@ namespace CompanyEmployees.Application.Contexts
             return count;
         }
 
-        public async Task<OrgChartNode?> GetCompanyOrgChartAsync(Guid currentUserId, bool isAdmin)
+
+        // The org chart the global search lands on. GetCompanyOrgChartAsync deliberately builds
+        // a narrow tree — a non-admin gets their own team branch, an admin gets one unexpanded
+        // level of department groups — so the person just searched for is almost never in it,
+        // and asking the page to expand a path to them could only ever fail.
+        //
+        // This builds the tree *around* the target instead: their whole management chain, the
+        // colleagues they share a manager with, and their own direct reports. Worldwide, like
+        // the search that produced the link. Returns null for an unknown or inactive target.
+        public async Task<OrgChartNode?> GetOrgChartFocusedOnAsync(Guid currentUserId, Guid targetUserId)
         {
             var allUsers = await _userGateway.GetAllUsersAsync();
-            var requestingUser = allUsers.FirstOrDefault(user => user.Id == currentUserId);
-            if (requestingUser == null)
-                throw new EntityNotFoundException($"No user with id {currentUserId}.");
 
-            var activeUsers = allUsers
-                .Where(user => user.Status == UserStatus.Active
-                               && (isAdmin || user.RegionId == requestingUser.RegionId))
+            // Checked, not filtered by: an unknown caller is refused, but a known one may look
+            // at anybody — the directory is worldwide.
+            _ = allUsers.FirstOrDefault(user => user.Id == currentUserId)
+                ?? throw new EntityNotFoundException($"No user with id {currentUserId}.");
+
+            var visible = allUsers
+                .Where(user => user.Status == UserStatus.Active)
                 .ToList();
-            var allPendingRequests = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
 
-            var nodeMap = new Dictionary<Guid, OrgChartNode>();
-            foreach (var u in activeUsers)
+            // Only an inactive or non-existent id lands here now.
+            var target = visible.FirstOrDefault(user => user.Id == targetUserId);
+            if (target == null)
+                return null;
+
+            var pending = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
+            var nodes = new Dictionary<Guid, OrgChartNode>();
+            OrgChartNode NodeFor(User user)
             {
-                var initials = string.Concat(u.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(p => p[0].ToString())).ToUpperInvariant();
-                if (initials.Length > 2) initials = initials.Substring(0, 2);
+                if (!nodes.TryGetValue(user.Id, out var node))
+                    nodes[user.Id] = node = BuildOrgChartNode(user, pending);
+                return node;
+            }
 
-                var activeContract = u.Contracts?.FirstOrDefault(c => c.Status == ContractStatus.Active);
-                var pendingReq = allPendingRequests.FirstOrDefault(r => r.UserId == u.Id);
+            // Upwards from the target, stopping at the first manager outside the visible set —
+            // a cross-region manager is not something to reveal here. Guarded against a cycle
+            // for the same reason GetCompanyOrgChartAsync guards: bad data must not hang a page.
+            var chain = new List<User>();
+            var seen = new HashSet<Guid>();
+            var current = target;
+            while (current != null && seen.Add(current.Id))
+            {
+                chain.Add(current);
+                current = current.ManagerId is Guid managerId
+                    ? visible.FirstOrDefault(user => user.Id == managerId)
+                    : null;
+            }
+            chain.Reverse();
 
-                nodeMap[u.Id] = new OrgChartNode
+            // Everything already on the path from the root down. Nothing below may attach one
+            // of these again: a cycle in the reporting data would otherwise produce a cyclic
+            // *node* graph, and the first recursive walk over it — expanding, rendering —
+            // never returns. The chain walk above stops at a repeat; this stops the branches.
+            var placed = chain.Select(user => user.Id).ToHashSet();
+
+            for (var i = 0; i < chain.Count - 1; i++)
+                NodeFor(chain[i]).Subordinates = new List<OrgChartNode> { NodeFor(chain[i + 1]) };
+
+            // The target's own team: everyone reporting to the same manager, so the person is
+            // shown among their colleagues rather than as a lone node on a stick.
+            if (target.ManagerId is Guid targetManagerId
+                && visible.FirstOrDefault(user => user.Id == targetManagerId) is { } targetManager)
+            {
+                var team = visible
+                    .Where(user => user.ManagerId == targetManagerId
+                                   && (user.Id == target.Id || placed.Add(user.Id)))
+                    .OrderBy(user => user.Name)
+                    .ToList();
+
+                NodeFor(targetManager).Subordinates = team.Select(NodeFor).ToList();
+            }
+
+            NodeFor(target).Subordinates = visible
+                .Where(user => user.ManagerId == target.Id && placed.Add(user.Id))
+                .OrderBy(user => user.Name)
+                .Select(NodeFor)
+                .ToList();
+
+            var root = NodeFor(chain[0]);
+            SetAllExpanded(root, true);
+
+            // Wraps the top of the chain in the same Region/City/Site path the worldwide chart
+            // would put them behind, innermost first, so a focused tree reads as a branch of
+            // that one rather than a fragment nobody can place. Skipped levels the person has
+            // no value for — most chains stop at Region, since City/Site are optional.
+            var topOfChain = chain[0];
+            var wrappers = new List<(string Name, string Role)>();
+            if (topOfChain.Region is not null)
+                wrappers.Add((topOfChain.Region.Name, "Region"));
+            if (!string.IsNullOrWhiteSpace(topOfChain.City))
+                wrappers.Add((topOfChain.City!, "City"));
+            if (!string.IsNullOrWhiteSpace(topOfChain.Site))
+                wrappers.Add((topOfChain.Site!, "Site"));
+
+            for (var i = wrappers.Count - 1; i >= 0; i--)
+            {
+                root = new OrgChartNode
                 {
-                    UserId = u.Id,
-                    Name = u.Name,
-                    Email = u.Email ?? string.Empty,
-                    Role = u.Role.ToString(),
-                    Department = u.Department?.Name ?? string.Empty,
-                    Initials = initials,
-                    ManagerId = u.ManagerId,
-                    HasPendingRequest = pendingReq != null,
-                    PendingRequestId = pendingReq?.Id,
-                    PendingRequestType = pendingReq?.Type.ToString(),
-                    PendingRequestDates = pendingReq != null ? $"{pendingReq.StartDate:MMM d} – {pendingReq.EndDate:MMM d, yyyy}" : null,
-                    HasContract = activeContract != null,
-                    ContractId = activeContract?.Id,
-                    ContractType = activeContract?.Type,
-                    ContractStatus = activeContract?.Status,
-                    ContractStartDate = activeContract?.StartDate,
-                    ContractEndDate = activeContract?.EndDate
+                    UserId = Guid.NewGuid(),
+                    Name = wrappers[i].Name,
+                    Role = wrappers[i].Role,
+                    Initials = InitialsOf(wrappers[i].Name),
+                    IsExpanded = true,
+                    IsSyntheticGroup = true,
+                    Subordinates = new List<OrgChartNode> { root }
                 };
             }
 
-            // Cycle detection using upward traversal
-            foreach (var user in activeUsers)
-            {
-                var visited = new HashSet<Guid>();
-                var currentId = user.Id;
-                while (currentId != Guid.Empty)
-                {
-                    if (!visited.Add(currentId))
-                    {
-                        _logger.LogError("Cycle detected in org chart involving user {UserId}", currentId);
-                        throw new InvalidOperationException("Hierarchy cycle detected in database.");
-                    }
-                    var current = activeUsers.FirstOrDefault(u => u.Id == currentId);
-                    if (current?.ManagerId == null)
-                        break;
-                    currentId = current.ManagerId.Value;
-                }
-            }
-
-            // Build tree
-            var childrenMap = new Dictionary<Guid, List<OrgChartNode>>();
-            var root = new OrgChartNode
-            {
-                UserId = Guid.Empty,
-                Name = "Company",
-                Role = "Headquarters",
-                Department = "All Departments",
-                Initials = "HQ"
-            };
-
-            foreach (var user in activeUsers)
-            {
-                var node = nodeMap[user.Id];
-                if (user.ManagerId == null)
-                {
-                    if (!childrenMap.ContainsKey(Guid.Empty))
-                        childrenMap[Guid.Empty] = new List<OrgChartNode>();
-                    childrenMap[Guid.Empty].Add(node);
-                }
-                else
-                {
-                    if (!childrenMap.ContainsKey(user.ManagerId.Value))
-                        childrenMap[user.ManagerId.Value] = new List<OrgChartNode>();
-                    childrenMap[user.ManagerId.Value].Add(node);
-                }
-            }
-
-            // Recursive function to attach children
-            void AttachChildren(OrgChartNode parent)
-            {
-                if (childrenMap.TryGetValue(parent.UserId, out var children))
-                {
-                    if (parent.Role == "Admin" && isAdmin)
-                    {
-                        var deptGroups = children.GroupBy(c => string.IsNullOrWhiteSpace(c.Department) ? "No Department" : c.Department).OrderBy(g => g.Key);
-                        parent.Subordinates = new List<OrgChartNode>();
-                        foreach (var group in deptGroups)
-                        {
-                            var deptName = group.Key;
-                            var deptNode = new OrgChartNode
-                            {
-                                UserId = Guid.NewGuid(),
-                                Name = deptName,
-                                Role = "Department",
-                                Department = deptName,
-                                Initials = deptName.Length >= 2 ? deptName.Substring(0, 2).ToUpperInvariant() : "DP",
-                                ManagerId = parent.UserId,
-                                HasUnloadedChildren = true,
-                                IsExpanded = false
-                            };
-                            parent.Subordinates.Add(deptNode);
-                        }
-                    }
-                    else
-                    {
-                        parent.Subordinates = children.OrderBy(c => c.Name).ToList();
-                        foreach (var child in parent.Subordinates)
-                        {
-                            child.HasUnloadedChildren = childrenMap.ContainsKey(child.UserId);
-                            child.IsExpanded = false;
-                        }
-                    }
-                }
-            }
-
-            if (root != null)
-            {
-                if (requestingUser.Role == UserRole.CountryManager)
-                {
-                    var cmNode = nodeMap[requestingUser.Id];
-                    var cityNode = new OrgChartNode
-                    {
-                        UserId = Guid.NewGuid(),
-                        Name = "Brașov",
-                        Role = "City",
-                        Department = "Region",
-                        Initials = "BV",
-                        ManagerId = cmNode.UserId,
-                        HasUnloadedChildren = true,
-                        IsExpanded = false
-                    };
-                    cmNode.Subordinates = new List<OrgChartNode> { cityNode };
-                    cmNode.IsExpanded = true;
-                    MarkFocus(cmNode, null);
-
-                    root = cmNode; // For country manager, they are the root of the tree
-                }
-                else if (requestingUser.Role == UserRole.Admin)
-                {
-                    var adminNode = nodeMap[requestingUser.Id];
-                    AttachChildren(adminNode);
-                    adminNode.IsExpanded = true;
-                    MarkFocus(adminNode, null);
-                    root = adminNode;
-                }
-                else if (isAdmin)
-                {
-                    AttachChildren(root);
-                    root.IsExpanded = true;
-                    foreach(var admin in root.Subordinates) {
-                        admin.IsExpanded = false;
-                    }
-                    MarkFocus(root, null); // HR sees everything focused
-                }
-                else
-                {
-                    var currentUser = activeUsers.FirstOrDefault(u => u.Id == currentUserId);
-                    if (currentUser != null)
-                    {
-                        // Determine team anchor:
-                        // - If currentUser has subordinates (Line Manager), the anchor is currentUser.
-                        // - If currentUser has no subordinates (simple employee), the anchor is their direct manager (so they see their full team).
-                        bool hasSubordinates = childrenMap.TryGetValue(currentUser.Id, out var directSubordinates) && directSubordinates.Count > 0;
-                        Guid teamAnchorId = (hasSubordinates || currentUser.ManagerId == null)
-                            ? currentUser.Id
-                            : currentUser.ManagerId.Value;
-
-                        var teamAnchorUser = activeUsers.FirstOrDefault(u => u.Id == teamAnchorId) ?? currentUser;
-
-                        // Build ancestor path from HQ (Guid.Empty) -> ... -> teamAnchorId
-                        var ancestorChain = new List<Guid>();
-                        var curr = teamAnchorUser;
-                        while (curr != null)
-                        {
-                            ancestorChain.Insert(0, curr.Id);
-                            if (curr.ManagerId == null) break;
-                            curr = activeUsers.FirstOrDefault(u => u.Id == curr.ManagerId.Value);
-                        }
-
-                        // Attach only strict ancestors above teamAnchor and full subtree under teamAnchor
-                        void AttachScopedChildren(OrgChartNode parent)
-                        {
-                            if (childrenMap.TryGetValue(parent.UserId, out var children))
-                            {
-                                int ancestorIdx = ancestorChain.IndexOf(parent.UserId);
-                                if (parent.UserId == Guid.Empty)
-                                {
-                                    // Parent is HQ: attach ONLY the top ancestor in the chain
-                                    var nextAncestorId = ancestorChain.FirstOrDefault();
-                                    var nextChild = children.FirstOrDefault(c => c.UserId == nextAncestorId);
-                                    if (nextChild != null)
-                                    {
-                                        parent.Subordinates = new List<OrgChartNode> { nextChild };
-                                        AttachScopedChildren(nextChild);
-                                    }
-                                }
-                                else if (ancestorIdx >= 0 && ancestorIdx < ancestorChain.Count - 1)
-                                {
-                                    // Parent is an ancestor strictly above teamAnchor
-                                    var nextAncestorId = ancestorChain[ancestorIdx + 1];
-                                    var nextChild = children.FirstOrDefault(c => c.UserId == nextAncestorId);
-                                    if (nextChild != null)
-                                    {
-                                        parent.Subordinates = new List<OrgChartNode> { nextChild };
-                                        AttachScopedChildren(nextChild);
-                                    }
-                                }
-                                else
-                                {
-                                    // Parent is teamAnchor or in teamAnchor's subtree: attach all children
-                                    parent.Subordinates = children.OrderBy(c => c.Name).ToList();
-                                    foreach (var child in parent.Subordinates)
-                                    {
-                                        AttachScopedChildren(child);
-                                    }
-                                }
-                            }
-                        }
-
-                        AttachScopedChildren(root);
-                        SetAllExpanded(root, true);
-
-                        var focusIds = new HashSet<Guid>(ancestorChain) { Guid.Empty, currentUser.Id };
-                        void MarkScopedFocus(OrgChartNode node)
-                        {
-                            if (currentUser.Department != null && node.Department == currentUser.Department.Name)
-                            {
-                                // node.IsFocusNode = true;
-                            }
-                            else if (focusIds.Contains(node.UserId))
-                            {
-                                // node.IsFocusNode = true;
-                            }
-                            else
-                            {
-                                node.IsFocusNode = false;
-                            }
-
-                            foreach (var child in node.Subordinates)
-                            {
-                                MarkScopedFocus(child);
-                            }
-                        }
-                        MarkScopedFocus(root);
-                    }
-                    else
-                    {
-                        AttachChildren(root);
-                        SetAllExpanded(root, true);
-                        MarkFocus(root, null);
-                    }
-                }
-
-                // Math Layout Passes
-                CalculateSubtreeWidths(root);
-                CalculateNodeCoordinates(root, 0, root.SubtreeWidth / 2, 0, 50.0);
-            }
+            // The one node the page should highlight and scroll to.
+            foreach (var node in nodes.Values)
+                node.IsFocusNode = node.UserId == targetUserId;
 
             return root;
+        }
+
+        // Everyone below a manager, however deep. Answers "may I act on this row?" for the org
+        // chart, which since the directory went worldwide shows plenty of people the viewer may
+        // only look at.
+        //
+        // Computed from the reporting graph rather than from the rendered tree: the focused view
+        // is built around somebody else and often does not contain the viewer at all, so walking
+        // it found no subtree and quietly took a manager's own buttons away.
+        //
+        // Region-scoped, because acting is: ManagerContext refuses a decision or a contract
+        // across regions, and a relocation drops reporting links that would cross one.
+        public async Task<HashSet<Guid>> GetManagedUserIdsAsync(Guid managerId)
+        {
+            var manager = await _userGateway.GetUserByIdAsync(managerId);
+            if (manager == null)
+                return [];
+
+            var byManager = (await _userGateway.GetAllUsersAsync())
+                .Where(user => user.Status == UserStatus.Active
+                               && user.RegionId == manager.RegionId
+                               && user.ManagerId != null)
+                .GroupBy(user => user.ManagerId!.Value)
+                .ToDictionary(group => group.Key, group => group.Select(user => user.Id).ToList());
+
+            var managed = new HashSet<Guid>();
+            var queue = new Queue<Guid>();
+            queue.Enqueue(managerId);
+
+            while (queue.Count > 0)
+            {
+                if (!byManager.TryGetValue(queue.Dequeue(), out var reports))
+                    continue;
+
+                // Add returns false on a repeat, which is also the cycle guard.
+                foreach (var report in reports.Where(managed.Add))
+                    queue.Enqueue(report);
+            }
+
+            return managed;
+        }
+
+        private OrgChartNode BuildOrgChartNode(User user, List<LeaveRequest> pendingRequests)
+        {
+            var initials = string.Concat(user.Name
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part[0].ToString()))
+                .ToUpperInvariant();
+            if (initials.Length > 2)
+                initials = initials[..2];
+
+            var activeContract = user.Contracts?.FirstOrDefault(c => c.Status == ContractStatus.Active);
+            var pending = pendingRequests.FirstOrDefault(request => request.UserId == user.Id);
+
+            return new OrgChartNode
+            {
+                UserId = user.Id,
+                Name = user.Name,
+                Email = user.Email ?? string.Empty,
+                Role = user.Role.ToString(),
+                Department = user.Department?.Name ?? string.Empty,
+                Initials = initials,
+                ManagerId = user.ManagerId,
+                RegionId = user.RegionId,
+                Region = user.Region?.Name ?? string.Empty,
+                City = user.City,
+                Site = user.Site,
+                HasPendingRequest = pending != null,
+                PendingRequestId = pending?.Id,
+                PendingRequestType = pending?.Type.ToString(),
+                PendingRequestDates = pending != null
+                    ? $"{pending.StartDate:MMM d} – {pending.EndDate:MMM d, yyyy}"
+                    : null,
+                HasContract = activeContract != null,
+                ContractId = activeContract?.Id,
+                ContractType = activeContract?.Type,
+                ContractStatus = activeContract?.Status,
+                ContractStartDate = activeContract?.StartDate,
+                ContractEndDate = activeContract?.EndDate
+            };
         }
 
         private static void SetAllExpanded(OrgChartNode node, bool expanded)
@@ -1307,65 +1406,6 @@ namespace CompanyEmployees.Application.Contexts
             foreach (var child in node.Subordinates)
             {
                 SetAllExpanded(child, expanded);
-            }
-        }
-
-        public static void CalculateSubtreeWidths(OrgChartNode node)
-        {
-            if (!node.IsExpanded || node.Subordinates.Count == 0)
-            {
-                node.SubtreeWidth = 80.0; // Base width for a single node / collapsed branch
-                return;
-            }
-
-            double totalWidth = 0;
-            foreach (var child in node.Subordinates)
-            {
-                CalculateSubtreeWidths(child);
-                totalWidth += child.SubtreeWidth;
-            }
-
-            node.SubtreeWidth = Math.Max(80.0, totalWidth);
-        }
-
-        public static void CalculateNodeCoordinates(OrgChartNode node, int depth, double x, int siblingIndex, double currentY)
-        {
-            node.Depth = depth;
-            node.X = x;
-            
-            // Stagger siblings to save space (odd indices are 40px lower)
-            // The stagger is added to the current accumulated Y, so the whole subtree shifts down.
-            double stagger = (siblingIndex % 2 == 1) ? 40.0 : 0.0;
-            node.Y = currentY + stagger;
-
-            if (node.IsExpanded && node.Subordinates.Count > 0)
-            {
-                double currentX = x - (node.SubtreeWidth / 2.0);
-                for (int i = 0; i < node.Subordinates.Count; i++)
-                {
-                    var child = node.Subordinates[i];
-                    double childCenter = currentX + (child.SubtreeWidth / 2.0);
-                    // Next level base Y is node.Y + 120
-                    CalculateNodeCoordinates(child, depth + 1, childCenter, i, node.Y + 120.0);
-                    currentX += child.SubtreeWidth;
-                }
-            }
-        }
-
-        private void MarkFocus(OrgChartNode node, string? targetDepartment)
-        {
-            if (targetDepartment == null) 
-            {
-                // node.IsFocusNode = true;
-            }
-            else
-            {
-                node.IsFocusNode = node.Department == targetDepartment;
-            }
-            
-            foreach (var child in node.Subordinates)
-            {
-                MarkFocus(child, targetDepartment);
             }
         }
 
