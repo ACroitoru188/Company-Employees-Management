@@ -565,10 +565,10 @@ else
         var allNodes = new List<OrgChartNode>();
         CollectAllNodes(node, allNodes);
         
-        _cities = allNodes.Where(n => !string.IsNullOrEmpty(n.City)).Select(n => n.City).Distinct().OrderBy(c => c).ToList();
+        _cities = allNodes.Where(n => !string.IsNullOrEmpty(n.City)).Select(n => n.City!).Distinct().OrderBy(c => c).ToList();
         _cities.Insert(0, "Toate");
         
-        _sites = allNodes.Where(n => !string.IsNullOrEmpty(n.Site)).Select(n => n.Site).Distinct().OrderBy(s => s).ToList();
+        _sites = allNodes.Where(n => !string.IsNullOrEmpty(n.Site)).Select(n => n.Site!).Distinct().OrderBy(s => s).ToList();
         _sites.Insert(0, "Toate");
         
         _departments = allNodes.Where(n => !string.IsNullOrEmpty(n.Department)).Select(n => n.Department).Distinct().OrderBy(d => d).ToList();
