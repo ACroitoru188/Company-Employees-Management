@@ -6,6 +6,17 @@ Team of 3, developing a portal platform for managing employees — a leave (time
 
 Blazor Web App (.NET 9, Interactive Server) + MudBlazor, EF Core 8, SQL Server 2022, ASP.NET Core Identity, SignalR. SQL Server and the PostgreSQL standby run in Docker for development.
 
+## Project layout
+
+```text
+src/        Application source, split into Backend and Frontend projects
+tests/      Domain and application test projects
+data/       Import data and other data assets
+docs/       Architecture notes and business-policy documentation
+scripts/    Database maintenance and development helpers
+.config/    Repository-local .NET tool manifest
+```
+
 ## Run
 
 ```sh
