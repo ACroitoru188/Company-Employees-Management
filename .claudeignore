@@ -17,10 +17,6 @@ publish/
 packages/
 .nuget/
 
-# Blazor / wwwroot generated assets
-wwwroot/lib/
-**/wwwroot/lib/
-
 # Logs
 *.log
 logs/

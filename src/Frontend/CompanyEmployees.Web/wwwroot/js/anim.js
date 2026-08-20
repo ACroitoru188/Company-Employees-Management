@@ -1,4 +1,4 @@
-// Scroll/entrance animation layer (GSAP + ScrollTrigger, vendored in lib/).
+// Scroll/entrance animation layer (GSAP + ScrollTrigger, loaded from CDN in App.razor).
 // Declarative contract — markup opts in via attributes, no C# interop:
 //   data-reveal            card/panel scroll entrance (rise + blur-in)
 //   data-reveal="stagger"  container reveals, then its children cascade in

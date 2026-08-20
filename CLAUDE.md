@@ -48,7 +48,7 @@ Each layer registers itself via its own `ServiceCollectionExtensions`
 
 ## Commands
 
-Run from the repo root. `dotnet-ef` 8.x is a local tool (`dotnet-tools.json` at the repo root) —
+Run from the repo root. `dotnet-ef` 8.x is a local tool (`.config/dotnet-tools.json`) —
 after a fresh clone run `dotnet tool restore` once.
 
 ```sh
