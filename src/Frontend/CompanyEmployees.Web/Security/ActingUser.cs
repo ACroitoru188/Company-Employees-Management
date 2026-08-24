@@ -10,7 +10,8 @@ namespace CompanyEmployees.Web.Security
         string EffectiveUserName,
         Guid RealUserId,
         string RealUserName,
-        Guid? DelegationId)
+        Guid? DelegationId,
+        bool IsReadOnlyPreview)
     {
         public bool IsImpersonating => EffectiveUserId != RealUserId;
 
@@ -20,10 +21,26 @@ namespace CompanyEmployees.Web.Security
             if (principal?.Identity?.IsAuthenticated != true)
                 return null;
 
-            if (!Guid.TryParse(principal.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var effectiveId))
+            if (!Guid.TryParse(principal.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var identityId))
                 return null;
 
-            var effectiveName = principal.FindFirst("FullName")?.Value ?? "";
+            var isReadOnlyPreview = string.Equals(
+                principal.FindFirst(ImpersonationClaims.ReadOnlyPreview)?.Value,
+                "true", StringComparison.OrdinalIgnoreCase);
+
+            // PreviewUserId is deliberately authoritative for a preview. This avoids a stale
+            // circuit principal resolving "my team" and other account data against the admin
+            // who opened the preview rather than the person selected for inspection.
+            var previewUserId = Guid.Empty;
+            var hasPreviewTarget = isReadOnlyPreview
+                && Guid.TryParse(principal.FindFirst(ImpersonationClaims.PreviewUserId)?.Value,
+                    out previewUserId);
+            var effectiveId = hasPreviewTarget ? previewUserId : identityId;
+            var effectiveName = hasPreviewTarget
+                ? principal.FindFirst(ImpersonationClaims.PreviewUserName)?.Value
+                    ?? principal.FindFirst("FullName")?.Value
+                    ?? ""
+                : principal.FindFirst("FullName")?.Value ?? "";
 
             // Present only while an account is borrowed; absent means acting as yourself.
             var hasReal = Guid.TryParse(
@@ -39,7 +56,8 @@ namespace CompanyEmployees.Web.Security
                 effectiveName,
                 hasReal ? realId : effectiveId,
                 hasReal ? principal.FindFirst(ImpersonationClaims.RealUserName)?.Value ?? "" : effectiveName,
-                hasReal ? delegationId : null);
+                hasReal ? delegationId : null,
+                isReadOnlyPreview);
         }
     }
 }

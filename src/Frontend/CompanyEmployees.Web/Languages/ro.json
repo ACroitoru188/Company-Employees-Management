@@ -28,6 +28,7 @@
   "days": "zile",
   "working day": "zi lucrătoare",
   "working days": "zile lucrătoare",
+  "Allow past leave dates": "Permite selectarea concediilor din trecut",
   "{0}: {1} working days available. Starting {2}, the last available day is {3}.": "{0}: ai {1} zile lucrătoare disponibile. Începând cu {2}, ultima zi disponibilă este {3}.",
   "away now": "absent acum",
   "Annual": "Anual",

@@ -101,6 +101,9 @@
                 </FluentLabel>
             </FluentStack>
         </FluentStack>
+
+        <FluentCheckbox @bind-Value="_allowPastDates" Class="cal-past-dates"
+                        Label="@AllowPastLeaveDatesLabel" />
     </FluentStack>
 
     <FluentStack Class="cal-main" Orientation="Orientation.Vertical" VerticalGap="0"
@@ -168,15 +171,18 @@
                                      VerticalAlignment="VerticalAlignment.Stretch">
                             @foreach (var date in week)
                             {
-                                var holiday = _holidays.GetValueOrDefault(date);
+                                var isVisibleMonth = date.Month == VisibleMonth.Month;
+                                var holiday = isVisibleMonth ? _holidays.GetValueOrDefault(date) : null;
                                 @* title says why a day cannot be picked; the greying alone
                                    leaves "why not?" unanswered. *@
-                                <FluentStack Class="@CellClasses(date)" Orientation="Orientation.Vertical"
+                                <FluentStack Class="@(isVisibleMonth ? CellClasses(date) : "cal-cell cal-empty")" Orientation="Orientation.Vertical"
                                              VerticalGap="3" HorizontalAlignment="HorizontalAlignment.Stretch"
-                                             Style="@SelectionStyle(date)"
-                                             Title="@UnavailableDateHint(date)"
+                                             Style="@(isVisibleMonth ? SelectionStyle(date) : "")"
+                                             Title="@(isVisibleMonth ? UnavailableDateHint(date) : null)"
                                              @onclick="@(() => OnDayClick(date))">
 
+                                    @if (isVisibleMonth)
+                                    {
                                     <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="4"
                                                  VerticalAlignment="VerticalAlignment.Center" Width="100%">
                                         <FluentLabel Typo="Typography.Body"
@@ -230,6 +236,7 @@
                                                 }
                                             </FluentTooltip>
                                         }
+                                    }
                                     }
                                 </FluentStack>
                             }
@@ -486,6 +493,9 @@
     private DateOnly WeekStart => _anchor.AddDays(-(((int)_anchor.DayOfWeek + 6) % 7));
 
     private LeaveType? _selectedType;
+    // Off by default so normal leave requests still begin today. This value goes to the
+    // server too, keeping the calendar's selectable dates consistent with submission.
+    private bool _allowPastDates;
     private DateOnly? _anchorDay;
     private (DateOnly Start, DateOnly End)? _range;
     private string? _reason;
@@ -493,6 +503,7 @@
     private DateOnly? _availableUntil;
 
     private bool ShowSubmitBar => _range is not null && _selectedType is not null;
+    private string AllowPastLeaveDatesLabel => Text["Allow past leave dates"];
     private LeaveBalance? SelectedBalance => _selectedType is { } type
         ? _balances.FirstOrDefault(balance => balance.Type == type)
         : null;
@@ -540,8 +551,8 @@
             .ToDictionary(group => group.Key, group => group.First());
     }
 
-    // The Monday on or before the 1st: the grid always shows six whole weeks, so a month can
-    // open with days of the previous one and close with days of the next.
+    // The Monday on or before the 1st keeps a stable seven-column, six-row sheet. Days outside
+    // the visible month render as blank filler cells rather than dates from another month.
     private DateOnly MonthGridStart =>
         VisibleMonth.AddDays(-(((int)VisibleMonth.DayOfWeek + 6) % 7));
 
@@ -563,6 +574,8 @@
 
         if (_view == CalView.Month && day.Month != VisibleMonth.Month)
             classes += " is-outside";
+        if (day < _today && !_allowPastDates)
+            classes += " is-past";
         if (IsWeekend(day))
             classes += " is-weekend";
         if (day == _today)
@@ -692,7 +705,7 @@
     {
         if (_selectedType is null)
             return Text["Select a leave type first."];
-        if (day < _today)
+        if (day < _today && !_allowPastDates)
             return Text["Past dates cannot be selected."];
         if (_holidays.TryGetValue(day, out var holiday))
             return Text.Format("{0} is a public holiday.", holiday.Name);
@@ -702,7 +715,11 @@
     }
 
     private bool CanSelectDay(DateOnly day) =>
-        _selectedType is not null && day >= _today && !IsWeekend(day) && !IsHoliday(day);
+        _selectedType is not null
+        && (_view != CalView.Month || day.Month == VisibleMonth.Month)
+        && (_allowPastDates || day >= _today)
+        && !IsWeekend(day)
+        && !IsHoliday(day);
 
     private bool IsHoliday(DateOnly day) => _holidays.ContainsKey(day);
 
@@ -780,7 +797,7 @@
 
         try
         {
-            await TimeOff.SubmitRequestAsync(type, range.Start, range.End, _reason);
+            await TimeOff.SubmitRequestAsync(type, range.Start, range.End, _reason, _allowPastDates);
             Toast.ShowSuccess(Text["Time off request submitted"]);
             CancelSelection();
             _selectedType = null;

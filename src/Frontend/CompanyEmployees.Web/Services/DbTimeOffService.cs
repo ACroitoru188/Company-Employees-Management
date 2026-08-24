@@ -17,6 +17,7 @@ public class DbTimeOffService : ITimeOffService
     private readonly EmployeeContext _employee;
     private readonly AuthenticationStateProvider _authStateProvider;
     private User? _currentUser; // cached per circuit (service is Scoped)
+    private Guid? _currentUserId;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public DbTimeOffService(EmployeeContext employee, AuthenticationStateProvider authStateProvider)
@@ -27,15 +28,19 @@ public class DbTimeOffService : ITimeOffService
 
     private async Task<User> GetDomainUserAsync()
     {
-        if (_currentUser != null)
-            return _currentUser;
-
-        // UserName == Email for every account, so Identity.Name from the auth state is the email.
+        // Identity.Name is the browser sign-in name and can still describe the person who opened
+        // the circuit while a preview session is being established. The NameIdentifier claim is
+        // the effective account, so it is the only safe source for all "my" data in a preview.
         var state = await _authStateProvider.GetAuthenticationStateAsync();
-        var email = state.User.Identity?.Name
+        var acting = ActingUser.Resolve(state.User)
             ?? throw new InvalidOperationException("No authenticated user.");
 
-        return _currentUser = await _employee.GetEmployeeByEmailAsync(email);
+        if (_currentUser is not null && _currentUserId == acting.EffectiveUserId)
+            return _currentUser;
+
+        _currentUser = await _employee.GetEmployeeByIdAsync(acting.EffectiveUserId);
+        _currentUserId = acting.EffectiveUserId;
+        return _currentUser;
     }
 
     // Who is really at the keyboard. GetDomainUserAsync resolves the *borrowed* account while
@@ -252,14 +257,15 @@ public class DbTimeOffService : ITimeOffService
         }
     }
 
-    public async Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason)
+    public async Task<TimeOffRequest> SubmitRequestAsync(
+        LeaveType type, DateOnly start, DateOnly end, string? reason, bool allowPastDates = false)
     {
         await _lock.WaitAsync();
         try
         {
             var user = await GetDomainUserAsync();
             var created = await _employee.SubmitRequestAsync(
-                user.Id, MapTypeToDomain(type), start, end, reason, await GetOnBehalfAsync());
+                user.Id, MapTypeToDomain(type), start, end, reason, await GetOnBehalfAsync(), allowPastDates);
             var holidays = await GetHolidayDatesAsync(user, [created]);
             return MapRequest(created, holidays);
         }
