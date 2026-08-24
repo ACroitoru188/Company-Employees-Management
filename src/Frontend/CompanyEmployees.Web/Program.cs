@@ -308,6 +308,38 @@ app.MapPost("/api/auth/impersonate", async (
     }
 }).DisableAntiforgery();
 
+// Unlike a delegation, an admin preview is inspection-only. It swaps the claims to the selected
+// account so page guards, navigation and read queries all show that account's perspective; the
+// explicit marker lets the layout make the application surface inert.
+app.MapPost("/api/auth/preview/start", async (
+    HttpContext context,
+    [Microsoft.AspNetCore.Mvc.FromForm] Guid userId,
+    UserManager<User> userManager,
+    SignInManager<User> signInManager) =>
+{
+    var acting = ActingUser.Resolve(context.User);
+    if (acting is null || acting.IsImpersonating)
+        return Results.Redirect("/employee/dashboard?error=PreviewUnavailable");
+
+    var realUser = await userManager.FindByIdAsync(acting.RealUserId.ToString());
+    var target = await userManager.Users
+        .Include(user => user.Department)
+        .FirstOrDefaultAsync(user => user.Id == userId);
+    if (realUser?.Role != UserRole.Admin || target is null || target.Id == realUser.Id || target.Status != UserStatus.Active)
+        return Results.Redirect("/admin/users?error=PreviewUnavailable");
+
+    await signInManager.SignInWithClaimsAsync(target, isPersistent: true, new[]
+    {
+        new Claim(ImpersonationClaims.RealUserId, realUser.Id.ToString("D")),
+        new Claim(ImpersonationClaims.RealUserName, realUser.Name),
+        new Claim(ImpersonationClaims.ReadOnlyPreview, "true"),
+        new Claim(ImpersonationClaims.PreviewUserId, target.Id.ToString("D")),
+        new Claim(ImpersonationClaims.PreviewUserName, target.Name)
+    });
+
+    return Results.Redirect(HomeRouteResolver.Resolve(target.Role, target.Department?.Name));
+}).RequireAuthorization().DisableAntiforgery();
+
 // GET so the banner's exit can be a plain link, like logout: a forced request only ever
 // returns someone to their own account, so there is nothing here worth a CSRF token.
 app.MapGet("/api/auth/impersonate/stop", async (

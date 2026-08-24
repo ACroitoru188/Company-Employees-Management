@@ -36,5 +36,6 @@ public interface ITimeOffService
     Task<IReadOnlyList<TeamTimeOff>> GetTeamTimeOffForRangeAsync(DateOnly from, DateOnly to);
     Task<IReadOnlyList<TeamRosterEntry>> GetTeamRosterAsync();
     Task<IReadOnlyList<RegionalHoliday>> GetRegionalHolidaysAsync(int year);
-    Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason);
+    Task<TimeOffRequest> SubmitRequestAsync(
+        LeaveType type, DateOnly start, DateOnly end, string? reason, bool allowPastDates = false);
 }

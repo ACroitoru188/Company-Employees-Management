@@ -30,21 +30,30 @@
        not. This is the main guard against acting in someone's account by accident. *@
     @* The class is load-bearing, not decoration: FluentHeader's own background rule is
        `.header[b-hash]`, and app.css needs one more class than that to replace it. *@
-    <FluentHeader Class="app-header" Style="@HeaderStyle">
+    <FluentHeader Class="@HeaderClass" Style="@HeaderStyle">
         <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
                      HorizontalGap="12" Width="100%">
             <FluentLabel Typo="Typography.PaneHeader" Color="Color.Custom" CustomColor="#FFFFFF">SIEMENS</FluentLabel>
 
             @if (_acting?.IsImpersonating == true)
             {
-                <FluentIcon Value="@(new Icons.Regular.Size20.ArrowSwap())" Color="Color.Custom" CustomColor="#FFFFFF" />
+                @if (_acting.IsReadOnlyPreview)
+                {
+                    <FluentIcon Value="@(new Icons.Regular.Size20.Eye())" Color="Color.Custom" CustomColor="#FFFFFF" />
+                }
+                else
+                {
+                    <FluentIcon Value="@(new Icons.Regular.Size20.ArrowSwap())" Color="Color.Custom" CustomColor="#FFFFFF" />
+                }
                 <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold" Color="Color.Custom" CustomColor="#FFFFFF">
-                    Acting as @_acting.EffectiveUserName
+                    @(_acting.IsReadOnlyPreview
+                        ? $"Viewing as {_acting.EffectiveUserName} · read-only"
+                        : $"Acting as {_acting.EffectiveUserName}")
                 </FluentLabel>
                 @* forceLoad, and OnClick rather than Href: FluentButton has no Href parameter
                    (the attribute lands on the web component and does nothing), and the stop
                    endpoint swaps the auth cookie, which only a full document load picks up. *@
-                <FluentButton Appearance="Appearance.Outline"
+                <FluentButton Appearance="Appearance.Outline" Class="preview-exit"
                               OnClick="@(() => Nav.NavigateTo("/api/auth/impersonate/stop", forceLoad: true))">
                     Return to my account
                 </FluentButton>
@@ -57,8 +66,21 @@
             <FluentSpacer />
             @* Search sits before the bell and the name, in the one bar that is on every
                authenticated page — that is what makes it global. *@
-            <CompanyEmployees.Web.Components.GlobalSearchBox />
-            <CompanyEmployees.Web.Components.NotificationBell />
+            @if (IsReadOnlyPreview)
+            {
+                @* This must remain a horizontal flex item. A plain inert div turns the search
+                   into a block container, so its height is clipped by the compact app bar and
+                   its width no longer participates in the header's flex calculation. *@
+                <div class="header-preview-tools" inert>
+                    <CompanyEmployees.Web.Components.GlobalSearchBox />
+                    <CompanyEmployees.Web.Components.NotificationBell />
+                </div>
+            }
+            else
+            {
+                <CompanyEmployees.Web.Components.GlobalSearchBox />
+                <CompanyEmployees.Web.Components.NotificationBell />
+            }
             @* The borrowed account is already named on the left of this bar; repeating it here
                left the real person nowhere on screen. *@
             <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="#FFFFFF">@SignedInName</FluentLabel>
@@ -152,7 +174,7 @@
                    (Width="100%" two levels up), and a persona left to its own layout packs
                    avatar-then-text against the left edge, which read as misaligned against the
                    nav links above it and the "your account" row below. *@
-                <FluentCard Style="@($"background:{ImpersonationTint}; margin:8px;")">
+                <FluentCard Style="@($"background:{IdentityModeTint}; margin:8px;")">
                     <FluentStack Orientation="Orientation.Horizontal"
                                  HorizontalAlignment="HorizontalAlignment.Center" Width="100%">
                         <FluentPersona Name="@_acting.EffectiveUserName"
@@ -161,7 +183,9 @@
                             @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
                                rendered here explicitly above the secondary line. *@
                             <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold" Color="Color.Custom" CustomColor="#FFFFFF">@_acting.EffectiveUserName</FluentLabel>
-                            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="#FFFFFF">acting on their behalf</FluentLabel>
+                            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="#FFFFFF">
+                                @(IsReadOnlyPreview ? "read-only preview" : "acting on their behalf")
+                            </FluentLabel>
                         </FluentPersona>
                     </FluentStack>
                 </FluentCard>
@@ -207,6 +231,8 @@
                 </FluentMenu>
             }
 
+            @if (!IsReadOnlyPreview)
+            {
             <FluentButton Id="profile-menu" Appearance="Appearance.Stealth"
                           OnClick="@(() => _profileMenuOpen = !_profileMenuOpen)">
                 @* Your own account, under the borrowed one. Every claim in the cookie describes
@@ -258,6 +284,7 @@
                     @Text["Sign out"]
                 </FluentMenuItem>
             </FluentMenu>
+            }
             </FluentStack>
         </FluentNavMenu>
 
@@ -334,7 +361,18 @@
                     @_databaseSwitchError
                 </FluentMessageBar>
             }
-            @Body
+            @if (IsReadOnlyPreview)
+            {
+                @* inert blocks mouse, touch, keyboard and programmatic focus inside the preview.
+                   Navigation remains in the drawer so an admin can inspect every page. *@
+                <div class="read-only-preview-surface" inert>
+                    @Body
+                </div>
+            }
+            else
+            {
+                @Body
+            }
         </FluentBodyContent>
     </FluentStack>
 </FluentLayout>
@@ -357,6 +395,7 @@
     // Red rather than a softer accent: this is the one state where a wrong click lands on
     // someone else's team. Material Red 700 keeps white text above the 4.5:1 contrast floor.
     private const string ImpersonationTint = "#D32F2F";
+    private const string PreviewTint = "#5C2D91";
 
     private string _name = "";
     private string _initials = "";
@@ -379,9 +418,15 @@
         ? value.ToLocalTime().ToString("G", CultureInfo.CurrentCulture)
         : "not completed yet";
 
-    private string HeaderStyle => _acting?.IsImpersonating == true
-        ? $"background:{ImpersonationTint};"
-        : "";
+    private string HeaderStyle => _acting?.IsReadOnlyPreview == true
+        ? $"background:{PreviewTint};"
+        : _acting?.IsImpersonating == true ? $"background:{ImpersonationTint};" : "";
+
+    private string HeaderClass => IsReadOnlyPreview ? "app-header preview-header" : "app-header";
+
+    private string IdentityModeTint => IsReadOnlyPreview ? PreviewTint : ImpersonationTint;
+
+    private bool IsReadOnlyPreview => _acting?.IsReadOnlyPreview == true;
 
     // The person at the keyboard, which the FullName claim stops being the moment an account
     // is borrowed — from then on every claim describes the borrowed account.

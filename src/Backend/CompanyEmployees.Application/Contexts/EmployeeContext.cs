@@ -89,6 +89,14 @@ namespace CompanyEmployees.Application.Contexts
             return user;
         }
 
+        public async Task<User> GetEmployeeByIdAsync(Guid userId)
+        {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+            return user;
+        }
+
         public Task<List<LeaveRequest>> GetMyRequestsAsync(Guid userId)
         {
             return _leaveRequestGateway.GetRequestsByUserAsync(userId);
@@ -954,7 +962,7 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task<LeaveRequest> SubmitRequestAsync(
             Guid userId, LeaveType type, DateOnly start, DateOnly end, string? reason,
-            ActingOnBehalf? onBehalf = null)
+            ActingOnBehalf? onBehalf = null, bool allowPastDates = false)
         {
             var delegation = await GuardAsync(userId, onBehalf);
 
@@ -962,7 +970,7 @@ namespace CompanyEmployees.Application.Contexts
 
             if (end < start)
                 throw new InvalidOperationException("End date must not be before start date.");
-            if (start < today)
+            if (start < today && !allowPastDates)
                 throw new InvalidOperationException("Leave cannot start in the past.");
 
             var requester = await _userGateway.GetUserByIdAsync(userId);

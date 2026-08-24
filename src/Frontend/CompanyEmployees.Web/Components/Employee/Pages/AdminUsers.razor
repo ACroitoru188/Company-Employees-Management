@@ -11,6 +11,7 @@
 @inject EmployeeContext Employees
 @inject AppLocalizer Text
 @inject NavigationManager Nav
+@inject IJSRuntime JSRuntime
 @inject IToastService Toast
 @inject IDialogService DialogService
 
@@ -88,7 +89,7 @@ else
 	   combobox and its own two-line title. *@
 	<FluentDataGrid Items="@FilteredUsers" TGridItem="User" ResizableColumns="true"
 					ShowHover="true" Pagination="@_pagination"
-					GridTemplateColumns="1.2fr 1.5fr 0.8fr 0.8fr 1.6fr 1.4fr 1fr 0.5fr">
+					GridTemplateColumns="1.2fr 1.5fr 0.8fr 0.8fr 1.6fr 1.4fr 1fr 0.6fr">
 		<EmptyContent>
 		    <EmptyState Icon="@(new Icons.Regular.Size24.Search())"
 		                Title="@Text["No employee matches this search."]"
@@ -206,10 +207,20 @@ else
 		</TemplateColumn>
 
 		<TemplateColumn Title="@Text["Actions"]" Sortable="false" Align="Align.End">
-			<FluentButton Appearance="Appearance.Stealth" Title="@Text["Manage Contract"]"
-						  IconStart="@(new Icons.Regular.Size20.ClipboardTextEdit())"
-						  OnClick="@(() => OpenEditContractDialog(context))"
-						  Disabled="@(!CanEditUser(context))" />
+			<form id="@PreviewFormId(context.Id)" method="post" action="/api/auth/preview/start" style="display:none;">
+				<input type="hidden" name="userId" value="@context.Id" />
+			</form>
+			<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="4"
+						 VerticalAlignment="VerticalAlignment.Center">
+				<FluentButton Appearance="Appearance.Stealth" Title="Preview this account (read-only)"
+							  IconStart="@(new Icons.Regular.Size20.Eye())"
+							  OnClick="@(() => StartPreviewAsync(context.Id))"
+							  Disabled="@(context.Id == _adminId)" />
+				<FluentButton Appearance="Appearance.Stealth" Title="@Text["Manage Contract"]"
+							  IconStart="@(new Icons.Regular.Size20.ClipboardTextEdit())"
+							  OnClick="@(() => OpenEditContractDialog(context))"
+							  Disabled="@(!CanEditUser(context))" />
+			</FluentStack>
 		</TemplateColumn>
 		</ChildContent>
 	</FluentDataGrid>
@@ -535,4 +546,10 @@ else
 
 	private static Guid? ToDepartmentId(DepartmentOption? option) =>
 		option is null || option.Id == Guid.Empty ? null : option.Id;
+
+	private static string PreviewFormId(Guid userId) => $"preview-{userId:D}";
+
+	private Task StartPreviewAsync(Guid userId) =>
+		JSRuntime.InvokeVoidAsync("eval",
+			$"document.getElementById('{PreviewFormId(userId)}').submit();").AsTask();
 }
