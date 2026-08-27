@@ -34,6 +34,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Domain\CompanyEmployees.Domain.csproj" />
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Persistence\CompanyEmployees.Persistence.csproj" />
+    <ProjectReference Include="..\..\Backend\CompanyEmployees.Persistence.Contracts\CompanyEmployees.Persistence.Contracts.csproj" />
+    <!-- TODO Phase C: remove direct ProjectReferences to provider projects and replace with post-build copy targets -->
+    <ProjectReference Include="..\..\Backend\CompanyEmployees.Persistence.Providers.SqlServer\CompanyEmployees.Persistence.Providers.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Backend\CompanyEmployees.Persistence.Providers.PostgreSql\CompanyEmployees.Persistence.Providers.PostgreSql.csproj" />
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Gateway\CompanyEmployees.Gateway.csproj" />
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Application\CompanyEmployees.Application.csproj" />
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Infrastructure\CompanyEmployees.Infrastructure.csproj" />

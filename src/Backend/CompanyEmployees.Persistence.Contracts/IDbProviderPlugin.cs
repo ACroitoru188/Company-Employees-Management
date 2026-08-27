@@ -9,8 +9,11 @@ namespace CompanyEmployees.Persistence.Contracts;
 /// </summary>
 public interface IDbProviderPlugin
 {
-    /// <summary>Stable machine identifier. Examples: "sqlserver", "postgresql".</summary>
-    string Name { get; }
+    /// <summary>Stable machine identifier used in config and state. Examples: "sqlserver", "postgresql".</summary>
+    string Id { get; }
+
+    /// <summary>Human-readable name shown in the setup wizard. Example: "Microsoft SQL Server".</summary>
+    string DisplayName { get; }
 
     /// <summary>
     /// Fields the setup wizard must collect from the admin to build a valid connection string.

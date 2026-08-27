@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -86,10 +86,9 @@ namespace CompanyEmployees.Persistence
             if (SuppressOutboxCapture || runtimeState == null)
                 return;
 
-            var contextProvider = Database.IsNpgsql()
-                ? DatabaseProvider.PostgreSql
-                : DatabaseProvider.SqlServer;
-            if (contextProvider != runtimeState.ActiveProvider)
+            var contextIsPostgreSql = IsPostgreSql();
+            var activeIsPostgreSql = runtimeState.ActiveProviderId == "postgresql";
+            if (contextIsPostgreSql != activeIsPostgreSql)
             {
                 throw new InvalidOperationException(
                     "The active database changed. Reload the application before saving again.");
@@ -98,7 +97,7 @@ namespace CompanyEmployees.Persistence
 
         private void NormalizePostgreSqlDateTimes()
         {
-            if (!Database.IsNpgsql())
+            if (!IsPostgreSql())
                 return;
 
             // SQL Server datetime2 values return with Kind=Unspecified, while Npgsql's
@@ -159,14 +158,14 @@ namespace CompanyEmployees.Persistence
         private void AddOutboxMessages(IReadOnlyList<PendingChange> pending)
         {
             var batchId = Guid.NewGuid();
-            var provider = Database.IsNpgsql() ? DatabaseProvider.PostgreSql : DatabaseProvider.SqlServer;
+            var providerName = IsPostgreSql() ? "postgresql" : "sqlserver";
             var createdAt = DateTime.UtcNow;
             DatabaseOutbox.AddRange(pending.Select((change, order) => new DatabaseOutboxMessage
             {
                 Id = Guid.NewGuid(),
                 BatchId = batchId,
                 BatchOrder = order,
-                SourceProvider = provider.ToString(),
+                SourceProvider = providerName,
                 EntityType = change.EntityType,
                 Operation = change.Operation,
                 KeyJson = JsonSerializer.Serialize(change.Key),
@@ -174,6 +173,9 @@ namespace CompanyEmployees.Persistence
                 CreatedAtUtc = createdAt
             }));
         }
+
+        private bool IsPostgreSql() =>
+            Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true;
 
         private sealed record PendingChange(
             string EntityType,

@@ -1,32 +1,48 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using CompanyEmployees.Persistence.Contracts;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-namespace CompanyEmployees.Persistence
+
+namespace CompanyEmployees.Persistence;
+
+public static class ServiceCollectionExtensions
 {
-    public static class ServiceCollectionExtensions
+    public static IServiceCollection AddPersistenceLayer(
+        this IServiceCollection services,
+        IDbProviderPlugin activePlugin,
+        string primaryConnectionString,
+        IDbProviderPlugin? secondaryPlugin,
+        string? secondaryConnectionString,
+        DatabaseRuntimeState databaseState)
     {
-        public static IServiceCollection AddPersistenceLayer(
-            this IServiceCollection services,
-            IConfiguration configuration,
-            DatabaseRuntimeState databaseState)
+        services.AddSingleton(databaseState);
+        services.AddSingleton<DatabaseWriteGate>();
+        services.AddSingleton<DatabaseReplicationCoordinator>(sp =>
+            new DatabaseReplicationCoordinator(
+                databaseState,
+                activePlugin,
+                primaryConnectionString,
+                secondaryPlugin ?? activePlugin,
+                secondaryConnectionString ?? primaryConnectionString,
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<DatabaseReplicationCoordinator>>()));
+        services.AddSingleton<DatabaseProviderSwitcher>();
+
+        if (secondaryPlugin != null && !string.IsNullOrEmpty(secondaryConnectionString))
         {
-            services.AddSingleton(databaseState);
-            services.AddSingleton<DatabaseWriteGate>();
-            services.AddSingleton<PostgreSqlStandbySynchronizer>();
-            services.AddSingleton<DatabaseReplicationCoordinator>();
-            services.AddSingleton<DatabaseProviderSwitcher>();
-            services.AddDbContext<CompanyEmployeesDbContext>(options =>
-            {
-                if (databaseState.ActiveProvider == DatabaseProvider.PostgreSql)
-                {
-                    options.UseNpgsql(configuration.GetConnectionString("PostgreSql"));
-                    return;
-                }
-
-                options.UseSqlServer(configuration.GetConnectionString("Default"));
-            });
-
-            return services;
+            services.AddSingleton<IStandbyReplicationService>(sp =>
+                new StandbySynchronizer(
+                    activePlugin,
+                    primaryConnectionString,
+                    secondaryPlugin,
+                    secondaryConnectionString,
+                    databaseState,
+                    sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<StandbySynchronizer>>()));
+            services.AddSingleton<StandbySynchronizer>(sp =>
+                (StandbySynchronizer)sp.GetRequiredService<IStandbyReplicationService>());
         }
+
+        services.AddDbContext<CompanyEmployeesDbContext>(options =>
+            activePlugin.ConfigureDbContext(options, primaryConnectionString));
+
+        return services;
     }
 }

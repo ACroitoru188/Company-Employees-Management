@@ -2,13 +2,13 @@ using CompanyEmployees.Persistence;
 
 namespace CompanyEmployees.Web.Services;
 
-internal sealed class PostgreSqlStandbySynchronizationService(
+internal sealed class StandbySynchronizationService(
     IConfiguration configuration,
     DatabaseRuntimeState state,
-    PostgreSqlStandbySynchronizer synchronizer,
+    IStandbyReplicationService? synchronizer,
     DatabaseReplicationCoordinator replication,
     DatabaseWriteGate writeGate,
-    ILogger<PostgreSqlStandbySynchronizationService> logger) : BackgroundService
+    ILogger<StandbySynchronizationService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -25,17 +25,18 @@ internal sealed class PostgreSqlStandbySynchronizationService(
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(intervalSeconds));
         do
         {
-            var targetAvailable = state.ActiveProvider == DatabaseProvider.SqlServer
-                ? state.PostgreSqlAvailable
+            var targetAvailable = state.ActiveProviderId == state.PrimaryProviderId
+                ? state.SecondaryAvailable
                 : state.PrimaryAvailable;
             if (targetAvailable)
             {
                 try
                 {
                     if (!baselineCompleted
-                        && state.ActiveProvider == DatabaseProvider.SqlServer
+                        && synchronizer != null
+                        && state.ActiveProviderId == state.PrimaryProviderId
                         && state.PrimaryAvailable
-                        && state.PostgreSqlAvailable)
+                        && state.SecondaryAvailable)
                     {
                         using var writeLease = await writeGate.EnterAsync(stoppingToken);
                         await synchronizer.SynchronizeAsync(stoppingToken);

@@ -8,7 +8,9 @@ public static class DatabaseOutboxSchemaInitializer
         CompanyEmployeesDbContext db,
         CancellationToken cancellationToken = default)
     {
-        var sql = db.Database.IsNpgsql() ? PostgreSql : SqlServer;
+        var sql = db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true
+            ? PostgreSql
+            : SqlServer;
         await db.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 

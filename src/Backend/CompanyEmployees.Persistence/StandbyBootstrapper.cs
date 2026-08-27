@@ -1,38 +1,36 @@
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
+using CompanyEmployees.Persistence.Contracts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
 namespace CompanyEmployees.Persistence;
 
-public static class PostgreSqlStandbyBootstrapper
+public static class StandbyBootstrapper
 {
     private static readonly Guid RomaniaRegionId =
         new("44444444-4444-4444-4444-444444444401");
 
     public static async Task EnsureReadyAsync(
+        IDbProviderPlugin secondaryPlugin,
+        string secondaryConnectionString,
         IConfiguration configuration,
         CancellationToken cancellationToken = default)
     {
-        var connectionString = configuration.GetConnectionString("PostgreSql")
-            ?? throw new InvalidOperationException("ConnectionStrings:PostgreSql is not configured.");
-        var options = new DbContextOptionsBuilder<CompanyEmployeesDbContext>()
-            .UseNpgsql(connectionString)
-            .Options;
+        var optionsBuilder = new DbContextOptionsBuilder<CompanyEmployeesDbContext>();
+        secondaryPlugin.ConfigureDbContext(optionsBuilder, secondaryConnectionString);
 
-        await using var db = new CompanyEmployeesDbContext(options);
+        await using var db = new CompanyEmployeesDbContext(optionsBuilder.Options);
         db.SuppressOutboxCapture = true;
         await db.Database.EnsureCreatedAsync(cancellationToken);
         await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(db, cancellationToken);
 
-        // Emergency accounts created while SQL Server is unavailable are real business
-        // data. Capture them in the PostgreSQL outbox so they can be copied to SQL Server
-        // before an administrator fails back.
+        // Emergency accounts created while the primary is unavailable are real business data.
+        // Capture them in the standby outbox so they can be copied back before an admin fails back.
         db.SuppressOutboxCapture = false;
 
-        if (!bool.TryParse(configuration["DatabaseFailover:SeedFallbackAdmin"], out var seed)
-            || !seed)
+        if (!bool.TryParse(configuration["DatabaseFailover:SeedFallbackAdmin"], out var seed) || !seed)
             return;
 
         var region = await db.Regions.SingleOrDefaultAsync(
@@ -57,7 +55,7 @@ public static class PostgreSqlStandbyBootstrapper
             ?? "User123!";
         var accounts = new[]
         {
-            new FallbackAdmin(Guid.NewGuid(), "PostgreSQL Fallback Admin", configuredEmail),
+            new FallbackAdmin(Guid.NewGuid(), "Standby Fallback Admin", configuredEmail),
             new FallbackAdmin(
                 new Guid("11111111-0000-0000-0000-000000000006"),
                 "Paul Rusu",

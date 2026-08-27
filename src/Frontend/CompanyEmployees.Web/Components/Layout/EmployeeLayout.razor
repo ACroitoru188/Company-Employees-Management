@@ -300,11 +300,11 @@
                     <strong>@DatabaseState.SupportContact</strong>.
                     Latest standby sync: <strong>@LastSynchronizationLabel</strong>.
                     Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
-                    @if (DatabaseState.PostgreSqlAvailable)
+                    @if (DatabaseState.SecondaryAvailable)
                     {
                         <FluentButton Appearance="Appearance.Accent"
                                       Disabled="_switchingDatabase"
-                                      OnClick="@(() => SwitchDatabaseAsync(DatabaseProvider.PostgreSql))"
+                                      OnClick="@(() => SwitchDatabaseAsync(DatabaseState.SecondaryProviderId!))"
                                       Style="margin-left:12px;">
                             @(_switchingDatabase ? "Switching…" : "Switch to PostgreSQL")
                         </FluentButton>
@@ -330,7 +330,7 @@
                     {
                         <FluentButton Appearance="Appearance.Accent"
                                       Disabled="_switchingDatabase"
-                                      OnClick="@(() => SwitchDatabaseAsync(DatabaseProvider.SqlServer))"
+                                      OnClick="@(() => SwitchDatabaseAsync(DatabaseState.PrimaryProviderId))"
                                       Style="margin-left:12px;">
                             @(_switchingDatabase ? "Switching…" : "Switch back to SQL Server")
                         </FluentButton>
@@ -342,7 +342,7 @@
                 <FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false"
                                   Style="margin-bottom:16px;">
                     SQL Server is the active database.
-                    PostgreSQL is @(DatabaseState.PostgreSqlAvailable ? "healthy" : "unavailable").
+                    PostgreSQL is @(DatabaseState.SecondaryAvailable ? "healthy" : "unavailable").
                     Latest sync: <strong>@LastSynchronizationLabel</strong>.
                     Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
                 </FluentMessageBar>
@@ -412,7 +412,7 @@
     private bool _profileMenuOpen;
     private bool _switchingDatabase;
     private string? _databaseSwitchError;
-    private DatabaseProvider _observedDatabaseProvider;
+    private string _observedActiveProviderId = string.Empty;
 
     private string LastSynchronizationLabel => DatabaseState.LastSynchronizedUtc is { } value
         ? value.ToLocalTime().ToString("G", CultureInfo.CurrentCulture)
@@ -437,7 +437,7 @@
     // flight on the same context throws. Claims are already in memory.
     protected override async Task OnInitializedAsync()
     {
-        _observedDatabaseProvider = DatabaseState.ActiveProvider;
+        _observedActiveProviderId = DatabaseState.ActiveProviderId;
         ThemeState.OnChange += StateHasChanged;
         DatabaseState.Changed += OnDatabaseStateChanged;
 
@@ -568,9 +568,9 @@
 
     private void OnDatabaseStateChanged() => _ = InvokeAsync(() =>
     {
-        if (_observedDatabaseProvider != DatabaseState.ActiveProvider)
+        if (_observedActiveProviderId != DatabaseState.ActiveProviderId)
         {
-            _observedDatabaseProvider = DatabaseState.ActiveProvider;
+            _observedActiveProviderId = DatabaseState.ActiveProviderId;
             // Every open Blazor circuit owns scoped repositories and a DbContext built for
             // the previous provider. A full authenticated hop prevents split-brain writes.
             Nav.NavigateTo("/api/auth/database-switched", forceLoad: true);
@@ -580,19 +580,20 @@
         StateHasChanged();
     });
 
-    private async Task SwitchDatabaseAsync(DatabaseProvider provider)
+    private async Task SwitchDatabaseAsync(string providerId)
     {
         _switchingDatabase = true;
         _databaseSwitchError = null;
         try
         {
-            await DatabaseSwitcher.SwitchAsync(provider);
+            // TODO Phase C: resolve plugin from catalog and pass to SwitchAsync
+            // await DatabaseSwitcher.SwitchAsync(providerId, plugin, connectionString);
             Nav.NavigateTo("/api/auth/database-switched", forceLoad: true);
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Could not switch to database provider {Provider}.", provider);
-            _databaseSwitchError = $"Could not switch to {provider}. Verify that it is running.";
+            Logger.LogWarning(ex, "Could not switch to database provider {Provider}.", providerId);
+            _databaseSwitchError = $"Could not switch to {providerId}. Verify that it is running.";
             _switchingDatabase = false;
         }
     }

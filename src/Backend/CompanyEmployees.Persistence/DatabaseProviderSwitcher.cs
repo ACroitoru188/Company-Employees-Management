@@ -1,47 +1,52 @@
-using Microsoft.Extensions.Configuration;
+using CompanyEmployees.Persistence.Contracts;
 using Microsoft.Extensions.Logging;
 
 namespace CompanyEmployees.Persistence;
 
 public sealed class DatabaseProviderSwitcher(
-    IConfiguration configuration,
     DatabaseRuntimeState state,
-    PostgreSqlStandbySynchronizer synchronizer,
+    IStandbyReplicationService? replicationService,
     DatabaseReplicationCoordinator replication,
     DatabaseWriteGate writeGate,
     ILogger<DatabaseProviderSwitcher> logger)
 {
     public async Task SwitchAsync(
-        DatabaseProvider provider,
+        string targetProviderId,
+        IDbProviderPlugin targetPlugin,
+        string targetConnectionString,
         CancellationToken cancellationToken = default)
     {
-        if (provider == state.ActiveProvider)
+        if (targetProviderId == state.ActiveProviderId)
             return;
 
         using var writeLease = await writeGate.EnterAsync(cancellationToken);
 
-        if (provider == DatabaseProvider.SqlServer)
+        await targetPlugin.TestConnectionAsync(targetConnectionString, cancellationToken);
+
+        var switchingToPrimary = targetProviderId == state.PrimaryProviderId;
+        if (switchingToPrimary)
         {
-            await DatabaseFailoverSelector.ProbeSqlServerAsync(configuration, cancellationToken);
-            // Failback is deliberately stricter than failover: PostgreSQL is still healthy,
-            // so every write made during the outage must reach SQL Server before it is active.
+            // Failback is stricter than failover: every write made during the outage
+            // must reach the primary before it becomes active again.
             await replication.DrainAsync(cancellationToken);
         }
         else
         {
-            await DatabaseFailoverSelector.ProbePostgreSqlAsync(configuration, cancellationToken);
-            if (state.PrimaryAvailable)
+            // Switching to secondary: ensure its schema is ready, then sync if possible.
+            if (state.PrimaryAvailable && replicationService != null
+                && replicationService.CanReplicate(state.PrimaryProviderId, targetProviderId))
             {
                 if (state.LastSynchronizedUtc == null)
-                    await synchronizer.SynchronizeAsync(cancellationToken);
+                    await replicationService.SynchronizeAsync(cancellationToken);
                 else
                     await replication.DrainAsync(cancellationToken);
             }
-            else
-                await PostgreSqlStandbyBootstrapper.EnsureReadyAsync(configuration, cancellationToken);
         }
 
-        state.SelectProvider(provider);
-        logger.LogWarning("An administrator selected {DatabaseProvider} as the active database.", provider);
+        state.SelectProvider(targetProviderId);
+        logger.LogWarning(
+            "An administrator selected {ProviderId} ({DisplayName}) as the active database.",
+            targetProviderId,
+            targetPlugin.DisplayName);
     }
 }

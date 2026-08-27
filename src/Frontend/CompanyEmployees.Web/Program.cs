@@ -8,6 +8,9 @@ using CompanyEmployees.Gateway;
 using CompanyEmployees.Infrastructure;
 using CompanyEmployees.Infrastructure.ExceptionHandling;
 using CompanyEmployees.Persistence;
+using CompanyEmployees.Persistence.Contracts;
+using CompanyEmployees.Persistence.Providers.PostgreSql;
+using CompanyEmployees.Persistence.Providers.SqlServer;
 using CompanyEmployees.Web.Components;
 using CompanyEmployees.Web.Security;
 using CompanyEmployees.Web.Services;
@@ -21,7 +24,18 @@ using Microsoft.FluentUI.AspNetCore.Components;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
-var databaseState = await DatabaseFailoverSelector.SelectAsync(builder.Configuration);
+// TODO: replace with catalog-based plugin resolution after setup wizard is implemented.
+// For now, load plugins directly so the app can build and run with existing appsettings.
+var sqlServerPlugin = new CompanyEmployees.Persistence.Providers.SqlServer.SqlServerProviderPlugin();
+var postgreSqlPlugin = new CompanyEmployees.Persistence.Providers.PostgreSql.PostgreSqlProviderPlugin();
+var primaryConnectionString = builder.Configuration.GetConnectionString("Default") ?? string.Empty;
+var secondaryConnectionString = builder.Configuration.GetConnectionString("PostgreSql");
+var databaseState = await DatabaseFailoverSelector.SelectAsync(
+    primaryPlugin: sqlServerPlugin,
+    primaryConnectionString: primaryConnectionString,
+    secondaryPlugin: string.IsNullOrEmpty(secondaryConnectionString) ? null : postgreSqlPlugin,
+    secondaryConnectionString: secondaryConnectionString,
+    configuration: builder.Configuration);
 
 if (builder.Environment.IsDevelopment())
 {
@@ -58,8 +72,17 @@ builder.Services.AddScoped<EmployeeAccountService>();
 builder.Services.AddScoped<ActingContext>();
 builder.Services.AddScoped<EmployeeCsvExportService>();
 builder.Services.AddScoped<LanguagePreferenceService>();
-builder.Services.AddHostedService<DatabaseAvailabilityMonitor>();
-builder.Services.AddHostedService<PostgreSqlStandbySynchronizationService>();
+builder.Services.AddHostedService<DatabaseAvailabilityMonitor>(sp =>
+    new DatabaseAvailabilityMonitor(
+        sp.GetRequiredService<IConfiguration>(),
+        sp.GetRequiredService<IHostEnvironment>(),
+        sp.GetRequiredService<DatabaseRuntimeState>(),
+        sqlServerPlugin,
+        primaryConnectionString,
+        string.IsNullOrEmpty(secondaryConnectionString) ? null : postgreSqlPlugin,
+        secondaryConnectionString,
+        sp.GetRequiredService<ILogger<DatabaseAvailabilityMonitor>>()));
+builder.Services.AddHostedService<StandbySynchronizationService>();
 // Singleton: the translation files are read once at startup and never change at runtime.
 builder.Services.AddSingleton<AppLocalizer>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
@@ -76,7 +99,19 @@ builder.Services.AddSignalR(options =>
 // remains available as a mock if the DB is unreachable.
 builder.Services.AddScoped<ITimeOffService, DbTimeOffService>();
 
-builder.Services.AddPersistenceLayer(builder.Configuration, databaseState);
+// TODO: resolve active plugin from catalog.
+var activePlugin = databaseState.ActiveProviderId == "postgresql"
+    ? (CompanyEmployees.Persistence.Contracts.IDbProviderPlugin)postgreSqlPlugin
+    : sqlServerPlugin;
+var activeConnectionString = databaseState.ActiveProviderId == "postgresql"
+    ? (secondaryConnectionString ?? primaryConnectionString)
+    : primaryConnectionString;
+builder.Services.AddPersistenceLayer(
+    activePlugin,
+    activeConnectionString,
+    string.IsNullOrEmpty(secondaryConnectionString) ? null : postgreSqlPlugin,
+    secondaryConnectionString,
+    databaseState);
 builder.Services.AddGatewayLayer();
 builder.Services.AddApplicationLayer();
 builder.Services.AddInfrastructureLayer();
@@ -99,7 +134,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     // An identity authenticated against SQL Server may not exist in the PostgreSQL standby.
     // Provider-specific cookies prevent a failover from reusing that stale login session.
-    options.Cookie.Name = $"CompanyEmployees.Auth.{databaseState.ActiveProvider}";
+    options.Cookie.Name = $"CompanyEmployees.Auth.{databaseState.ActiveProviderId}";
     options.LoginPath = "/";
     options.ExpireTimeSpan = TimeSpan.FromHours(5);
     options.SlidingExpiration = true;
@@ -109,7 +144,7 @@ var app = builder.Build();
 
 app.Logger.LogInformation(
     "Active database provider: {DatabaseProvider}. SQL Server available: {PrimaryAvailable}.",
-    databaseState.ActiveProvider,
+    databaseState.ActiveProviderId,
     databaseState.PrimaryAvailable);
 
 // The language is carried by the standard culture cookie, written either at login (from the
@@ -136,7 +171,10 @@ if (databaseState.IsFailoverActive)
     // PostgreSQL. Its persisted Docker volume is initialized directly from the current model.
     // Schema changes therefore require recreating/upgrading that standby deliberately.
     using var scope = app.Services.CreateScope();
-    await PostgreSqlStandbyBootstrapper.EnsureReadyAsync(builder.Configuration);
+    await StandbyBootstrapper.EnsureReadyAsync(
+        postgreSqlPlugin,
+        secondaryConnectionString!,
+        builder.Configuration);
     var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
     await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(db);
     if (app.Environment.IsDevelopment())
