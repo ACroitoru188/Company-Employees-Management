@@ -173,7 +173,8 @@ public class InMemoryTimeOffService : ITimeOffService
     public Task<IReadOnlyList<RegionalHoliday>> GetRegionalHolidaysAsync(int year) =>
         Task.FromResult<IReadOnlyList<RegionalHoliday>>([]);
 
-    public Task<TimeOffRequest> SubmitRequestAsync(LeaveType type, DateOnly start, DateOnly end, string? reason)
+    public Task<TimeOffRequest> SubmitRequestAsync(
+        LeaveType type, DateOnly start, DateOnly end, string? reason, bool allowPastDates = false)
     {
         var request = new TimeOffRequest
         {

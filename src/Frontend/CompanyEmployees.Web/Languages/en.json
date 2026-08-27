@@ -28,6 +28,7 @@
   "days": "days",
   "working day": "working day",
   "working days": "working days",
+  "Allow past leave dates": "Allow past leave dates",
   "{0}: {1} working days available. Starting {2}, the last available day is {3}.": "{0}: {1} working days available. Starting {2}, the last available day is {3}.",
   "away now": "away now",
   "Annual": "Annual",

@@ -252,6 +252,15 @@ header.header.app-header {
     background: var(--app-header-bg);
 }
 
+/* Preview adds an identity label and a return action to the normal app bar. Give that state its
+   own real height; FluentHeader's compact default clips these controls into a thin coloured
+   strip on some viewport sizes. */
+header.header.app-header.preview-header {
+    height: 56px;
+    min-height: 56px;
+    overflow: visible;
+}
+
 /* The app bar is a solid dark surface, and every neutral token is wrong on it. A stealth
    button there still paints the neutral stealth fill — and inside the header that value does not
    come from this file at all: FluentDesignTheme writes its own tokens inline, so #fbfbfb wins
@@ -265,6 +274,26 @@ header.header fluent-button::part(control) {
 
 header.header fluent-button:hover::part(control) {
     background: rgb(255 255 255 / 18%);
+}
+
+/* Preview mode disables search and notifications, but the disabled region still has to behave
+   like the two independent flex items it replaces. A plain block wrapper made the search a
+   normal block: it lost its 420px flex sizing and was vertically clipped by FluentHeader. */
+.header-preview-tools {
+    display: flex;
+    flex: 0 1 468px;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.header-preview-tools .global-search {
+    flex: 1 1 420px;
+    min-width: 0;
+}
+
+.header-preview-tools fluent-counter-badge {
+    flex: 0 0 auto;
 }
 
 /* Fluent 2 sets a button's label in Body 1 Strong — 14px semibold. The FAST components in this
@@ -1032,6 +1061,70 @@ body:has(fluent-design-theme[mode="dark"]) .cal-swatch-weekend {
     white-space: nowrap;
 }
 
+/* The admin preview deliberately leaves the drawer live for page-to-page inspection while the
+   page itself is inert. The header and drawer footer carry the visual state, so the page can
+   still look like the account being inspected. */
+.read-only-preview-surface {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    /* The calendar's root intentionally uses height:100%. Flex growth alone is insufficient
+       here because FluentBodyContent is not guaranteed to be a flex parent; give the inert
+       wrapper a definite height so a preview uses the same six-row month surface as the normal
+       account view. */
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+}
+
+/* `@Body` normally sits directly inside FluentBodyContent, whose definite height lets the
+   calendar's `height:100%` fill the page. Preview mode adds the inert wrapper above; without
+   making it a flex parent, percentage height becomes indefinite and the month grid collapses.
+   Keep this targeted so ordinary pages retain their natural content height. */
+.read-only-preview-surface > .cal-page {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* Keep the past-date setting in the exact row rhythm used by the leave types. The checkbox
+   component owns its internal label/control layout, so only its shared vertical centre and the
+   control's right gutter are adjusted here — forcing a grid across shadow parts misaligned the
+   check mark with its label. */
+.cal-rail fluent-checkbox.cal-past-dates {
+    width: 100%;
+    box-sizing: border-box;
+    /* Fluent adds its own internal leading inset. Four pixels here lands the painted control
+       on the same 18px edge as the Weekend and holiday swatches above. */
+    padding: 6px 8px 6px 4px;
+    border-radius: calc(var(--control-corner-radius) * 1px);
+}
+
+.cal-rail fluent-checkbox.cal-past-dates::part(control) {
+    /* Keep Fluent's 16px control box so its checked glyph is laid out correctly, then scale
+       the painted box to the rail's 12px swatches. A negative end margin returns the four
+       layout pixels the invisible box would otherwise leave before the label. */
+    width: 16px;
+    height: 16px;
+    margin: 0 -4px 0 0;
+    align-self: center;
+    transform: scale(.75);
+    transform-origin: left center;
+}
+
+.cal-rail fluent-checkbox.cal-past-dates::part(label) {
+    min-width: 0;
+    line-height: 20px;
+}
+
+.cal-rail fluent-checkbox.cal-past-dates:hover {
+    background: var(--neutral-fill-stealth-hover);
+}
+
+.cal-rail fluent-checkbox.cal-past-dates[checked] {
+    background: var(--neutral-fill-secondary-rest);
+}
+
 /* Toolbar: controls sitting on the page, no filled strip behind them. */
 .cal-toolbar {
     flex: 0 0 auto;
@@ -1115,6 +1208,30 @@ body:has(fluent-design-theme[mode="dark"]) .cal-cell.is-weekend {
 
 .cal-cell.is-outside .cal-daynum {
     color: var(--neutral-foreground-hint);
+}
+
+/* Past dates remain visible for context, but are clearly read-only until the person explicitly
+   enables past-date requests in the rail. */
+.cal-cell.is-past {
+    background: rgb(0 0 0 / 4%);
+}
+
+.cal-cell.is-past .cal-daynum {
+    color: var(--neutral-foreground-hint);
+}
+
+body:has(fluent-design-theme[mode="dark"]) .cal-cell.is-past {
+    background: rgb(255 255 255 / 5%);
+}
+
+/* Six-week months still need a rectangular grid; outside-month days are intentionally blank. */
+.cal-cell.cal-empty {
+    background: rgb(0 0 0 / 3%);
+    cursor: default;
+}
+
+body:has(fluent-design-theme[mode="dark"]) .cal-cell.cal-empty {
+    background: rgb(255 255 255 / 4%);
 }
 
 /* Only a day that can actually be picked offers to be clicked. */
