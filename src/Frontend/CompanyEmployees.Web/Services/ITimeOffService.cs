@@ -38,4 +38,6 @@ public interface ITimeOffService
     Task<IReadOnlyList<RegionalHoliday>> GetRegionalHolidaysAsync(int year);
     Task<TimeOffRequest> SubmitRequestAsync(
         LeaveType type, DateOnly start, DateOnly end, string? reason, bool allowPastDates = false);
+    /// <summary>Withdraws a request the caller owns, as long as it is still Pending (nobody has approved it yet).</summary>
+    Task CancelRequestAsync(Guid requestId, string? reason);
 }

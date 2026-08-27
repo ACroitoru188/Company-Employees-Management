@@ -1166,6 +1166,27 @@ namespace CompanyEmployees.Application.Contexts
                 requestId, newStart, newEnd);
         }
 
+        // Lets the requester withdraw their own request while it is still Pending — i.e.
+        // before anyone (manager or HR) has acted on it. Once a request is Approved or
+        // Rejected it is no longer eligible: the decision has already been made.
+        public async Task CancelRequestAsync(Guid userId, Guid requestId, string? reason)
+        {
+            var request = await _leaveRequestGateway.GetRequestByIdAsync(requestId);
+            if (request == null)
+                throw new EntityNotFoundException($"No leave request with id {requestId}.");
+            if (request.UserId != userId)
+                throw new InvalidOperationException("You can only cancel your own requests.");
+            if (request.Status != LeaveStatus.Pending)
+                throw new InvalidOperationException(
+                    "Only requests nobody has approved yet can be cancelled.");
+
+            request.Status = LeaveStatus.Cancelled;
+            request.CancellationReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+            await _leaveRequestGateway.CancelRequestAsync(request);
+
+            _logger.LogInformation("Leave request {RequestId} cancelled by its owner.", requestId);
+        }
+
         // "Mar 3 – Mar 14, 2026". Invariant on purpose: audit rows are read by whoever opens
         // the history, in whatever language, and must not shift meaning with the server locale.
         private static string Period(DateOnly start, DateOnly end) =>

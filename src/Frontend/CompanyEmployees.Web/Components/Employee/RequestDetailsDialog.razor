@@ -44,6 +44,16 @@
                     ? $" · {decided.ToString("MMM d, yyyy HH:mm", CultureInfo.CurrentCulture)}" : "")
             </FluentLabel>
         }
+
+        @if (Content.Status == RequestStatus.Cancelled && !string.IsNullOrWhiteSpace(Content.CancellationReason))
+        {
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                    @Text["Cancellation reason"]
+                </FluentLabel>
+                <FluentLabel Typo="Typography.Body">@Content.CancellationReason</FluentLabel>
+            </FluentStack>
+        }
     </FluentStack>
 </FluentDialogBody>
 

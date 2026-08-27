@@ -80,7 +80,7 @@
                      HorizontalAlignment="HorizontalAlignment.Stretch">
             <FluentLabel Typo="Typography.Body" Class="cal-rail-title app-overline"
                          Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                @Text["Days heading"]
+                @Text["Calendar Legend"]
             </FluentLabel>
 
             <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
@@ -94,7 +94,7 @@
 
             <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
                          VerticalAlignment="VerticalAlignment.Center" Style="padding:0 4px;">
-                <FluentStack Class="cal-swatch" HorizontalGap="0" Style="background:var(--error);" />
+                <FluentStack Class="cal-swatch cal-swatch-holiday" HorizontalGap="0" />
                 <FluentLabel Typo="Typography.Body" Class="app-caption cal-legend-text"
                              Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
                     @Text["National public holiday — non-working day"]
@@ -428,25 +428,29 @@
             }
         </FluentStack>
 
-        @if (ShowSubmitBar && _range is { } range && _selectedType is { } type)
-        {
-            @* Last row of the surface rather than pinned to the viewport: fixed, it covered the
-               final week of the month and needed a 120px margin to clear it, which put the page
-               back to scrolling. *@
-            <FluentStack Class="cal-submit" Orientation="Orientation.Horizontal" HorizontalGap="16"
-                         Wrap="true" VerticalAlignment="VerticalAlignment.Center" Width="100%">
-                <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">
-                    @Text[type.ToString()] ·
+        @* Always mounted (never added/removed from the DOM) so the grid above it keeps a
+           constant amount of vertical space whether or not anything is selected — previously
+           this row only existed after picking a day, so the whole calendar visibly shrank
+           to make room for it. Last row of the surface rather than pinned to the viewport:
+           fixed, it covered the final week of the month and needed a 120px margin to clear
+           it, which put the page back to scrolling. *@
+        <FluentStack Class="@("cal-submit" + (ShowSubmitBar ? "" : " cal-submit-inactive"))"
+                     Orientation="Orientation.Horizontal" HorizontalGap="16"
+                     Wrap="true" VerticalAlignment="VerticalAlignment.Center" Width="100%">
+            <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">
+                @if (_range is { } range && _selectedType is { } type)
+                {
+                    <text>@Text[type.ToString()] ·
                     @range.Start.ToString("MMM d", CultureInfo.CurrentCulture) –
                     @range.End.ToString("MMM d", CultureInfo.CurrentCulture)
-                    (@RangeDays(range) @Text[RangeDays(range) == 1 ? "day" : "days"])
-                </FluentLabel>
-                <FluentTextField @bind-Value="_reason" Label="@Text["Reason (optional)"]" Style="min-width:220px;" />
-                <FluentSpacer />
-                <FluentButton Appearance="Appearance.Stealth" OnClick="CancelSelection">@Text["Cancel selection"]</FluentButton>
-                <FluentButton Appearance="Appearance.Accent" OnClick="Submit">@Text["Submit request"]</FluentButton>
-            </FluentStack>
-        }
+                    (@RangeDays(range) @Text[RangeDays(range) == 1 ? "day" : "days"])</text>
+                }
+            </FluentLabel>
+            <FluentTextField @bind-Value="_reason" Label="@Text["Reason (optional)"]" Style="min-width:220px;" />
+            <FluentSpacer />
+            <FluentButton Appearance="Appearance.Stealth" OnClick="CancelSelection">@Text["Cancel selection"]</FluentButton>
+            <FluentButton Appearance="Appearance.Accent" OnClick="Submit">@Text["Submit request"]</FluentButton>
+        </FluentStack>
     </FluentStack>
 </FluentStack>
 
@@ -801,6 +805,10 @@
             Toast.ShowSuccess(Text["Time off request submitted"]);
             CancelSelection();
             _selectedType = null;
+            // The rail's "used / total" counters read from _balances, which LoadAsync alone
+            // never touches — without this a submitted request only showed up after a manual
+            // page refresh, even though the grid below it updated immediately.
+            _balances = await TimeOff.GetMyBalancesAsync();
             await LoadAsync();
         }
         catch (DelegationRequiredException ex)

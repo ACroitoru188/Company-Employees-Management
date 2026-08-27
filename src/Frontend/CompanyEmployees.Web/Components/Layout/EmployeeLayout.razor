@@ -30,10 +30,11 @@
        not. This is the main guard against acting in someone's account by accident. *@
     @* The class is load-bearing, not decoration: FluentHeader's own background rule is
        `.header[b-hash]`, and app.css needs one more class than that to replace it. *@
-    <FluentHeader Class="@HeaderClass" Style="@HeaderStyle">
+    <FluentHeader Class="@HeaderClass">
         <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
                      HorizontalGap="12" Width="100%">
-            <FluentLabel Typo="Typography.PaneHeader" Color="Color.Custom" CustomColor="#FFFFFF">SIEMENS</FluentLabel>
+            <FluentLabel Typo="Typography.PaneHeader" Class="siemens-wordmark"
+                         Color="Color.Custom" CustomColor="@SiemensColor">SIEMENS</FluentLabel>
 
             @if (_acting?.IsImpersonating == true)
             {
@@ -418,11 +419,12 @@
         ? value.ToLocalTime().ToString("G", CultureInfo.CurrentCulture)
         : "not completed yet";
 
-    private string HeaderStyle => _acting?.IsReadOnlyPreview == true
-        ? $"background:{PreviewTint};"
-        : _acting?.IsImpersonating == true ? $"background:{ImpersonationTint};" : "";
-
     private string HeaderClass => IsReadOnlyPreview ? "app-header preview-header" : "app-header";
+
+    // The bar stays Siemens navy in every state. Colouring the wordmark is a compact, familiar
+    // signal that an account is being inspected without making the whole navigation chrome feel
+    // like a different application.
+    private const string SiemensColor = "#009999";
 
     private string IdentityModeTint => IsReadOnlyPreview ? PreviewTint : ImpersonationTint;
 
