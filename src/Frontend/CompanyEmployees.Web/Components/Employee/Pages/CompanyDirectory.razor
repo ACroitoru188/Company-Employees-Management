@@ -41,7 +41,7 @@
                     🇷🇴 Romania Map
                 </FluentBreadcrumbItem>
             }
-            @if (_currentLevel == HierarchyLevel.SiteOrgChart)
+            @if (_currentLevel == HierarchyLevel.CompanyOrgChart)
             {
                 <FluentBreadcrumbItem>🏢 Site Org Chart</FluentBreadcrumbItem>
             }
@@ -61,9 +61,9 @@
                       OnClick="@(() => SwitchLevel(HierarchyLevel.World))">
             Romania Map
         </FluentButton>
-        <FluentButton Appearance="@(_currentLevel == HierarchyLevel.SiteOrgChart ? Appearance.Neutral : Appearance.Stealth)"
+        <FluentButton Appearance="@(_currentLevel == HierarchyLevel.CompanyOrgChart ? Appearance.Neutral : Appearance.Stealth)"
                       IconStart="@(new Icons.Regular.Size20.Organization())"
-                      OnClick="@(() => SwitchLevel(HierarchyLevel.SiteOrgChart))">
+                      OnClick="@(() => SwitchLevel(HierarchyLevel.CompanyOrgChart))">
             Org Tree
         </FluentButton>
     }
@@ -72,7 +72,7 @@
        loaded with the org tree — on the world map that is null, so the box sat there taking
        input and never returning a single result, with nothing to say why. Focus Me below was
        already hidden for the same reason. *@
-    @if (_currentLevel == HierarchyLevel.SiteOrgChart)
+    @if (_currentLevel == HierarchyLevel.CompanyOrgChart)
     {
     <style>
         /* Force override any cached CSS and hide the extra clear button */
@@ -89,9 +89,16 @@
             -webkit-appearance: none !important;
         }
         .org-path-highlight::part(positioning-region) {
-            background-color: rgba(230, 138, 0, 0.08) !important;
+            background-color: rgba(245, 124, 0, 0.15) !important;
             border-radius: 4px !important;
-            box-shadow: inset 3px 0 0 0 #E68A00 !important;
+            box-shadow: inset 3px 0 0 0 #F57C00 !important;
+            border-left: none !important;
+            padding-left: 0 !important;
+        }
+        .org-search-result::part(positioning-region) {
+            background-color: rgba(118, 255, 3, 0.25) !important;
+            border-radius: 4px !important;
+            box-shadow: inset 3px 0 0 0 #76FF03 !important;
             border-left: none !important;
             padding-left: 0 !important;
         }
@@ -101,6 +108,22 @@
             box-shadow: inset 3px 0 0 0 #FFC107 !important;
             border-left: none !important;
             padding-left: 0 !important;
+        }
+        .org-search-autocomplete,
+        .focus-me-btn {
+            --accent-fill-rest: #009999 !important;
+            --accent-foreground-rest: #009999 !important;
+            --accent-foreground-active: #009999 !important;
+            --accent-foreground-hover: #009999 !important;
+            --accent-fill-active: #009999 !important;
+            --accent-fill-hover: #009999 !important;
+        }
+        .org-search-autocomplete::part(search-icon),
+        .org-search-autocomplete svg,
+        .focus-me-btn::part(start) svg,
+        .focus-me-btn svg {
+            fill: #009999 !important;
+            color: #009999 !important;
         }
     </style>
     <FluentStack Horizontal="true" Tokens="10" Style="margin-bottom: 20px; align-items: center; flex-wrap: wrap;">
@@ -112,6 +135,8 @@
                       OptionValue="@(c => c)"
                       Placeholder="Filtru Oraș"
                       Width="140px" />
+
+
 
         <FluentSelect TOption="string"
                       Items="@_sites"
@@ -130,8 +155,8 @@
                       OptionValue="@(d => d)"
                       Placeholder="Filtru Departament"
                       Width="180px" />
-
-        <FluentAutocomplete TOption="OrgChartNode"
+        <FluentAutocomplete Class="org-search-autocomplete"
+                            TOption="OrgChartNode"
                             Placeholder="Search people..."
                             autocomplete="off"
                             OnOptionsSearch="OnSearchAsync"
@@ -147,15 +172,23 @@
                                TextPosition="TextPosition.End">
                     <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@node.Name</FluentLabel>
                     <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                        @node.Role@(string.IsNullOrEmpty(node.Department) ? "" : $" · {node.Department}")
+                        @{
+                            var parts = new List<string>();
+                            if (!string.IsNullOrWhiteSpace(node.City)) parts.Add(node.City);
+                            if (!string.IsNullOrWhiteSpace(node.Site)) parts.Add(node.Site);
+                            if (!string.IsNullOrWhiteSpace(node.Department)) parts.Add(node.Department);
+                            if (!string.IsNullOrWhiteSpace(node.Role)) parts.Add(node.Role);
+                        }
+                        @string.Join(" | ", parts)
                     </FluentLabel>
                 </FluentPersona>
             </OptionTemplate>
         </FluentAutocomplete>
 
-        <FluentButton Appearance="Appearance.Outline"
-                      IconStart="@(new Icons.Regular.Size20.Target())"
+        <FluentButton Class="focus-me-btn"
+                      Appearance="Appearance.Outline"
                       OnClick="FocusOnSelf">
+            <FluentIcon Value="@(new Icons.Regular.Size20.Target())" Color="Color.Custom" CustomColor="#009999" Slot="start" />
             Focus Me
         </FluentButton>
     </FluentStack>
@@ -173,7 +206,7 @@
                 <style>
                     .romania-county-path {
                         fill: var(--neutral-fill-rest);
-                        stroke: var(--accent-fill-rest);
+                        stroke: #009999;
                         stroke-width: 1.4px;
                         stroke-linejoin: round;
                         stroke-linecap: round;
@@ -183,21 +216,21 @@
                     }
                     .romania-county-path.has-presence {
                         fill: var(--neutral-fill-secondary-rest);
-                        stroke: var(--accent-fill-active);
+                        stroke: #009999;
                         stroke-width: 1.8px;
                         filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.25));
                     }
                     .romania-county-group:hover .romania-county-path,
                     .romania-county-path.selected {
                         fill: var(--neutral-fill-stealth-hover);
-                        stroke: var(--accent-fill-hover);
+                        stroke: #009999;
                         stroke-width: 2.5px;
                         filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.4));
                     }
 
                     /* Siemens Pin styles - Light Mode */
                     .siemens-pin-dot {
-                        fill: var(--accent-fill-rest);
+                        fill: #009999;
                         filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
                     }
                     .siemens-pin-hq {
@@ -212,7 +245,7 @@
                     }
                     .siemens-hub-pulse-ring {
                         fill: none;
-                        stroke: var(--accent-fill-rest);
+                        stroke: #009999;
                         stroke-width: 1.8px;
                         animation: romaniaPulse 2.2s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
                     }
@@ -233,7 +266,7 @@
                     }
                     .siemens-city-tag {
                         fill: var(--neutral-layer-1);
-                        stroke: var(--accent-fill-rest);
+                        stroke: #009999;
                         stroke-width: 1.2px;
                         filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
                     }
@@ -241,7 +274,7 @@
                         font-family: 'Roboto', 'Inter', sans-serif;
                         font-size: 10px;
                         font-weight: 700;
-                        fill: var(--accent-foreground-rest);
+                        fill: #009999;
                         letter-spacing: 0.4px;
                     }
 
@@ -321,7 +354,7 @@
         @if (_activeRomaniaCounty != null)
         {
             <div style="position: absolute; left: 40px; top: 40px; max-width: 320px; z-index: 10;">
-                <FluentCard Style="background: var(--neutral-layer-floating); backdrop-filter: blur(4px);">
+                <FluentCard Style="background: var(--neutral-layer-floating); backdrop-filter: blur(4px); border: 2px solid #009999;">
                     <FluentStack Orientation="Orientation.Vertical" VerticalGap="16" Style="padding: 16px;">
                         <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center">
                             <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">@_activeRomaniaCounty.Name</FluentLabel>
@@ -366,8 +399,22 @@ else
                 @* The rows hold a two-line persona, which is taller than a tree item's own
                    fixed row height; app.css lets the row grow to it. *@
                 <FluentTreeView Class="org-tree">
-                    <OrgTreeNode @key="_root.UserId" Node="@_root" SelectedId="@(_selectedNode?.UserId ?? Guid.Empty)"
-                                 CurrentUserId="@_currentUserId" OnSelect="OnNodeSelected" OnExpand="LoadChildrenAsync" />
+                    @{
+                        var activeRoot = _displayRoot ?? _root;
+                    }
+                    @if (activeRoot.Role == "Headquarters")
+                    {
+                        @foreach (var child in activeRoot.Subordinates)
+                        {
+                            <OrgTreeNode @key="child.UserId" Node="@child" SelectedId="@(_selectedNode?.UserId ?? Guid.Empty)"
+                                         CurrentUserId="@_currentUserId" OnSelect="OnNodeSelected" OnExpand="LoadChildrenAsync" RenderToken="@_renderToken" />
+                        }
+                    }
+                    else
+                    {
+                        <OrgTreeNode @key="activeRoot.UserId" Node="@activeRoot" SelectedId="@(_selectedNode?.UserId ?? Guid.Empty)"
+                                     CurrentUserId="@_currentUserId" OnSelect="OnNodeSelected" OnExpand="LoadChildrenAsync" RenderToken="@_renderToken" />
+                    }
                 </FluentTreeView>
             </FluentCard>
         </FluentGridItem>
@@ -519,7 +566,7 @@ else
     private enum HierarchyLevel
     {
         World,
-        SiteOrgChart
+        CompanyOrgChart
     }
 
     private HierarchyLevel _currentLevel = HierarchyLevel.World;
@@ -565,13 +612,13 @@ else
         var allNodes = new List<OrgChartNode>();
         CollectAllNodes(node, allNodes);
         
-        _cities = allNodes.Where(n => !string.IsNullOrEmpty(n.City)).Select(n => n.City!).Distinct().OrderBy(c => c).ToList();
+        _cities = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrEmpty(n.City)).Select(n => n.City!).Distinct().OrderBy(c => c).ToList();
         _cities.Insert(0, "Toate");
         
-        _sites = allNodes.Where(n => !string.IsNullOrEmpty(n.Site)).Select(n => n.Site!).Distinct().OrderBy(s => s).ToList();
+        _sites = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrEmpty(n.Site)).Select(n => n.Site!).Distinct().OrderBy(s => s).ToList();
         _sites.Insert(0, "Toate");
         
-        _departments = allNodes.Where(n => !string.IsNullOrEmpty(n.Department)).Select(n => n.Department).Distinct().OrderBy(d => d).ToList();
+        _departments = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrEmpty(n.Department) && n.Department != "All Departments").Select(n => n.Department).Distinct().OrderBy(d => d).ToList();
         _departments.Insert(0, "Toate");
     }
 
@@ -596,11 +643,22 @@ else
         _displayRoot = CloneAndFilterTree(_root);
     }
 
+    private void UpdateFilters()
+    {
+        if (_root != null)
+        {
+            PopulateFilterOptions(_root);
+            ApplyFilters();
+        }
+    }
+
     private OrgChartNode? CloneAndFilterTree(OrgChartNode node)
     {
         bool matches = true;
         if (!string.IsNullOrEmpty(_selectedCityFilter) && _selectedCityFilter != "Toate" && node.City != _selectedCityFilter) matches = false;
+        
         if (!string.IsNullOrEmpty(_selectedSiteFilter) && _selectedSiteFilter != "Toate" && node.Site != _selectedSiteFilter) matches = false;
+        
         if (!string.IsNullOrEmpty(_selectedDepartmentFilter) && _selectedDepartmentFilter != "Toate" && node.Department != _selectedDepartmentFilter) matches = false;
 
         var clonedChildren = new List<OrgChartNode>();
@@ -627,11 +685,12 @@ else
                 Department = node.Department,
                 City = node.City,
                 Site = node.Site,
+                
                 Initials = node.Initials,
                 ManagerId = node.ManagerId,
                 Subordinates = clonedChildren,
-                IsExpanded = true, // Force expand when filtered
-                HasUnloadedChildren = false,
+                IsExpanded = clonedChildren.Count > 0 || node.IsExpanded,
+                HasUnloadedChildren = node.HasUnloadedChildren,
                 IsFocusNode = node.IsFocusNode
             };
         }
@@ -646,6 +705,7 @@ else
     private Guid _currentUserId = Guid.Empty;
     private Guid _currentRegionId = Guid.Empty;
     private HashSet<Guid> _subordinateIds = new();
+    private long _renderToken = 0;
 
     private IEnumerable<OrgChartNode> _searchSelection = [];
 
@@ -702,7 +762,7 @@ else
 
         if (_userRole != UserRole.CountryManager.ToString())
         {
-            _currentLevel = HierarchyLevel.SiteOrgChart;
+            _currentLevel = HierarchyLevel.CompanyOrgChart;
         }
 
         _isManagerOrHr = _userRole == UserRole.LineManager.ToString() ||
@@ -723,7 +783,19 @@ else
             // replace this tree with one built around the target, so building the company tree
             // first was a second full-roster read whose result went straight in the bin.
             if (Focus is null)
+            {
                 _root = await QueryAsync(employees => employees.GetCompanyOrgChartAsync(userId));
+                if (_root != null)
+                {
+                    ExpandPathToNode(_root, userId);
+                    _selectedNode = FindNodeInTree(_root, userId);
+                    UpdateFilters();
+                    if (_selectedNode != null)
+                    {
+                        _ = SyncTreeHighlightAsync(userId);
+                    }
+                }
+            }
 
             // From the reporting graph, once, rather than from whichever tree happens to be on
             // screen: the focused view is built around somebody else and usually does not
@@ -760,7 +832,7 @@ else
         try
         {
             focused = await QueryAsync(employees =>
-                employees.GetOrgChartFocusedOnAsync(_currentUserId, target));
+                employees.GetCompanyOrgChartAsync(_currentUserId, target));
         }
         catch (Exception exception)
         {
@@ -781,7 +853,9 @@ else
         }
 
         _root = focused;
-        _currentLevel = HierarchyLevel.SiteOrgChart;
+        _currentLevel = HierarchyLevel.CompanyOrgChart;
+
+        UpdateFilters();
 
         // Selects the row in the tree; the detail panel on the right reads the same field.
         _selectedNode = FindNodeInTree(_root, target);
@@ -799,6 +873,7 @@ else
         try
         {
             _root = await QueryAsync(employees => employees.GetCompanyOrgChartAsync(_currentUserId));
+            UpdateFilters();
         }
         catch (Exception exception)
         {
@@ -833,12 +908,25 @@ else
 
         try
         {
-            node.Subordinates = await QueryAsync(employees =>
+            var children = await QueryAsync(employees =>
                 employees.GetOrgChartChildrenAsync(node.UserId));
 
-            // Cleared whatever came back: an empty result means there is nothing under this
-            // person after all, and leaving the flag set would ask again on every reopen.
+            if (_root != null)
+            {
+                var realNode = FindNodeInTree(_root, node.UserId);
+                if (realNode != null)
+                {
+                    realNode.Subordinates = children;
+                    realNode.HasUnloadedChildren = false;
+                    realNode.IsExpanded = true;
+                }
+            }
+
+            node.Subordinates = children;
             node.HasUnloadedChildren = false;
+            node.IsExpanded = true;
+            
+            UpdateFilters();
         }
         catch (Exception)
         {
@@ -849,6 +937,7 @@ else
         finally
         {
             node.IsLoading = false;
+            UpdateFilters();
             StateHasChanged();
         }
     }
@@ -971,41 +1060,38 @@ else
         {
             _selectedCityFilter = _activeRomaniaCounty.CountySeat;
             
+            // Ensure the city actually exists in our filter list to avoid empty UI states
+            if (!_cities.Contains(_selectedCityFilter))
+                _selectedCityFilter = "Toate";
+                
             if (hub != null)
             {
-                // Simple mapping from hub names to DB site names, or fallback to hub.Name
-                if (hub.IsHQ || hub.Name.Contains("HQ"))
-                    _selectedSiteFilter = "Siemens HQ";
-                else if (hub.Name.Contains("Digital Industry") || hub.Name.Contains("Industry Software"))
-                    _selectedSiteFilter = "Siemens Digital Industry Software";
-                else if (hub.Name.Contains("R&D Advanta") || (hub.Name.Contains("R&D") && _selectedCityFilter == "Brașov"))
-                    _selectedSiteFilter = "Siemens R&D"; 
-                else if (hub.Name.Contains("Advanta"))
-                    _selectedSiteFilter = "Siemens Advanta";
-                else if (hub.Name.Contains("R&D") || hub.Name.Contains("Energy") || hub.Name.Contains("Grid"))
-                    _selectedSiteFilter = "Siemens R&D"; // Fallback mapping based on existing DB sites
+                string? siteFilter = null;
+                if (hub.Name.Contains("Digital Industry Software")) siteFilter = "Siemens Digital Industry Software";
+                else if (hub.Name.Contains("R&D")) siteFilter = "Siemens R&D";
+                else if (hub.Name.Contains("Advanta")) siteFilter = "Siemens Advanta";
+                else if (hub.Name.Contains("HQ")) siteFilter = "Siemens HQ";
+                
+                if (siteFilter != null && _sites.Contains(siteFilter))
+                    _selectedSiteFilter = siteFilter;
                 else
-                    _selectedSiteFilter = "Toate"; // If we can't reliably map the specific hub to a DB Site
+                    _selectedSiteFilter = "Toate";
             }
             else
             {
                 _selectedSiteFilter = "Toate";
             }
-            
-            // Ensure the city actually exists in our filter list to avoid empty UI states
-            if (!_cities.Contains(_selectedCityFilter))
-                _selectedCityFilter = "Toate";
                 
             ApplyFilters();
         }
 
-        SwitchLevel(HierarchyLevel.SiteOrgChart);
+        SwitchLevel(HierarchyLevel.CompanyOrgChart);
     }
 
     private void OnContinentClick(ContinentModel continent)
     {
         Toast.ShowInfo($"Selected region: {continent.Name} ({continent.RegionCode}). Opening local organization tree...");
-        SwitchLevel(HierarchyLevel.SiteOrgChart);
+        SwitchLevel(HierarchyLevel.CompanyOrgChart);
     }
 
     private void OnNodeSelected(OrgChartNode node)
@@ -1016,19 +1102,31 @@ else
         _selectedNode = node.UserId == Guid.Empty || node.IsSyntheticGroup ? null : node;
     }
 
-    private Task OnSearchAsync(OptionsSearchEventArgs<OrgChartNode> args)
+    private async Task OnSearchAsync(OptionsSearchEventArgs<OrgChartNode> args)
     {
-        var searchable = GetSearchableNodes();
+        if (string.IsNullOrWhiteSpace(args.Text))
+        {
+            var searchable = GetSearchableNodes();
+            args.Items = searchable.Take(8);
+            return;
+        }
 
-        args.Items = string.IsNullOrWhiteSpace(args.Text)
-            ? searchable.Take(8)
-            : searchable
-                .Where(n => (!string.IsNullOrWhiteSpace(n.Name) && n.Name.Contains(args.Text, StringComparison.OrdinalIgnoreCase)) ||
-                            (!string.IsNullOrWhiteSpace(n.Role) && n.Role.Contains(args.Text, StringComparison.OrdinalIgnoreCase)) ||
-                            (!string.IsNullOrWhiteSpace(n.Department) && n.Department.Contains(args.Text, StringComparison.OrdinalIgnoreCase)))
-                .Take(10);
+        var result = await QueryAsync(employees => employees.GlobalSearchAsync(
+            _currentUserId, args.Text, null, null, SearchEntityType.People, 10));
 
-        return Task.CompletedTask;
+        if (result != null)
+        {
+            args.Items = result.People.Select(p => new OrgChartNode
+            {
+                UserId = p.Id,
+                Name = p.Name,
+                Role = p.Role,
+                Department = p.Department,
+                City = p.City,
+                Site = p.Site,
+                Initials = p.Initials
+            }).ToList();
+        }
     }
 
     private async Task OnSearchNodeSelected(IEnumerable<OrgChartNode> selection)
@@ -1038,30 +1136,34 @@ else
         var node = selection.FirstOrDefault();
         if (node is null)
         {
-            if (_root != null) ClearFocusPath(_root);
-            if (_displayRoot != null) ClearFocusPath(_displayRoot);
-            await JSRuntime.InvokeVoidAsync("companyOrgChart.clearHighlights");
+            _root = await QueryAsync(employees => employees.GetCompanyOrgChartAsync(_currentUserId));
+            if (_root == null) return;
+            _displayRoot = null;
+            _selectedNode = null;
+            _highlightPending = null;
+            _renderToken = DateTime.UtcNow.Ticks;
+            UpdateFilters();
             return;
         }
 
-        if (_currentLevel != HierarchyLevel.SiteOrgChart)
-            SwitchLevel(HierarchyLevel.SiteOrgChart);
+        if (_currentLevel != HierarchyLevel.CompanyOrgChart)
+            SwitchLevel(HierarchyLevel.CompanyOrgChart);
 
-        FocusOnNode(node.UserId);
+        await FocusOnNode(node.UserId);
     }
 
-    private void FocusOnSelf()
+    private async Task FocusOnSelf()
     {
-        if (_currentLevel != HierarchyLevel.SiteOrgChart)
-            SwitchLevel(HierarchyLevel.SiteOrgChart);
+        if (_currentLevel != HierarchyLevel.CompanyOrgChart)
+            SwitchLevel(HierarchyLevel.CompanyOrgChart);
 
-        FocusOnNode(_currentUserId, keepExistingPath: true);
+        await FocusOnNode(_currentUserId, keepExistingPath: true);
     }
 
     // Expanding the path opens the way to the node; the tree card is 75vh with its own scrollbar,
     // so the row still has to be brought into view or "Focus Me" lands on somebody selected far
     // below the fold and looks like it did nothing.
-    private void FocusOnNode(Guid targetUserId, bool keepExistingPath = false)
+    private async Task FocusOnNode(Guid targetUserId, bool keepExistingPath = false)
     {
         if (_root == null) return;
 
@@ -1069,27 +1171,59 @@ else
         {
             ClearFocusPath(_root);
             if (_displayRoot != null) ClearFocusPath(_displayRoot);
-            _ = JSRuntime.InvokeVoidAsync("companyOrgChart.clearHighlights");
         }
 
-        bool found = false;
-        if (_displayRoot != null)
+        var activeRoot = _displayRoot ?? _root;
+        bool found = ExpandPathToNode(activeRoot, targetUserId);
+
+        if (!found && _displayRoot != null && targetUserId != _displayRoot.UserId)
         {
-            found = ExpandPathToNode(_displayRoot, targetUserId);
-            if (!found && targetUserId != _displayRoot.UserId)
+            _selectedCityFilter = "Toate";
+            _selectedDepartmentFilter = "Toate";
+            ApplyFilters();
+            
+            activeRoot = _displayRoot ?? _root;
+            found = ExpandPathToNode(activeRoot, targetUserId);
+        }
+
+        if (!found)
+        {
+            // Node is in an unloaded branch or from another search.
+            // Fetch the tree built around them directly instead of Navigating,
+            // because NavigateTo does nothing if the URL is already the same.
+            try
             {
-                _selectedCityFilter = "Toate";
-                _selectedSiteFilter = "Toate";
-                _selectedDepartmentFilter = "Toate";
-                ApplyFilters();
-                if (_displayRoot != null) found = ExpandPathToNode(_displayRoot, targetUserId);
+                var focused = await QueryAsync(employees =>
+                    employees.GetCompanyOrgChartAsync(_currentUserId, targetUserId));
+                
+                if (focused != null)
+                {
+                    _root = focused;
+                    _displayRoot = null;
+                    activeRoot = _root;
+                    ExpandPathToNode(activeRoot, targetUserId);
+                    UpdateFilters();
+                    
+                    // We must also update the URL so it reflects the new focus
+                    if (Focus != targetUserId)
+                    {
+                        _loadedFocus = targetUserId;
+                        Nav.NavigateTo($"/employee/org-chart?focus={targetUserId}", replace: true);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Could not focus the org chart on {TargetId}.", targetUserId);
+                Toast.ShowError($"Could not open that person's org chart.");
+                return;
             }
         }
 
         _selectedNode = FindNodeInTree(_root, targetUserId);
+        _highlightPending = targetUserId;
+        _renderToken = DateTime.UtcNow.Ticks;
         StateHasChanged();
-
-        _ = SyncTreeHighlightAsync(targetUserId);
     }
 
     // Moving the highlight and scrolling the row into view both live in wwwroot/js/orgchart.js:
@@ -1110,39 +1244,46 @@ else
         }
     }
 
-    private void ClearFocusPath(OrgChartNode node)
+    private void ClearFocusPath(OrgChartNode current)
     {
-        node.IsFocusNode = false;
-        foreach (var child in node.Subordinates)
+        current.IsFocusNode = false;
+        current.IsSearchResult = false;
+        foreach (var child in current.Subordinates)
         {
             ClearFocusPath(child);
         }
     }
 
-    private bool ExpandPathToNode(OrgChartNode current, Guid targetUserId)
+    private bool ExpandPathToNodeState(OrgChartNode current, Guid targetUserId, bool isBelowCurrentUser)
     {
-        if (current.UserId == targetUserId)
+        bool found = current.UserId == targetUserId;
+        if (found)
         {
-            current.IsFocusNode = true;
-            return true;
+            current.IsSearchResult = true;
         }
 
-        bool foundInChildren = false;
+        bool currentIsUser = current.UserId == _currentUserId;
+        bool nextIsBelow = isBelowCurrentUser || currentIsUser;
+
         foreach (var child in current.Subordinates)
         {
-            if (ExpandPathToNode(child, targetUserId))
+            if (ExpandPathToNodeState(child, targetUserId, nextIsBelow))
             {
                 current.IsExpanded = true;
-                foundInChildren = true;
+                if (isBelowCurrentUser && !currentIsUser)
+                {
+                    current.IsFocusNode = true;
+                }
+                found = true;
             }
         }
 
-        if (foundInChildren)
-        {
-            current.IsFocusNode = true;
-        }
+        return found;
+    }
 
-        return foundInChildren;
+    private bool ExpandPathToNode(OrgChartNode current, Guid targetUserId)
+    {
+        return ExpandPathToNodeState(current, targetUserId, false);
     }
 
     private OrgChartNode? FindNodeInTree(OrgChartNode current, Guid targetId)
@@ -1265,3 +1406,4 @@ else
         }
     }
 }
+
