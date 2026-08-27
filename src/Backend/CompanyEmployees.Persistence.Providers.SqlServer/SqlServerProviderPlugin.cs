@@ -22,11 +22,6 @@ public sealed class SqlServerProviderPlugin : IDbProviderPlugin
         new("MultipleActiveResultSets", "Multiple Active Result Sets", IsSecret: false, DefaultValue: "true"),
     ];
 
-    /// <summary>
-    /// Applies UseSqlServer with MigrationsAssembly pointing at this plugin project,
-    /// so that <c>dotnet ef</c> and <c>MigrateAsync</c> both find the migration files
-    /// that live in this assembly rather than in Persistence.
-    /// </summary>
     public void ConfigureDbContext(DbContextOptionsBuilder options, string connectionString) =>
         options.UseSqlServer(
             connectionString,

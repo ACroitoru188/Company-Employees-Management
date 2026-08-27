@@ -32,9 +32,6 @@ public sealed class PostgreSqlProviderPlugin : IDbProviderPlugin
         await connection.OpenAsync(ct);
     }
 
-    /// <summary>
-    /// Ensures the schema from the current EF model is created.
-    /// </summary>
     public async Task ApplyMigrationsAsync(DbContext context, CancellationToken ct = default) =>
         await context.Database.EnsureCreatedAsync(ct);
 }

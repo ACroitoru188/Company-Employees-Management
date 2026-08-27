@@ -1,4 +1,3 @@
-using Azure.Identity;
 using Blazored.LocalStorage;
 using CompanyEmployees.Application;
 using CompanyEmployees.Application.Contexts;
@@ -9,14 +8,13 @@ using CompanyEmployees.Infrastructure;
 using CompanyEmployees.Infrastructure.ExceptionHandling;
 using CompanyEmployees.Persistence;
 using CompanyEmployees.Persistence.Contracts;
-using CompanyEmployees.Persistence.Providers.PostgreSql;
-using CompanyEmployees.Persistence.Providers.SqlServer;
 using CompanyEmployees.Web.Components;
+using CompanyEmployees.Web.Plugins;
 using CompanyEmployees.Web.Security;
 using CompanyEmployees.Web.Services;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
@@ -24,16 +22,40 @@ using Microsoft.FluentUI.AspNetCore.Components;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
-// TODO: replace with catalog-based plugin resolution after setup wizard is implemented.
-// For now, load plugins directly so the app can build and run with existing appsettings.
-var sqlServerPlugin = new CompanyEmployees.Persistence.Providers.SqlServer.SqlServerProviderPlugin();
-var postgreSqlPlugin = new CompanyEmployees.Persistence.Providers.PostgreSql.PostgreSqlProviderPlugin();
-var primaryConnectionString = builder.Configuration.GetConnectionString("Default") ?? string.Empty;
-var secondaryConnectionString = builder.Configuration.GetConnectionString("PostgreSql");
+
+// provider discovery via ProviderLoader
+// Bootstrap a minimal logger so ProviderLoader can report issues during startup
+// (before the full DI container is built).
+using var bootstrapFactory = LoggerFactory.Create(b =>
+    b.AddConfiguration(builder.Configuration.GetSection("Logging")).AddConsole());
+var bootstrapLogger = bootstrapFactory.CreateLogger("Startup");
+
+var plugins = ProviderLoader.Load(builder.Environment.ContentRootPath, bootstrapLogger);
+var catalog = new DatabaseProviderCatalog(plugins, builder.Configuration);
+
+// Read provider IDs + connection strings from configuration.
+var primaryProviderId = builder.Configuration["Setup:PrimaryProviderId"] ?? "sqlserver";
+var primaryConnectionString = builder.Configuration.GetConnectionString(
+    builder.Configuration["Setup:PrimaryConnectionStringName"] ?? "Default") ?? string.Empty;
+var secondaryProviderId = builder.Configuration["Setup:SecondaryProviderId"];
+var secondaryConnectionString = secondaryProviderId is not null
+    ? builder.Configuration.GetConnectionString(
+        builder.Configuration["Setup:SecondaryConnectionStringName"] ?? "PostgreSql")
+    : null;
+
+var primaryPlugin = catalog.FindById(primaryProviderId)
+    ?? plugins.FirstOrDefault()
+    ?? throw new InvalidOperationException(
+        $"Primary database provider '{primaryProviderId}' could not be found. " +
+        "Ensure the Providers/ folder contains the correct plugin DLL.");
+var secondaryPlugin = string.IsNullOrEmpty(secondaryConnectionString)
+    ? null
+    : catalog.FindById(secondaryProviderId);
+
 var databaseState = await DatabaseFailoverSelector.SelectAsync(
-    primaryPlugin: sqlServerPlugin,
+    primaryPlugin: primaryPlugin,
     primaryConnectionString: primaryConnectionString,
-    secondaryPlugin: string.IsNullOrEmpty(secondaryConnectionString) ? null : postgreSqlPlugin,
+    secondaryPlugin: secondaryPlugin,
     secondaryConnectionString: secondaryConnectionString,
     configuration: builder.Configuration);
 
@@ -77,11 +99,12 @@ builder.Services.AddHostedService<DatabaseAvailabilityMonitor>(sp =>
         sp.GetRequiredService<IConfiguration>(),
         sp.GetRequiredService<IHostEnvironment>(),
         sp.GetRequiredService<DatabaseRuntimeState>(),
-        sqlServerPlugin,
+        primaryPlugin,
         primaryConnectionString,
-        string.IsNullOrEmpty(secondaryConnectionString) ? null : postgreSqlPlugin,
+        secondaryPlugin,
         secondaryConnectionString,
         sp.GetRequiredService<ILogger<DatabaseAvailabilityMonitor>>()));
+builder.Services.AddSingleton(catalog);
 builder.Services.AddHostedService<StandbySynchronizationService>();
 // Singleton: the translation files are read once at startup and never change at runtime.
 builder.Services.AddSingleton<AppLocalizer>();
@@ -99,17 +122,14 @@ builder.Services.AddSignalR(options =>
 // remains available as a mock if the DB is unreachable.
 builder.Services.AddScoped<ITimeOffService, DbTimeOffService>();
 
-// TODO: resolve active plugin from catalog.
-var activePlugin = databaseState.ActiveProviderId == "postgresql"
-    ? (CompanyEmployees.Persistence.Contracts.IDbProviderPlugin)postgreSqlPlugin
-    : sqlServerPlugin;
-var activeConnectionString = databaseState.ActiveProviderId == "postgresql"
-    ? (secondaryConnectionString ?? primaryConnectionString)
-    : primaryConnectionString;
+var activePlugin = catalog.FindById(databaseState.ActiveProviderId) ?? primaryPlugin;
+var activeConnectionString = databaseState.ActiveProviderId == primaryPlugin.Id
+    ? primaryConnectionString
+    : (secondaryConnectionString ?? primaryConnectionString);
 builder.Services.AddPersistenceLayer(
     activePlugin,
     activeConnectionString,
-    string.IsNullOrEmpty(secondaryConnectionString) ? null : postgreSqlPlugin,
+    secondaryPlugin,
     secondaryConnectionString,
     databaseState);
 builder.Services.AddGatewayLayer();
@@ -172,7 +192,7 @@ if (databaseState.IsFailoverActive)
     // Schema changes therefore require recreating/upgrading that standby deliberately.
     using var scope = app.Services.CreateScope();
     await StandbyBootstrapper.EnsureReadyAsync(
-        postgreSqlPlugin,
+        secondaryPlugin!,
         secondaryConnectionString!,
         builder.Configuration);
     var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
