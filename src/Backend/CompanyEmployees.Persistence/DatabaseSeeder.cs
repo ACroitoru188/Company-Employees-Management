@@ -88,6 +88,54 @@ public static class DatabaseSeeder
         await db.SaveChangesAsync(ct);
     }
 
+    private static (string City, string Site) GetCityAndSite(Guid id)
+    {
+        var rdIds = new HashSet<Guid>
+        {
+            new("11111111-0000-0000-0000-000000000002"),
+            new("11111111-0000-0000-0000-000000000005"),
+            new("11111111-0000-0000-0000-000000000008"),
+            new("11111111-0000-0000-0000-000000000011"),
+            new("11111111-0000-0000-0000-000000000029"),
+            new("11111111-0000-0000-0000-000000000032"),
+            new("11111111-0000-0000-0000-000000000035")
+        };
+        var disIds = new HashSet<Guid>
+        {
+            new("11111111-0000-0000-0000-000000000014"),
+            new("11111111-0000-0000-0000-000000000017"),
+            new("11111111-0000-0000-0000-000000000020"),
+            new("11111111-0000-0000-0000-000000000023"),
+            new("11111111-0000-0000-0000-000000000026"),
+            new("11111111-0000-0000-0000-000000000260"),
+            new("11111111-0000-0000-0000-000000000261"),
+            new("11111111-0000-0000-0000-000000000262"),
+            new("11111111-0000-0000-0000-000000000263"),
+            new("11111111-0000-0000-0000-000000000264"),
+            new("11111111-0000-0000-0000-000000000265")
+        };
+        var advantaIds = new HashSet<Guid>
+        {
+            new("11111111-0000-0000-0000-000000000003"),
+            new("11111111-0000-0000-0000-000000000006"),
+            new("11111111-0000-0000-0000-000000000009"),
+            new("11111111-0000-0000-0000-000000000012"),
+            new("11111111-0000-0000-0000-000000000015"),
+            new("11111111-0000-0000-0000-000000000018"),
+            new("11111111-0000-0000-0000-000000000021"),
+            new("11111111-0000-0000-0000-000000000024"),
+            new("11111111-0000-0000-0000-000000000027"),
+            new("11111111-0000-0000-0000-000000000030"),
+            new("11111111-0000-0000-0000-000000000033"),
+            new("11111111-0000-0000-0000-000000000036")
+        };
+
+        if (rdIds.Contains(id)) return ("Brașov", "Siemens R&D");
+        if (disIds.Contains(id)) return ("Brașov", "Siemens Digital Industry Software");
+        if (advantaIds.Contains(id)) return ("Cluj-Napoca", "Siemens Advanta");
+        return ("București", "Siemens HQ");
+    }
+
     private static async Task SeedUsersAsync(CompanyEmployeesDbContext db, CancellationToken ct)
     {
         var defaultRegion = await db.Regions.FirstAsync(r => r.Id == RomaniaRegionId, ct);
@@ -137,9 +185,18 @@ public static class DatabaseSeeder
         // First insert users without ManagerId to avoid foreign key cyclic dependency
         foreach (var (id, name, email, pwd, role, _, deptId) in rawUsers)
         {
+            var (city, site) = GetCityAndSite(id);
             var normalizedEmail = email.ToUpperInvariant();
-            if (await db.Users.AnyAsync(u => u.Id == id || u.NormalizedEmail == normalizedEmail, ct))
+            var existingUser = await db.Users.FirstOrDefaultAsync(u => u.Id == id || u.NormalizedEmail == normalizedEmail, ct);
+            if (existingUser != null)
+            {
+                if (string.IsNullOrEmpty(existingUser.City) || string.IsNullOrEmpty(existingUser.Site))
+                {
+                    existingUser.City = city;
+                    existingUser.Site = site;
+                }
                 continue;
+            }
 
             var user = new User
             {
@@ -154,6 +211,8 @@ public static class DatabaseSeeder
                 Status = UserStatus.Active,
                 RegionId = defaultRegion.Id,
                 DepartmentId = deptId,
+                City = city,
+                Site = site,
                 SecurityStamp = Guid.NewGuid().ToString("D"),
                 ConcurrencyStamp = Guid.NewGuid().ToString("D"),
                 LockoutEnabled = true,

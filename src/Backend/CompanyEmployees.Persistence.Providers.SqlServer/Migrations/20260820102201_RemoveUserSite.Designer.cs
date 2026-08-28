@@ -4,6 +4,7 @@ using CompanyEmployees.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CompanyEmployees.Persistence.Migrations
 {
     [DbContext(typeof(CompanyEmployeesDbContext))]
-    partial class CompanyEmployeesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260820102201_RemoveUserSite")]
+    partial class RemoveUserSite
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -424,9 +427,6 @@ namespace CompanyEmployees.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("SecurityStamp")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Site")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Status")

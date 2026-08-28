@@ -52,5 +52,12 @@ window.companyOrgChart = {
         } else {
             start();
         }
+    },
+
+    // Clears the selected highlight from all tree items.
+    clearHighlights: function () {
+        document.querySelectorAll('fluent-tree-item').forEach(function (item) {
+            item.selected = false;
+        });
     }
 };

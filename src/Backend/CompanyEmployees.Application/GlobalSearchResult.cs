@@ -19,6 +19,8 @@ namespace CompanyEmployees.Application
         string Role,
         string Department,
         string Region,
+        string? City,
+        string? Site,
         string Initials);
 
     // MemberCount is how many people the *caller* can see in it, not the true headcount:
