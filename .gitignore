@@ -482,3 +482,8 @@ $RECYCLE.BIN/
 *.swp
 TECH_STACK.md
 TODO.md
+
+# Local runtime data & setup state
+**/App_Data/
+appsettings*.local.json
+.tmp/
