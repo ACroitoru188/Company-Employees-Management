@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <UserSecretsId>company-employees-management-web</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
   </PropertyGroup>
 
 
@@ -25,6 +26,9 @@
     <Content Update="Languages\*.json"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\..\.dockerignore">
+      <Link>.dockerignore</Link>
+    </Content>
   </ItemGroup>
 
   <Target Name="KillZombieProcesses" BeforeTargets="PreBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
@@ -49,15 +53,25 @@
 
   <!-- Publish provider plugins to isolated subdirectories on build -->
   <Target Name="PublishSqlServerProvider" AfterTargets="Build">
-    <MSBuild Projects="..\..\Backend\CompanyEmployees.Persistence.Providers.SqlServer\CompanyEmployees.Persistence.Providers.SqlServer.csproj"
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.SqlServer/CompanyEmployees.Persistence.Providers.SqlServer.csproj"
              Targets="Publish"
-             Properties="PublishDir=$(MSBuildProjectDirectory)\$(OutputPath)Providers\SqlServer\;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+             Properties="PublishDir=$(MSBuildProjectDirectory)/$(OutputPath)Providers/SqlServer/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
   </Target>
 
   <Target Name="PublishPostgreSqlProvider" AfterTargets="Build">
-    <MSBuild Projects="..\..\Backend\CompanyEmployees.Persistence.Providers.PostgreSql\CompanyEmployees.Persistence.Providers.PostgreSql.csproj"
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.PostgreSql/CompanyEmployees.Persistence.Providers.PostgreSql.csproj"
              Targets="Publish"
-             Properties="PublishDir=$(MSBuildProjectDirectory)\$(OutputPath)Providers\PostgreSql\;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+             Properties="PublishDir=$(MSBuildProjectDirectory)/$(OutputPath)Providers/PostgreSql/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+  </Target>
+
+  <!-- Publish provider plugins when publishing the web application (e.g. inside Docker) -->
+  <Target Name="PublishProvidersToPublishDir" AfterTargets="Publish">
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.SqlServer/CompanyEmployees.Persistence.Providers.SqlServer.csproj"
+             Targets="Publish"
+             Properties="PublishDir=$(PublishDir)Providers/SqlServer/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.PostgreSql/CompanyEmployees.Persistence.Providers.PostgreSql.csproj"
+             Targets="Publish"
+             Properties="PublishDir=$(PublishDir)Providers/PostgreSql/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
   </Target>
 
 </Project>

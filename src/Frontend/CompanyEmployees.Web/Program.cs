@@ -77,13 +77,25 @@ if (builder.Environment.IsDevelopment())
     builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
     builder.Logging.AddConsole();
     builder.Logging.AddDebug();
+}
 
-    // Keep development authentication independent of the current Windows profile. This also
-    // lets the app run from restricted shells and containers that cannot write ASP.NET's
-    // per-user default key directory.
-    var relativeKeyPath = builder.Configuration["DataProtection:KeysPath"]
-        ?? "../../../.tmp/data-protection-keys";
-    var keyPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, relativeKeyPath));
+// Persist Data Protection keys to a configurable directory so they survive restarts
+// in both development and containerised production deployments.
+//   Dev  → DataProtection:KeysPath is a relative path (e.g. ../../../.tmp/...)
+//   Prod → DataProtection:KeysPath is an absolute path mounted via a Docker volume (e.g. /app/dp-keys)
+{
+    var configuredPath = builder.Configuration["DataProtection:KeysPath"];
+    string keyPath;
+    if (!string.IsNullOrEmpty(configuredPath))
+    {
+        keyPath = Path.IsPathRooted(configuredPath)
+            ? configuredPath
+            : Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, configuredPath));
+    }
+    else
+    {
+        keyPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "../../../.tmp/data-protection-keys"));
+    }
     Directory.CreateDirectory(keyPath);
     builder.Services.AddDataProtection()
         .PersistKeysToFileSystem(new DirectoryInfo(keyPath))
@@ -139,11 +151,18 @@ if (setupState.IsComplete)
     var activeConnectionString = databaseState.ActiveProviderId == primaryPlugin!.Id
         ? primaryConnectionString
         : (secondaryConnectionString ?? primaryConnectionString);
+    var standbyPlugin = databaseState.ActiveProviderId == primaryPlugin!.Id
+        ? secondaryPlugin
+        : primaryPlugin;
+    var standbyConnectionString = databaseState.ActiveProviderId == primaryPlugin!.Id
+        ? secondaryConnectionString
+        : primaryConnectionString;
+
     builder.Services.AddPersistenceLayer(
         activePlugin,
         activeConnectionString,
-        secondaryPlugin,
-        secondaryConnectionString,
+        standbyPlugin,
+        standbyConnectionString,
         databaseState);
     builder.Services.AddGatewayLayer();
     builder.Services.AddApplicationLayer();
@@ -455,6 +474,8 @@ if (setupState.IsComplete)
         || context.User.HasClaim("Department", HomeRouteResolver.HrDepartmentName)));
 }
 
+
+app.MapGet("/api/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
 
 app.Run();
 

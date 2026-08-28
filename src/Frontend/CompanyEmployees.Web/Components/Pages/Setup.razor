@@ -8,6 +8,7 @@
 @inject ISetupStateStore SetupStore
 @inject IHostApplicationLifetime AppLifetime
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Setup · Company Employees</PageTitle>
 
@@ -29,9 +30,12 @@
 
             @if (_done)
             {
-                <FluentMessageBar Intent="MessageIntent.Success">
-                    Setup complete. The application will restart shortly.
-                </FluentMessageBar>
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="16" HorizontalAlignment="HorizontalAlignment.Center" Style="padding: 16px 0;">
+                    <FluentMessageBar Intent="MessageIntent.Success">
+                        Setup complete. The application is restarting and will redirect to login once ready...
+                    </FluentMessageBar>
+                    <FluentProgressRing />
+                </FluentStack>
             }
             else
             {
@@ -316,8 +320,21 @@
             _done = true;
             StateHasChanged();
 
-            // Give the UI a moment to render the success message before restart
-            await Task.Delay(2000);
+            // Instruct the client browser to monitor the reboot and redirect to / once ready
+            try
+            {
+                await JS.InvokeVoidAsync(
+                    "companySetup.waitForRestartAndRedirect",
+                    "/",
+                    "Setup complete! Starting application...",
+                    "Initializing database schemas and redirecting to login...");
+            }
+            catch
+            {
+                // In case JS interop drops immediately on restart
+            }
+
+            await Task.Delay(1000);
             AppLifetime.StopApplication();
         }
         catch (Exception ex)

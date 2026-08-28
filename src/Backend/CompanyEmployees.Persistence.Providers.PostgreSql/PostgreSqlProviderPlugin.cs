@@ -17,7 +17,7 @@ public sealed class PostgreSqlProviderPlugin : IDbProviderPlugin
 
     public IReadOnlyList<ConnectionField> RequiredFields =>
     [
-        new("Host",     "Host",          IsSecret: false, DefaultValue: "localhost"),
+        new("Host",     "Host",          IsSecret: false, DefaultValue: "postgres"),
         new("Port",     "Port",          IsSecret: false, DefaultValue: "5432"),
         new("Database", "Database name", IsSecret: false, DefaultValue: "company_employees"),
         new("Username", "Username",      IsSecret: false, DefaultValue: "company_app"),

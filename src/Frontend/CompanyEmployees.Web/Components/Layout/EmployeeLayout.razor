@@ -9,6 +9,7 @@
 @using CompanyEmployees.Web.Plugins
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
+@using CompanyEmployees.Web.Setup
 @inherits LayoutComponentBase
 @inject ThemeState ThemeState
 @inject AppLocalizer Text
@@ -22,6 +23,9 @@
 @inject DatabaseRuntimeState DatabaseState
 @inject DatabaseProviderCatalog Catalog
 @inject DatabaseProviderSwitcher DatabaseSwitcher
+@inject ISetupStateStore SetupStore
+@inject IHostApplicationLifetime AppLifetime
+@inject IConfiguration Configuration
 @implements IDisposable
 
 <CompanyEmployees.Web.Components.Employee.EmployeeProviders />
@@ -576,10 +580,12 @@
         if (_observedActiveProviderId != DatabaseState.ActiveProviderId)
         {
             _observedActiveProviderId = DatabaseState.ActiveProviderId;
-            // Every open Blazor circuit owns scoped repositories and a DbContext built for
-            // the previous provider. A full authenticated hop prevents split-brain writes.
-            Nav.NavigateTo("/api/auth/database-switched", forceLoad: true);
-            return;
+            // When actively performing an admin switch, SwitchDatabaseAsync coordinates the restart & redirect
+            if (!_switchingDatabase)
+            {
+                Nav.NavigateTo("/api/auth/database-switched", forceLoad: true);
+                return;
+            }
         }
 
         StateHasChanged();
@@ -591,14 +597,67 @@
         _databaseSwitchError = null;
         try
         {
-            // TODO Phase C: resolve plugin from catalog and pass to SwitchAsync
-            // await DatabaseSwitcher.SwitchAsync(providerId, plugin, connectionString);
-            Nav.NavigateTo("/api/auth/database-switched", forceLoad: true);
+            var plugin = Catalog.FindById(providerId)
+                ?? throw new InvalidOperationException($"Database provider plugin '{providerId}' was not found.");
+
+            var setupState = SetupStore.Load();
+            string targetConnectionString;
+            string? otherProviderId;
+            string? otherConnectionString;
+
+            if (string.Equals(providerId, setupState.PrimaryProviderId, StringComparison.OrdinalIgnoreCase))
+            {
+                targetConnectionString = setupState.PrimaryConnectionString
+                    ?? Configuration.GetConnectionString(providerId)
+                    ?? string.Empty;
+                otherProviderId = setupState.SecondaryProviderId;
+                otherConnectionString = setupState.SecondaryConnectionString;
+            }
+            else if (string.Equals(providerId, setupState.SecondaryProviderId, StringComparison.OrdinalIgnoreCase))
+            {
+                targetConnectionString = setupState.SecondaryConnectionString
+                    ?? Configuration.GetConnectionString(providerId)
+                    ?? string.Empty;
+                otherProviderId = setupState.PrimaryProviderId;
+                otherConnectionString = setupState.PrimaryConnectionString;
+            }
+            else
+            {
+                targetConnectionString = Configuration.GetConnectionString(providerId) ?? string.Empty;
+                otherProviderId = setupState.PrimaryProviderId;
+                otherConnectionString = setupState.PrimaryConnectionString;
+            }
+
+            // 1. Drain pending replication & verify connectivity to target database
+            await DatabaseSwitcher.SwitchAsync(providerId, plugin, targetConnectionString);
+
+            // 2. Persist chosen provider dynamically as the primary in setup-state
+            var updatedState = new SetupState(
+                IsComplete: true,
+                PrimaryProviderId: providerId,
+                PrimaryConnectionString: targetConnectionString,
+                SecondaryProviderId: otherProviderId,
+                SecondaryConnectionString: otherConnectionString);
+            await SetupStore.SaveAsync(updatedState);
+
+            // 3. Instruct browser to monitor reboot and reload into / once ready
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("companySetup.waitForRestartAndRedirect", "/", $"Switching database to {plugin.DisplayName}...");
+            }
+            catch
+            {
+                // In case JS interop drops immediately on restart
+            }
+
+            // 4. Cleanly restart the host so EF Core builds its DI container for the new provider
+            await Task.Delay(1000);
+            AppLifetime.StopApplication();
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not switch to database provider {Provider}.", providerId);
-            _databaseSwitchError = $"Could not switch to {providerId}. Verify that it is running.";
+            _databaseSwitchError = $"Could not switch to {providerId}: {ex.Message}";
             _switchingDatabase = false;
         }
     }

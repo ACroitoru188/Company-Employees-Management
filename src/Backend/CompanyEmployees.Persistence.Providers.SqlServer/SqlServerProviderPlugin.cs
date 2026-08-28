@@ -17,7 +17,7 @@ public sealed class SqlServerProviderPlugin : IDbProviderPlugin
 
     public IReadOnlyList<ConnectionField> RequiredFields =>
     [
-        new("Server",                "Server / host",              IsSecret: false, DefaultValue: "localhost,1433"),
+        new("Server",                "Server / host",              IsSecret: false, DefaultValue: "sqlserver,1433"),
         new("Database",              "Database name",              IsSecret: false, DefaultValue: "CompanyEmployees"),
         new("User Id",               "Username",                   IsSecret: false, DefaultValue: "sa"),
         new("Password",              "Password",                   IsSecret: true,  DefaultValue: "CompanyEmployees_dev_2026!"),
