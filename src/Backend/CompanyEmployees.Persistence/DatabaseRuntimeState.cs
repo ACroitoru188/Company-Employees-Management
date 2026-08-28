@@ -8,6 +8,7 @@ public sealed class DatabaseRuntimeState
 {
     private readonly object _sync = new();
     private string _activeProviderId;
+    private string _activeEfProviderName;
     private bool _primaryAvailable;
     private bool _secondaryAvailable;
     private string? _failoverReason;
@@ -19,6 +20,7 @@ public sealed class DatabaseRuntimeState
     public DatabaseRuntimeState(
         string primaryProviderId,
         string activeProviderId,
+        string activeEfProviderName,
         bool primaryAvailable,
         string supportContact,
         string? secondaryProviderId = null,
@@ -28,6 +30,7 @@ public sealed class DatabaseRuntimeState
         PrimaryProviderId = primaryProviderId;
         SecondaryProviderId = secondaryProviderId;
         _activeProviderId = activeProviderId;
+        _activeEfProviderName = activeEfProviderName;
         _primaryAvailable = primaryAvailable;
         _secondaryAvailable = secondaryAvailable;
         _failoverReason = failoverReason;
@@ -46,6 +49,17 @@ public sealed class DatabaseRuntimeState
     public string ActiveProviderId
     {
         get { lock (_sync) return _activeProviderId; }
+    }
+
+    /// <summary>
+    /// The EF Core provider name string (e.g. "Microsoft.EntityFrameworkCore.SqlServer") for the
+    /// active plugin. Used by <see cref="CompanyEmployeesDbContext"/> to validate that the
+    /// DbContext's configured provider matches the currently active plugin without hardcoding
+    /// provider ID strings such as "postgresql" or "sqlserver".
+    /// </summary>
+    public string ActiveEfProviderName
+    {
+        get { lock (_sync) return _activeEfProviderName; }
     }
 
     public bool PrimaryAvailable
@@ -121,13 +135,14 @@ public sealed class DatabaseRuntimeState
         Changed?.Invoke();
     }
 
-    internal void SelectProvider(string providerId)
+    internal void SelectProvider(string providerId, string efProviderName)
     {
         var changed = false;
         lock (_sync)
         {
             changed = _activeProviderId != providerId;
             _activeProviderId = providerId;
+            _activeEfProviderName = efProviderName;
         }
 
         if (changed)

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Loader;
 using CompanyEmployees.Persistence.Contracts;
 using Microsoft.Extensions.Logging;
 
@@ -9,14 +10,20 @@ namespace CompanyEmployees.Web.Plugins;
 /// </summary>
 public static class ProviderLoader
 {
+    private static readonly List<Assembly> LoadedPluginAssemblies = [];
+    private static bool _resolvingHooked;
+
     public static IReadOnlyList<IDbProviderPlugin> Load(
         string contentRootPath,
         ILogger? logger = null)
     {
         var providersRoot = Path.Combine(contentRootPath, "Providers");
         if (!Directory.Exists(providersRoot))
+            providersRoot = Path.Combine(AppContext.BaseDirectory, "Providers");
+
+        if (!Directory.Exists(providersRoot))
         {
-            logger?.LogWarning("Providers directory not found at {Path}.", providersRoot);
+            logger?.LogWarning("Providers directory not found at {Path} or in base directory.", providersRoot);
             return [];
         }
 
@@ -40,6 +47,7 @@ public static class ProviderLoader
             {
                 var ctx = new ProviderLoadContext(entryDll);
                 var assembly = ctx.LoadFromAssemblyPath(entryDll);
+                LoadedPluginAssemblies.Add(assembly);
 
                 var pluginTypes = assembly.GetTypes()
                     .Where(t => !t.IsAbstract && !t.IsInterface &&
@@ -71,6 +79,16 @@ public static class ProviderLoader
                     "Failed to load provider plugin from {Dir} — it will not be available.",
                     dirName);
             }
+        }
+
+        if (!_resolvingHooked && LoadedPluginAssemblies.Count > 0)
+        {
+            _resolvingHooked = true;
+            AssemblyLoadContext.Default.Resolving += (context, assemblyName) =>
+            {
+                return LoadedPluginAssemblies.FirstOrDefault(a =>
+                    string.Equals(a.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase));
+            };
         }
 
         return plugins.AsReadOnly();

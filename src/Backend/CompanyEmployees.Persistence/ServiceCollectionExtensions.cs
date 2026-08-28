@@ -39,10 +39,20 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<StandbySynchronizer>(sp =>
                 (StandbySynchronizer)sp.GetRequiredService<IStandbyReplicationService>());
         }
+        else
+        {
+            services.AddSingleton<IStandbyReplicationService, NoOpStandbyReplicationService>();
+        }
 
         services.AddDbContext<CompanyEmployeesDbContext>(options =>
             activePlugin.ConfigureDbContext(options, primaryConnectionString));
 
         return services;
     }
+}
+
+internal sealed class NoOpStandbyReplicationService : IStandbyReplicationService
+{
+    public bool CanReplicate(string primaryId, string secondaryId) => false;
+    public Task SynchronizeAsync(CancellationToken ct = default) => Task.CompletedTask;
 }

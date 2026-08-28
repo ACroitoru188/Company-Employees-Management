@@ -45,7 +45,7 @@ public sealed class DatabaseReplicationCoordinator(
             : (primaryPlugin, primaryConnectionString);
         await using var source = CreateContext(plugin, cs);
         source.SuppressOutboxCapture = true;
-        await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(source, cancellationToken);
+        await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(source, plugin, cancellationToken);
         var pending = await source.DatabaseOutbox.CountAsync(
             message => message.ProcessedAtUtc == null,
             cancellationToken);
@@ -71,8 +71,8 @@ public sealed class DatabaseReplicationCoordinator(
             await using var target = CreateContext(targetPlugin, targetConnectionString);
             source.SuppressOutboxCapture = true;
             target.SuppressOutboxCapture = true;
-            await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(source, cancellationToken);
-            await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(target, cancellationToken);
+            await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(source, sourcePlugin, cancellationToken);
+            await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(target, targetPlugin, cancellationToken);
 
             var first = await source.DatabaseOutbox
                 .Where(message => message.ProcessedAtUtc == null)
@@ -98,10 +98,7 @@ public sealed class DatabaseReplicationCoordinator(
                 foreach (var message in batch)
                     await ApplyAsync(source, target, message, recoveredPrincipals, cancellationToken);
                 await target.SaveChangesAsync(cancellationToken);
-                if (targetPlugin.Id == "postgresql")
-                    await StandbySynchronizer.ResetPostgreSqlIdentitySequencesAsync(
-                        target,
-                        cancellationToken);
+                await targetPlugin.AfterBulkInsertAsync(target, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
                 var completedAt = DateTime.UtcNow;

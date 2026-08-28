@@ -43,7 +43,7 @@ public sealed class DatabaseProviderSwitcher(
             }
         }
 
-        state.SelectProvider(targetProviderId);
+        state.SelectProvider(targetProviderId, targetPlugin.EfProviderName);
         logger.LogWarning(
             "An administrator selected {ProviderId} ({DisplayName}) as the active database.",
             targetProviderId,

@@ -1,0 +1,7 @@
+{
+  "IsComplete": true,
+  "PrimaryProviderId": "sqlserver",
+  "PrimaryConnectionString": "Server=localhost,1433;Database=CompanyEmployees;User Id=sa;Password=CompanyEmployees_dev_2026!;TrustServerCertificate=True;MultipleActiveResultSets=true",
+  "SecondaryProviderId": "postgresql",
+  "SecondaryConnectionString": "Host=localhost;Port=5432;Database=company_employees;Username=company_app;Password=company_dev_password"
+}

@@ -23,6 +23,7 @@ public static class DatabaseFailoverSelector
             return new DatabaseRuntimeState(
                 primaryProviderId: primaryPlugin.Id,
                 activeProviderId: secondaryPlugin.Id,
+                activeEfProviderName: secondaryPlugin.EfProviderName,
                 primaryAvailable: false,
                 supportContact: supportContact,
                 secondaryProviderId: secondaryPlugin.Id,
@@ -36,6 +37,7 @@ public static class DatabaseFailoverSelector
             return new DatabaseRuntimeState(
                 primaryProviderId: primaryPlugin.Id,
                 activeProviderId: primaryPlugin.Id,
+                activeEfProviderName: primaryPlugin.EfProviderName,
                 primaryAvailable: true,
                 supportContact: supportContact,
                 secondaryProviderId: secondaryPlugin?.Id);
@@ -47,6 +49,7 @@ public static class DatabaseFailoverSelector
             return new DatabaseRuntimeState(
                 primaryProviderId: primaryPlugin.Id,
                 activeProviderId: primaryPlugin.Id,
+                activeEfProviderName: primaryPlugin.EfProviderName,
                 primaryAvailable: true,
                 supportContact: supportContact,
                 secondaryProviderId: secondaryPlugin?.Id);
@@ -76,6 +79,7 @@ public static class DatabaseFailoverSelector
             return new DatabaseRuntimeState(
                 primaryProviderId: primaryPlugin.Id,
                 activeProviderId: secondaryPlugin.Id,
+                activeEfProviderName: secondaryPlugin.EfProviderName,
                 primaryAvailable: false,
                 supportContact: supportContact,
                 secondaryProviderId: secondaryPlugin.Id,

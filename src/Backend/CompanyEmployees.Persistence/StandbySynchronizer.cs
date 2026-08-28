@@ -50,14 +50,14 @@ public sealed class StandbySynchronizer(
                 snapshot = await ReadSnapshotAsync(primary, ct);
 
             await using (var secondary = new CompanyEmployeesDbContext(secondaryOptions.Options))
-                await ReplaceStandbyAsync(secondary, snapshot, ct);
+                await ReplaceStandbyAsync(secondary, secondaryPlugin, snapshot, ct);
 
             // Mark any outbox messages that were already in the primary snapshot as processed
             // so the delta worker starts exactly from this point forward.
             await using (var primary = new CompanyEmployeesDbContext(primaryOptions.Options))
             {
                 primary.SuppressOutboxCapture = true;
-                await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(primary, ct);
+                await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(primary, primaryPlugin, ct);
                 var pending = await primary.DatabaseOutbox
                     .Where(message => message.ProcessedAtUtc == null)
                     .ToListAsync(ct);
@@ -107,6 +107,7 @@ public sealed class StandbySynchronizer(
 
     private static async Task ReplaceStandbyAsync(
         CompanyEmployeesDbContext db,
+        IDbProviderPlugin plugin,
         DatabaseSnapshot snapshot,
         CancellationToken cancellationToken)
     {
@@ -153,25 +154,11 @@ public sealed class StandbySynchronizer(
         db.ImpersonationSessions.AddRange(snapshot.ImpersonationSessions);
         db.DelegatedActions.AddRange(snapshot.DelegatedActions);
         await db.SaveChangesAsync(cancellationToken);
-        await ResetPostgreSqlIdentitySequencesAsync(db, cancellationToken);
+
+        // Let each provider perform any engine-specific post-insert housekeeping
+        await plugin.AfterBulkInsertAsync(db, cancellationToken);
         db.ChangeTracker.Clear();
     }
-
-    internal static Task ResetPostgreSqlIdentitySequencesAsync(
-        CompanyEmployeesDbContext db,
-        CancellationToken cancellationToken = default) =>
-        db.Database.ExecuteSqlRawAsync("""
-            SELECT setval(
-                pg_get_serial_sequence('"AspNetUserClaims"', 'Id'),
-                COALESCE(MAX("Id"), 1),
-                COUNT(*) > 0)
-            FROM "AspNetUserClaims";
-            SELECT setval(
-                pg_get_serial_sequence('"AspNetRoleClaims"', 'Id'),
-                COALESCE(MAX("Id"), 1),
-                COUNT(*) > 0)
-            FROM "AspNetRoleClaims";
-            """, cancellationToken);
 
     private sealed record DatabaseSnapshot(
         List<Region> Regions,

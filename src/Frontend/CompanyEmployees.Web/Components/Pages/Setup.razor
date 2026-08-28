@@ -1,0 +1,337 @@
+@page "/setup"
+@using CompanyEmployees.Persistence.Contracts
+@using CompanyEmployees.Web.Plugins
+@using CompanyEmployees.Web.Setup
+@layout AuthLayout
+@rendermode InteractiveServer
+@inject DatabaseProviderCatalog Catalog
+@inject ISetupStateStore SetupStore
+@inject IHostApplicationLifetime AppLifetime
+@inject NavigationManager Nav
+
+<PageTitle>Setup · Company Employees</PageTitle>
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="0"
+             HorizontalAlignment="HorizontalAlignment.Center"
+             VerticalAlignment="VerticalAlignment.Center"
+             Style="min-height:100vh; padding:32px 16px;">
+
+    <FluentCard Style="width:100%; max-width:560px; padding:40px;">
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="24">
+
+            @* Header *@
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+                <FluentLabel Typo="Typography.H3">Database Setup</FluentLabel>
+                <FluentLabel Style="color:var(--neutral-foreground-hint);">
+                    Configure your database providers to get started.
+                </FluentLabel>
+            </FluentStack>
+
+            @if (_done)
+            {
+                <FluentMessageBar Intent="MessageIntent.Success">
+                    Setup complete. The application will restart shortly.
+                </FluentMessageBar>
+            }
+            else
+            {
+                @* Step 1: Primary Provider *@
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+                    <FluentLabel Typo="Typography.Body"><strong>Primary Database</strong></FluentLabel>
+
+                    <FluentSelect TOption="IDbProviderPlugin"
+                                  Items="@_providers"
+                                  OptionText="@(p => p.DisplayName)"
+                                  OptionValue="@(p => p.Id)"
+                                  SelectedOption="@_primaryPlugin"
+                                  SelectedOptionChanged="@OnPrimaryChanged"
+                                  Placeholder="Select a primary database…"
+                                  Width="100%" />
+
+                    @if (_primaryPlugin is not null)
+                    {
+                        @foreach (var field in _primaryFields)
+                        {
+                            <FluentTextField @bind-Value="field.Value"
+                                             Label="@field.Label"
+                                             Placeholder="@(field.DefaultValue ?? string.Empty)"
+                                             TextFieldType="@(field.IsSecret ? TextFieldType.Password : TextFieldType.Text)"
+                                             Required="true"
+                                             Width="100%" />
+                        }
+
+                        <FluentButton Appearance="Appearance.Outline"
+                                      OnClick="@TestPrimaryAsync"
+                                      Disabled="@_testingPrimary"
+                                      Style="align-self:flex-start">
+                            @(_testingPrimary ? "Testing…" : "Test Connection")
+                        </FluentButton>
+
+                        @if (_primaryTestResult is not null)
+                        {
+                            <FluentMessageBar Intent="@(_primaryOk ? MessageIntent.Success : MessageIntent.Error)">
+                                @_primaryTestResult
+                            </FluentMessageBar>
+                        }
+                    }
+                </FluentStack>
+
+                @* Step 2: Secondary Provider (optional) *@
+                @if (_primaryOk)
+                {
+                    <FluentDivider />
+
+                    <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+                        <FluentLabel Typo="Typography.Body">
+                            <strong>Secondary / Failover Database</strong>
+                            <span style="color:var(--neutral-foreground-hint); font-size:0.85em;"> (optional)</span>
+                        </FluentLabel>
+
+                        <FluentSelect TOption="SecondaryProviderOption"
+                                      Items="@_secondaryProviders"
+                                      OptionText="@(p => p.DisplayName)"
+                                      OptionValue="@(p => p.Id)"
+                                      SelectedOption="@_selectedSecondaryOption"
+                                      SelectedOptionChanged="@OnSecondaryChanged"
+                                      Width="100%" />
+
+                        @if (_secondaryPlugin is not null)
+                        {
+                            @foreach (var field in _secondaryFields)
+                            {
+                                <FluentTextField @bind-Value="field.Value"
+                                                 Label="@field.Label"
+                                                 Placeholder="@(field.DefaultValue ?? string.Empty)"
+                                                 TextFieldType="@(field.IsSecret ? TextFieldType.Password : TextFieldType.Text)"
+                                                 Width="100%" />
+                            }
+
+                            <FluentButton Appearance="Appearance.Outline"
+                                          OnClick="@TestSecondaryAsync"
+                                          Disabled="@_testingSecondary"
+                                          Style="align-self:flex-start">
+                                @(_testingSecondary ? "Testing…" : "Test Connection")
+                            </FluentButton>
+
+                            @if (_secondaryTestResult is not null)
+                            {
+                                <FluentMessageBar Intent="@(_secondaryOk ? MessageIntent.Success : MessageIntent.Error)">
+                                    @_secondaryTestResult
+                                </FluentMessageBar>
+                            }
+                        }
+                    </FluentStack>
+                }
+
+                @* Confirm *@
+                @if (_primaryOk && (_secondaryPlugin is null || _secondaryOk))
+                {
+                    <FluentDivider />
+
+                    @if (_saveError is not null)
+                    {
+                        <FluentMessageBar Intent="MessageIntent.Error">@_saveError</FluentMessageBar>
+                    }
+
+                    <FluentButton Appearance="Appearance.Accent"
+                                  OnClick="@CompleteSetupAsync"
+                                  Disabled="@_saving"
+                                  Style="width:100%">
+                        @(_saving ? "Saving…" : "Complete Setup")
+                    </FluentButton>
+                }
+            }
+
+        </FluentStack>
+    </FluentCard>
+</FluentStack>
+
+@code {
+    // Provider lists
+    private List<IDbProviderPlugin> _providers = [];
+    private List<SecondaryProviderOption> _secondaryProviders = [];
+
+    // Selections
+    private IDbProviderPlugin? _primaryPlugin;
+    private SecondaryProviderOption? _selectedSecondaryOption;
+    private IDbProviderPlugin? _secondaryPlugin => _selectedSecondaryOption?.Plugin;
+    private List<FieldInput> _primaryFields = [];
+    private List<FieldInput> _secondaryFields = [];
+
+    // Test state
+    private bool _testingPrimary;
+    private string? _primaryTestResult;
+    private bool _primaryOk;
+    private bool _testingSecondary;
+    private string? _secondaryTestResult;
+    private bool _secondaryOk;
+
+    // Save state
+    private bool _saving;
+    private string? _saveError;
+    private bool _done;
+
+    protected override void OnInitialized()
+    {
+        var state = SetupStore.Load();
+        if (state.IsComplete)
+        {
+            Nav.NavigateTo("/", forceLoad: true);
+            return;
+        }
+
+        _providers = Catalog.GetAvailable().ToList();
+        RefreshSecondaryProviders();
+    }
+
+    private void OnPrimaryChanged(IDbProviderPlugin? plugin)
+    {
+        _primaryPlugin = plugin;
+        _primaryFields = plugin?.RequiredFields.Select(f => new FieldInput
+        {
+            Key = f.Key,
+            Label = f.Label,
+            IsSecret = f.IsSecret,
+            DefaultValue = f.DefaultValue,
+            Value = f.DefaultValue ?? string.Empty
+        }).ToList() ?? [];
+        _primaryTestResult = null;
+        _primaryOk = false;
+        _selectedSecondaryOption = _secondaryProviders.FirstOrDefault();
+        _secondaryTestResult = null;
+        _secondaryOk = false;
+        RefreshSecondaryProviders();
+    }
+
+    private void OnSecondaryChanged(SecondaryProviderOption? option)
+    {
+        _selectedSecondaryOption = option;
+        _secondaryFields = option?.Plugin?.RequiredFields.Select(f => new FieldInput
+        {
+            Key = f.Key,
+            Label = f.Label,
+            IsSecret = f.IsSecret,
+            DefaultValue = f.DefaultValue,
+            Value = f.DefaultValue ?? string.Empty
+        }).ToList() ?? [];
+        _secondaryTestResult = null;
+        _secondaryOk = false;
+    }
+
+    private void RefreshSecondaryProviders()
+    {
+        var none = new SecondaryProviderOption(string.Empty, "None", null);
+        _secondaryProviders = _providers
+            .Where(p => p.Id != _primaryPlugin?.Id)
+            .Select(p => new SecondaryProviderOption(p.Id, p.DisplayName, p))
+            .Prepend(none)
+            .ToList();
+        _selectedSecondaryOption = none;
+    }
+
+    private sealed record SecondaryProviderOption(string Id, string DisplayName, IDbProviderPlugin? Plugin);
+
+    public sealed class FieldInput
+    {
+        public string Key { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public bool IsSecret { get; set; }
+        public string? DefaultValue { get; set; }
+        public string Value { get; set; } = string.Empty;
+    }
+
+    private async Task TestPrimaryAsync()
+    {
+        _testingPrimary = true;
+        _primaryTestResult = null;
+        _primaryOk = false;
+        StateHasChanged();
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var cs = BuildConnectionString(_primaryPlugin!, _primaryFields);
+            await _primaryPlugin!.TestConnectionAsync(cs, cts.Token);
+            _primaryTestResult = $"Connected to {_primaryPlugin.DisplayName} successfully.";
+            _primaryOk = true;
+        }
+        catch (Exception ex)
+        {
+            _primaryTestResult = $"Connection failed: {ex.Message}";
+        }
+        finally
+        {
+            _testingPrimary = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task TestSecondaryAsync()
+    {
+        _testingSecondary = true;
+        _secondaryTestResult = null;
+        _secondaryOk = false;
+        StateHasChanged();
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var cs = BuildConnectionString(_secondaryPlugin!, _secondaryFields);
+            await _secondaryPlugin!.TestConnectionAsync(cs, cts.Token);
+            _secondaryTestResult = $"Connected to {_secondaryPlugin.DisplayName} successfully.";
+            _secondaryOk = true;
+        }
+        catch (Exception ex)
+        {
+            _secondaryTestResult = $"Connection failed: {ex.Message}";
+        }
+        finally
+        {
+            _testingSecondary = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CompleteSetupAsync()
+    {
+        _saving = true;
+        _saveError = null;
+        StateHasChanged();
+
+        try
+        {
+            var primaryCs = BuildConnectionString(_primaryPlugin!, _primaryFields);
+            var secondaryCs = _secondaryPlugin is not null
+                ? BuildConnectionString(_secondaryPlugin, _secondaryFields)
+                : null;
+
+            var state = new SetupState(
+                IsComplete: true,
+                PrimaryProviderId: _primaryPlugin!.Id,
+                PrimaryConnectionString: primaryCs,
+                SecondaryProviderId: _secondaryPlugin?.Id,
+                SecondaryConnectionString: secondaryCs);
+
+            await SetupStore.SaveAsync(state);
+            _done = true;
+            StateHasChanged();
+
+            // Give the UI a moment to render the success message before restart
+            await Task.Delay(2000);
+            AppLifetime.StopApplication();
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Failed to save setup: {ex.Message}";
+            _saving = false;
+        }
+    }
+
+    private static string BuildConnectionString(IDbProviderPlugin plugin, List<FieldInput> fields)
+    {
+        var parts = fields
+            .Where(f => !string.IsNullOrWhiteSpace(f.Value))
+            .Select(f => $"{f.Key}={f.Value}");
+        return string.Join(";", parts);
+    }
+}

@@ -25,7 +25,7 @@ internal sealed class DatabaseAvailabilityMonitor(
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(intervalSeconds));
         do
         {
-            var simulatedOutage = IsSqlServerOutageSimulated();
+            var simulatedOutage = IsPrimaryOutageSimulated();
             var primaryProbe = simulatedOutage
                 ? Task.FromResult<(bool Available, string? Failure)>(
                     (false, "Development outage simulation is active."))
@@ -52,15 +52,19 @@ internal sealed class DatabaseAvailabilityMonitor(
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    private bool IsSqlServerOutageSimulated()
+    private bool IsPrimaryOutageSimulated()
     {
         if (!environment.IsDevelopment())
             return false;
 
-        var configuredPath = configuration["DatabaseFailover:OutageMarkerPath"]
-            ?? "../../../.tmp/simulate-sqlserver-down";
-        var markerPath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, configuredPath));
-        return File.Exists(markerPath);
+        // Supports both the legacy filename and the provider-agnostic one so existing dev
+        // environments do not need to rename the file they already have.
+        var configuredPath = configuration["DatabaseFailover:OutageMarkerPath"];
+        var candidates = configuredPath != null
+            ? [configuredPath]
+            : new[] { "../../../.tmp/simulate-primary-down", "../../../.tmp/simulate-sqlserver-down" };
+        return candidates.Any(relative =>
+            File.Exists(Path.GetFullPath(Path.Combine(environment.ContentRootPath, relative))));
     }
 
     private async Task<(bool Available, string? Failure)> ProbePluginAsync(

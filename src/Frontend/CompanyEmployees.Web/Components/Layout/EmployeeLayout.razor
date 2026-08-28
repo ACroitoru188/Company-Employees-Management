@@ -6,6 +6,7 @@
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Persistence
+@using CompanyEmployees.Web.Plugins
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inherits LayoutComponentBase
@@ -19,6 +20,7 @@
 @inject LanguagePreferenceService LanguagePreferences
 @inject ILogger<EmployeeLayout> Logger
 @inject DatabaseRuntimeState DatabaseState
+@inject DatabaseProviderCatalog Catalog
 @inject DatabaseProviderSwitcher DatabaseSwitcher
 @implements IDisposable
 
@@ -296,22 +298,22 @@
             {
                 <FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false"
                                   Style="margin-bottom:16px;">
-                    SQL Server is down. Contact the database team at
+                    @PrimaryProviderName is down. Contact the database team at
                     <strong>@DatabaseState.SupportContact</strong>.
                     Latest standby sync: <strong>@LastSynchronizationLabel</strong>.
                     Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
-                    @if (DatabaseState.SecondaryAvailable)
+                    @if (DatabaseState.SecondaryAvailable && DatabaseState.SecondaryProviderId != null)
                     {
                         <FluentButton Appearance="Appearance.Accent"
                                       Disabled="_switchingDatabase"
                                       OnClick="@(() => SwitchDatabaseAsync(DatabaseState.SecondaryProviderId!))"
                                       Style="margin-left:12px;">
-                            @(_switchingDatabase ? "Switching…" : "Switch to PostgreSQL")
+                            @(_switchingDatabase ? "Switching…" : $"Switch to {SecondaryProviderName}")
                         </FluentButton>
                     }
-                    else
+                    else if (DatabaseState.SecondaryProviderId != null)
                     {
-                        <strong> PostgreSQL is also unavailable.</strong>
+                        <strong> @SecondaryProviderName is also unavailable.</strong>
                     }
                 </FluentMessageBar>
             }
@@ -319,10 +321,10 @@
             {
                 <FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false"
                                   Style="margin-bottom:16px;">
-                    PostgreSQL is the active database.
+                    @ActiveProviderName is the active database.
                     @(DatabaseState.PrimaryAvailable
-                        ? "SQL Server is available again."
-                        : "SQL Server is still down.")
+                        ? $"{PrimaryProviderName} is available again."
+                        : $"{PrimaryProviderName} is still down.")
                     Contact the database team at <strong>@DatabaseState.SupportContact</strong>.
                     Latest sync: <strong>@LastSynchronizationLabel</strong>.
                     Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
@@ -332,7 +334,7 @@
                                       Disabled="_switchingDatabase"
                                       OnClick="@(() => SwitchDatabaseAsync(DatabaseState.PrimaryProviderId))"
                                       Style="margin-left:12px;">
-                            @(_switchingDatabase ? "Switching…" : "Switch back to SQL Server")
+                            @(_switchingDatabase ? "Switching…" : $"Switch back to {PrimaryProviderName}")
                         </FluentButton>
                     }
                 </FluentMessageBar>
@@ -341,10 +343,13 @@
             {
                 <FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false"
                                   Style="margin-bottom:16px;">
-                    SQL Server is the active database.
-                    PostgreSQL is @(DatabaseState.SecondaryAvailable ? "healthy" : "unavailable").
-                    Latest sync: <strong>@LastSynchronizationLabel</strong>.
-                    Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
+                    @ActiveProviderName is the active database.
+                    @if (DatabaseState.SecondaryProviderId != null)
+                    {
+                        <span>@SecondaryProviderName is @(DatabaseState.SecondaryAvailable ? "healthy" : "unavailable").</span>
+                        <span>Latest sync: <strong>@LastSynchronizationLabel</strong>.</span>
+                        <span>Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.</span>
+                    }
                 </FluentMessageBar>
             }
             @if (_role == "Admin" && DatabaseState.ReplicationError is not null)
@@ -597,6 +602,17 @@
             _switchingDatabase = false;
         }
     }
+
+    private string PrimaryProviderName =>
+        Catalog.FindById(DatabaseState.PrimaryProviderId)?.DisplayName ?? DatabaseState.PrimaryProviderId;
+
+    private string SecondaryProviderName =>
+        DatabaseState.SecondaryProviderId is not null
+            ? Catalog.FindById(DatabaseState.SecondaryProviderId)?.DisplayName ?? DatabaseState.SecondaryProviderId
+            : "Standby";
+
+    private string ActiveProviderName =>
+        Catalog.FindById(DatabaseState.ActiveProviderId)?.DisplayName ?? DatabaseState.ActiveProviderId;
 
     public void Dispose()
     {
