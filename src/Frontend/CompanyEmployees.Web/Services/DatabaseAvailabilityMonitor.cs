@@ -1,4 +1,5 @@
 using CompanyEmployees.Persistence;
+using CompanyEmployees.Persistence.Contracts;
 
 namespace CompanyEmployees.Web.Services;
 
@@ -6,6 +7,10 @@ internal sealed class DatabaseAvailabilityMonitor(
     IConfiguration configuration,
     IHostEnvironment environment,
     DatabaseRuntimeState state,
+    IDbProviderPlugin primaryPlugin,
+    string primaryConnectionString,
+    IDbProviderPlugin? secondaryPlugin,
+    string? secondaryConnectionString,
     ILogger<DatabaseAvailabilityMonitor> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -20,52 +25,56 @@ internal sealed class DatabaseAvailabilityMonitor(
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(intervalSeconds));
         do
         {
-            var simulatedOutage = IsSqlServerOutageSimulated();
-            var sqlProbe = simulatedOutage
+            var simulatedOutage = IsPrimaryOutageSimulated();
+            var primaryProbe = simulatedOutage
                 ? Task.FromResult<(bool Available, string? Failure)>(
                     (false, "Development outage simulation is active."))
-                : ProbeAsync(DatabaseFailoverSelector.ProbeSqlServerAsync, stoppingToken);
-            var postgreSqlProbe = ProbeAsync(
-                DatabaseFailoverSelector.ProbePostgreSqlAsync,
-                stoppingToken);
+                : ProbePluginAsync(primaryPlugin, primaryConnectionString, stoppingToken);
+            var secondaryProbe = secondaryPlugin != null && !string.IsNullOrEmpty(secondaryConnectionString)
+                ? ProbePluginAsync(secondaryPlugin, secondaryConnectionString, stoppingToken)
+                : Task.FromResult<(bool, string?)>((false, "No secondary configured."));
 
-            // Neither availability check depends on the other. Running them together keeps a
-            // slow standby probe from delaying the SQL Server recovery banner.
-            await Task.WhenAll(sqlProbe, postgreSqlProbe);
-            var (sqlAvailable, sqlFailure) = await sqlProbe;
-            var (postgreSqlAvailable, _) = await postgreSqlProbe;
+            await Task.WhenAll(primaryProbe, secondaryProbe);
+            var (primaryAvailable, primaryFailure) = await primaryProbe;
+            var (secondaryAvailable, _) = await secondaryProbe;
 
-            var wasSqlAvailable = state.PrimaryAvailable;
-            state.UpdateAvailability(sqlAvailable, postgreSqlAvailable, sqlFailure);
-            if (wasSqlAvailable != sqlAvailable)
+            var wasPrimaryAvailable = state.PrimaryAvailable;
+            state.UpdateAvailability(primaryAvailable, secondaryAvailable, primaryFailure);
+            if (wasPrimaryAvailable != primaryAvailable)
             {
                 logger.LogWarning(
-                    "SQL Server availability changed to {SqlServerAvailable}. Active provider remains {Provider} until an admin changes it.",
-                    sqlAvailable,
-                    state.ActiveProvider);
+                    "Primary database ({PrimaryProvider}) availability changed to {Available}. Active provider remains {ActiveProvider} until an admin changes it.",
+                    primaryPlugin.DisplayName,
+                    primaryAvailable,
+                    state.ActiveProviderId);
             }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    private bool IsSqlServerOutageSimulated()
+    private bool IsPrimaryOutageSimulated()
     {
         if (!environment.IsDevelopment())
             return false;
 
-        var configuredPath = configuration["DatabaseFailover:OutageMarkerPath"]
-            ?? "../../../.tmp/simulate-sqlserver-down";
-        var markerPath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, configuredPath));
-        return File.Exists(markerPath);
+        // Supports both the legacy filename and the provider-agnostic one so existing dev
+        // environments do not need to rename the file they already have.
+        var configuredPath = configuration["DatabaseFailover:OutageMarkerPath"];
+        var candidates = configuredPath != null
+            ? [configuredPath]
+            : new[] { "../../../.tmp/simulate-primary-down", "../../../.tmp/simulate-sqlserver-down" };
+        return candidates.Any(relative =>
+            File.Exists(Path.GetFullPath(Path.Combine(environment.ContentRootPath, relative))));
     }
 
-    private async Task<(bool Available, string? Failure)> ProbeAsync(
-        Func<IConfiguration, CancellationToken, Task> probe,
+    private async Task<(bool Available, string? Failure)> ProbePluginAsync(
+        IDbProviderPlugin plugin,
+        string connectionString,
         CancellationToken cancellationToken)
     {
         try
         {
-            await probe(configuration, cancellationToken);
+            await plugin.TestConnectionAsync(connectionString, cancellationToken);
             return (true, null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

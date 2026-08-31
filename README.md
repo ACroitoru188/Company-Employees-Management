@@ -1,4 +1,4 @@
-﻿# Siemens Employee Management Portal
+# Siemens Employee Management Portal
 
 An enterprise-grade portal platform designed to streamline employee data management, time-off tracking, organizational hierarchy, and workforce administration.
 
@@ -13,21 +13,22 @@ The Employee Management Portal is a comprehensive internal tool that replaces ma
 *   **Interactive Calendars:** Personal and departmental views of upcoming leaves, public holidays, and team availability.
 *   **Real-time Notifications:** In-app alerts for request submissions, approvals, rejections, and system status changes.
 *   **Contract & Quota Management:** Tracking of indefinite and fixed-term contracts, calculating accurate leave quotas for each employee.
-*   **High Availability:** Active-passive dual database setup (SQL Server + PostgreSQL) with automatic synchronization and seamless failover.
+*   **High Availability & Dynamic Database Providers:** Active-passive dual database setup (PostgreSQL / SQL Server) with automatic synchronization, health monitoring, and seamless failover.
+*   **Containerized Architecture:** Fully dockerized full-stack deployment with Docker Compose.
 
 ## 💻 Tech Stack
 
 ### Frontend
-*   **Framework:** Blazor Web App (.NET 8/9, Interactive Server)
+*   **Framework:** Blazor Web App (.NET 9, Interactive Server)
 *   **UI Library:** Microsoft Fluent UI Blazor Components (customized with corporate branding)
-*   **Styling:** CSS/SCSS (custom theming)
+*   **Animation & Scripting:** GSAP (GreenSock), custom pointer and animation utilities
+*   **Styling:** CSS/SCSS (custom theming, Light/Dark modes)
 
-### Backend
-*   **Framework:** ASP.NET Core Web API / SignalR
-*   **ORM:** Entity Framework Core 8
-*   **Primary Database:** SQL Server 2022
-*   **Standby Database:** PostgreSQL 16 (for high-availability failover)
-*   **Authentication:** ASP.NET Core Identity
+### Backend & Persistence
+*   **Framework:** ASP.NET Core (.NET 9) / SignalR
+*   **ORM:** Entity Framework Core 9
+*   **Pluggable Database Providers:** Microsoft SQL Server 2022 & PostgreSQL 16
+*   **Authentication & Security:** ASP.NET Core Identity & Persistent Data Protection Keyring
 *   **Infrastructure:** Docker & Docker Compose
 
 ## 👥 User Roles & Permissions
@@ -37,10 +38,8 @@ The application implements a strict role-based access control (RBAC) system:
 ### 1. Employee
 The standard user profile for company staff.
 *   Can view their own calendar and available holiday quotas.
-*   Can submit, edit, or cancel personal requests.
+*   Can submit, edit, or cancel personal time-off requests.
 *   Can view the organizational chart and see colleagues within their department.
-
-*(Imagine inserted here: `![Employee Dashboard](https://link-to-your-image.com/employee.png)`)*
 
 ### 2. Line Manager
 Leads a specific department or team.
@@ -48,138 +47,148 @@ Leads a specific department or team.
 *   Receives and processes (Approve/Reject) requests from their direct reports.
 *   Can view the team's aggregated calendar to ensure adequate department coverage.
 
-*(Imagine inserted here: `![Line Manager View](https://link-to-your-image.com/manager.png)`)*
-
 ### 3. Country Manager
 Oversees an entire region or country's operations.
 *   Inherits Line Manager privileges.
 *   Approves/Rejects requests submitted by Line Managers.
 *   Has a broader view of the region's organizational chart and statistics.
 
-*(Imagine inserted here: `![Country Manager View](https://link-to-your-image.com/country-manager.png)`)*
-
 ### 4. Admin
 System administrator responsible for platform maintenance and HR data.
 *   Full access to user management (Create, Edit, Deactivate employees).
 *   Manages employment contracts (determinate/indeterminate), job titles, and region assignments.
 *   Monitors system health, database replication status, and can trigger manual database failover.
-*   Does not typically participate in the approval chain unless they hold a dual role.
-
-*(Imagine inserted here: `![Admin Dashboard](https://link-to-your-image.com/admin.png)`)*
 
 ---
 
-## 🛠️ Run & Development
+## 🐳 Running the Full Stack with Docker (Recommended)
 
-```sh
-docker compose up -d --wait
-dotnet tool restore
-dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persistence
-dotnet run --project src/Frontend/CompanyEmployees.Web
+The entire solution — including the web application and both database engines — is containerized and orchestrated via Docker Compose.
+
+### 1. Start all containers
+Run the following command from the repository root:
+
+```bash
+# First time or after code changes (recompiles image):
+docker compose up --build -d
+
+# Regular daily starts (instant, no rebuild):
+docker compose up -d
 ```
 
-App runs at http://localhost:5269. Demo accounts and passwords are in `CLAUDE.md`.
+> **Quick Commands:** Pause with `docker compose stop`, resume instantly with `docker compose start`.
 
-## 🧪 Tests
+This starts three services:
+*   `company-employees-app` — The .NET 9 Blazor Web Application (listening on port `8080`)
+*   `company-employees-sqlserver` — Microsoft SQL Server 2022 (listening on port `1433`)
+*   `company-employees-postgres` — PostgreSQL 16 Alpine (listening on port `5432`)
 
-Run all unit tests from the repository root:
+### 2. Open the application
+Navigate to **[http://localhost:8080](http://localhost:8080)** in your browser.
 
-```sh
-dotnet test CompanyEmployees.slnx
-```
+*   **First-time Setup Wizard:** On the initial run, the app will display the **Database Setup** page.
+    *   Select your **Primary Database** (e.g., *PostgreSQL* with host `postgres` or *Microsoft SQL Server* with host `sqlserver,1433`).
+    *   (Optional) Select your **Secondary / Standby Database**.
+    *   Click **Test Connection** for each provider.
+    *   Click **Save & Complete Setup**. The application will automatically initialize schemas, perform baseline sync, and restart smoothly into the **Login screen**.
+*   **Subsequent Runs:** The setup state is persisted across container restarts, and the application opens directly to the Login page.
 
-Collect Coverlet coverage reports:
+### 3. Demo Accounts
+Default accounts for testing the system:
+*   **Admin:** `itadmin@siemens.com` / `User123!`
+*   **Country Manager:** `countrymanager.ro@siemens.com` / `User123!`
+*   **Line Manager:** `manager.it.ro@siemens.com` / `User123!`
+*   **Employee:** `employee.it.ro@siemens.com` / `User123!`
 
-```sh
-dotnet test CompanyEmployees.slnx --collect:"XPlat Code Coverage"
-```
-
-The tests are split into `CompanyEmployees.Domain.Tests` for pure business rules and `CompanyEmployees.Application.Tests` for workflows exercised with mocked gateways.
+### 4. Stopping and Resetting State
+*   **Stop containers (preserving data):**
+    ```bash
+    docker compose down
+    ```
+*   **Stop containers and wipe all data (Full Reset):**
+    ```bash
+    docker compose down -v
+    ```
 
 ---
-## Database containers and PostgreSQL fallback
 
-SQL Server remains the primary database. At process startup the application probes SQL Server;
-if it is unavailable, it connects to the PostgreSQL standby and shows a non-dismissible warning
-to signed-in administrators with the configured support contact.
+## 💻 Local Development Workflow (Hybrid Mode)
 
-Development defaults are in `appsettings.Development.json`. SQL Server listens on `localhost:1433`
-and PostgreSQL on `localhost:5432`. Their data persists in the
-`company-employees-sqlserver-data` and `company-employees-postgres-data` Docker volumes. The
-passwords in `compose.yaml` are development-only defaults; override `MSSQL_SA_PASSWORD`,
-`POSTGRES_PASSWORD`, `ConnectionStrings__Default`, and `ConnectionStrings__PostgreSql` outside
-local development.
+For daily UI or backend feature development with Hot Reload:
 
-While SQL Server is active, the application first
-creates a complete PostgreSQL baseline: users and password hashes, regions, departments, contracts,
-leave data, notifications, delegations, audit data, and ASP.NET Identity tables. After that baseline,
-every EF Core business transaction records a change envelope in a durable outbox in the same
-transaction. A worker applies those envelopes to the standby every two seconds.
-
-Replication is bidirectional. Writes made while PostgreSQL is active queue there and are applied
-back to SQL Server after it recovers. Failback is blocked until PostgreSQL has zero pending changes.
-During a provider change, a process-wide write gate waits for in-flight saves, prevents a save from
-crossing the switch boundary, and forces every signed-in Blazor circuit to sign in again with a new
-DbContext. The admin status bar reports the active provider, standby health, last successful sync,
-pending change count, and replication errors.
-
-If SQL Server fails, the administrator switches to the latest completed PostgreSQL state and uses
-the same login details. Changes already queued but not replicated before an abrupt primary failure
-cannot be recovered from the unavailable primary; the status bar exposes that replication window.
-Only when no snapshot has ever been created does startup add the emergency account
-(`itadmin@siemens.com` / `User123!`, Romania).
-Override secrets outside development with environment variables such as
-`ConnectionStrings__PostgreSql` and `DatabaseFailover__SupportContact`.
-
-To test fallback without stopping SQL Server, set
-`DatabaseFailover__ForceProvider=PostgreSql` for that app process. Remove it to restore automatic
-startup selection. If SQL Server is already down at startup, the app opens on PostgreSQL. While the
-app is already running on SQL Server, a background health check also
-warns administrators within about five seconds if SQL Server goes down. The warning lets an admin
-select PostgreSQL without restarting the process; the browser reloads and asks them to sign in to
-the fallback database. When SQL Server recovers, the PostgreSQL banner offers the reverse switch.
-The outbox table is initialized with provider-specific idempotent DDL because the existing SQL
-Server migrations contain T-SQL and cannot be replayed on PostgreSQL. Production deployment still
-requires monitored backups, provider-specific schema migration automation, retention/cleanup for
-processed outbox rows, alerting, and a tested disaster-recovery procedure.
-
-To test a real primary outage while the app is running, stop only SQL Server, wait up to five
-seconds, and use the admin banner's **Switch to PostgreSQL** action:
-
-```powershell
-docker compose stop sqlserver
+### 1. Start only the databases in Docker
+```bash
+docker compose up -d sqlserver postgres
 ```
 
-Start it again to reveal **Switch back to SQL Server** after the health check succeeds:
-
-```powershell
-docker compose start sqlserver
+### 2. Run the application locally with `dotnet watch`
+```bash
+dotnet watch --project src/Frontend/CompanyEmployees.Web
 ```
 
-The `.tmp/simulate-sqlserver-down` marker remains available when stopping a container is
-inconvenient. LocalDB is still supported by overriding `ConnectionStrings__Default`, but it is no
-longer the development default.
+The app will run locally at **`http://localhost:5269`** (or `https://localhost:7082`), connecting to `localhost:1433` (SQL Server) and `localhost:5432` (PostgreSQL) with instant code hot-reloading on file save.
 
-Both databases share one Docker host in this setup, which is convenient for development but is not
-a production high-availability design. Deploy the primary and standby to independent, monitored
-infrastructure in production.
+---
 
-## Tests
+## 🔄 Dual-Database High Availability & Failover
 
-Run all unit tests from the repository root:
+The platform implements an active-passive dual-database architecture with real-time replication and live failover:
 
-```sh
+```
+[ Active Database (e.g. PostgreSQL) ] ────(Outbox Replication)────► [ Standby Database (e.g. SQL Server) ]
+                 │                                                                     │
+                 └───────────────────────────(Failover Switch)─────────────────────────┘
+```
+
+1. **Bidirectional Outbox Replication:** 
+   - Every business transaction committed to the active database writes a change envelope to a durable `DatabaseOutbox` table.
+   - The background replication worker drains and applies these changes to the standby database every 2 seconds.
+2. **Background Health Monitoring:**
+   - `DatabaseAvailabilityMonitor` continuously probes both database engines.
+   - Real-time status, standby health, and pending change counts are broadcast to administrators via the status banner.
+3. **Live Failover Simulation:**
+   - Stop the active database to test resilience:
+     ```bash
+     # If PostgreSQL is active:
+     docker compose stop postgres
+     
+     # If SQL Server is active:
+     docker compose stop sqlserver
+     ```
+   - Within seconds, the admin banner alerts that the active provider is down and presents a **Switch Database** action.
+   - Clicking the switch button drains replication, swaps persistent state, restarts the host cleanly, and automatically reloads the browser onto the standby database with zero data loss.
+4. **Recovery & Failback:**
+   - Restart the recovered database (`docker compose start postgres` / `docker compose start sqlserver`).
+   - The monitor detects recovery, syncs queued changes, and offers a **Switch Back** button.
+
+---
+
+## 📦 Docker Volumes Breakdown
+
+Docker named volumes ensure all data survives container restarts and image updates:
+
+| Volume Name | Service | Purpose |
+|---|---|---|
+| `company-employees-postgres-data` | `postgres` | Persists PostgreSQL database schemas, tables, and records |
+| `company-employees-sqlserver-data` | `sqlserver` | Persists Microsoft SQL Server `.mdf` and `.ldf` data files |
+| `company-employees-dp-keys` | `app` | Persists ASP.NET Core Data Protection keys (preserves login sessions) |
+| `company-employees-app-data` | `app` | Persists runtime `setup-state.json` (remembers setup completion) |
+
+---
+
+## 🧪 Automated Tests
+
+Run the complete test suite from the repository root:
+
+```bash
 dotnet test CompanyEmployees.slnx
 ```
 
-Collect Coverlet coverage reports:
+Collect code coverage reports (Coverlet):
 
-```sh
+```bash
 dotnet test CompanyEmployees.slnx --collect:"XPlat Code Coverage"
 ```
 
-The tests are split into `CompanyEmployees.Domain.Tests` for pure business rules and
-`CompanyEmployees.Application.Tests` for workflows exercised with mocked gateways.
-
-
-
+*   `CompanyEmployees.Domain.Tests` — Unit tests for domain entities, invariants, and business calculation rules.
+*   `CompanyEmployees.Application.Tests` — Integration and workflow tests with mocked persistence gateways.

@@ -12,7 +12,7 @@ services:
     volumes:
       - company-employees-sqlserver-data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" -b -o /dev/null"]
+      test: [ "CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" -b -o /dev/null" ]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -31,12 +31,33 @@ services:
     volumes:
       - company-employees-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U company_app -d company_employees"]
+      test: [ "CMD-SHELL", "pg_isready -U company_app -d company_employees" ]
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 10s
-     
+
+  app:
+    build:
+      context: .
+      dockerfile: src/Frontend/CompanyEmployees.Web/Dockerfile
+    container_name: company-employees-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: "Server=sqlserver,1433;Database=CompanyEmployees;User Id=sa;Password=${MSSQL_SA_PASSWORD:-CompanyEmployees_dev_2026!};TrustServerCertificate=True;MultipleActiveResultSets=true"
+      ConnectionStrings__PostgreSql: "Host=postgres;Port=5432;Database=company_employees;Username=company_app;Password=${POSTGRES_PASSWORD:-company_dev_password}"
+      JwtSettings__Secret: "${JWT_SECRET:-A_Very_Long_Super_Secret_Key_For_JWT_Token_Generation_Siemens_Practice}"
+      DataProtection__KeysPath: "/app/dp-keys"
+      DatabaseFailover__OutageMarkerPath: ""
+    volumes:
+      - company-employees-dp-keys:/app/dp-keys
+      - company-employees-app-data:/app/App_Data
+
 volumes:
   company-employees-sqlserver-data:
   company-employees-postgres-data:
+  company-employees-dp-keys:
+  company-employees-app-data:

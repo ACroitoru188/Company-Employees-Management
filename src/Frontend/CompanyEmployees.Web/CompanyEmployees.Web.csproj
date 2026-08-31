@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <UserSecretsId>company-employees-management-web</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
   </PropertyGroup>
 
 
@@ -14,7 +15,7 @@
     <PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.2" />
     <Folder Include="Assets\" />
     <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.14.4" />
     <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.14.4" />
@@ -25,6 +26,9 @@
     <Content Update="Languages\*.json"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\..\.dockerignore">
+      <Link>.dockerignore</Link>
+    </Content>
   </ItemGroup>
 
   <Target Name="KillZombieProcesses" BeforeTargets="PreBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
@@ -34,6 +38,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Domain\CompanyEmployees.Domain.csproj" />
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Persistence\CompanyEmployees.Persistence.csproj" />
+    <ProjectReference Include="..\..\Backend\CompanyEmployees.Persistence.Contracts\CompanyEmployees.Persistence.Contracts.csproj" />
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Gateway\CompanyEmployees.Gateway.csproj" />
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Application\CompanyEmployees.Application.csproj" />
     <ProjectReference Include="..\..\Backend\CompanyEmployees.Infrastructure\CompanyEmployees.Infrastructure.csproj" />
@@ -44,5 +49,29 @@
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+
+  <!-- Publish provider plugins to isolated subdirectories on build -->
+  <Target Name="PublishSqlServerProvider" AfterTargets="Build">
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.SqlServer/CompanyEmployees.Persistence.Providers.SqlServer.csproj"
+             Targets="Publish"
+             Properties="PublishDir=$(MSBuildProjectDirectory)/$(OutputPath)Providers/SqlServer/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+  </Target>
+
+  <Target Name="PublishPostgreSqlProvider" AfterTargets="Build">
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.PostgreSql/CompanyEmployees.Persistence.Providers.PostgreSql.csproj"
+             Targets="Publish"
+             Properties="PublishDir=$(MSBuildProjectDirectory)/$(OutputPath)Providers/PostgreSql/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+  </Target>
+
+  <!-- Publish provider plugins when publishing the web application (e.g. inside Docker) -->
+  <Target Name="PublishProvidersToPublishDir" AfterTargets="Publish">
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.SqlServer/CompanyEmployees.Persistence.Providers.SqlServer.csproj"
+             Targets="Publish"
+             Properties="PublishDir=$(PublishDir)Providers/SqlServer/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.PostgreSql/CompanyEmployees.Persistence.Providers.PostgreSql.csproj"
+             Targets="Publish"
+             Properties="PublishDir=$(PublishDir)Providers/PostgreSql/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+  </Target>
 
 </Project>

@@ -5,6 +5,9 @@
     <Project Path="src/Backend/CompanyEmployees.Gateway/CompanyEmployees.Gateway.csproj" Id="3db5c2af-ed09-4a01-996d-12e5bcbaae80" />
     <Project Path="src/Backend/CompanyEmployees.Infrastructure/CompanyEmployees.Infrastructure.csproj" Id="63a71a7d-0821-4127-ab9b-4a36729d60eb" />
     <Project Path="src/Backend/CompanyEmployees.Persistence/CompanyEmployees.Persistence.csproj" Id="5ef5785b-4eea-4b7c-8e04-ec0d87bf6662" />
+    <Project Path="src/Backend/CompanyEmployees.Persistence.Contracts/CompanyEmployees.Persistence.Contracts.csproj" />
+    <Project Path="src/Backend/CompanyEmployees.Persistence.Providers.SqlServer/CompanyEmployees.Persistence.Providers.SqlServer.csproj" />
+    <Project Path="src/Backend/CompanyEmployees.Persistence.Providers.PostgreSql/CompanyEmployees.Persistence.Providers.PostgreSql.csproj" />
   </Folder>
   <Folder Name="/src/Frontend/">
     <Project Path="src/Frontend/CompanyEmployees.Web/CompanyEmployees.Web.csproj" />
