@@ -506,8 +506,11 @@ fluent-anchor[appearance="lightweight"]:not([disabled]):active::part(control) {
    and outline rather than border costs no layout: it paints outside the box instead of
    claiming space inside it, so the icon does not shift when it appears. More specific than the
    rule above (a class plus the same attribute chain beats the attribute chain alone), so this
-   wins without needing !important. */
-.grid-card fluent-button[appearance="stealth"]:not([disabled]):hover::part(control) {
+   wins without needing !important. Scoped to any FluentDataGrid (not just .grid-card pages) —
+   My Requests' row-level Cancel button sits in a plain, uncarded grid and had the same
+   near-white mismatch. */
+.grid-card fluent-button[appearance="stealth"]:not([disabled]):hover::part(control),
+.fluent-data-grid fluent-button[appearance="stealth"]:not([disabled]):hover::part(control) {
     background: transparent;
     outline: 1px solid var(--app-btn-stroke-hover);
     outline-offset: -1px;
@@ -1233,6 +1236,13 @@ body:has(fluent-design-theme[mode="dark"]) .cal-cell.is-weekend {
 
 body:has(fluent-design-theme[mode="dark"]) .cal-cell.is-past {
     background: rgb(255 255 255 / 5%);
+}
+
+/* A holiday cell reads the same red as its own label instead of leaving the tint to the text
+   alone — color-mix against --error keeps it in step across themes, same as the legend chip.
+   Declared after is-weekend/is-past so a holiday landing on a weekend still reads red. */
+.cal-cell.is-holiday {
+    background: color-mix(in srgb, var(--error) 12%, transparent);
 }
 
 /* Six-week months still need a rectangular grid; outside-month days are intentionally blank. */

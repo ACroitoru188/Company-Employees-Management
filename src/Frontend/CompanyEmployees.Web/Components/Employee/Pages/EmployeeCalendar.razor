@@ -202,7 +202,12 @@
 
                                     @if (_teamByDay.TryGetValue(date, out var absences))
                                     {
-                                        var visible = absences.Where(a => PassesFilter(a.Type)).ToList();
+                                        @* Not filtered by the selected type: picking a type to book arms date
+                                           selection on this same grid, and hiding a day's other-type entries
+                                           (e.g. an existing Sick request) here is exactly what makes it hard to
+                                           see which dates are actually free. The type filter still narrows the
+                                           Grid/List report views below, where nothing is being picked. *@
+                                        var visible = absences.ToList();
                                         @foreach (var absence in visible.Take(VisibleEntriesPerDay))
                                         {
                                             @* An entry as Teams draws one: a pale wash of its
@@ -290,7 +295,9 @@
                                     </FluentLabel>
                                 }
 
-                                @foreach (var item in FilteredRanges.Where(r => r.StartDate <= day && r.EndDate >= day))
+                                @* Unfiltered for the same reason as the month grid above: this view is also
+                                   the date picker, and an existing other-type request has to stay visible. *@
+                                @foreach (var item in _ranges.Where(r => r.StartDate <= day && r.EndDate >= day))
                                 {
                                     <FluentStack Class="cal-entry cal-entry-block" Orientation="Orientation.Vertical"
                                                  VerticalGap="0" Style="@EntryTint(item.Type)"
@@ -582,6 +589,8 @@
             classes += " is-past";
         if (IsWeekend(day))
             classes += " is-weekend";
+        if (IsHoliday(day))
+            classes += " is-holiday";
         if (day == _today)
             classes += " is-today";
         if (IsSelected(day))
@@ -631,7 +640,8 @@
         return $"{start.ToString("MMM d", inv)} – {end.Day}, {end.Year}";
     }
 
-    // The selected type doubles as a content filter; no selection shows everything.
+    // Narrows the Grid/List report views only. The Month/Week grids double as the date picker
+    // once a type is selected, so they render every entry unfiltered — see the comments above.
     private bool PassesFilter(LeaveType type) => _selectedType is null || _selectedType == type;
 
     private IEnumerable<TeamTimeOff> FilteredRanges => _ranges.Where(r => PassesFilter(r.Type));

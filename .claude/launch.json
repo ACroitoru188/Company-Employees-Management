@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "/home/alex/.dotnet/dotnet",
+      "runtimeExecutable": "dotnet",
       "runtimeArgs": [
         "run",
         "--project",
