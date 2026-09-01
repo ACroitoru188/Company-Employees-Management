@@ -225,16 +225,31 @@ public static class DatabaseSeeder
 
         await db.SaveChangesAsync(ct);
 
+        // A hardcoded id's insert above is skipped whenever a row with the same email already
+        // exists under a different id (e.g. the failover bootstrapper's fallback admin at
+        // itadmin@siemens.com). Writing the hardcoded id as someone's ManagerId in that case
+        // points at a row that was never persisted and SQL Server rejects the FK. Resolving
+        // every hardcoded id to whichever row actually represents it — by id first, falling
+        // back to email — keeps every link pointed at a row that really exists.
+        var resolved = new Dictionary<Guid, User>();
+        foreach (var (id, _, email, _, _, _, _) in rawUsers)
+        {
+            var normalizedEmail = email.ToUpperInvariant();
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id, ct)
+                       ?? await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
+            if (user != null)
+                resolved[id] = user;
+        }
+
         // Second pass: Set ManagerId links
         foreach (var (id, _, _, _, _, mgrId, _) in rawUsers)
         {
-            if (mgrId.HasValue)
+            if (mgrId.HasValue
+                && resolved.TryGetValue(id, out var user)
+                && resolved.TryGetValue(mgrId.Value, out var manager)
+                && user.ManagerId != manager.Id)
             {
-                var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
-                if (user != null && user.ManagerId != mgrId.Value)
-                {
-                    user.ManagerId = mgrId.Value;
-                }
+                user.ManagerId = manager.Id;
             }
         }
 
@@ -251,10 +266,13 @@ public static class DatabaseSeeder
 
         foreach (var (deptId, mgrId) in deptManagers)
         {
+            if (!resolved.TryGetValue(mgrId, out var manager))
+                continue;
+
             var dept = await db.Departments.FirstOrDefaultAsync(d => d.Id == deptId, ct);
-            if (dept != null && dept.ManagerId != mgrId)
+            if (dept != null && dept.ManagerId != manager.Id)
             {
-                dept.ManagerId = mgrId;
+                dept.ManagerId = manager.Id;
             }
         }
 
