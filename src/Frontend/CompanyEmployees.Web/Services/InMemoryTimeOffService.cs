@@ -189,6 +189,20 @@ public class InMemoryTimeOffService : ITimeOffService
         return Task.FromResult(request);
     }
 
+    public Task CancelRequestAsync(Guid requestId, string? reason)
+    {
+        var request = _myRequests.FirstOrDefault(r => r.Id == requestId);
+        if (request == null)
+            throw new InvalidOperationException($"No leave request with id {requestId}.");
+        if (request.Status != RequestStatus.Pending)
+            throw new InvalidOperationException(
+                "Only requests nobody has approved yet can be cancelled.");
+
+        request.Status = RequestStatus.Cancelled;
+        request.CancellationReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        return Task.CompletedTask;
+    }
+
     private static TeamMember Member(string name, string department, string team, LeaveType type, DateOnly start, DateOnly end) =>
         new()
         {

@@ -12,6 +12,8 @@ public class LeaveRequest
     public DateOnly EndDate { get; set; }
     public string? Reason { get; set; }
     public LeaveStatus Status { get; set; } = LeaveStatus.Pending;
+    // Set when the requester cancels their own request before anyone has acted on it.
+    public string? CancellationReason { get; set; }
     public ICollection<LeaveApproval> Approvals { get; set; } = new List<LeaveApproval>();
     public DateTime CreatedAt { get; set; }
     public LeaveType Type { get; set; }

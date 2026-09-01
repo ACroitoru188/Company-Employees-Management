@@ -11,6 +11,7 @@ public class TimeOffRequest
     public DateTime SubmittedAt { get; set; }
     public string? DecidedBy { get; set; }
     public DateTime? DecidedAt { get; set; }
+    public string? CancellationReason { get; set; }
     public int? WorkingDayCount { get; set; }
 
     public int Days => WorkingDayCount ?? CountWeekdays();

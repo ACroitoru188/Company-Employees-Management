@@ -113,9 +113,10 @@ html, body {
        app, and the main reason the header read as unfinished. This navy carries white at
        11.1:1 in both themes, and is dark enough that an accent button placed on it still
        reads as a button. */
-    --app-header-bg: #009999;
-    --accent-foreground-rest: #009999;
-    --accent-foreground-hover: #007a7a;
+    --app-header-bg: #000028;
+    --accent-foreground-rest: #0F6CBD;
+    --accent-foreground-hover: #115EA3;
+
     /* NOT --foreground-on-accent-rest. That is the one accent token the FAST runtime does not
        write per component, so a value set here inherits straight into every accent button's
        shadow root and overrules the pairing the runtime worked out. FAST picks the accent fill
@@ -256,9 +257,22 @@ header.header.app-header {
    own real height; FluentHeader's compact default clips these controls into a thin coloured
    strip on some viewport sizes. */
 header.header.app-header.preview-header {
+    /* The preview status is communicated by the label, never by repainting the navigation. */
+    background: #000028 !important;
     height: 56px;
     min-height: 56px;
     overflow: visible;
+}
+
+.siemens-wordmark {
+    color: #009999 !important;
+    font-weight: 800 !important;
+    letter-spacing: .03em;
+}
+
+/* Preview adds status styling around the header, but the Siemens wordmark always remains aqua. */
+header.header.preview-header .siemens-wordmark {
+    color: #009999 !important;
 }
 
 /* The app bar is a solid dark surface, and every neutral token is wrong on it. A stealth
@@ -499,8 +513,11 @@ fluent-anchor[appearance="lightweight"]:not([disabled]):active::part(control) {
    and outline rather than border costs no layout: it paints outside the box instead of
    claiming space inside it, so the icon does not shift when it appears. More specific than the
    rule above (a class plus the same attribute chain beats the attribute chain alone), so this
-   wins without needing !important. */
-.grid-card fluent-button[appearance="stealth"]:not([disabled]):hover::part(control) {
+   wins without needing !important. Scoped to any FluentDataGrid (not just .grid-card pages) —
+   My Requests' row-level Cancel button sits in a plain, uncarded grid and had the same
+   near-white mismatch. */
+.grid-card fluent-button[appearance="stealth"]:not([disabled]):hover::part(control),
+.fluent-data-grid fluent-button[appearance="stealth"]:not([disabled]):hover::part(control) {
     background: transparent;
     outline: 1px solid var(--app-btn-stroke-hover);
     outline-offset: -1px;
@@ -1048,6 +1065,14 @@ body:has(fluent-design-theme[mode="dark"]) .cal-swatch-weekend {
     background: rgb(255 255 255 / 10%);
 }
 
+/* Same bordered-chip treatment as the weekend swatch above, just tinted red, so the two
+   legend entries read as one family instead of the holiday one being a jarring solid block.
+   color-mix (not a hardcoded rgba) keeps this in step with --error across the light/dark themes. */
+.cal-swatch-holiday {
+    background: color-mix(in srgb, var(--error) 14%, transparent);
+    border: 1px solid var(--error);
+}
+
 /* The holiday line is a full sentence, so it wraps instead of being cut. */
 .cal-legend-text {
     white-space: normal;
@@ -1224,6 +1249,13 @@ body:has(fluent-design-theme[mode="dark"]) .cal-cell.is-past {
     background: rgb(255 255 255 / 5%);
 }
 
+/* A holiday cell reads the same red as its own label instead of leaving the tint to the text
+   alone — color-mix against --error keeps it in step across themes, same as the legend chip.
+   Declared after is-weekend/is-past so a holiday landing on a weekend still reads red. */
+.cal-cell.is-holiday {
+    background: color-mix(in srgb, var(--error) 12%, transparent);
+}
+
 /* Six-week months still need a rectangular grid; outside-month days are intentionally blank. */
 .cal-cell.cal-empty {
     background: rgb(0 0 0 / 3%);
@@ -1317,7 +1349,8 @@ body:has(fluent-design-theme[mode="dark"]) .cal-cell.cal-empty {
     padding-inline-start: 2px;
 }
 
-/* The request bar, as the last row of the surface. */
+/* The request bar, as the last row of the surface. Always mounted (see the .razor comment)
+   so the grid above it never has to resize to make room for it. */
 .cal-submit {
     flex: 0 0 auto;
     margin-top: 12px;
@@ -1325,6 +1358,13 @@ body:has(fluent-design-theme[mode="dark"]) .cal-cell.cal-empty {
     border: 1px solid var(--neutral-stroke-divider-rest);
     border-radius: calc(var(--control-corner-radius) * 1px);
     background: var(--neutral-layer-1);
+}
+
+/* Same size and position as the active bar — just invisible and non-interactive — so nothing
+   above it has to reflow when a day gets picked or deselected. */
+.cal-submit-inactive {
+    visibility: hidden;
+    pointer-events: none;
 }
 
 /* ---- Grid and List views ---- */
@@ -1533,7 +1573,8 @@ font-weight: 600;
     padding-inline-start: 2px;
 }
 
-/* The request bar, as the last row of the surface. */
+/* The request bar, as the last row of the surface. Always mounted (see the .razor comment)
+   so the grid above it never has to resize to make room for it. */
 .cal-submit {
     flex: 0 0 auto;
     margin-top: 12px;
@@ -1541,6 +1582,13 @@ font-weight: 600;
     border: 1px solid var(--neutral-stroke-divider-rest);
     border-radius: calc(var(--control-corner-radius) * 1px);
     background: var(--neutral-layer-1);
+}
+
+/* Same size and position as the active bar — just invisible and non-interactive — so nothing
+   above it has to reflow when a day gets picked or deselected. */
+.cal-submit-inactive {
+    visibility: hidden;
+    pointer-events: none;
 }
 
 /* ---- Grid and List views ---- */

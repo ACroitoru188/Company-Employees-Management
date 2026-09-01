@@ -33,4 +33,8 @@ public interface ILeaveRequestGateway
     Task SaveDecisionAsync(LeaveRequest request, LeaveApproval approval);
 
     Task UpdateRequestDatesAsync(LeaveRequest request);
+
+    // Persists a self-cancellation. "request" is already tracked (it came from
+    // GetRequestByIdAsync), so only the status/reason change needs saving.
+    Task CancelRequestAsync(LeaveRequest request);
 }

@@ -167,5 +167,11 @@ namespace CompanyEmployees.Gateway.Repositories
             // "request" is already tracked (it came from GetRequestByIdAsync).
             await _context.SaveChangesAsync();
         }
+
+        public async Task CancelRequestAsync(LeaveRequest request)
+        {
+            // "request" is already tracked (it came from GetRequestByIdAsync).
+            await _context.SaveChangesAsync();
+        }
     }
 }

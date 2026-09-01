@@ -14,6 +14,9 @@ public class LeaveRequestConfiguration : IEntityTypeConfiguration<LeaveRequest>
             builder.Property(r =>                      
                 r.Reason).HasMaxLength(500);   
             
+            builder.Property(r =>
+                r.CancellationReason).HasMaxLength(500);
+            
             builder.HasOne(r => r.User)                
                 .WithMany()                         
                 .HasForeignKey(r => r.UserId);      

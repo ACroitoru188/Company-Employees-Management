@@ -7,6 +7,7 @@
 @inject ITimeOffService TimeOff
 @inject AppLocalizer Text
 @inject IDialogService DialogService
+@inject IToastService Toast
 @inject NavigationManager Nav
 
 <PageTitle>@Text["My Requests"] · @Text["Time Off Management"]</PageTitle>
@@ -54,6 +55,22 @@
     <PropertyColumn Title="@Text["Submitted"]"
                     Property="@(r => r.SubmittedAt)"
                     Format="MMM d, yyyy" />
+
+    <TemplateColumn Title="@Text["Actions"]">
+        @* Only a Pending request has nobody's decision to undo yet — once it is Approved or
+           Rejected the withdrawal window has already closed. *@
+        @if (context.Status == RequestStatus.Pending)
+        {
+            @* FluentDataGrid's OnRowClick listens on the row itself, so without this the
+               click would bubble up and open the details dialog behind the cancel dialog. *@
+            <div @onclick:stopPropagation="true">
+                <FluentButton Appearance="Appearance.Stealth"
+                              Title="@Text["Cancel request"]"
+                              IconStart="@(new Icons.Regular.Size20.DismissCircle().WithColor("var(--error)"))"
+                              OnClick="@(() => OpenCancelRequestAsync(context))" />
+            </div>
+        }
+    </TemplateColumn>
 </ChildContent>
 </FluentDataGrid>
 
@@ -86,4 +103,45 @@
             SecondaryAction = null,
             Width = "480px"
         });
+
+    private async Task OpenCancelRequestAsync(TimeOffRequest request)
+    {
+        var content = new CancelRequestDialog.Model
+        {
+            RequestId = request.Id,
+            Type = request.Type,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate
+        };
+
+        var parameters = new DialogParameters
+        {
+            Title = Text["Cancel request"],
+            PrimaryAction = Text["Withdraw request"],
+            SecondaryAction = Text["Keep request"],
+            Width = "480px"
+        };
+
+        var dialog = await DialogService.ShowDialogAsync<CancelRequestDialog, CancelRequestDialog.Model>(
+            content, parameters);
+        var result = await dialog.Result;
+
+        if (result.Cancelled)
+            return;
+
+        try
+        {
+            var reason = string.IsNullOrWhiteSpace(content.Reason) ? null : content.Reason;
+            await TimeOff.CancelRequestAsync(request.Id, reason);
+            // Someone else may have just approved it while the dialog was open — reload from
+            // source rather than trusting the local list still matches what the server has.
+            _requests = await TimeOff.GetMyRequestsAsync();
+            Toast.ShowWarning(Text["Request cancelled."]);
+        }
+        catch (Exception ex)
+        {
+            _requests = await TimeOff.GetMyRequestsAsync();
+            Toast.ShowError(ex.Message);
+        }
+    }
 }

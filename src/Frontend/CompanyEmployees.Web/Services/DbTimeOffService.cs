@@ -134,7 +134,13 @@ public class DbTimeOffService : ITimeOffService
                         r.User.Name, Initials(r.User.Name), DepartmentName(r.User), MapType(r.Type), day)))
                 .ToList();
 
+            // GetTeamRequestsAsync already includes the signed-in user for regular employees (see
+            // GetOwnApprovedRequestsAsync's doc comment below), so only fold in requests it hasn't
+            // already returned — otherwise a manager's own leave is fine, but everyone else's name
+            // shows up twice on their own calendar.
+            var alreadyIncluded = requests.Select(r => r.Id).ToHashSet();
             absences.AddRange((await GetOwnApprovedRequestsAsync(user, monthStart, monthEnd))
+                .Where(r => !alreadyIncluded.Contains(r.Id))
                 .SelectMany(r => DaysInRange(Max(r.StartDate, monthStart), Min(r.EndDate, monthEnd))
                     .Select(day => new TeamAbsence(
                         user.Name, Initials(user.Name), DepartmentName(user), MapType(r.Type), day))));
@@ -177,11 +183,16 @@ public class DbTimeOffService : ITimeOffService
             var user = await GetDomainUserAsync();
             var requests = await _employee.GetTeamRequestsAsync(user.Id, from, to);
 
+            // Same de-dup as GetTeamScheduleForMonthAsync: GetTeamRequestsAsync already includes
+            // the signed-in user for regular employees, so skip anything it already returned.
+            var alreadyIncluded = requests.Select(r => r.Id).ToHashSet();
+
             return requests
                 .Select(r => new TeamTimeOff(
                     r.User.Name, Initials(r.User.Name), DepartmentName(r.User),
                     MapType(r.Type), r.StartDate, r.EndDate, r.User.Role.ToString()))
                 .Concat((await GetOwnApprovedRequestsAsync(user, from, to))
+                    .Where(r => !alreadyIncluded.Contains(r.Id))
                     .Select(r => new TeamTimeOff(
                         user.Name, Initials(user.Name), DepartmentName(user),
                         MapType(r.Type), r.StartDate, r.EndDate, user.Role.ToString())))
@@ -275,6 +286,20 @@ public class DbTimeOffService : ITimeOffService
         }
     }
 
+    public async Task CancelRequestAsync(Guid requestId, string? reason)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            await _employee.CancelRequestAsync(user.Id, requestId, reason);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     // --- mapping helpers -------------------------------------------------
 
     private async Task<HashSet<DateOnly>> GetHolidayDatesAsync(
@@ -314,6 +339,7 @@ public class DbTimeOffService : ITimeOffService
             SubmittedAt = request.CreatedAt,
             DecidedBy = decision?.Approver?.Name,
             DecidedAt = decision?.ReviewedAt,
+            CancellationReason = request.CancellationReason,
             WorkingDayCount = CountWorkingDays(request.StartDate, request.EndDate, holidays)
         };
     }
