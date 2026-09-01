@@ -45,6 +45,7 @@ namespace CompanyEmployees.Application
 
         // Visual properties
         public bool IsFocusNode { get; set; } // If true, this node or its branch is the user's focus
+        public bool IsSearchResult { get; set; } // If true, this node is the search result
         public bool IsExpanded { get; set; } = true; // If false, subordinates are hidden
         public bool IsLoading { get; set; } // If true, data is currently being fetched
         public bool HasUnloadedChildren { get; set; } // If true, has children but they are not loaded

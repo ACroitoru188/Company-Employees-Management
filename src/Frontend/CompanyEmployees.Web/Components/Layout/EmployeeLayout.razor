@@ -6,8 +6,10 @@
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Persistence
+@using CompanyEmployees.Web.Plugins
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
+@using CompanyEmployees.Web.Setup
 @inherits LayoutComponentBase
 @inject ThemeState ThemeState
 @inject AppLocalizer Text
@@ -19,7 +21,11 @@
 @inject LanguagePreferenceService LanguagePreferences
 @inject ILogger<EmployeeLayout> Logger
 @inject DatabaseRuntimeState DatabaseState
+@inject DatabaseProviderCatalog Catalog
 @inject DatabaseProviderSwitcher DatabaseSwitcher
+@inject ISetupStateStore SetupStore
+@inject IHostApplicationLifetime AppLifetime
+@inject IConfiguration Configuration
 @implements IDisposable
 
 <CompanyEmployees.Web.Components.Employee.EmployeeProviders />
@@ -297,22 +303,22 @@
             {
                 <FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false"
                                   Style="margin-bottom:16px;">
-                    SQL Server is down. Contact the database team at
+                    @PrimaryProviderName is down. Contact the database team at
                     <strong>@DatabaseState.SupportContact</strong>.
                     Latest standby sync: <strong>@LastSynchronizationLabel</strong>.
                     Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
-                    @if (DatabaseState.PostgreSqlAvailable)
+                    @if (DatabaseState.SecondaryAvailable && DatabaseState.SecondaryProviderId != null)
                     {
                         <FluentButton Appearance="Appearance.Accent"
                                       Disabled="_switchingDatabase"
-                                      OnClick="@(() => SwitchDatabaseAsync(DatabaseProvider.PostgreSql))"
+                                      OnClick="@(() => SwitchDatabaseAsync(DatabaseState.SecondaryProviderId!))"
                                       Style="margin-left:12px;">
-                            @(_switchingDatabase ? "Switching…" : "Switch to PostgreSQL")
+                            @(_switchingDatabase ? "Switching…" : $"Switch to {SecondaryProviderName}")
                         </FluentButton>
                     }
-                    else
+                    else if (DatabaseState.SecondaryProviderId != null)
                     {
-                        <strong> PostgreSQL is also unavailable.</strong>
+                        <strong> @SecondaryProviderName is also unavailable.</strong>
                     }
                 </FluentMessageBar>
             }
@@ -320,10 +326,10 @@
             {
                 <FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false"
                                   Style="margin-bottom:16px;">
-                    PostgreSQL is the active database.
+                    @ActiveProviderName is the active database.
                     @(DatabaseState.PrimaryAvailable
-                        ? "SQL Server is available again."
-                        : "SQL Server is still down.")
+                        ? $"{PrimaryProviderName} is available again."
+                        : $"{PrimaryProviderName} is still down.")
                     Contact the database team at <strong>@DatabaseState.SupportContact</strong>.
                     Latest sync: <strong>@LastSynchronizationLabel</strong>.
                     Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
@@ -331,9 +337,9 @@
                     {
                         <FluentButton Appearance="Appearance.Accent"
                                       Disabled="_switchingDatabase"
-                                      OnClick="@(() => SwitchDatabaseAsync(DatabaseProvider.SqlServer))"
+                                      OnClick="@(() => SwitchDatabaseAsync(DatabaseState.PrimaryProviderId))"
                                       Style="margin-left:12px;">
-                            @(_switchingDatabase ? "Switching…" : "Switch back to SQL Server")
+                            @(_switchingDatabase ? "Switching…" : $"Switch back to {PrimaryProviderName}")
                         </FluentButton>
                     }
                 </FluentMessageBar>
@@ -342,10 +348,13 @@
             {
                 <FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false"
                                   Style="margin-bottom:16px;">
-                    SQL Server is the active database.
-                    PostgreSQL is @(DatabaseState.PostgreSqlAvailable ? "healthy" : "unavailable").
-                    Latest sync: <strong>@LastSynchronizationLabel</strong>.
-                    Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.
+                    @ActiveProviderName is the active database.
+                    @if (DatabaseState.SecondaryProviderId != null)
+                    {
+                        <span>@SecondaryProviderName is @(DatabaseState.SecondaryAvailable ? "healthy" : "unavailable").</span>
+                        <span>Latest sync: <strong>@LastSynchronizationLabel</strong>.</span>
+                        <span>Pending changes: <strong>@DatabaseState.PendingReplicationChanges</strong>.</span>
+                    }
                 </FluentMessageBar>
             }
             @if (_role == "Admin" && DatabaseState.ReplicationError is not null)
@@ -413,7 +422,7 @@
     private bool _profileMenuOpen;
     private bool _switchingDatabase;
     private string? _databaseSwitchError;
-    private DatabaseProvider _observedDatabaseProvider;
+    private string _observedActiveProviderId = string.Empty;
 
     private string LastSynchronizationLabel => DatabaseState.LastSynchronizedUtc is { } value
         ? value.ToLocalTime().ToString("G", CultureInfo.CurrentCulture)
@@ -439,7 +448,7 @@
     // flight on the same context throws. Claims are already in memory.
     protected override async Task OnInitializedAsync()
     {
-        _observedDatabaseProvider = DatabaseState.ActiveProvider;
+        _observedActiveProviderId = DatabaseState.ActiveProviderId;
         ThemeState.OnChange += StateHasChanged;
         DatabaseState.Changed += OnDatabaseStateChanged;
 
@@ -570,34 +579,101 @@
 
     private void OnDatabaseStateChanged() => _ = InvokeAsync(() =>
     {
-        if (_observedDatabaseProvider != DatabaseState.ActiveProvider)
+        if (_observedActiveProviderId != DatabaseState.ActiveProviderId)
         {
-            _observedDatabaseProvider = DatabaseState.ActiveProvider;
-            // Every open Blazor circuit owns scoped repositories and a DbContext built for
-            // the previous provider. A full authenticated hop prevents split-brain writes.
-            Nav.NavigateTo("/api/auth/database-switched", forceLoad: true);
-            return;
+            _observedActiveProviderId = DatabaseState.ActiveProviderId;
+            // When actively performing an admin switch, SwitchDatabaseAsync coordinates the restart & redirect
+            if (!_switchingDatabase)
+            {
+                Nav.NavigateTo("/api/auth/database-switched", forceLoad: true);
+                return;
+            }
         }
 
         StateHasChanged();
     });
 
-    private async Task SwitchDatabaseAsync(DatabaseProvider provider)
+    private async Task SwitchDatabaseAsync(string providerId)
     {
         _switchingDatabase = true;
         _databaseSwitchError = null;
         try
         {
-            await DatabaseSwitcher.SwitchAsync(provider);
-            Nav.NavigateTo("/api/auth/database-switched", forceLoad: true);
+            var plugin = Catalog.FindById(providerId)
+                ?? throw new InvalidOperationException($"Database provider plugin '{providerId}' was not found.");
+
+            var setupState = SetupStore.Load();
+            string targetConnectionString;
+            string? otherProviderId;
+            string? otherConnectionString;
+
+            if (string.Equals(providerId, setupState.PrimaryProviderId, StringComparison.OrdinalIgnoreCase))
+            {
+                targetConnectionString = setupState.PrimaryConnectionString
+                    ?? Configuration.GetConnectionString(providerId)
+                    ?? string.Empty;
+                otherProviderId = setupState.SecondaryProviderId;
+                otherConnectionString = setupState.SecondaryConnectionString;
+            }
+            else if (string.Equals(providerId, setupState.SecondaryProviderId, StringComparison.OrdinalIgnoreCase))
+            {
+                targetConnectionString = setupState.SecondaryConnectionString
+                    ?? Configuration.GetConnectionString(providerId)
+                    ?? string.Empty;
+                otherProviderId = setupState.PrimaryProviderId;
+                otherConnectionString = setupState.PrimaryConnectionString;
+            }
+            else
+            {
+                targetConnectionString = Configuration.GetConnectionString(providerId) ?? string.Empty;
+                otherProviderId = setupState.PrimaryProviderId;
+                otherConnectionString = setupState.PrimaryConnectionString;
+            }
+
+            // 1. Drain pending replication & verify connectivity to target database
+            await DatabaseSwitcher.SwitchAsync(providerId, plugin, targetConnectionString);
+
+            // 2. Persist chosen provider dynamically as the primary in setup-state
+            var updatedState = new SetupState(
+                IsComplete: true,
+                PrimaryProviderId: providerId,
+                PrimaryConnectionString: targetConnectionString,
+                SecondaryProviderId: otherProviderId,
+                SecondaryConnectionString: otherConnectionString);
+            await SetupStore.SaveAsync(updatedState);
+
+            // 3. Instruct browser to monitor reboot and reload into / once ready
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("companySetup.waitForRestartAndRedirect", "/", $"Switching database to {plugin.DisplayName}...");
+            }
+            catch
+            {
+                // In case JS interop drops immediately on restart
+            }
+
+            // 4. Cleanly restart the host so EF Core builds its DI container for the new provider
+            await Task.Delay(1000);
+            AppLifetime.StopApplication();
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Could not switch to database provider {Provider}.", provider);
-            _databaseSwitchError = $"Could not switch to {provider}. Verify that it is running.";
+            Logger.LogWarning(ex, "Could not switch to database provider {Provider}.", providerId);
+            _databaseSwitchError = $"Could not switch to {providerId}: {ex.Message}";
             _switchingDatabase = false;
         }
     }
+
+    private string PrimaryProviderName =>
+        Catalog.FindById(DatabaseState.PrimaryProviderId)?.DisplayName ?? DatabaseState.PrimaryProviderId;
+
+    private string SecondaryProviderName =>
+        DatabaseState.SecondaryProviderId is not null
+            ? Catalog.FindById(DatabaseState.SecondaryProviderId)?.DisplayName ?? DatabaseState.SecondaryProviderId
+            : "Standby";
+
+    private string ActiveProviderName =>
+        Catalog.FindById(DatabaseState.ActiveProviderId)?.DisplayName ?? DatabaseState.ActiveProviderId;
 
     public void Dispose()
     {

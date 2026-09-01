@@ -1,25 +1,29 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Persistence.Contracts;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace CompanyEmployees.Persistence;
 
 public sealed class DatabaseReplicationCoordinator(
-    IConfiguration configuration,
     DatabaseRuntimeState state,
+    IDbProviderPlugin primaryPlugin,
+    string primaryConnectionString,
+    IDbProviderPlugin secondaryPlugin,
+    string secondaryConnectionString,
     ILogger<DatabaseReplicationCoordinator> logger)
 {
     private readonly SemaphoreSlim replicationLock = new(1, 1);
 
     public async Task<int> ReplicateNextBatchAsync(CancellationToken cancellationToken = default)
     {
-        var source = state.ActiveProvider;
-        var target = source == DatabaseProvider.SqlServer
-            ? DatabaseProvider.PostgreSql
-            : DatabaseProvider.SqlServer;
-        return await ReplicateNextBatchAsync(source, target, cancellationToken);
+        // Source is whichever provider is currently active; target is the other one.
+        var sourceIsSecondary = state.ActiveProviderId == state.SecondaryProviderId;
+        var (sourcePlugin, sourceCs, targetPlugin, targetCs) = sourceIsSecondary
+            ? (secondaryPlugin, secondaryConnectionString, primaryPlugin, primaryConnectionString)
+            : (primaryPlugin, primaryConnectionString, secondaryPlugin, secondaryConnectionString);
+        return await ReplicateNextBatchAsync(sourcePlugin, sourceCs, targetPlugin, targetCs, cancellationToken);
     }
 
     public async Task DrainAsync(CancellationToken cancellationToken = default)
@@ -35,9 +39,13 @@ public sealed class DatabaseReplicationCoordinator(
 
     public async Task RefreshStatusAsync(CancellationToken cancellationToken = default)
     {
-        await using var source = CreateContext(state.ActiveProvider);
+        var activeIsSecondary = state.ActiveProviderId == state.SecondaryProviderId;
+        var (plugin, cs) = activeIsSecondary
+            ? (secondaryPlugin, secondaryConnectionString)
+            : (primaryPlugin, primaryConnectionString);
+        await using var source = CreateContext(plugin, cs);
         source.SuppressOutboxCapture = true;
-        await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(source, cancellationToken);
+        await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(source, plugin, cancellationToken);
         var pending = await source.DatabaseOutbox.CountAsync(
             message => message.ProcessedAtUtc == null,
             cancellationToken);
@@ -50,19 +58,21 @@ public sealed class DatabaseReplicationCoordinator(
     }
 
     private async Task<int> ReplicateNextBatchAsync(
-        DatabaseProvider sourceProvider,
-        DatabaseProvider targetProvider,
+        IDbProviderPlugin sourcePlugin,
+        string sourceConnectionString,
+        IDbProviderPlugin targetPlugin,
+        string targetConnectionString,
         CancellationToken cancellationToken)
     {
         await replicationLock.WaitAsync(cancellationToken);
         try
         {
-            await using var source = CreateContext(sourceProvider);
-            await using var target = CreateContext(targetProvider);
+            await using var source = CreateContext(sourcePlugin, sourceConnectionString);
+            await using var target = CreateContext(targetPlugin, targetConnectionString);
             source.SuppressOutboxCapture = true;
             target.SuppressOutboxCapture = true;
-            await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(source, cancellationToken);
-            await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(target, cancellationToken);
+            await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(source, sourcePlugin, cancellationToken);
+            await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(target, targetPlugin, cancellationToken);
 
             var first = await source.DatabaseOutbox
                 .Where(message => message.ProcessedAtUtc == null)
@@ -88,10 +98,7 @@ public sealed class DatabaseReplicationCoordinator(
                 foreach (var message in batch)
                     await ApplyAsync(source, target, message, recoveredPrincipals, cancellationToken);
                 await target.SaveChangesAsync(cancellationToken);
-                if (target.Database.IsNpgsql())
-                    await PostgreSqlStandbySynchronizer.ResetPostgreSqlIdentitySequencesAsync(
-                        target,
-                        cancellationToken);
+                await targetPlugin.AfterBulkInsertAsync(target, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
                 var completedAt = DateTime.UtcNow;
@@ -133,8 +140,8 @@ public sealed class DatabaseReplicationCoordinator(
                     ex,
                     "Failed to replicate database outbox batch {BatchId} from {Source} to {Target}.",
                     first.BatchId,
-                    sourceProvider,
-                    targetProvider);
+                    sourcePlugin.Id,
+                    targetPlugin.Id);
                 throw;
             }
         }
@@ -374,19 +381,12 @@ public sealed class DatabaseReplicationCoordinator(
         }
     }
 
-    private CompanyEmployeesDbContext CreateContext(DatabaseProvider provider)
+    private static CompanyEmployeesDbContext CreateContext(IDbProviderPlugin plugin, string connectionString)
     {
         var builder = new DbContextOptionsBuilder<CompanyEmployeesDbContext>();
-        if (provider == DatabaseProvider.PostgreSql)
-            builder.UseNpgsql(RequiredConnectionString("PostgreSql"));
-        else
-            builder.UseSqlServer(RequiredConnectionString("Default"));
+        plugin.ConfigureDbContext(builder, connectionString);
         return new CompanyEmployeesDbContext(builder.Options);
     }
-
-    private string RequiredConnectionString(string name) =>
-        configuration.GetConnectionString(name)
-        ?? throw new InvalidOperationException($"ConnectionStrings:{name} is not configured.");
 
     private static object? Deserialize(JsonElement value, Type type) =>
         value.ValueKind == JsonValueKind.Null

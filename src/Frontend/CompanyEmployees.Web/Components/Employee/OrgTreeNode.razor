@@ -22,7 +22,7 @@
                 ExpandedChanged="OnExpandedChangedAsync"
                 Selected="@(Node.UserId == SelectedId && Node.UserId != Guid.Empty)"
                 SelectedChanged="@(selected => selected ? OnSelect.InvokeAsync(Node) : Task.CompletedTask)"
-                Class="@((Node.IsFocusNode ? "org-path-highlight " : "") + (Node.UserId == CurrentUserId && Node.UserId != Guid.Empty ? "org-current-user" : ""))">
+                Class="@($"org-tree-node {(Node.IsFocusNode ? "org-path-highlight " : "")}{(Node.IsSearchResult ? "org-search-result " : "")}{(Node.UserId == CurrentUserId && Node.UserId != Guid.Empty ? "org-current-user" : "")}".Trim())">
     <FluentPersona Name="@Node.Name" Initials="@Node.Initials" ImageSize="28px"
                    TextPosition="TextPosition.End">
         @* FluentPersona drops its Name whenever ChildContent is supplied, so the name is
@@ -30,7 +30,14 @@
         <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@Node.Name</FluentLabel>
         <FluentLabel Typo="Typography.Body" Color="Color.Custom"
                      CustomColor="var(--neutral-foreground-hint)">
-            @Node.Role@(string.IsNullOrEmpty(Node.Department) ? "" : $" · {Node.Department}")
+            @{
+                var parts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(Node.City)) parts.Add(Node.City);
+                if (!string.IsNullOrWhiteSpace(Node.Site)) parts.Add(Node.Site);
+                if (!string.IsNullOrWhiteSpace(Node.Department)) parts.Add(Node.Department);
+                if (!string.IsNullOrWhiteSpace(Node.Role)) parts.Add(Node.Role);
+            }
+            @string.Join(" | ", parts)
         </FluentLabel>
     </FluentPersona>
 
@@ -50,7 +57,7 @@
 
     @foreach (var child in Node.Subordinates)
     {
-        <OrgTreeNode @key="child.UserId" Node="@child" SelectedId="@SelectedId" CurrentUserId="@CurrentUserId" OnSelect="@OnSelect" OnExpand="@OnExpand" />
+        <OrgTreeNode @key="child.UserId" Node="@child" SelectedId="@SelectedId" CurrentUserId="@CurrentUserId" OnSelect="@OnSelect" OnExpand="@OnExpand" RenderToken="@RenderToken" />
     }
 </FluentTreeItem>
 
@@ -69,6 +76,9 @@
 
     [Parameter]
     public EventCallback<OrgChartNode> OnExpand { get; set; }
+
+    [Parameter]
+    public long RenderToken { get; set; }
 
     private async Task OnExpandedChangedAsync(bool expanded)
     {

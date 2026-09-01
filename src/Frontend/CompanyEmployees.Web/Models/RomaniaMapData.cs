@@ -663,7 +663,7 @@ public static class RomaniaMapData
                 {
                     new RomaniaHubModel
                     {
-                        Name = "Siemens Industry Software Center",
+                        Name = "Siemens Digital Industry Software",
                         Division = "Product Lifecycle Management & Simulation",
                         Address = "Coresi Business Park, Str. Turnului 5",
                         EmployeesCount = 250,

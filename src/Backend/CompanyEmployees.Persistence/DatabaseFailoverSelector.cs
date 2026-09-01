@@ -1,100 +1,90 @@
-using Microsoft.Data.SqlClient;
+using CompanyEmployees.Persistence.Contracts;
 using Microsoft.Extensions.Configuration;
-using Npgsql;
 
 namespace CompanyEmployees.Persistence;
 
 public static class DatabaseFailoverSelector
 {
     public static async Task<DatabaseRuntimeState> SelectAsync(
+        IDbProviderPlugin primaryPlugin,
+        string primaryConnectionString,
+        IDbProviderPlugin? secondaryPlugin,
+        string? secondaryConnectionString,
         IConfiguration configuration,
         CancellationToken cancellationToken = default)
     {
         var supportContact = configuration["DatabaseFailover:SupportContact"] ?? "1234-23124";
-        _ = configuration.GetConnectionString("Default")
-            ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
 
         var forcedProvider = configuration["DatabaseFailover:ForceProvider"];
-        if (string.Equals(forcedProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        if (secondaryPlugin != null
+            && string.Equals(forcedProvider, secondaryPlugin.Id, StringComparison.OrdinalIgnoreCase))
         {
-            await ProbePostgreSqlAsync(configuration, cancellationToken);
-            return new(DatabaseProvider.PostgreSql, false, supportContact,
-                "PostgreSQL was selected through DatabaseFailover:ForceProvider.", true);
+            await secondaryPlugin.TestConnectionAsync(secondaryConnectionString!, cancellationToken);
+            return new DatabaseRuntimeState(
+                primaryProviderId: primaryPlugin.Id,
+                activeProviderId: secondaryPlugin.Id,
+                activeEfProviderName: secondaryPlugin.EfProviderName,
+                primaryAvailable: false,
+                supportContact: supportContact,
+                secondaryProviderId: secondaryPlugin.Id,
+                failoverReason: $"Provider forced via DatabaseFailover:ForceProvider.",
+                secondaryAvailable: true);
         }
 
-        if (string.Equals(forcedProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(forcedProvider, primaryPlugin.Id, StringComparison.OrdinalIgnoreCase))
         {
-            await ProbeSqlServerAsync(configuration, cancellationToken);
-            return new(DatabaseProvider.SqlServer, true, supportContact);
+            await primaryPlugin.TestConnectionAsync(primaryConnectionString, cancellationToken);
+            return new DatabaseRuntimeState(
+                primaryProviderId: primaryPlugin.Id,
+                activeProviderId: primaryPlugin.Id,
+                activeEfProviderName: primaryPlugin.EfProviderName,
+                primaryAvailable: true,
+                supportContact: supportContact,
+                secondaryProviderId: secondaryPlugin?.Id);
         }
 
         try
         {
-            await ProbeSqlServerAsync(configuration, cancellationToken);
-            return new(DatabaseProvider.SqlServer, true, supportContact);
+            await primaryPlugin.TestConnectionAsync(primaryConnectionString, cancellationToken);
+            return new DatabaseRuntimeState(
+                primaryProviderId: primaryPlugin.Id,
+                activeProviderId: primaryPlugin.Id,
+                activeEfProviderName: primaryPlugin.EfProviderName,
+                primaryAvailable: true,
+                supportContact: supportContact,
+                secondaryProviderId: secondaryPlugin?.Id);
         }
-        catch (Exception primaryException) when (
-            primaryException is SqlException or TimeoutException or OperationCanceledException)
+        catch (Exception primaryException) when (primaryException is not OperationCanceledException)
         {
+            if (secondaryPlugin == null || string.IsNullOrEmpty(secondaryConnectionString))
+                throw new InvalidOperationException(
+                    $"Primary database ({primaryPlugin.DisplayName}) is unavailable and no secondary is configured.",
+                    primaryException);
+
             if (!bool.TryParse(configuration["DatabaseFailover:Enabled"], out var enabled) || !enabled)
                 throw new InvalidOperationException(
-                    "SQL Server is unavailable and PostgreSQL failover is disabled.", primaryException);
+                    $"{primaryPlugin.DisplayName} is unavailable and failover is disabled.", primaryException);
 
             try
             {
-                await ProbePostgreSqlAsync(configuration, cancellationToken);
+                await secondaryPlugin.TestConnectionAsync(secondaryConnectionString, cancellationToken);
             }
-            catch (Exception fallbackException) when (
-                fallbackException is NpgsqlException or TimeoutException or OperationCanceledException)
+            catch (Exception fallbackException) when (fallbackException is not OperationCanceledException)
             {
                 throw new InvalidOperationException(
-                    "SQL Server and the PostgreSQL fallback are both unavailable.",
+                    $"Both {primaryPlugin.DisplayName} and the {secondaryPlugin.DisplayName} fallback are unavailable.",
                     new AggregateException(primaryException, fallbackException));
             }
 
-            return new(DatabaseProvider.PostgreSql, false, supportContact,
-                $"{primaryException.GetType().Name}: {primaryException.Message}", true);
+            return new DatabaseRuntimeState(
+                primaryProviderId: primaryPlugin.Id,
+                activeProviderId: secondaryPlugin.Id,
+                activeEfProviderName: secondaryPlugin.EfProviderName,
+                primaryAvailable: false,
+                supportContact: supportContact,
+                secondaryProviderId: secondaryPlugin.Id,
+                failoverReason: $"{primaryException.GetType().Name}: {primaryException.Message}",
+                secondaryAvailable: true);
         }
     }
-
-    public static async Task ProbeSqlServerAsync(
-        IConfiguration configuration,
-        CancellationToken cancellationToken)
-    {
-        var connectionString = configuration.GetConnectionString("Default")
-            ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
-        var builder = new SqlConnectionStringBuilder(connectionString)
-        {
-            ConnectTimeout = ProbeTimeout(configuration),
-            // Probe the server rather than the application catalog. On a fresh Docker
-            // volume CompanyEmployees does not exist until EF applies its migrations.
-            InitialCatalog = "master"
-        };
-
-        await using var connection = new SqlConnection(builder.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
-    }
-
-    public static async Task ProbePostgreSqlAsync(
-        IConfiguration configuration,
-        CancellationToken cancellationToken)
-    {
-        var connectionString = configuration.GetConnectionString("PostgreSql")
-            ?? throw new InvalidOperationException("ConnectionStrings:PostgreSql is not configured.");
-        var builder = new NpgsqlConnectionStringBuilder(connectionString)
-        {
-            Timeout = ProbeTimeout(configuration)
-        };
-
-        await using var connection = new NpgsqlConnection(builder.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
-    }
-
-    private static int ProbeTimeout(IConfiguration configuration) =>
-        Math.Clamp(
-            int.TryParse(configuration["DatabaseFailover:ProbeTimeoutSeconds"], out var seconds)
-                ? seconds
-                : 3,
-            1,
-            30);
 }

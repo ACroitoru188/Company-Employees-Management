@@ -12,14 +12,22 @@
 --------------------------------------------------------------------------- */
 
 /* Progressive enhancement: cross-document view transitions where supported. */
-@view-transition { navigation: auto; }
+@view-transition {
+    navigation: auto;
+}
 
-*, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after {
+    box-sizing: border-box;
+}
 
 /* height:100% is what FluentLayout needs to work at all: it is a flex column that sizes
    itself from its parent, so without it the whole shell collapses to the height of the
    header and every page below renders at zero height. */
-html, body { margin: 0; padding: 0; height: 100%; }
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
 
 /* The document itself never scrolls: html and body are pinned to the window's height above and
    FluentBodyContent owns the overflow, so the `overflow-y: scroll` that used to sit here was
@@ -71,28 +79,34 @@ html, body { margin: 0; padding: 0; height: 100%; }
        squeezed-together text everywhere. Naming the Text size, the one meant for UI copy at
        these sizes, is the fix. Everything after it is for the platforms that have none of them,
        and matches what the app used before the Fluent migration. */
-    --body-font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
-                 "Inter", "Noto Sans", "Ubuntu", "Liberation Sans", system-ui, sans-serif;
-    --type-ramp-minus-2-font-size: 10px; --type-ramp-minus-2-line-height: 14px;
-    --type-ramp-minus-1-font-size: 12px; --type-ramp-minus-1-line-height: 16px;
-    --type-ramp-base-font-size: 14px;    --type-ramp-base-line-height: 20px;
-    --type-ramp-plus-1-font-size: 16px;  --type-ramp-plus-1-line-height: 22px;
-    --type-ramp-plus-2-font-size: 20px;  --type-ramp-plus-2-line-height: 26px;
-    --type-ramp-plus-3-font-size: 24px;  --type-ramp-plus-3-line-height: 32px;
-    --type-ramp-plus-4-font-size: 28px;  --type-ramp-plus-4-line-height: 36px;
-    --type-ramp-plus-5-font-size: 32px;  --type-ramp-plus-5-line-height: 40px;
-    --type-ramp-plus-6-font-size: 40px;  --type-ramp-plus-6-line-height: 52px;
-
+    --body-font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "Inter", "Noto Sans", "Ubuntu", "Liberation Sans", system-ui, sans-serif;
+    --type-ramp-minus-2-font-size: 10px;
+    --type-ramp-minus-2-line-height: 14px;
+    --type-ramp-minus-1-font-size: 12px;
+    --type-ramp-minus-1-line-height: 16px;
+    --type-ramp-base-font-size: 14px;
+    --type-ramp-base-line-height: 20px;
+    --type-ramp-plus-1-font-size: 16px;
+    --type-ramp-plus-1-line-height: 22px;
+    --type-ramp-plus-2-font-size: 20px;
+    --type-ramp-plus-2-line-height: 26px;
+    --type-ramp-plus-3-font-size: 24px;
+    --type-ramp-plus-3-line-height: 32px;
+    --type-ramp-plus-4-font-size: 28px;
+    --type-ramp-plus-4-line-height: 36px;
+    --type-ramp-plus-5-font-size: 32px;
+    --type-ramp-plus-5-line-height: 40px;
+    --type-ramp-plus-6-font-size: 40px;
+    --type-ramp-plus-6-line-height: 52px;
     /* The accent as a *fill*: white text sits on it on every accent button. #1E88E5 was too
        light for that — white on it measures 3.68:1, under the 4.5:1 floor, so the label on the
-       app's primary button was the least readable text on the page. #0F6CBD is Fluent's own
+       app's primary button was the least readable text on the page. #009999 is Fluent's own
        accent fill and carries white at 5.38:1. As *text on white* even this is borderline, so
        accent-coloured labels keep the darker foreground value below: two tokens, because one
        colour cannot do both jobs. */
-    --accent-fill-rest: #0F6CBD;
-    --accent-fill-hover: #115EA3;
-    --accent-fill-active: #0C5A9E;
-
+    --accent-fill-rest: #009999;
+    --accent-fill-hover: #007a7a;
+    --accent-fill-active: #006666;
     /* The app bar owns its colour instead of borrowing the accent. Borrowing looked fine in
        light mode and failed completely in dark: Fluent's dark palette lifts the accent to
        #55CAFF, and the white wordmark on it measured 1.86:1 — the single worst contrast in the
@@ -111,11 +125,10 @@ html, body { margin: 0; padding: 0; height: 100%; }
        "Create account" button. Left alone, the runtime pairs both. This token is ours, for the
        one place in the light DOM that paints on the accent itself. */
     --app-on-accent: #FFFFFF;
-
     /* An IconStart is slotted content, not shadow content, so it never receives the `color`
        the runtime computes for .control's own text — that pairing is what keeps the button's
        label readable, and the icon just doesn't inherit it. Left alone it renders in
-       --accent-foreground-rest, which in light mode is #0F6CBD — identical to --accent-fill-rest
+       --accent-foreground-rest, which in light mode is #009999 — identical to --accent-fill-rest
        two tokens up, so an icon on an accent-filled button was the same blue on the same blue.
        Dark mode's --accent-foreground-rest (#62ABF5, below) is a different shade from its accent
        fill and happened to be visible, which is why only light mode showed the bug. Repeating
@@ -123,7 +136,6 @@ html, body { margin: 0; padding: 0; height: 100%; }
        already resolving to — while light gets the readable pairing FAST already gives the text
        next to it. */
     --app-icon-on-accent-fill: #FFFFFF;
-
     --neutral-foreground-rest: #1A1A1A;
     --neutral-foreground-hover: #1A1A1A;
     --neutral-foreground-hint: #616161;
@@ -153,12 +165,10 @@ html, body { margin: 0; padding: 0; height: 100%; }
     --fill-color: #FFFFFF;
     --focus-stroke-outer: #000000;
     --focus-stroke-inner: #FFFFFF;
-
     --error: #C4314B;
-    --success: #107C10;
+    --success: #009999;
     --warning: #995C00;
-    --info: #0B6DBB;
-
+    --info: #009999;
     /* The page behind the cards. Cards are --neutral-layer-1 (white), so without a distinct
        canvas the whole app is white-on-white and every card boundary disappears.
        reboot.css is what actually paints it — `body { background-color:
@@ -194,18 +204,15 @@ body:has(fluent-design-theme[mode="dark"]) {
     --fill-color: #1F1F1F;
     --focus-stroke-outer: #FFFFFF;
     --focus-stroke-inner: #000000;
-
-    --accent-foreground-rest: #62ABF5;
-    --accent-foreground-hover: #83BDF7;
+    --accent-foreground-rest: #009999;
+    --accent-foreground-hover: #007a7a;
     /* Same value the icon already resolves to on this theme — see the light-mode definition
        above. This is what keeps dark mode untouched rather than also being forced white. */
-    --app-icon-on-accent-fill: var(--accent-foreground-rest);
-
+    --app-icon-on-accent-fill: #FFFFFF;
     --error: #E37D80;
-    --success: #54B054;
+    --success: #009999;
     --warning: #E9A52F;
-    --info: #62ABF5;
-
+    --info: #009999;
     --neutral-fill-layer-rest: #171717;
 }
 
@@ -353,9 +360,9 @@ fluent-anchor:not([appearance="hypertext"])::part(control) {
     --app-page-btn-subtle-hover: #F5F5F5;
     --app-page-btn-subtle-active: #E0E0E0;
     /* White on brand 80 measures 5.38:1, clear of the 4.5:1 floor. */
-    --app-page-btn-accent: #0F6CBD;
-    --app-page-btn-accent-hover: #115EA3;
-    --app-page-btn-accent-active: #0F548C;
+    --app-page-btn-accent: #009999;
+    --app-page-btn-accent-hover: #007a7a;
+    --app-page-btn-accent-active: #006666;
     --app-page-btn-accent-ink: #FFFFFF;
     --app-page-btn-disabled-fill: #F0F0F0;
     --app-page-btn-disabled-ink: #BDBDBD;
@@ -376,9 +383,9 @@ body:has(fluent-design-theme[mode="dark"]) {
     --app-page-btn-subtle-active: #2E2E2E;
     /* Dark shifts the brand one step down the ramp so the fill sits against the canvas instead of
        glowing on it. White on brand 70 measures 6.65:1. */
-    --app-page-btn-accent: #115EA3;
-    --app-page-btn-accent-hover: #0F6CBD;
-    --app-page-btn-accent-active: #0F548C;
+    --app-page-btn-accent: #007a7a;
+    --app-page-btn-accent-hover: #009999;
+    --app-page-btn-accent-active: #006666;
     --app-page-btn-disabled-fill: #292929;
     --app-page-btn-disabled-ink: #5C5C5C;
     --app-page-btn-disabled-stroke: #3D3D3D;
@@ -540,15 +547,15 @@ fluent-anchor[appearance="outline"] {
     border-radius: calc(var(--control-corner-radius) * 1px);
 }
 
-fluent-button[appearance="outline"]:not([disabled]):hover,
-fluent-anchor[appearance="outline"]:not([disabled]):hover {
-    background: var(--app-btn-fill-hover);
-}
+    fluent-button[appearance="outline"]:not([disabled]):hover,
+    fluent-anchor[appearance="outline"]:not([disabled]):hover {
+        background: var(--app-btn-fill-hover);
+    }
 
-fluent-button[appearance="outline"]:not([disabled]):active,
-fluent-anchor[appearance="outline"]:not([disabled]):active {
-    background: var(--app-btn-fill-active);
-}
+    fluent-button[appearance="outline"]:not([disabled]):active,
+    fluent-anchor[appearance="outline"]:not([disabled]):active {
+        background: var(--app-btn-fill-active);
+    }
 
 /* The account row is the drawer's last item, directly under the nav links, and a Fluent button
    centres its content. Centred, the avatar and name floated in the middle of the rail while
@@ -573,27 +580,27 @@ fluent-badge {
     max-width: 100%;
 }
 
-.fluent-data-grid td {
-    overflow-wrap: anywhere;
-}
+    .fluent-data-grid td {
+        overflow-wrap: anywhere;
+    }
 
-/* Column titles wrap rather than being cut. The sort caret and the filter icon take 40-60px of
+    /* Column titles wrap rather than being cut. The sort caret and the filter icon take 40-60px of
    the track before the label gets any, so "Contract Period & Status" arrived as "Contract Period
    & Stat" and even "Department" lost its last letters. Widening those columns only moves the
    problem to whichever column pays for it; a second line fixes every column at once and keeps
    the words. The clipping lives on the title div in the light DOM — the button around it wraps
    fine — and the button has to be allowed to grow with it. */
-.fluent-data-grid th .col-title-text {
-    white-space: normal;
-    overflow: visible;
-    line-height: 1.25;
-}
+    .fluent-data-grid th .col-title-text {
+        white-space: normal;
+        overflow: visible;
+        line-height: 1.25;
+    }
 
-.fluent-data-grid th fluent-button.col-sort-button::part(control) {
-    height: auto;
-    min-height: 32px;
-    padding-block: 4px;
-}
+    .fluent-data-grid th fluent-button.col-sort-button::part(control) {
+        height: auto;
+        min-height: 32px;
+        padding-block: 4px;
+    }
 
 /* A sticky header was tried here and removed. FluentDataGrid renders its table as `display:
    grid` with `thead` and `tr` at `display: contents`, so the only positionable element is the
@@ -695,12 +702,12 @@ fluent-card {
     z-index: 1;
 }
 
-.fluent-nav-menu > .drawer-links {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-}
+    .fluent-nav-menu > .drawer-links {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
 
 /* The account rows down here are FluentButtons wrapping a two-line FluentPersona. A button is
    a fixed ~32px tall and its control does not grow, so a 32px avatar stacked with a name and a
@@ -711,15 +718,20 @@ fluent-card {
     height: auto;
 }
 
-.drawer-footer fluent-button::part(control) {
-    padding: 8px 12px;
-    align-items: center;
-}
+    .drawer-footer fluent-button::part(control) {
+        padding: 8px 12px;
+        align-items: center;
+    }
 
 /* Collapsed, the drawer is 40px wide and the account row is 146px of avatar plus two lines of
    text — so it simply ran off the edge and was cut in half. Collapsed keeps the disc and drops
    everything that needs the width: the name block, and the switch button's label, which is the
    only thing inside its ::part(content) (the icon lives in a slot of its own). */
+
+.fluent-persona .initials {
+    background-color: #009999 !important;
+}
+
 .fluent-nav-menu.collapsed .drawer-footer .fluent-persona .name {
     display: none;
 }
@@ -769,26 +781,26 @@ fluent-card {
     flex: 0 0 auto;
 }
 
-.fluent-nav-menu > .drawer-footer {
-    flex: 0 0 auto;
-    /* Opaque so the scrolling links cannot show through underneath it, but in the drawer's own
+    .fluent-nav-menu > .drawer-footer {
+        flex: 0 0 auto;
+        /* Opaque so the scrolling links cannot show through underneath it, but in the drawer's own
        colour: the drawer paints nothing, so what shows through it is the page canvas. This used
        --neutral-layer-1, the card colour — the same as the canvas in light mode, which is why it
        never showed, and #242424 against a #171717 canvas in dark, which drew a grey slab behind
        the account row. */
-    background: var(--neutral-fill-layer-rest);
-}
+        background: var(--neutral-fill-layer-rest);
+    }
 
-/* The impersonation card is `width: 100%` (FluentCard's own default) *and* carries `margin: 8px`
+    /* The impersonation card is `width: 100%` (FluentCard's own default) *and* carries `margin: 8px`
    inline — margin is never subtracted from a percentage width, it is added outside it, so the
    card's box was 250px plus 16px of margin and the right edge ran 8px past the drawer, under the
    scrollbar gutter. calc() gives back exactly what the margin takes, so 8px + 234px + 8px lands
    flush with both edges of the 250px rail. Scoped off `.collapsed`: that state already sets its
    own 2px margin further down, and this 16px figure is not it. */
-.fluent-nav-menu:not(.collapsed) .drawer-footer fluent-card {
-    box-sizing: border-box;
-    width: calc(100% - 16px);
-}
+    .fluent-nav-menu:not(.collapsed) .drawer-footer fluent-card {
+        box-sizing: border-box;
+        width: calc(100% - 16px);
+    }
 
 /* The `Style="width:250px"` on the component sets the menu's own box, but fluent-menu-item does
    not inherit a width from it — left alone, each item still shrinks to its own text, so the
@@ -798,9 +810,9 @@ fluent-card {
     width: 100%;
 }
 
-.switch-account-menu fluent-menu-item::part(content) {
-    width: 100%;
-}
+    .switch-account-menu fluent-menu-item::part(content) {
+        width: 100%;
+    }
 
 /* An editor dropped into a data-grid cell is sized for a form, not for a column: without
    this the department combobox and the region select on /admin/users push ~140px past their
@@ -831,7 +843,6 @@ fluent-card {
    single-class rule whichever order the stylesheets happen to load in. */
 fluent-card.grid-card {
     contain: none;
-
     /* Dropping the containment also drops the stacking context it was creating, and the next
        thing on the page — the create panel — then painted straight over the open list instead of
        clipping it. Same symptom, one cause further along. The card is lifted a layer so anything
@@ -858,13 +869,13 @@ fluent-select {
     --org-row-height: 44px;
 }
 
-.org-tree fluent-tree-item::part(positioning-region) {
-    height: auto;
-    min-height: var(--org-row-height);
-    margin-bottom: 2px;
-}
+    .org-tree fluent-tree-item::part(positioning-region) {
+        height: auto;
+        min-height: var(--org-row-height);
+        margin-bottom: 2px;
+    }
 
-/* The row is two nested parts, not two components: positioning-region is the full-width band
+    /* The row is two nested parts, not two components: positioning-region is the full-width band
    that carries the background, the hover and selected fills and the indent spacer, and
    content-region is the flex row inside it holding the chevron and the slotted persona.
    Raising the band alone left the inner one at its hardcoded 32px, pinned to the top with
@@ -875,12 +886,12 @@ fluent-select {
    so dropping the fixed height is enough for it to fill. Setting a matching min-height instead
    added its borders on top and pushed the row to 46px, which then put the selected marker back
    out by a pixel. */
-.org-tree fluent-tree-item::part(content-region) {
-    height: auto;
-    align-self: stretch;
-}
+    .org-tree fluent-tree-item::part(content-region) {
+        height: auto;
+        align-self: stretch;
+    }
 
-/* Taking the row off its default height leaves the selected marker behind. The component draws
+    /* Taking the row off its default height leaves the selected marker behind. The component draws
    it as `:host([selected])::after` with `top: heightNumber/4` and `height: heightNumber/2` —
    geometry that centres only while the row is exactly heightNumber tall. Measured here: the bar
    sat at 8px over 16px, centre 16px, against a row centre of 22px, so it rode six pixels high
@@ -890,10 +901,10 @@ fluent-select {
    over a shadow `:host` rule whatever the specificity, and the marker is positioned from the
    top of the *host* — which wraps the whole subtree, not just the row — so it has to be offset
    from that top edge rather than centred with a percentage. */
-.org-tree fluent-tree-item[selected]::after {
-    top: calc((var(--org-row-height) - 16px) / 2);
-    height: 16px;
-}
+    .org-tree fluent-tree-item[selected]::after {
+        top: calc((var(--org-row-height) - 16px) / 2);
+        height: 16px;
+    }
 
 /* ---- Notification centre -------------------------------------------------------------
 
@@ -905,49 +916,49 @@ fluent-select {
     overflow-y: auto;
 }
 
-/* The provider hard-codes `border-top: 1px solid lightgray` as an inline style on every card:
+    /* The provider hard-codes `border-top: 1px solid lightgray` as an inline style on every card:
    too heavy on the light theme, and a light line on near-black in the dark one. The first card
    sits right under the popover header and needs no separator at all.
 
    !important throughout this block on any property the library already sets on the same
    element: its rules are `.fluent-messagebar-…[b-…]`, the same specificity as these, and its
    bundle is linked after app.css. */
-.notification-center .fluent-messagebar-notification {
-    border-top-color: var(--neutral-stroke-divider-rest) !important;
-    padding: 4px 12px 10px !important;
-    line-height: normal;
-}
+    .notification-center .fluent-messagebar-notification {
+        border-top-color: var(--neutral-stroke-divider-rest) !important;
+        padding: 4px 12px 10px !important;
+        line-height: normal;
+    }
 
-.notification-center .fluent-messagebar-notification:first-child {
-    border-top: none !important;
-}
+        .notification-center .fluent-messagebar-notification:first-child {
+            border-top: none !important;
+        }
 
-/* Type hierarchy. The card gives the heading row a 12px/600 treatment and leaves the message
+    /* Type hierarchy. The card gives the heading row a 12px/600 treatment and leaves the message
    itself to inherit — which lands it at the document's 16px, larger than its own heading and
    the wrong way round. The category is a caption here, and the message is the content. */
-.notification-center .fluent-messagebar-notification-message {
-    color: var(--neutral-foreground-hint);
-    letter-spacing: 0.02em;
-}
+    .notification-center .fluent-messagebar-notification-message {
+        color: var(--neutral-foreground-hint);
+        letter-spacing: 0.02em;
+    }
 
-.notification-center .fluent-messagebar-notification-content {
-    /* Column, so the action lands on its own line: as inline flow it followed the last word of
+    .notification-center .fluent-messagebar-notification-content {
+        /* Column, so the action lands on its own line: as inline flow it followed the last word of
        the message and wrapped into the paragraph. */
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 0 0 4px !important;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 20px;
-}
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 0 0 4px !important;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 20px;
+    }
 
-.notification-center .fluent-messagebar-notification-time {
-    color: var(--neutral-foreground-hint);
-    font-weight: 400;
-    padding: 0 !important;
-}
+    .notification-center .fluent-messagebar-notification-time {
+        color: var(--neutral-foreground-hint);
+        font-weight: 400;
+        padding: 0 !important;
+    }
 
 /* The "see all" panel. Nothing in it may widen the panel: it is a fixed 440px, and a single
    long message that refuses to break turns the whole panel into a horizontal scroller. */
@@ -955,36 +966,36 @@ fluent-select {
     overflow-x: hidden;
 }
 
-/* Collapsed row: at most two lines, then an ellipsis. Clamped rather than a single nowrap
+    /* Collapsed row: at most two lines, then an ellipsis. Clamped rather than a single nowrap
    line — nowrap makes the row's *minimum* width the whole sentence, so the accordion's heading
    track grew to fit it and the text was cut off square at the panel edge. Wrapping lets the
    row shrink to the panel, and the clamp keeps it to two lines. */
-.notification-panel .notification-summary {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    overflow: hidden;
-    white-space: normal;
-    overflow-wrap: anywhere;
-}
+    .notification-panel .notification-summary {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        overflow: hidden;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
 
-/* Unread, without a marker inside the row: an accent edge plus a filled background. The
+    /* Unread, without a marker inside the row: an accent edge plus a filled background. The
    transparent border on read rows keeps every row's text on the same left edge. */
-.notification-panel .notification-item {
-    border-left: 3px solid transparent;
-}
+    .notification-panel .notification-item {
+        border-left: 3px solid transparent;
+    }
 
-.notification-panel .notification-item.unread {
-    border-left-color: var(--accent-fill-rest);
-    background: var(--neutral-fill-secondary-rest);
-}
+        .notification-panel .notification-item.unread {
+            border-left-color: var(--accent-fill-rest);
+            background: var(--neutral-fill-secondary-rest);
+        }
 
-/* Expanded: the opposite — wrap freely, and break inside a word rather than push the panel. */
-.notification-panel .notification-text {
-    white-space: normal;
-    overflow-wrap: anywhere;
-}
+    /* Expanded: the opposite — wrap freely, and break inside a word rather than push the panel. */
+    .notification-panel .notification-text {
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
 
 /* ---- Calendar page -------------------------------------------------------------------
 
@@ -1020,14 +1031,14 @@ fluent-select {
     height: auto;
 }
 
-.cal-rail fluent-button.cal-type::part(control) {
-    padding: 6px 8px;
-    justify-content: flex-start;
-}
+    .cal-rail fluent-button.cal-type::part(control) {
+        padding: 6px 8px;
+        justify-content: flex-start;
+    }
 
-.cal-rail fluent-button.cal-type.is-selected::part(control) {
-    background: var(--neutral-fill-secondary-rest);
-}
+    .cal-rail fluent-button.cal-type.is-selected::part(control) {
+        background: var(--neutral-fill-secondary-rest);
+    }
 
 /* The rail picker's prev/next arrows are 28px tall inside a 20px row. Nothing is cut — the row
    does not clip — but they hang 8px past it, into the weekday names underneath. */
@@ -1177,10 +1188,10 @@ body:has(fluent-design-theme[mode="dark"]) .cal-swatch-weekend {
     border-bottom: 1px solid var(--neutral-stroke-divider-rest);
 }
 
-.cal-headcell:first-child,
-.cal-cell:first-child {
-    border-inline-start: none;
-}
+    .cal-headcell:first-child,
+    .cal-cell:first-child {
+        border-inline-start: none;
+    }
 
 /* One week of the week view is a single tall row. */
 .cal-row-week {
@@ -1212,9 +1223,9 @@ body:has(fluent-design-theme[mode="dark"]) .cal-swatch-weekend {
     background: rgb(0 0 0 / 6%);
 }
 
-.cal-cell.is-weekend .cal-daynum {
-    color: var(--neutral-foreground-hint);
-}
+    .cal-cell.is-weekend .cal-daynum {
+        color: var(--neutral-foreground-hint);
+    }
 
 body:has(fluent-design-theme[mode="dark"]) .cal-cell.is-weekend {
     background: rgb(255 255 255 / 6%);
@@ -1260,9 +1271,9 @@ body:has(fluent-design-theme[mode="dark"]) .cal-cell.cal-empty {
     cursor: pointer;
 }
 
-.cal-cell.is-selectable:hover {
-    background: var(--neutral-fill-stealth-hover);
-}
+    .cal-cell.is-selectable:hover {
+        background: var(--neutral-fill-stealth-hover);
+    }
 
 /* The date: small and quiet, because the entries under it are what is being read. Today is that
    same number in a filled circle, as in Teams. */
@@ -1277,10 +1288,17 @@ body:has(fluent-design-theme[mode="dark"]) .cal-cell.cal-empty {
 
 .cal-daynum.is-today {
     width: 24px;
-    background: var(--accent-fill-rest);
-    color: var(--app-on-accent) !important;
+    background-color: #009999 !important;
+    color: white !important;
     border-radius: 50%;
     font-weight: 600;
+}
+
+.cal-toolbar fluent-button::part(control) {
+    color: #009999 !important;
+}
+.cal-toolbar fluent-button svg {
+    fill: #009999 !important;
 }
 
 /* A holiday shares the date's line rather than taking three red lines of its own below it,
@@ -1389,14 +1407,14 @@ div.cal-surface .fluent-data-grid {
     box-shadow: inset 1px 0 0 var(--neutral-stroke-divider-rest);
 }
 
-/* The day headers went blank with the columns this narrow: the title keeps 16px of padding on
+    /* The day headers went blank with the columns this narrow: the title keeps 16px of padding on
    each side and is sized `calc(100% - 10px)` inline, which on a 25px track leaves a negative
    content width, and the number was clipped away entirely. */
-.cal-surface .fluent-data-grid th.leave-day .col-title {
-    width: 100% !important;
-    padding-left: 0;
-    padding-right: 0;
-}
+    .cal-surface .fluent-data-grid th.leave-day .col-title {
+        width: 100% !important;
+        padding-left: 0;
+        padding-right: 0;
+    }
 
 /* One period, one bar: square where it continues into the next cell, rounded only at the two
    ends of the range. A range running past the edge of the month keeps its square end, which is
@@ -1407,23 +1425,23 @@ div.cal-surface .fluent-data-grid {
     border-radius: 0;
 }
 
-.leave-bar.is-end {
-    width: 100%;
-}
+    .leave-bar.is-end {
+        width: 100%;
+    }
 
-.leave-bar.is-start {
-    border-start-start-radius: 9px;
-    border-end-start-radius: 9px;
-    /* The label is written in the opening cell and runs along the bar past it, so it has to sit
+    .leave-bar.is-start {
+        border-start-start-radius: 9px;
+        border-end-start-radius: 9px;
+        /* The label is written in the opening cell and runs along the bar past it, so it has to sit
        above the days that follow — they come later in the document and would paint over it. */
-    position: relative;
-    z-index: 1;
-}
+        position: relative;
+        z-index: 1;
+    }
 
-.leave-bar.is-end {
-    border-start-end-radius: 9px;
-    border-end-end-radius: 9px;
-}
+    .leave-bar.is-end {
+        border-start-end-radius: 9px;
+        border-end-end-radius: 9px;
+    }
 
 .leave-bar-label {
     /* The app's responsive floor gives every child of a horizontal stack `min-width: 0`, which
@@ -1461,7 +1479,9 @@ fluent-progress-ring {
 }
 
 @keyframes spinner-appears {
-    to { opacity: 1; }
+    to {
+        opacity: 1;
+    }
 }
 
 /* A progress bar has no width of its own, and a vertical FluentStack writes `align-items: start`
@@ -1476,14 +1496,33 @@ fluent-progress {
    Not components and cannot become components: blazor.web.js finds these by id and class.
 ------------------------------------------------------------------------------------- */
 #blazor-error-ui {
-    color: #fff; background: #b91c1c; display: none;
-    position: fixed; bottom: 0; left: 0; right: 0;
-    padding: .8rem 1.25rem; box-shadow: 0 -1px 6px rgba(0, 0, 0, .2); z-index: 1000;
+    color: #fff;
+    background: #b91c1c;
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: .8rem 1.25rem;
+    box-shadow: 0 -1px 6px rgba(0, 0, 0, .2);
+    z-index: 1000;
 }
-#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 1rem; top: .75rem; }
-.blazor-error-boundary { background: #b91c1c; padding: 1rem; color: #fff; }
-    border-radius: 50%;
-    font-weight: 600;
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        position: absolute;
+        right: 1rem;
+        top: .75rem;
+    }
+
+.blazor-error-boundary {
+    background: #b91c1c;
+    padding: 1rem;
+    color: #fff;
+}
+
+border-radius: 50%;
+font-weight: 600;
 }
 
 /* A holiday shares the date's line rather than taking three red lines of its own below it,
@@ -1592,14 +1631,14 @@ div.cal-surface .fluent-data-grid {
     box-shadow: inset 1px 0 0 var(--neutral-stroke-divider-rest);
 }
 
-/* The day headers went blank with the columns this narrow: the title keeps 16px of padding on
+    /* The day headers went blank with the columns this narrow: the title keeps 16px of padding on
    each side and is sized `calc(100% - 10px)` inline, which on a 25px track leaves a negative
    content width, and the number was clipped away entirely. */
-.cal-surface .fluent-data-grid th.leave-day .col-title {
-    width: 100% !important;
-    padding-left: 0;
-    padding-right: 0;
-}
+    .cal-surface .fluent-data-grid th.leave-day .col-title {
+        width: 100% !important;
+        padding-left: 0;
+        padding-right: 0;
+    }
 
 /* One period, one bar: square where it continues into the next cell, rounded only at the two
    ends of the range. A range running past the edge of the month keeps its square end, which is
@@ -1610,23 +1649,23 @@ div.cal-surface .fluent-data-grid {
     border-radius: 0;
 }
 
-.leave-bar.is-end {
-    width: 100%;
-}
+    .leave-bar.is-end {
+        width: 100%;
+    }
 
-.leave-bar.is-start {
-    border-start-start-radius: 9px;
-    border-end-start-radius: 9px;
-    /* The label is written in the opening cell and runs along the bar past it, so it has to sit
+    .leave-bar.is-start {
+        border-start-start-radius: 9px;
+        border-end-start-radius: 9px;
+        /* The label is written in the opening cell and runs along the bar past it, so it has to sit
        above the days that follow — they come later in the document and would paint over it. */
-    position: relative;
-    z-index: 1;
-}
+        position: relative;
+        z-index: 1;
+    }
 
-.leave-bar.is-end {
-    border-start-end-radius: 9px;
-    border-end-end-radius: 9px;
-}
+    .leave-bar.is-end {
+        border-start-end-radius: 9px;
+        border-end-end-radius: 9px;
+    }
 
 .leave-bar-label {
     /* The app's responsive floor gives every child of a horizontal stack `min-width: 0`, which
@@ -1664,7 +1703,9 @@ fluent-progress-ring {
 }
 
 @keyframes spinner-appears {
-    to { opacity: 1; }
+    to {
+        opacity: 1;
+    }
 }
 
 /* A progress bar has no width of its own, and a vertical FluentStack writes `align-items: start`
@@ -1679,21 +1720,49 @@ fluent-progress {
    Not components and cannot become components: blazor.web.js finds these by id and class.
 ------------------------------------------------------------------------------------- */
 #blazor-error-ui {
-    color: #fff; background: #b91c1c; display: none;
-    position: fixed; bottom: 0; left: 0; right: 0;
-    padding: .8rem 1.25rem; box-shadow: 0 -1px 6px rgba(0, 0, 0, .2); z-index: 1000;
+    color: #fff;
+    background: #b91c1c;
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: .8rem 1.25rem;
+    box-shadow: 0 -1px 6px rgba(0, 0, 0, .2);
+    z-index: 1000;
 }
-#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 1rem; top: .75rem; }
-.blazor-error-boundary { background: #b91c1c; padding: 1rem; color: #fff; }
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        position: absolute;
+        right: 1rem;
+        top: .75rem;
+    }
+
+.blazor-error-boundary {
+    background: #b91c1c;
+    padding: 1rem;
+    color: #fff;
+}
 
 /* Error.razor is a plain framework page outside the Fluent shell. */
-.text-danger { color: var(--error); }
+.text-danger {
+    color: var(--error);
+}
 
 /* Highlight the path to a selected node in the Org Chart */
 .org-path-highlight::part(positioning-region) {
-    background-color: rgba(230, 138, 0, 0.08) !important;
+    background-color: rgba(245, 124, 0, 0.15) !important;
     border-radius: 4px;
-    box-shadow: inset 3px 0 0 0 #E68A00 !important;
+    box-shadow: inset 3px 0 0 0 #F57C00 !important;
+    margin-bottom: 2px !important;
+}
+
+/* Highlight the search result in the Org Chart */
+.org-search-result::part(positioning-region) {
+    background-color: rgba(118, 255, 3, 0.25) !important;
+    border-radius: 4px;
+    box-shadow: inset 3px 0 0 0 #76FF03 !important;
     margin-bottom: 2px !important;
 }
 
@@ -1710,4 +1779,25 @@ fluent-autocomplete::part(clear-button),
 fluent-autocomplete::part(clear),
 fluent-autocomplete .clear-button {
     display: none !important;
+}
+
+
+/* Force Persona Avatar to Siemens Petrol */
+.fluent-persona .initials {
+    background-color: #009999 !important;
+}
+
+
+/* Force Siemens Petrol on SVGs that refuse to inherit the design token */
+.fluent-data-grid svg,
+.fluent-paginator svg,
+fluent-anchor[appearance="outline"] svg,
+fluent-button[appearance="stealth"] svg {
+    fill: #009999 !important;
+}
+
+
+
+.grid-card svg {
+    fill: #009999 !important;
 }

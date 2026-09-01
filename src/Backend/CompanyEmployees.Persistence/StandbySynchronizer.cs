@@ -1,71 +1,78 @@
 using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Persistence.Contracts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace CompanyEmployees.Persistence;
 
 /// <summary>
-/// Rebuilds the PostgreSQL standby from a consistent SQL Server snapshot. The standby is
-/// never modified while it is active; synchronization happens only while SQL Server is the
-/// selected provider.
+/// Rebuilds the secondary (standby) from a consistent primary snapshot.
+/// The standby is never modified while it is active; synchronization happens only while
+/// the primary is the selected provider.
 /// </summary>
-public sealed class PostgreSqlStandbySynchronizer(
-    IConfiguration configuration,
+public sealed class StandbySynchronizer(
+    IDbProviderPlugin primaryPlugin,
+    string primaryConnectionString,
+    IDbProviderPlugin secondaryPlugin,
+    string secondaryConnectionString,
     DatabaseRuntimeState state,
-    ILogger<PostgreSqlStandbySynchronizer> logger)
+    ILogger<StandbySynchronizer> logger) : IStandbyReplicationService
 {
     private readonly SemaphoreSlim synchronizationLock = new(1, 1);
 
     public DateTimeOffset? LastSuccessfulSynchronizationUtc { get; private set; }
 
-    public async Task SynchronizeAsync(CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public bool CanReplicate(string primaryId, string secondaryId) =>
+        primaryId == primaryPlugin.Id && secondaryId == secondaryPlugin.Id;
+
+    /// <inheritdoc />
+    public async Task SynchronizeAsync(CancellationToken ct = default)
     {
-        if (state.ActiveProvider != DatabaseProvider.SqlServer)
+        if (state.ActiveProviderId != state.PrimaryProviderId)
             return;
 
-        await synchronizationLock.WaitAsync(cancellationToken);
+        await synchronizationLock.WaitAsync(ct);
         try
         {
-            // Check again after waiting: an administrator may have switched providers while
-            // another synchronization owned the lock.
-            if (state.ActiveProvider != DatabaseProvider.SqlServer)
+            if (state.ActiveProviderId != state.PrimaryProviderId)
                 return;
 
-            var sqlOptions = new DbContextOptionsBuilder<CompanyEmployeesDbContext>()
-                .UseSqlServer(RequiredConnectionString("Default"))
-                .Options;
-            var postgreSqlOptions = new DbContextOptionsBuilder<CompanyEmployeesDbContext>()
-                .UseNpgsql(RequiredConnectionString("PostgreSql"))
-                .Options;
+            var primaryOptions = new DbContextOptionsBuilder<CompanyEmployeesDbContext>();
+            primaryPlugin.ConfigureDbContext(primaryOptions, primaryConnectionString);
+
+            var secondaryOptions = new DbContextOptionsBuilder<CompanyEmployeesDbContext>();
+            secondaryPlugin.ConfigureDbContext(secondaryOptions, secondaryConnectionString);
 
             DatabaseSnapshot snapshot;
-            await using (var sql = new CompanyEmployeesDbContext(sqlOptions))
-                snapshot = await ReadSnapshotAsync(sql, cancellationToken);
+            await using (var primary = new CompanyEmployeesDbContext(primaryOptions.Options))
+                snapshot = await ReadSnapshotAsync(primary, ct);
 
-            await using (var postgres = new CompanyEmployeesDbContext(postgreSqlOptions))
-                await ReplaceStandbyAsync(postgres, snapshot, cancellationToken);
+            await using (var secondary = new CompanyEmployeesDbContext(secondaryOptions.Options))
+                await ReplaceStandbyAsync(secondary, secondaryPlugin, snapshot, ct);
 
-            // The baseline already contains every change currently in SQL Server. Mark any
-            // older envelopes complete so the delta worker starts exactly after the snapshot.
-            await using (var sql = new CompanyEmployeesDbContext(sqlOptions))
+            // Mark any outbox messages that were already in the primary snapshot as processed
+            // so the delta worker starts exactly from this point forward.
+            await using (var primary = new CompanyEmployeesDbContext(primaryOptions.Options))
             {
-                sql.SuppressOutboxCapture = true;
-                await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(sql, cancellationToken);
-                var pending = await sql.DatabaseOutbox
+                primary.SuppressOutboxCapture = true;
+                await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(primary, primaryPlugin, ct);
+                var pending = await primary.DatabaseOutbox
                     .Where(message => message.ProcessedAtUtc == null)
-                    .ToListAsync(cancellationToken);
+                    .ToListAsync(ct);
                 var completedAt = DateTime.UtcNow;
                 foreach (var message in pending)
                     message.ProcessedAtUtc = completedAt;
-                await sql.SaveChangesAsync(cancellationToken);
+                await primary.SaveChangesAsync(ct);
                 state.UpdateReplication(0, null, completedAt, null);
             }
 
             LastSuccessfulSynchronizationUtc = DateTimeOffset.UtcNow;
             logger.LogInformation(
-                "Synchronized the complete SQL Server backend to PostgreSQL ({UserCount} users).",
+                "Synchronized the complete {Primary} backend to {Secondary} ({UserCount} users).",
+                primaryPlugin.DisplayName,
+                secondaryPlugin.DisplayName,
                 snapshot.Users.Count);
         }
         finally
@@ -74,16 +81,10 @@ public sealed class PostgreSqlStandbySynchronizer(
         }
     }
 
-    private string RequiredConnectionString(string name) =>
-        configuration.GetConnectionString(name)
-        ?? throw new InvalidOperationException($"ConnectionStrings:{name} is not configured.");
-
     private static async Task<DatabaseSnapshot> ReadSnapshotAsync(
         CompanyEmployeesDbContext db,
         CancellationToken cancellationToken)
     {
-        // No navigation properties are loaded. Keeping only scalar values prevents EF from
-        // accidentally inserting duplicate related rows into the destination.
         return new DatabaseSnapshot(
             await db.Regions.AsNoTracking().ToListAsync(cancellationToken),
             await db.Departments.AsNoTracking().ToListAsync(cancellationToken),
@@ -106,17 +107,16 @@ public sealed class PostgreSqlStandbySynchronizer(
 
     private static async Task ReplaceStandbyAsync(
         CompanyEmployeesDbContext db,
+        IDbProviderPlugin plugin,
         DatabaseSnapshot snapshot,
         CancellationToken cancellationToken)
     {
         db.SuppressOutboxCapture = true;
-        // PostgreSQL is a disposable standby while SQL Server is active. Recreating its
-        // schema avoids stale/deleted rows and guarantees that it exactly matches SQL Server.
         await db.Database.EnsureDeletedAsync(cancellationToken);
         await db.Database.EnsureCreatedAsync(cancellationToken);
 
-        // Departments and users form two FK cycles (department manager and employee manager).
-        // Insert their base rows first and restore those links in a second update.
+        // Departments and users have FK cycles (department manager, employee manager).
+        // Insert base rows first, then restore the FK links in a second pass.
         var departmentManagers = snapshot.Departments.ToDictionary(x => x.Id, x => x.ManagerId);
         var userManagers = snapshot.Users.ToDictionary(x => x.Id, x => x.ManagerId);
         foreach (var department in snapshot.Departments)
@@ -154,25 +154,11 @@ public sealed class PostgreSqlStandbySynchronizer(
         db.ImpersonationSessions.AddRange(snapshot.ImpersonationSessions);
         db.DelegatedActions.AddRange(snapshot.DelegatedActions);
         await db.SaveChangesAsync(cancellationToken);
-        await ResetPostgreSqlIdentitySequencesAsync(db, cancellationToken);
+
+        // Let each provider perform any engine-specific post-insert housekeeping
+        await plugin.AfterBulkInsertAsync(db, cancellationToken);
         db.ChangeTracker.Clear();
     }
-
-    internal static Task ResetPostgreSqlIdentitySequencesAsync(
-        CompanyEmployeesDbContext db,
-        CancellationToken cancellationToken = default) =>
-        db.Database.ExecuteSqlRawAsync("""
-            SELECT setval(
-                pg_get_serial_sequence('"AspNetUserClaims"', 'Id'),
-                COALESCE(MAX("Id"), 1),
-                COUNT(*) > 0)
-            FROM "AspNetUserClaims";
-            SELECT setval(
-                pg_get_serial_sequence('"AspNetRoleClaims"', 'Id'),
-                COALESCE(MAX("Id"), 1),
-                COUNT(*) > 0)
-            FROM "AspNetRoleClaims";
-            """, cancellationToken);
 
     private sealed record DatabaseSnapshot(
         List<Region> Regions,

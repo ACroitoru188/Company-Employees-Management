@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -86,10 +86,11 @@ namespace CompanyEmployees.Persistence
             if (SuppressOutboxCapture || runtimeState == null)
                 return;
 
-            var contextProvider = Database.IsNpgsql()
-                ? DatabaseProvider.PostgreSql
-                : DatabaseProvider.SqlServer;
-            if (contextProvider != runtimeState.ActiveProvider)
+            // Compare the EF provider name of the current DbContext against the one the
+            // runtime state recorded for the active plugin. This avoids any hardcoded provider
+            // ID strings: a new plugin just needs to set its EfProviderName correctly.
+            var contextEfProvider = Database.ProviderName ?? string.Empty;
+            if (!string.Equals(contextEfProvider, runtimeState.ActiveEfProviderName, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
                     "The active database changed. Reload the application before saving again.");
@@ -98,7 +99,7 @@ namespace CompanyEmployees.Persistence
 
         private void NormalizePostgreSqlDateTimes()
         {
-            if (!Database.IsNpgsql())
+            if (!IsPostgreSql())
                 return;
 
             // SQL Server datetime2 values return with Kind=Unspecified, while Npgsql's
@@ -159,14 +160,17 @@ namespace CompanyEmployees.Persistence
         private void AddOutboxMessages(IReadOnlyList<PendingChange> pending)
         {
             var batchId = Guid.NewGuid();
-            var provider = Database.IsNpgsql() ? DatabaseProvider.PostgreSql : DatabaseProvider.SqlServer;
+            // Use the plugin ID stored in runtime state (e.g. "sqlserver", "postgresql") rather
+            // than sniffing the EF provider name, so the outbox reflects the canonical ID that
+            // every other part of the system (failover, catalog, setup wizard) uses.
+            var providerName = runtimeState?.ActiveProviderId ?? Database.ProviderName ?? "unknown";
             var createdAt = DateTime.UtcNow;
             DatabaseOutbox.AddRange(pending.Select((change, order) => new DatabaseOutboxMessage
             {
                 Id = Guid.NewGuid(),
                 BatchId = batchId,
                 BatchOrder = order,
-                SourceProvider = provider.ToString(),
+                SourceProvider = providerName,
                 EntityType = change.EntityType,
                 Operation = change.Operation,
                 KeyJson = JsonSerializer.Serialize(change.Key),
@@ -174,6 +178,9 @@ namespace CompanyEmployees.Persistence
                 CreatedAtUtc = createdAt
             }));
         }
+
+        private bool IsPostgreSql() =>
+            Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true;
 
         private sealed record PendingChange(
             string EntityType,

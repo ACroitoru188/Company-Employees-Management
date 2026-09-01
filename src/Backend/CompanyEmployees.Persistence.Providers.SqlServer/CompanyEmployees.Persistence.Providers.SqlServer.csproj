@@ -7,8 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.2" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.2">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
@@ -16,11 +15,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CompanyEmployees.Domain\CompanyEmployees.Domain.csproj" />
     <ProjectReference Include="..\CompanyEmployees.Persistence.Contracts\CompanyEmployees.Persistence.Contracts.csproj" />
+    <ProjectReference Include="..\CompanyEmployees.Persistence\CompanyEmployees.Persistence.csproj" />
   </ItemGroup>
 
-
-
+  <ItemGroup>
+    <EmbeddedResource Include="Migrations\SeedData\*.sql" />
+  </ItemGroup>
 
 </Project>

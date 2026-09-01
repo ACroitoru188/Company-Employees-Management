@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CompanyEmployees.Persistence.Contracts\CompanyEmployees.Persistence.Contracts.csproj" />
+    <ProjectReference Include="..\CompanyEmployees.Persistence\CompanyEmployees.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>
