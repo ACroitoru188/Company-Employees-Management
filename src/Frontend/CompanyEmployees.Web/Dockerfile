@@ -26,7 +26,18 @@ RUN dotnet build "./CompanyEmployees.Web.csproj" -c $BUILD_CONFIGURATION -o /app
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
+ARG INCLUDED_PROVIDERS="all"
 RUN dotnet publish "./CompanyEmployees.Web.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+
+RUN if [ "$INCLUDED_PROVIDERS" != "all" ]; then \
+    mkdir -p /tmp/kept && \
+    for p in $(echo "$INCLUDED_PROVIDERS" | tr "," "\n"); do \
+      find /app/publish/Providers -maxdepth 1 -iname "*$p*" -exec cp -r {} /tmp/kept/ \; ; \
+    done && \
+    rm -rf /app/publish/Providers/* && \
+    cp -r /tmp/kept/* /app/publish/Providers/ 2>/dev/null || true && \
+    rm -rf /tmp/kept; \
+    fi
 
 FROM base AS final
 WORKDIR /app
