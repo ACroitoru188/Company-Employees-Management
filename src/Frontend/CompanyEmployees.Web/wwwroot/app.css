@@ -1160,6 +1160,16 @@ body:has(fluent-design-theme[mode="dark"]) .cal-swatch-weekend {
     padding-inline-start: 8px;
 }
 
+/* The two period pickers read as one control, so they sit closer to each other than the
+   toolbar's own gap and keep a step away from the arrows before them. */
+.cal-monthpicker {
+    padding-inline-start: 8px;
+}
+
+.cal-yearpicker {
+    margin-inline-start: -4px;
+}
+
 /* ---- The month and week surface ---- */
 
 .cal-grid {
