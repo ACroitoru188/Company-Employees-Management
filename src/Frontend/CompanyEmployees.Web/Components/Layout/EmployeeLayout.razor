@@ -263,10 +263,23 @@
                 </FluentPersona>
             </FluentButton>
             <FluentMenu Anchor="profile-menu" @bind-Open="_profileMenuOpen" VerticalThreshold="170">
+                @* FluentMenuItem is built to be one clickable row that selects-and-closes on any
+                   click inside it — that is correct for every other item here, but a FluentSwitch
+                   is itself a full interactive control, not a label. Without stopping the click
+                   here, a click lands twice: once on the switch (toggling it) and once on the
+                   menu item underneath it (closing the menu), so the switch's own toggle animation
+                   gets cut off mid-transition, and a click anywhere in the row — including the
+                   empty space to the right of the visible switch, which is still inside the same
+                   menu item — does the same thing. Containing the click to this div keeps the
+                   switch's own interaction self-contained and leaves the menu open, matching how
+                   the language and theme choice is meant to be revisited without reopening the
+                   menu each time. *@
                 <FluentMenuItem>
-                    <FluentSwitch Value="ThemeState.IsDarkMode"
-                                  ValueChanged="@(async (bool _) => await ThemeState.ToggleAsync())"
-                                  Label="@Text["Dark mode"]" />
+                    <div @onclick:stopPropagation="true">
+                        <FluentSwitch Value="ThemeState.IsDarkMode"
+                                      ValueChanged="@(async (bool _) => await ThemeState.ToggleAsync())"
+                                      Label="@Text["Dark mode"]" />
+                    </div>
                 </FluentMenuItem>
                 <FluentDivider Role="DividerRole.Presentation" />
                 <FluentMenuItem OnClick="OpenLanguageDialogAsync">

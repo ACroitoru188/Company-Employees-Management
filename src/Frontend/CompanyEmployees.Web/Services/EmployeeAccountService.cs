@@ -34,8 +34,14 @@ public sealed class EmployeeAccountService
         string invitationEmail,
         Guid departmentId,
         Guid regionId,
-        string applicationBaseUri)
+        string applicationBaseUri,
+        UserRole role = UserRole.Employee)
     {
+        // Guest is never assignable from this form, and 2 is the retired ProjectManager gap —
+        // both would otherwise pass a bare enum-defined check.
+        if (role is not (UserRole.Employee or UserRole.LineManager or UserRole.Admin))
+            throw new InvalidOperationException("Select a valid access level.");
+
         var normalizedName = NormalizeDisplayName(name);
         if (normalizedName.Length < 2)
             throw new InvalidOperationException("Employee name is required.");
@@ -81,7 +87,7 @@ public sealed class EmployeeAccountService
             RegionId = region.Id,
             // Do not create a reporting line across regional security boundaries.
             ManagerId = department.Manager?.RegionId == region.Id ? department.ManagerId : null,
-            Role = UserRole.Employee,
+            Role = role,
             Status = UserStatus.Active,
             CreatedAt = now,
             UpdatedAt = now

@@ -52,6 +52,12 @@ else
 								  SelectedOption="@SelectedDepartment"
 								  SelectedOptionChanged="OnDepartmentChanged"
 								  Disabled="@_creating" Style="width:100%;" />
+						<FluentSelect TOption="UserRole" Label="@Text["Access rights"]"
+								  Items="@AssignableRoles"
+								  OptionValue="@(role => role.ToString())" OptionText="@(role => Text[role.ToString()])"
+								  SelectedOption="@_role"
+								  SelectedOptionChanged="@(role => _role = role)"
+								  Disabled="@_creating" Style="width:100%;" />
 						<FluentTextField Value="@GetRegionName(_adminRegionId)" Label="@Text["Region"]"
 									 Disabled="true" Style="width:100%;" />
 
@@ -113,10 +119,16 @@ else
 	private string _employeeName = "";
 	private string _invitationEmail = "";
 	private Guid? _departmentId;
+	private UserRole _role = UserRole.Employee;
 	private List<Department> _departments = new();
 	private List<Region> _regions = new();
 	private EmployeeAccountResult? _createdAccount;
 	private Department? SelectedDepartment => _departments.FirstOrDefault(d => d.Id == _departmentId);
+
+	// Guest is a status new accounts never start in, and 2 is the retired ProjectManager gap —
+	// neither belongs in a picker an admin uses to grant access.
+	private static readonly UserRole[] AssignableRoles =
+		[UserRole.Employee, UserRole.LineManager, UserRole.Admin];
 
 	private void OnDepartmentChanged(Department? department) => _departmentId = department?.Id;
 
@@ -181,7 +193,8 @@ else
 				_invitationEmail,
 				_departmentId.Value,
 				_adminRegionId,
-				Nav.BaseUri);
+				Nav.BaseUri,
+				_role);
 
 			if (_createdAccount.EmailDelivered)
 				Toast.ShowSuccess(Text["Employee account created and setup email sent."]);
@@ -203,6 +216,7 @@ else
 		_employeeName = "";
 		_invitationEmail = "";
 		_departmentId = null;
+		_role = UserRole.Employee;
 		_createdAccount = null;
 	}
 

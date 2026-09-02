@@ -859,18 +859,27 @@ namespace CompanyEmployees.Application.Contexts
                 .ToList();
         }
 
-        public async Task<Department> CreateDepartmentAsync(string name, Guid? managerId)
+        public async Task<Department> CreateDepartmentAsync(Guid adminId, string name, Guid? managerId)
         {
+            await EnsureAdminAsync(adminId);
+
             if (string.IsNullOrWhiteSpace(name))
                 throw new InvalidOperationException("Department name is required.");
+            if (managerId is null)
+                throw new InvalidOperationException("Select a manager for the department.");
 
-            var department = new Department { Name = name.Trim(), ManagerId = managerId };
+            var trimmedName = name.Trim();
+            await EnsureNoDuplicateNameAsync(trimmedName, excludingId: null);
+
+            var department = new Department { Name = trimmedName, ManagerId = managerId };
             await _departmentGateway.CreateAsync(department);
             return department;
         }
 
-        public async Task UpdateDepartmentAsync(Guid id, string name, Guid? managerId)
+        public async Task UpdateDepartmentAsync(Guid adminId, Guid id, string name, Guid? managerId)
         {
+            await EnsureAdminAsync(adminId);
+
             if (string.IsNullOrWhiteSpace(name))
                 throw new InvalidOperationException("Department name is required.");
 
@@ -878,13 +887,39 @@ namespace CompanyEmployees.Application.Contexts
             if (department == null)
                 throw new EntityNotFoundException($"No department with id {id}.");
 
-            department.Name = name.Trim();
+            var trimmedName = name.Trim();
+            await EnsureNoDuplicateNameAsync(trimmedName, excludingId: id);
+
+            department.Name = trimmedName;
             department.ManagerId = managerId;
             await _departmentGateway.UpdateAsync(department);
         }
 
-        public Task DeleteDepartmentAsync(Guid id) =>
-            _departmentGateway.DeleteAsync(id);
+        public async Task DeleteDepartmentAsync(Guid adminId, Guid id)
+        {
+            await EnsureAdminAsync(adminId);
+            await _departmentGateway.DeleteAsync(id);
+        }
+
+        private async Task EnsureNoDuplicateNameAsync(string name, Guid? excludingId)
+        {
+            var existing = await _departmentGateway.GetAllAsync();
+            var collides = existing.Any(department =>
+                department.Id != excludingId
+                && string.Equals(department.Name, name, StringComparison.OrdinalIgnoreCase));
+
+            if (collides)
+                throw new InvalidOperationException($"A department named \"{name}\" already exists.");
+        }
+
+        private async Task EnsureAdminAsync(Guid adminId)
+        {
+            var admin = await _userGateway.GetUserByIdAsync(adminId);
+            if (admin == null)
+                throw new EntityNotFoundException($"No administrator with id {adminId}.");
+            if (admin.Role != UserRole.Admin)
+                throw new UnauthorizedException("Only administrators can manage departments.");
+        }
 
         public async Task AssignUserToDepartmentAsync(Guid adminId, Guid userId, Guid? departmentId)
         {

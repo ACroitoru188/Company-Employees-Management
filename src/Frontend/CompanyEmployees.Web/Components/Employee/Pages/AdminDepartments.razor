@@ -122,17 +122,18 @@ else
 					<FluentTextField @bind-Value="_newName" Label="@Text["Name"]" Style="width:100%;" />
 				</FluentGridItem>
 				<FluentGridItem xs="12" sm="6" md="4">
-					@* SelectedOptionChanged keeps the current value when handed a null option: null is
-					   the phantom half of the pair of callbacks a single pick raises, and taking it
-					   would wipe the choice the real callback is about to deliver. *@
-					<FluentCombobox TOption="ManagerOption" Label="@Text["Manager"]"
-									Items="@_managerOptions"
-									OptionValue="@(option => option.Id.ToString())"
-									OptionText="@(option => option.Name)"
-									Autocomplete="ComboboxAutocomplete.Both"
-									SelectedOption="@OptionFor(_newManagerId)"
-									SelectedOptionChanged="@(option => _newManagerId = option is null ? _newManagerId : ToManagerId(option))"
-									Style="width:100%;" />
+					@* A closed picker rather than the row editor's searchable combobox: creating a
+					   department is a one-off action on a short, fixed list of line managers, and a
+					   plain select makes it visibly impossible to type a name that isn't one of them
+					   — the "None" placeholder is dropped too, since a new department requires one. *@
+					<FluentSelect TOption="ManagerOption" Label="@Text["Manager"]"
+								  Items="@_lineManagerOptions"
+								  OptionValue="@(option => option.Id.ToString())"
+								  OptionText="@(option => option.Name)"
+								  SelectedOption="@_lineManagerOptions.FirstOrDefault(option => option.Id == _newManagerId)"
+								  SelectedOptionChanged="@(option => _newManagerId = option?.Id)"
+								  Placeholder="@Text["Choose a manager..."]"
+								  Style="width:100%;" />
 				</FluentGridItem>
 				<FluentGridItem xs="12" Style="display:flex; justify-content:flex-start;">
 					<FluentButton Appearance="Appearance.Accent"
@@ -150,6 +151,7 @@ else
 	private Task<AuthenticationState>? AuthStateTask { get; set; }
 
 	private bool _authorized;
+	private Guid _adminId;
 	private List<Department> _departments = [];
 	private List<User> _users = [];
 	private IEnumerable<User> _lineManagers => _users.Where(u => u.Role == UserRole.LineManager);
@@ -174,6 +176,10 @@ else
 	private ManagerOption _noManager = new(Guid.Empty, "None");
 	// Never empty while the combobox is on screen — see LoadAsync.
 	private List<ManagerOption> _managerOptions = [];
+
+	// The "New department" picker's own list: no "None" entry, since creating a department now
+	// requires a manager — see LoadAsync.
+	private List<ManagerOption> _lineManagerOptions = [];
 
 	// SortBy on a TemplateColumn needs the comparer up front; both are stable across renders.
 	private readonly GridSort<Department> _byName = GridSort<Department>.ByAscending(d => d.Name);
@@ -213,6 +219,9 @@ else
 			return;
 		}
 
+		var currentAdmin = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
+		_adminId = currentAdmin.Id;
+
 		_authorized = true;
 		await LoadAsync();
 	}
@@ -229,10 +238,11 @@ else
 
 		_departments = await Employees.GetDepartmentsAsync();
 		_users = await Employees.GetAllUsersAsync();
-		_managerOptions = _lineManagers
+		_lineManagerOptions = _lineManagers
 			.Select(manager => new ManagerOption(manager.Id, manager.Name))
-			.Prepend(_noManager)
+			.OrderBy(option => option.Name)
 			.ToList();
+		_managerOptions = _lineManagerOptions.Prepend(_noManager).ToList();
 	}
 
 	// Serialises the database work on this page. The circuit has a single scoped DbContext and
@@ -247,7 +257,7 @@ else
 		await _saveLock.WaitAsync();
 		try
 		{
-			await Employees.UpdateDepartmentAsync(dept.Id, dept.Name, dept.ManagerId);
+			await Employees.UpdateDepartmentAsync(_adminId, dept.Id, dept.Name, dept.ManagerId);
 			Toast.ShowSuccess(Text["Department updated."]);
 		}
 		catch (Exception exception)
@@ -294,10 +304,15 @@ else
 			Toast.ShowWarning(Text["Name is required."]);
 			return;
 		}
+		if (_newManagerId is null)
+		{
+			Toast.ShowWarning(Text["Select a manager."]);
+			return;
+		}
 		await _saveLock.WaitAsync();
 		try
 		{
-			await Employees.CreateDepartmentAsync(_newName, _newManagerId);
+			await Employees.CreateDepartmentAsync(_adminId, _newName, _newManagerId);
 			Toast.ShowSuccess(Text["Department created."]);
 			_newName = "";
 			_newManagerId = null;
@@ -340,7 +355,7 @@ else
 		await _saveLock.WaitAsync();
 		try
 		{
-			await Employees.DeleteDepartmentAsync(dept.Id);
+			await Employees.DeleteDepartmentAsync(_adminId, dept.Id);
 			Toast.ShowSuccess(Text["Department deleted."]);
 		}
 		catch (Exception exception)

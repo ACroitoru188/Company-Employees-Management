@@ -73,8 +73,13 @@ else
 		</FluentMessageBar>
 	}
 
-	<FluentSearch @bind-Value="_quickSearch" @bind-Value:after="StateHasChanged"
-				  Placeholder="@Text["Search users or contracts..."]" Style="width:320px; margin:16px 0 8px;" />
+	@* Immediate with a delay, not the bare default: without it every keystroke round-trips the
+	   circuit and re-renders the whole grid below (all 15 rows' comboboxes and selects), which is
+	   what read as the table reloading and its columns re-measuring themselves mid-type. Debouncing
+	   to one render per pause fixes both — the same pattern GlobalSearchBox already uses. *@
+	<FluentSearch @bind-Value="_quickSearch" @bind-Value:after="ResetPageAndRefresh"
+				  Immediate="true" ImmediateDelay="300"
+				  Placeholder="@Text["Search by name..."]" Style="width:320px; margin:16px 0 8px;" />
 
 	@* Grid and paginator share one surface, the same way /admin/departments frames its table:
 	   the two admin pages sit next to each other in the nav and a table floating on the page
@@ -87,7 +92,12 @@ else
 	   guessed: Region needs ~50px of label and holds one word, Email is too long to fit at any
 	   width so it stops taking room from its neighbours, and Department needs ~120px for its
 	   combobox and its own two-line title. *@
-	<FluentDataGrid Items="@FilteredUsers" TGridItem="User" ResizableColumns="true"
+	@* ResizableColumns off: dragging a divider on this grid could shrink a column (the Actions
+	   column especially, at 0.6fr the narrowest of all) until its content overlapped or fell off
+	   the edge, and there is no reset short of a full reload. The widths below are already sized
+	   from what each column has to show — see the comment above — so nothing needs to be
+	   user-adjustable. *@
+	<FluentDataGrid Items="@FilteredUsers" TGridItem="User" ResizableColumns="false"
 					ShowHover="true" Pagination="@_pagination"
 					GridTemplateColumns="1.2fr 1.5fr 0.8fr 0.8fr 1.6fr 1.4fr 1fr 0.6fr">
 		<EmptyContent>
@@ -99,7 +109,8 @@ else
 		<PropertyColumn Title="@Text["Name"]" Property="@(u => u.Name)" Sortable="true"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fName))">
 			<ColumnOptions>
-				<FluentSearch @bind-Value="_fName" @bind-Value:after="StateHasChanged"
+				<FluentSearch @bind-Value="_fName" @bind-Value:after="ResetPageAndRefresh"
+							  Immediate="true" ImmediateDelay="300"
 							  Placeholder="@Text["Filter by name"]" AutoFocus="true" />
 			</ColumnOptions>
 		</PropertyColumn>
@@ -107,7 +118,8 @@ else
 		<PropertyColumn Title="@Text["Email"]" Property="@(u => u.Email)" Sortable="true"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fEmail))">
 			<ColumnOptions>
-				<FluentSearch @bind-Value="_fEmail" @bind-Value:after="StateHasChanged"
+				<FluentSearch @bind-Value="_fEmail" @bind-Value:after="ResetPageAndRefresh"
+							  Immediate="true" ImmediateDelay="300"
 							  Placeholder="@Text["Filter by email"]" AutoFocus="true" />
 			</ColumnOptions>
 		</PropertyColumn>
@@ -115,7 +127,8 @@ else
 		<PropertyColumn Title="@Text["Role"]" Property="@(u => u.Role)" Sortable="true"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fRole))">
 			<ColumnOptions>
-				<FluentSearch @bind-Value="_fRole" @bind-Value:after="StateHasChanged"
+				<FluentSearch @bind-Value="_fRole" @bind-Value:after="ResetPageAndRefresh"
+							  Immediate="true" ImmediateDelay="300"
 							  Placeholder="@Text["Filter by role"]" AutoFocus="true" />
 			</ColumnOptions>
 		</PropertyColumn>
@@ -126,7 +139,8 @@ else
 		<TemplateColumn Title="@Text["Type"]" Sortable="true" SortBy="@_byContractType"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fContract))">
 			<ColumnOptions>
-				<FluentSearch @bind-Value="_fContract" @bind-Value:after="StateHasChanged"
+				<FluentSearch @bind-Value="_fContract" @bind-Value:after="ResetPageAndRefresh"
+							  Immediate="true" ImmediateDelay="300"
 							  Placeholder="@Text["Filter by type or status"]" AutoFocus="true" />
 			</ColumnOptions>
 			<ChildContent>
@@ -174,7 +188,8 @@ else
 		<TemplateColumn Title="@Text["Department"]" Sortable="true" SortBy="@_byDepartment"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fDepartment))">
 			<ColumnOptions>
-				<FluentSearch @bind-Value="_fDepartment" @bind-Value:after="StateHasChanged"
+				<FluentSearch @bind-Value="_fDepartment" @bind-Value:after="ResetPageAndRefresh"
+							  Immediate="true" ImmediateDelay="300"
 							  Placeholder="@Text["Filter by department"]" AutoFocus="true" />
 			</ColumnOptions>
 			<ChildContent>
@@ -192,7 +207,8 @@ else
 		<TemplateColumn Title="@Text["Region"]" Sortable="true" SortBy="@_byRegion"
 						Filtered="@(!string.IsNullOrWhiteSpace(_fRegion))">
 			<ColumnOptions>
-				<FluentSearch @bind-Value="_fRegion" @bind-Value:after="StateHasChanged"
+				<FluentSearch @bind-Value="_fRegion" @bind-Value:after="ResetPageAndRefresh"
+							  Immediate="true" ImmediateDelay="300"
 							  Placeholder="@Text["Filter by region"]" AutoFocus="true" />
 			</ColumnOptions>
 			<ChildContent>
@@ -313,18 +329,13 @@ else
 			&& Has(_fRegion, GetRegionName(u.RegionId));
 	}
 
-	private bool MatchesQuickSearch(User u)
-	{
-		if (string.IsNullOrWhiteSpace(_quickSearch)) return true;
-		var contract = GetActiveContract(u);
-		return u.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-			|| (u.Email ?? "").Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-			|| u.Role.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-			|| GetDepartmentName(u.DepartmentId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-			|| GetRegionName(u.RegionId).Contains(_quickSearch, StringComparison.OrdinalIgnoreCase)
-			|| (contract != null && contract.Type.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase))
-			|| (contract != null && contract.Status.ToString().Contains(_quickSearch, StringComparison.OrdinalIgnoreCase));
-	}
+	// Name only, on purpose: matching on email/role/department/region/contract too made this box
+	// behave like a second, unpredictable column filter — searching "HR" surfaced every HR
+	// department member as well as anyone actually named Hr. The per-column filters below the
+	// header already cover those other fields individually.
+	private bool MatchesQuickSearch(User u) =>
+		string.IsNullOrWhiteSpace(_quickSearch)
+		|| u.Name.Contains(_quickSearch, StringComparison.OrdinalIgnoreCase);
 
 	private bool CanManageSelectedRegion => _regionFilterId == _adminRegionId;
 	private bool CanEditUser(User user) => user.RegionId == _adminRegionId;
@@ -527,9 +538,20 @@ else
 		}
 	}
 
-	private void OnViewingRegionChanged(RegionOption? option)
+	private async Task OnViewingRegionChanged(RegionOption? option)
 	{
 		_regionFilterId = option is null || option.Id == Guid.Empty ? null : option.Id;
+		await ResetPageAndRefresh();
+	}
+
+	// Narrowing any filter can leave the grid sitting on a page number that no longer exists in
+	// the smaller result set — FluentDataGrid does not notice on its own, so the row area just
+	// renders empty past the last real page. Jumping back to page one on every filter change is
+	// what made the search box read as broken when it was really the page index going stale.
+	private async Task ResetPageAndRefresh()
+	{
+		await _pagination.SetCurrentPageIndexAsync(0);
+		StateHasChanged();
 	}
 
 	private string GetDepartmentName(Guid? id) =>
