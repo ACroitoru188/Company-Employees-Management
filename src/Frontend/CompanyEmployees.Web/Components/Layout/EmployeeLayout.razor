@@ -19,6 +19,7 @@
 @inject IToastService Toast
 @inject IDialogService DialogService
 @inject LanguagePreferenceService LanguagePreferences
+@inject CircuitCulture CircuitCulture
 @inject ILogger<EmployeeLayout> Logger
 @inject DatabaseRuntimeState DatabaseState
 @inject DatabaseProviderCatalog Catalog
@@ -263,10 +264,23 @@
                 </FluentPersona>
             </FluentButton>
             <FluentMenu Anchor="profile-menu" @bind-Open="_profileMenuOpen" VerticalThreshold="170">
+                @* FluentMenuItem is built to be one clickable row that selects-and-closes on any
+                   click inside it — that is correct for every other item here, but a FluentSwitch
+                   is itself a full interactive control, not a label. Without stopping the click
+                   here, a click lands twice: once on the switch (toggling it) and once on the
+                   menu item underneath it (closing the menu), so the switch's own toggle animation
+                   gets cut off mid-transition, and a click anywhere in the row — including the
+                   empty space to the right of the visible switch, which is still inside the same
+                   menu item — does the same thing. Containing the click to this div keeps the
+                   switch's own interaction self-contained and leaves the menu open, matching how
+                   the language and theme choice is meant to be revisited without reopening the
+                   menu each time. *@
                 <FluentMenuItem>
-                    <FluentSwitch Value="ThemeState.IsDarkMode"
-                                  ValueChanged="@(async (bool _) => await ThemeState.ToggleAsync())"
-                                  Label="@Text["Dark mode"]" />
+                    <div @onclick:stopPropagation="true">
+                        <FluentSwitch Value="ThemeState.IsDarkMode"
+                                      ValueChanged="@(async (bool _) => await ThemeState.ToggleAsync())"
+                                      Label="@Text["Dark mode"]" />
+                    </div>
                 </FluentMenuItem>
                 <FluentDivider Role="DividerRole.Presentation" />
                 <FluentMenuItem OnClick="OpenLanguageDialogAsync">
@@ -452,6 +466,11 @@
         ThemeState.OnChange += StateHasChanged;
         DatabaseState.Changed += OnDatabaseStateChanged;
 
+        // Initialization runs on the circuit, so this is the employee's language. The database
+        // monitor publishes from its own thread, and a render started there would otherwise
+        // resolve every label in the drawer and the app bar against English.
+        CircuitCulture.Capture();
+
         if (AuthStateTask is null)
             return;
 
@@ -577,8 +596,13 @@
     private static string Initials(string name) =>
         string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
 
+    // Raised by the availability monitor and the replication service, both of which publish
+    // from a background thread: InvokeAsync moves the work to the circuit but keeps the
+    // publisher's culture, so the language has to be put back before anything renders.
     private void OnDatabaseStateChanged() => _ = InvokeAsync(() =>
     {
+        CircuitCulture.Restore();
+
         if (_observedActiveProviderId != DatabaseState.ActiveProviderId)
         {
             _observedActiveProviderId = DatabaseState.ActiveProviderId;

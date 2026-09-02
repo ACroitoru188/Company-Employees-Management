@@ -5,6 +5,7 @@
 @using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Application.Notifications
+@using CompanyEmployees.Web.Services
 @inject IServiceScopeFactory ScopeFactory
 @inject AuthenticationStateProvider AuthState
 @inject INotificationDispatcher Dispatcher
@@ -12,6 +13,7 @@
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 @inject ILogger<NotificationBell> Logger
+@inject CircuitCulture CircuitCulture
 @implements IDisposable
 
 @* Same trap as the bell below, one step ahead of it: an accent badge on the accent-blue app bar
@@ -114,6 +116,11 @@
         // neither, and stay invisible until reload.
         _subscription = Dispatcher.Subscribe(_currentUserId, OnNotificationChangeAsync);
 
+        // The publisher's thread decides the culture of the callback below, and it may not even
+        // be this employee's circuit — an approval is published by the manager's. Remember the
+        // language here, where the circuit is still the caller.
+        CircuitCulture.Capture();
+
         await ReloadAsync();
     }
 
@@ -122,6 +129,8 @@
     private Task OnNotificationChangeAsync(NotificationChange change) =>
         InvokeAsync(async () =>
         {
+            CircuitCulture.Restore();
+
             if (change.Created is null)
                 await ReloadAsync();
             else

@@ -1,4 +1,4 @@
-using CompanyEmployees.Domain.Entities;
+﻿using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -461,38 +461,151 @@ public static class DatabaseSeeder
         await db.SaveChangesAsync(ct);
     }
 
+    // Completed years of service each seeded account should have at the start of the current
+    // year. The values are parked on the bands LeaveAllocationPolicy actually uses - every
+    // demo account is Romanian, and Romania grants 21/22/23/24 annual days at 0/5/10/15
+    // completed years - so the roster covers the whole scale. The previous contract seeding
+    // drew a start date 200-1400 days back, which is under four years for everybody: no
+    // account ever crossed a threshold and the service bands were dead code in the demo.
+    // Managers and admins skew senior, as they would in a real organisation.
+    private static readonly (Guid UserId, int Years)[] SeniorityLadder =
+    [
+        (new("11111111-0000-0000-0000-000000000001"), 18), // Demo Admin
+        (new("11111111-0000-0000-0000-000000000002"), 12), // Demo Line Manager
+        (new("11111111-0000-0000-0000-000000000003"), 8),  // Demo Project Manager
+        (new("11111111-0000-0000-0000-000000000004"), 3),  // Demo Employee
+        (new("11111111-0000-0000-0000-000000000005"), 1),  // Demo Colleague
+        (new("11111111-0000-0000-0000-000000000006"), 21), // Paul Rusu, admin
+        (new("11111111-0000-0000-0000-000000000007"), 16), // Monica Grigore, admin
+        (new("11111111-0000-0000-0000-000000000008"), 11), // Victor Neagu, admin
+        (new("11111111-0000-0000-0000-000000000009"), 15), // Elena Vasilescu, HR line manager
+        (new("11111111-0000-0000-0000-000000000010"), 7),  // Andreea Popa
+        (new("11111111-0000-0000-0000-000000000011"), 5),  // Bogdan Radu
+        (new("11111111-0000-0000-0000-000000000012"), 2),  // Carmen Iliescu
+        (new("11111111-0000-0000-0000-000000000013"), 0),  // Daniel Stan
+        (new("11111111-0000-0000-0000-000000000014"), 17), // Radu Constantin, Engineering line manager
+        (new("11111111-0000-0000-0000-000000000015"), 10), // Diana Marinescu
+        (new("11111111-0000-0000-0000-000000000016"), 6),  // Vlad Moldovan
+        (new("11111111-0000-0000-0000-000000000017"), 4),  // Simona Barbu
+        (new("11111111-0000-0000-0000-000000000018"), 1),  // Tudor Nistor
+        (new("11111111-0000-0000-0000-000000000019"), 12), // Larisa Dobre
+        (new("11111111-0000-0000-0000-000000000020"), 13), // Cristian Dumitru, Sales line manager
+        (new("11111111-0000-0000-0000-000000000021"), 9),  // Alexandru Stoica
+        (new("11111111-0000-0000-0000-000000000022"), 5),  // Cosmin Pavel
+        (new("11111111-0000-0000-0000-000000000023"), 3),  // Raluca Enache
+        (new("11111111-0000-0000-0000-000000000024"), 20), // Florin Tudor
+        (new("11111111-0000-0000-0000-000000000025"), 0),  // Adriana Ciobanu
+        (new("11111111-0000-0000-0000-000000000026"), 14), // Mihai Georgescu, Support line manager
+        (new("11111111-0000-0000-0000-000000000027"), 8),  // Gabriel Matei
+        (new("11111111-0000-0000-0000-000000000028"), 5),  // Roxana Sandu
+        (new("11111111-0000-0000-0000-000000000029"), 2),  // Marius Cretu
+        (new("11111111-0000-0000-0000-000000000030"), 11), // Alina Toma
+        (new("11111111-0000-0000-0000-000000000031"), 6),  // Sergiu Balan
+        (new("11111111-0000-0000-0000-000000000032"), 19), // Ioana Munteanu, Marketing line manager
+        (new("11111111-0000-0000-0000-000000000033"), 10), // Nicoleta Serban
+        (new("11111111-0000-0000-0000-000000000034"), 7),  // Bogdan Ilie
+        (new("11111111-0000-0000-0000-000000000035"), 4),  // Camelia Nicolae
+        (new("11111111-0000-0000-0000-000000000036"), 15), // Stefan Voicu
+        (new("11111111-0000-0000-0000-000000000037"), 1)   // Teodora Anghel
+    ];
+
     private static async Task SeedContractsAsync(CompanyEmployeesDbContext db, CancellationToken ct)
     {
         var users = await db.Users.Include(u => u.Contracts).ToListAsync(ct);
         if (users.Count == 0) return;
 
-        var random = new Random(12345);
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var ladder = SeniorityLadder.ToDictionary(entry => entry.UserId, entry => entry.Years);
 
         foreach (var user in users)
         {
-            if (user.Contracts == null || user.Contracts.Count == 0)
-            {
-                var isDeterminate = random.Next(100) < 40;
-                var startDaysAgo = random.Next(200, 1400);
-                var startDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-startDaysAgo));
-                DateOnly? endDate = isDeterminate
-                    ? DateOnly.FromDateTime(DateTime.Today.AddDays(random.Next(90, 550)))
-                    : null;
+            var years = ladder.TryGetValue(user.Id, out var seniority)
+                ? seniority
+                : FallbackSeniorityYears(user.Id);
+            var spread = DeterministicSpread(user.Id);
+            var startDate = ContractStartDate(years, spread, today);
 
+            // Fixed-term contracts belong to the shorter tenures; nobody stays fifteen years on
+            // one. Keeping two thirds of the under-tens determinate still leaves plenty of
+            // contracts for the admin page's Extend action to work on.
+            var isDeterminate = years < 10 && spread % 3 != 0;
+            var type = isDeterminate ? ContractType.Determinate : ContractType.Indeterminate;
+            DateOnly? endDate = isDeterminate ? today.AddDays(90 + spread % 460) : null;
+
+            var existing = user.Contracts?.OrderByDescending(c => c.CreatedAt).FirstOrDefault();
+            if (existing == null)
+            {
+                var createdAt = DateTime.UtcNow;
                 db.Contracts.Add(new Contract
                 {
                     Id = Guid.NewGuid(),
                     UserId = user.Id,
-                    Type = isDeterminate ? ContractType.Determinate : ContractType.Indeterminate,
+                    Type = type,
                     StartDate = startDate,
                     EndDate = endDate,
                     Status = ContractStatus.Active,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = createdAt,
+                    UpdatedAt = createdAt
                 });
+                continue;
             }
+
+            // A database seeded before the ladder existed already carries a contract, so the
+            // dates are corrected in place instead of a second row being added: the application
+            // treats an employee as having one contract (SaveUserContractAsync updates the
+            // active one and only inserts when there is none), and two rows would disagree -
+            // the admin grid reads the newest, the leave balance reads the earliest start date.
+            //
+            // An untouched timestamp is what marks a row as the seeder's own; contract ids stay
+            // generated. Deriving the id from the owner's was tried and is a trap: the ids in
+            // this file differ only in their first group (Demo Admin is 11111111-...-0001, the
+            // carry-over demo account aaaaaaaa-...-0001), so any id built from part of a user id
+            // hands two accounts the same contract and EF refuses to track the second.
+            //
+            // Every contract write path through the application sets UpdatedAt, so a contract
+            // that has been extended, terminated or edited is left alone from then on, and the
+            // assignment below keeps the seeder's own rows recognisable as untouched.
+            if (existing.Notes != null || existing.UpdatedAt > existing.CreatedAt.AddSeconds(5))
+                continue;
+
+            if (existing.Type == type && existing.StartDate == startDate && existing.EndDate == endDate)
+                continue;
+
+            existing.Type = type;
+            existing.StartDate = startDate;
+            existing.EndDate = endDate;
+            existing.UpdatedAt = existing.CreatedAt;
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    // The entitlement is measured from January 1 of the year being granted, not from today, so
+    // the start date is placed to land on exactly `years` completed service at that point:
+    // anywhere in the calendar year before the anniversary year does that. Spreading the day
+    // keeps the whole company from sharing one hire date.
+    private static DateOnly ContractStartDate(int years, int spread, DateOnly today)
+    {
+        if (years > 0)
+            return new DateOnly(today.Year - years, 1, 1).AddDays(-(1 + (spread % 364)));
+
+        // Joined during the current year: no completed years yet, and never a future date.
+        var daysSoFar = today.DayOfYear - 1;
+        return new DateOnly(today.Year, 1, 1)
+            .AddDays(daysSoFar <= 0 ? 0 : spread % (daysSoFar + 1));
+    }
+
+    // Accounts created through the application are not on the ladder. Their tenure is derived
+    // from their id rather than from a shared Random, which depended on iteration order and
+    // could move somebody between bands from one run to the next.
+    private static int FallbackSeniorityYears(Guid userId) => DeterministicSpread(userId) % 13;
+
+    private static int DeterministicSpread(Guid userId)
+    {
+        var hash = 17;
+        foreach (var b in userId.ToByteArray())
+            hash = (hash * 31) + b;
+
+        return hash & 0x7FFFFFFF;
     }
 }
