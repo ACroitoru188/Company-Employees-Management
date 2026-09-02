@@ -671,7 +671,7 @@ public static class RomaniaMapData
                     },
                     new RomaniaHubModel
                     {
-                        Name = "Siemens R&D Advanta Center",
+                        Name = "Siemens R&D",
                         Division = "Advanta R&D & Embedded Systems",
                         Address = "Kronstadt Tech Campus, Str. Zizinului 110",
                         EmployeesCount = 210,

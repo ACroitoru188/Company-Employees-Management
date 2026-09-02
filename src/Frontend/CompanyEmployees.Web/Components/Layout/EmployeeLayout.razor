@@ -159,6 +159,10 @@
             {
                 <FluentNavLink Href="/admin/departments" Match="NavLinkMatch.All"
                                Icon="@(new Icons.Regular.Size20.Building())">@Text["Departments"]</FluentNavLink>
+            }
+
+            @if (_role == "Admin" || _role == "CountryManager")
+            {
                 <FluentNavLink Href="/admin/users" Match="NavLinkMatch.All"
                                Icon="@(new Icons.Regular.Size20.People())">@Text["Users"]</FluentNavLink>
             }

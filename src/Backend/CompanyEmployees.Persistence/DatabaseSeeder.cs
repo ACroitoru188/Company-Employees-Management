@@ -70,7 +70,9 @@ public static class DatabaseSeeder
             (new("22222222-0000-0000-0000-000000000004"), "Engineering"),
             (new("22222222-0000-0000-0000-000000000005"), "Sales"),
             (new("22222222-0000-0000-0000-000000000006"), "Support"),
-            (new("22222222-0000-0000-0000-000000000007"), "Marketing")
+            (new("22222222-0000-0000-0000-000000000007"), "Marketing"),
+            (new("22222222-0000-0000-0000-000000000008"), "Executive"),
+            (new("22222222-0000-0000-0000-000000000009"), "Cloud")
         };
 
         foreach (var (id, name) in departments)
@@ -112,7 +114,11 @@ public static class DatabaseSeeder
             new("11111111-0000-0000-0000-000000000262"),
             new("11111111-0000-0000-0000-000000000263"),
             new("11111111-0000-0000-0000-000000000264"),
-            new("11111111-0000-0000-0000-000000000265")
+            new("11111111-0000-0000-0000-000000000265"),
+            new("11111111-0000-0000-0000-000000000250"),
+            new("11111111-0000-0000-0000-000000000251"),
+            new("11111111-0000-0000-0000-000000000252"),
+            new("11111111-0000-0000-0000-000000000253")
         };
         var advantaIds = new HashSet<Guid>
         {
@@ -143,58 +149,84 @@ public static class DatabaseSeeder
 
         var rawUsers = new (Guid Id, string Name, string Email, string Pwd, UserRole Role, Guid? MgrId, Guid? DeptId)[]
         {
-            (new("11111111-0000-0000-0000-000000000001"), "Demo Admin", "itadmin@siemens.com", "User123!", UserRole.Admin, null, null),
-            (new("11111111-0000-0000-0000-000000000002"), "Demo Line Manager", "linemanager@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000001"), new("22222222-0000-0000-0000-000000000001")),
-            (new("11111111-0000-0000-0000-000000000003"), "Demo Project Manager", "projectmanager@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000002"), null),
-            (new("11111111-0000-0000-0000-000000000004"), "Demo Employee", "employee@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000003"), new("22222222-0000-0000-0000-000000000001")),
-            (new("11111111-0000-0000-0000-000000000005"), "Demo Colleague", "colleague@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000003"), new("22222222-0000-0000-0000-000000000001")),
-            (new("11111111-0000-0000-0000-000000000006"), "Paul Rusu", "admin.paul@siemens.com", "Admin123!", UserRole.Admin, null, null),
-            (new("11111111-0000-0000-0000-000000000007"), "Monica Grigore", "admin.monica@siemens.com", "Admin123!", UserRole.Admin, null, null),
-            (new("11111111-0000-0000-0000-000000000008"), "Victor Neagu", "admin.victor@siemens.com", "Admin123!", UserRole.Admin, null, null),
-            (new("11111111-0000-0000-0000-000000000009"), "Elena Vasilescu", "lm.elena@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000006"), new("22222222-0000-0000-0000-000000000003")),
+            (new("11111111-0000-0000-0000-000000000003"), "Demo Country Manager", "countrymanager.ro@siemens.com", "User123!", UserRole.CountryManager, null, null),
+            (new("11111111-0000-0000-0000-000000000001"), "Demo Admin", "itadmin@siemens.com", "User123!", UserRole.Admin, new("11111111-0000-0000-0000-000000000002"), null),
+            (new("11111111-0000-0000-0000-000000000002"), "Demo Line Manager", "linemanager@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000250"), new("22222222-0000-0000-0000-000000000001")),
+            (new("11111111-0000-0000-0000-000000000004"), "Demo Employee", "employee@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000002"), new("22222222-0000-0000-0000-000000000001")),
+            (new("11111111-0000-0000-0000-000000000005"), "Demo Colleague", "colleague@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000002"), new("22222222-0000-0000-0000-000000000001")),
+            (new("11111111-0000-0000-0000-000000000006"), "Paul Rusu", "admin.paul@siemens.com", "Admin123!", UserRole.Admin, new("11111111-0000-0000-0000-000000000009"), null),
+            (new("11111111-0000-0000-0000-000000000007"), "Monica Grigore", "admin.monica@siemens.com", "Admin123!", UserRole.Admin, new("11111111-0000-0000-0000-000000000251"), null),
+            (new("11111111-0000-0000-0000-000000000008"), "Victor Neagu", "admin.victor@siemens.com", "Admin123!", UserRole.Admin, new("11111111-0000-0000-0000-000000000020"), null),
+            (new("11111111-0000-0000-0000-000000000009"), "Elena Vasilescu", "lm.elena@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000003"), new("22222222-0000-0000-0000-000000000003")),
             (new("11111111-0000-0000-0000-000000000010"), "Andreea Popa", "hr.andreea@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000009"), new("22222222-0000-0000-0000-000000000003")),
             (new("11111111-0000-0000-0000-000000000011"), "Bogdan Radu", "hr.bogdan@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000009"), new("22222222-0000-0000-0000-000000000003")),
             (new("11111111-0000-0000-0000-000000000012"), "Carmen Iliescu", "hr.carmen@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000009"), new("22222222-0000-0000-0000-000000000003")),
             (new("11111111-0000-0000-0000-000000000013"), "Daniel Stan", "hr.daniel@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000009"), new("22222222-0000-0000-0000-000000000003")),
-            (new("11111111-0000-0000-0000-000000000014"), "Radu Constantin", "lm.radu@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000007"), new("22222222-0000-0000-0000-000000000004")),
+            (new("11111111-0000-0000-0000-000000000014"), "Radu Constantin", "lm.radu@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000250"), new("22222222-0000-0000-0000-000000000004")),
             (new("11111111-0000-0000-0000-000000000015"), "Diana Marinescu", "diana.marinescu@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000014"), new("22222222-0000-0000-0000-000000000004")),
-            (new("11111111-0000-0000-0000-000000000016"), "Vlad Moldovan", "vlad.moldovan@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000015"), new("22222222-0000-0000-0000-000000000004")),
-            (new("11111111-0000-0000-0000-000000000017"), "Simona Barbu", "simona.barbu@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000015"), new("22222222-0000-0000-0000-000000000004")),
-            (new("11111111-0000-0000-0000-000000000018"), "Tudor Nistor", "tudor.nistor@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000015"), new("22222222-0000-0000-0000-000000000004")),
-            (new("11111111-0000-0000-0000-000000000019"), "Larisa Dobre", "larisa.dobre@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000015"), new("22222222-0000-0000-0000-000000000004")),
-            (new("11111111-0000-0000-0000-000000000020"), "Cristian Dumitru", "lm.cristian@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000008"), new("22222222-0000-0000-0000-000000000005")),
+            (new("11111111-0000-0000-0000-000000000016"), "Vlad Moldovan", "vlad.moldovan@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000014"), new("22222222-0000-0000-0000-000000000004")),
+            (new("11111111-0000-0000-0000-000000000017"), "Simona Barbu", "simona.barbu@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000014"), new("22222222-0000-0000-0000-000000000004")),
+            (new("11111111-0000-0000-0000-000000000018"), "Tudor Nistor", "tudor.nistor@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000014"), new("22222222-0000-0000-0000-000000000004")),
+            (new("11111111-0000-0000-0000-000000000019"), "Larisa Dobre", "larisa.dobre@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000014"), new("22222222-0000-0000-0000-000000000004")),
+            (new("11111111-0000-0000-0000-000000000020"), "Cristian Dumitru", "lm.cristian@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000003"), new("22222222-0000-0000-0000-000000000005")),
             (new("11111111-0000-0000-0000-000000000021"), "Alexandru Stoica", "alexandru.stoica@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000020"), new("22222222-0000-0000-0000-000000000005")),
-            (new("11111111-0000-0000-0000-000000000022"), "Cosmin Pavel", "cosmin.pavel@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000021"), new("22222222-0000-0000-0000-000000000005")),
-            (new("11111111-0000-0000-0000-000000000023"), "Raluca Enache", "raluca.enache@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000021"), new("22222222-0000-0000-0000-000000000005")),
-            (new("11111111-0000-0000-0000-000000000024"), "Florin Tudor", "florin.tudor@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000021"), new("22222222-0000-0000-0000-000000000005")),
-            (new("11111111-0000-0000-0000-000000000025"), "Adriana Ciobanu", "adriana.ciobanu@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000021"), new("22222222-0000-0000-0000-000000000005")),
-            (new("11111111-0000-0000-0000-000000000026"), "Mihai Georgescu", "lm.mihai@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000006"), new("22222222-0000-0000-0000-000000000006")),
+            (new("11111111-0000-0000-0000-000000000022"), "Cosmin Pavel", "cosmin.pavel@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000020"), new("22222222-0000-0000-0000-000000000005")),
+            (new("11111111-0000-0000-0000-000000000023"), "Raluca Enache", "raluca.enache@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000020"), new("22222222-0000-0000-0000-000000000005")),
+            (new("11111111-0000-0000-0000-000000000024"), "Florin Tudor", "florin.tudor@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000020"), new("22222222-0000-0000-0000-000000000005")),
+            (new("11111111-0000-0000-0000-000000000025"), "Adriana Ciobanu", "adriana.ciobanu@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000020"), new("22222222-0000-0000-0000-000000000005")),
+            (new("11111111-0000-0000-0000-000000000026"), "Mihai Georgescu", "lm.mihai@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000003"), new("22222222-0000-0000-0000-000000000006")),
             (new("11111111-0000-0000-0000-000000000027"), "Gabriel Matei", "gabriel.matei@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000026"), new("22222222-0000-0000-0000-000000000006")),
             (new("11111111-0000-0000-0000-000000000028"), "Roxana Sandu", "roxana.sandu@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000026"), new("22222222-0000-0000-0000-000000000006")),
             (new("11111111-0000-0000-0000-000000000029"), "Marius Cretu", "marius.cretu@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000026"), new("22222222-0000-0000-0000-000000000006")),
             (new("11111111-0000-0000-0000-000000000030"), "Alina Toma", "alina.toma@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000026"), new("22222222-0000-0000-0000-000000000006")),
             (new("11111111-0000-0000-0000-000000000031"), "Sergiu Balan", "sergiu.balan@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000026"), new("22222222-0000-0000-0000-000000000006")),
-            (new("11111111-0000-0000-0000-000000000032"), "Ioana Munteanu", "lm.ioana@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000007"), new("22222222-0000-0000-0000-000000000007")),
+            (new("11111111-0000-0000-0000-000000000032"), "Ioana Munteanu", "lm.ioana@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000250"), new("22222222-0000-0000-0000-000000000007")),
             (new("11111111-0000-0000-0000-000000000033"), "Nicoleta Serban", "nicoleta.serban@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000032"), new("22222222-0000-0000-0000-000000000007")),
             (new("11111111-0000-0000-0000-000000000034"), "Bogdan Ilie", "bogdan.ilie@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000032"), new("22222222-0000-0000-0000-000000000007")),
             (new("11111111-0000-0000-0000-000000000035"), "Camelia Nicolae", "camelia.nicolae@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000032"), new("22222222-0000-0000-0000-000000000007")),
             (new("11111111-0000-0000-0000-000000000036"), "Stefan Voicu", "stefan.voicu@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000032"), new("22222222-0000-0000-0000-000000000007")),
-            (new("11111111-0000-0000-0000-000000000037"), "Teodora Anghel", "teodora.anghel@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000032"), new("22222222-0000-0000-0000-000000000007"))
+            (new("11111111-0000-0000-0000-000000000037"), "Teodora Anghel", "teodora.anghel@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000032"), new("22222222-0000-0000-0000-000000000007")),
+            // Real Team Accounts previously in SQL script only
+            (new("11111111-0000-0000-0000-000000000250"), "Andrei Serbanescu", "andrei.serbanescu@siemens.com", "User123!", UserRole.CountryManager, null, null),
+            (new("11111111-0000-0000-0000-000000000251"), "Maria Stoica", "maria.stoica@siemens.com", "User123!", UserRole.LineManager, new("11111111-0000-0000-0000-000000000250"), new("22222222-0000-0000-0000-000000000009")),
+            (new("11111111-0000-0000-0000-000000000252"), "Razvan Spataru", "razvan.spataru@siemens.com", "User123!", UserRole.Admin, new("11111111-0000-0000-0000-000000000251"), null),
+            (new("11111111-0000-0000-0000-000000000253"), "David Mania", "david.mania@siemens.com", "User123!", UserRole.Employee, new("11111111-0000-0000-0000-000000000251"), null)
         };
 
         // First insert users without ManagerId to avoid foreign key cyclic dependency
-        foreach (var (id, name, email, pwd, role, _, deptId) in rawUsers)
+        var rawDict = rawUsers.ToDictionary(r => r.Id);
+        (string City, string Site, Guid? DeptId) GetInheritedProps(Guid id)
         {
-            var (city, site) = GetCityAndSite(id);
+            var r = rawDict[id];
+            if (r.Role == UserRole.CountryManager) {
+                return (GetCityAndSite(id).City, GetCityAndSite(id).Site, new Guid("22222222-0000-0000-0000-000000000008"));
+            }
+            if (r.Role == UserRole.LineManager) {
+                return (GetCityAndSite(id).City, GetCityAndSite(id).Site, r.DeptId);
+            }
+            if (r.MgrId.HasValue) {
+                return GetInheritedProps(r.MgrId.Value);
+            }
+            return (GetCityAndSite(id).City, GetCityAndSite(id).Site, r.DeptId);
+        }
+
+        foreach (var (id, name, email, pwd, role, managerId, rawDeptId) in rawUsers)
+        {
+            var (city, site, deptId) = GetInheritedProps(id);
             var normalizedEmail = email.ToUpperInvariant();
             var existingUser = await db.Users.FirstOrDefaultAsync(u => u.Id == id || u.NormalizedEmail == normalizedEmail, ct);
             if (existingUser != null)
             {
-                if (string.IsNullOrEmpty(existingUser.City) || string.IsNullOrEmpty(existingUser.Site))
-                {
-                    existingUser.City = city;
-                    existingUser.Site = site;
-                }
+                existingUser.City = city;
+                existingUser.Site = site;
+                existingUser.DepartmentId = deptId;
+                existingUser.Role = role;
+                existingUser.Email = email;
+                existingUser.NormalizedEmail = normalizedEmail;
+                existingUser.UserName = email;
+                existingUser.NormalizedUserName = normalizedEmail;
+                existingUser.Name = name;
+                existingUser.ManagerId = managerId;
                 continue;
             }
 
@@ -276,6 +308,16 @@ public static class DatabaseSeeder
             }
         }
 
+        await db.SaveChangesAsync(ct);
+
+        // Ensure Andrei Serbanescu is the ultimate boss of orphaned users, but KEEP Demo Country Manager separate
+        var andreiSerbanescuId = new Guid("11111111-0000-0000-0000-000000000250");
+        var demoCountryManagerId = new Guid("11111111-0000-0000-0000-000000000003");
+        var orphanedUsers = await db.Users.Where(u => u.ManagerId == null && u.Id != andreiSerbanescuId && u.Id != demoCountryManagerId).ToListAsync(ct);
+        foreach(var orphanedUser in orphanedUsers)
+        {
+            orphanedUser.ManagerId = andreiSerbanescuId;
+        }
         await db.SaveChangesAsync(ct);
     }
 
@@ -609,3 +651,8 @@ public static class DatabaseSeeder
         return hash & 0x7FFFFFFF;
     }
 }
+
+
+
+
+

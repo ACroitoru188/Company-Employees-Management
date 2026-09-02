@@ -319,7 +319,7 @@ namespace CompanyEmployees.Application.Contexts
         // their own team branch and nothing else, an admin got one level of synthetic
         // department-group nodes that could never be expanded because the loader was never
         // wired up. Neither could show the company.
-        public async Task<OrgChartNode?> GetCompanyOrgChartAsync(Guid currentUserId, Guid? targetUserId = null)
+        public async Task<OrgChartNode?> GetCompanyOrgChartAsync(Guid currentUserId, Guid? targetUserId = null, string? cityFilter = null, string? siteFilter = null, string? deptFilter = null)
         {
             var activeUsers = (await _userGateway.GetAllUsersAsync())
                 .Where(user => user.Status == UserStatus.Active)
@@ -336,6 +336,42 @@ namespace CompanyEmployees.Application.Contexts
                 .Where(user => user.ManagerId is Guid managerId && byId.ContainsKey(managerId))
                 .GroupBy(user => user.ManagerId!.Value)
                 .ToDictionary(group => group.Key, group => group.OrderBy(user => user.Name).ToList());
+
+            HashSet<Guid> GetPathToRoot(User u)
+            {
+                var path = new HashSet<Guid>();
+                var curr = u;
+                while (curr != null)
+                {
+                    path.Add(curr.Id);
+                    if (curr.ManagerId.HasValue && byId.TryGetValue(curr.ManagerId.Value, out var mgr) && !path.Contains(curr.ManagerId.Value))
+                        curr = mgr;
+                    else
+                        break;
+                }
+                return path;
+            }
+
+            var viewerPath = GetPathToRoot(viewer);
+            var targetPath = targetUserId.HasValue && byId.TryGetValue(targetUserId.Value, out var tgt) ? GetPathToRoot(tgt) : new HashSet<Guid>();
+
+            // Filter out peers from the entire upward chain to keep the org chart clean
+            foreach (var managerId in viewerPath.Union(targetPath))
+            {
+                if (managerId == viewer.Id) continue;
+                if (targetUserId.HasValue && managerId == targetUserId.Value) continue;
+
+                if (childrenOf.ContainsKey(managerId))
+                {
+                    // An employee is allowed to see their own immediate peers
+                    if (managerId == viewer.ManagerId && viewer.Role == UserRole.Employee)
+                        continue;
+
+                    childrenOf[managerId] = childrenOf[managerId]
+                        .Where(u => viewerPath.Contains(u.Id) || targetPath.Contains(u.Id))
+                        .ToList();
+                }
+            }
 
             var pending = await _leaveRequestGateway.GetAllCompanyPendingRequestsAsync();
 
@@ -366,9 +402,28 @@ namespace CompanyEmployees.Application.Contexts
                 IsSyntheticGroup = true
             };
 
-            // Top-level users are those without a valid manager in the system.
+            Guid GetRootId(User u)
+            {
+                var curr = u;
+                var vis = new HashSet<Guid>();
+                while (curr.ManagerId.HasValue && byId.TryGetValue(curr.ManagerId.Value, out var mgr) && !vis.Contains(curr.ManagerId.Value))
+                {
+                    vis.Add(curr.ManagerId.Value);
+                    curr = mgr;
+                }
+                return curr.Id;
+            }
+
+            var rootsToInclude = new HashSet<Guid> { GetRootId(viewer) };
+            if (targetUserId.HasValue && byId.TryGetValue(targetUserId.Value, out var targetUserObj))
+            {
+                rootsToInclude.Add(GetRootId(targetUserObj));
+            }
+
+            // Top-level users are those without a valid manager in the system,
+            // filtered to only show the hierarchies relevant to the viewer.
             var topLevelUsers = activeUsers
-                .Where(user => user.ManagerId == null || !byId.ContainsKey(user.ManagerId.Value))
+                .Where(user => (user.ManagerId == null || !byId.ContainsKey(user.ManagerId.Value)) && rootsToInclude.Contains(user.Id))
                 .ToList();
 
             var visibleRegions = new HashSet<Guid>();
@@ -440,6 +495,22 @@ namespace CompanyEmployees.Application.Contexts
                 if (isOther)
                 {
                     NodeFor(target).IsSearchResult = true;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(cityFilter) && cityFilter != "Toate" ||
+                !string.IsNullOrEmpty(siteFilter) && siteFilter != "Toate" ||
+                !string.IsNullOrEmpty(deptFilter) && deptFilter != "Toate")
+            {
+                var matchingUsers = activeUsers.Where(u =>
+                    (string.IsNullOrEmpty(cityFilter) || cityFilter == "Toate" || u.City == cityFilter) &&
+                    (string.IsNullOrEmpty(siteFilter) || siteFilter == "Toate" || u.Site == siteFilter) &&
+                    (string.IsNullOrEmpty(deptFilter) || deptFilter == "Toate" || u.Department?.Name == deptFilter)
+                ).ToList();
+
+                foreach (var u in matchingUsers)
+                {
+                    ExpandChain(u);
                 }
             }
 
@@ -1490,8 +1561,8 @@ namespace CompanyEmployees.Application.Contexts
             var admin = await _userGateway.GetUserByIdAsync(adminId);
             if (admin == null)
                 throw new EntityNotFoundException($"No administrator with id {adminId}.");
-            if (admin.Role != UserRole.Admin)
-                throw new UnauthorizedException("Only administrators can manage employee accounts.");
+            if (admin.Role != UserRole.Admin && admin.Role != UserRole.CountryManager)
+                throw new UnauthorizedException("Only administrators and country managers can manage employee accounts.");
 
             var user = await _userGateway.GetUserByIdAsync(userId);
             if (user == null)
