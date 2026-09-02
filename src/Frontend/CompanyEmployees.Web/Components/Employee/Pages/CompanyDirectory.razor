@@ -38,12 +38,16 @@
             {
                 <FluentBreadcrumbItem Href="javascript:void(0)"
                                       @onclick="@(() => SwitchLevel(HierarchyLevel.World))">
-                    🇷🇴 Romania Map
+                    <FluentIcon Value="@(new Icons.Regular.Size16.Map())" Slot="start" />
+                    Romania Map
                 </FluentBreadcrumbItem>
             }
             @if (_currentLevel == HierarchyLevel.CompanyOrgChart)
             {
-                <FluentBreadcrumbItem>🏢 Site Org Chart</FluentBreadcrumbItem>
+                <FluentBreadcrumbItem>
+                    <FluentIcon Value="@(new Icons.Regular.Size16.Building())" Slot="start" />
+                    Site Org Chart
+                </FluentBreadcrumbItem>
             }
         </FluentBreadcrumb>
     </FluentStack>
@@ -576,7 +580,6 @@ else
         public string Id { get; set; } = "";
         public string Name { get; set; } = "";
         public string RegionCode { get; set; } = "";
-        public string FlagEmoji { get; set; } = "";
         public string LeadRole { get; set; } = "";
         public string LeadName { get; set; } = "";
         public int TotalEmployeesCount { get; set; }
@@ -981,7 +984,6 @@ else
                 Id = "north-america",
                 Name = "North America",
                 RegionCode = "Americas (North America)",
-                FlagEmoji = "🇺🇸",
                 LeadRole = "Regional VP North America",
                 LeadName = "Barbara Humpton",
                 TotalEmployeesCount = 45000,
@@ -993,7 +995,6 @@ else
                 Id = "south-america",
                 Name = "South America",
                 RegionCode = "Americas (South & Latin America)",
-                FlagEmoji = "🇧🇷",
                 LeadRole = "Regional VP Latin America",
                 LeadName = "Alejandro Preinfalk",
                 TotalEmployeesCount = 18500,
@@ -1005,7 +1006,6 @@ else
                 Id = "europe",
                 Name = "Europe",
                 RegionCode = "Europe & Middle East",
-                FlagEmoji = "🇪🇺",
                 LeadRole = "Regional VP Europe & Middle East",
                 LeadName = "Dr. Martin Weber",
                 TotalEmployeesCount = 135000,
@@ -1017,7 +1017,6 @@ else
                 Id = "africa",
                 Name = "Africa",
                 RegionCode = "Africa",
-                FlagEmoji = "🇿🇦",
                 LeadRole = "Regional VP Africa",
                 LeadName = "Sabine Dall'Omo",
                 TotalEmployeesCount = 22000,
@@ -1029,7 +1028,6 @@ else
                 Id = "asia",
                 Name = "Asia",
                 RegionCode = "Asia Pacific",
-                FlagEmoji = "🇸🇬",
                 LeadRole = "Regional VP Asia-Pacific",
                 LeadName = "Dr. Xiao Zheng",
                 TotalEmployeesCount = 82000,
@@ -1041,7 +1039,6 @@ else
                 Id = "oceania",
                 Name = "Australia & Oceania",
                 RegionCode = "Australia & Oceania",
-                FlagEmoji = "🇦🇺",
                 LeadRole = "Regional VP Australia & NZ",
                 LeadName = "Peter Halliday",
                 TotalEmployeesCount = 9200,

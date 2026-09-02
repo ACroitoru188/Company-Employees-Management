@@ -74,6 +74,8 @@
 .search-pill-x {
     color: var(--neutral-foreground-hint);
     font-size: 11px;
+    display: inline-flex;
+    align-items: center;
 }
 
 /* --- type chips ---------------------------------------------------------------- */
@@ -154,7 +156,10 @@
 .search-row-icon {
     flex: 0 0 28px;
     font-size: 18px;
-    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--neutral-foreground-rest);
 }
 
 .search-row-avatar {
