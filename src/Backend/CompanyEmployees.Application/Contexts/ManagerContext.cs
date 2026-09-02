@@ -474,6 +474,14 @@ namespace CompanyEmployees.Application.Contexts
             if (delegateUser.RegionId != manager.RegionId)
                 throw new UnauthorizedException("You can only delegate to a manager in your region.");
 
+            // One stand-in at a time: a second delegation overlapping an existing one — to the
+            // same person or someone else — leaves two people acting for the same account on the
+            // same day, which the audit trail and the "who is covering" UI both assume can't
+            // happen.
+            if (await _delegationGateway.HasActiveDelegationInPeriodAsync(managerId, start, end))
+                throw new InvalidOperationException(
+                    "You already have a delegation covering part of this period. Cancel it first or choose different dates.");
+
             var delegation = new ManagerDelegation
             {
                 Id = Guid.NewGuid(),

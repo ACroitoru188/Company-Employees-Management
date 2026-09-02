@@ -133,9 +133,29 @@
             <FluentButton Appearance="Appearance.Stealth" Title="@Text["Next"]"
                           IconStart="@(new Icons.Regular.Size20.ChevronRight())"
                           OnClick="@(() => Navigate(1))" />
-            <FluentLabel Typo="Typography.Header" Weight="FontWeight.Bold" Class="cal-period">
-                @HeaderLabel
-            </FluentLabel>
+            @* The period was a label, so reaching March of next year meant six clicks on the
+               arrow. Month and year are pickers instead, and they steer the week view too —
+               it lands on the week holding the same day of the chosen month. The label stays
+               only where the pickers cannot say it: a week spanning two months or two years.
+
+               OptionValue is the number, so the text can be the language's own month name
+               without the parse depending on it. *@
+            <FluentSelect TOption="string" Items="@MonthOptions"
+                          Value="@_anchor.Month.ToString(CultureInfo.InvariantCulture)"
+                          OptionValue="@(month => month)" OptionText="@(month => MonthName(month))"
+                          ValueChanged="SetMonth" Width="150px" Class="cal-monthpicker"
+                          AriaLabel="@Text["Month"]" />
+            <FluentSelect TOption="string" Items="@YearOptions"
+                          Value="@_anchor.Year.ToString(CultureInfo.InvariantCulture)"
+                          OptionValue="@(year => year)" OptionText="@(year => year)"
+                          ValueChanged="SetYear" Width="100px" Class="cal-yearpicker"
+                          AriaLabel="@Text["Year"]" />
+            @if (_view == CalView.Week)
+            {
+                <FluentLabel Typo="Typography.Header" Weight="FontWeight.Bold" Class="cal-period">
+                    @HeaderLabel
+                </FluentLabel>
+            }
             <FluentSpacer />
             @* OptionValue stays the enum name so SetView can still parse it; only the label is
                translated. *@
@@ -472,6 +492,14 @@
 
     private static readonly string[] ViewNames = Enum.GetNames<CalView>();
 
+    private static readonly string[] MonthOptions =
+        Enumerable.Range(1, 12).Select(month => month.ToString(CultureInfo.InvariantCulture)).ToArray();
+
+    // Two years either side of today, plus whatever year the arrows have reached: they still
+    // move a month at a time and are not bounded, and a year missing from this list would
+    // leave the picker showing nothing at all.
+    private const int YearReach = 2;
+
     // The current language, with one thing overridden: the week starts on Monday, which is the
     // order the grid is built in. Not static: the culture is per request, and a static field
     // would freeze whichever language happened to load the page first.
@@ -601,17 +629,52 @@
         return classes;
     }
 
+    private string[] YearOptions =>
+        Enumerable.Range(_today.Year - YearReach, YearReach * 2 + 1)
+            .Append(_anchor.Year)
+            .Distinct()
+            .OrderBy(year => year)
+            .Select(year => year.ToString(CultureInfo.InvariantCulture))
+            .ToArray();
+
+    private static string MonthName(string month) =>
+        CalendarCulture.DateTimeFormat.GetMonthName(int.Parse(month, CultureInfo.InvariantCulture));
+
     private async Task Navigate(int delta)
     {
-        _anchor = _view == CalView.Week
+        await MoveToAsync(_view == CalView.Week
             ? _anchor.AddDays(7 * delta)
-            : VisibleMonth.AddMonths(delta);
-        await LoadAsync();
+            : VisibleMonth.AddMonths(delta));
     }
 
-    private async Task GoToday()
+    private async Task GoToday() => await MoveToAsync(_today);
+
+    private async Task SetMonth(string? month)
     {
-        _anchor = _today;
+        if (!int.TryParse(month, CultureInfo.InvariantCulture, out var value) || value == _anchor.Month)
+            return;
+
+        await MoveToAsync(WithMonth(_anchor.Year, value));
+    }
+
+    private async Task SetYear(string? year)
+    {
+        if (!int.TryParse(year, CultureInfo.InvariantCulture, out var value) || value == _anchor.Year)
+            return;
+
+        await MoveToAsync(WithMonth(value, _anchor.Month));
+    }
+
+    // The day is kept so the week view moves by the same amount the month view does, and
+    // clamped because the day it is keeping may not exist in the month being moved to —
+    // the 31st of anything, picked from a month that has one.
+    private DateOnly WithMonth(int year, int month) =>
+        new(year, month, Math.Min(_anchor.Day, DateTime.DaysInMonth(year, month)));
+
+    // The arrows, Today and both pickers differ only in the date they land on.
+    private async Task MoveToAsync(DateOnly target)
+    {
+        _anchor = target;
         await LoadAsync();
     }
 

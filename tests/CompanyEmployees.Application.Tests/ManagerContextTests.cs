@@ -125,6 +125,49 @@ public class ManagerContextTests
             .SaveDecisionAsync(setup.Request, Arg.Any<LeaveApproval>());
     }
 
+    [Fact]
+    public async Task CreateDelegationAsync_rejects_a_period_overlapping_an_existing_delegation()
+    {
+        var regionId = Guid.NewGuid();
+        var manager = NewUser(UserRole.LineManager, regionId);
+        var delegateUser = NewUser(UserRole.Employee, regionId);
+        delegateUser.Status = UserStatus.Active;
+        _users.GetUserByIdAsync(manager.Id).Returns(manager);
+        _users.GetUserByIdAsync(delegateUser.Id).Returns(delegateUser);
+
+        var start = DateOnly.FromDateTime(DateTime.Today.AddDays(5));
+        var end = DateOnly.FromDateTime(DateTime.Today.AddDays(10));
+        _delegations.HasActiveDelegationInPeriodAsync(manager.Id, start, end).Returns(true);
+        var context = CreateContext();
+
+        var exception = await Assert.ThrowsAsync<DomainInvalidOperationException>(() =>
+            context.CreateDelegationAsync(manager.Id, delegateUser.Id, start, end, "Leave"));
+
+        Assert.Contains("already have a delegation", exception.Message);
+        await _delegations.DidNotReceiveWithAnyArgs().CreateAsync(default!);
+    }
+
+    [Fact]
+    public async Task CreateDelegationAsync_allows_a_period_that_does_not_overlap()
+    {
+        var regionId = Guid.NewGuid();
+        var manager = NewUser(UserRole.LineManager, regionId);
+        var delegateUser = NewUser(UserRole.Employee, regionId);
+        delegateUser.Status = UserStatus.Active;
+        _users.GetUserByIdAsync(manager.Id).Returns(manager);
+        _users.GetUserByIdAsync(delegateUser.Id).Returns(delegateUser);
+
+        var start = DateOnly.FromDateTime(DateTime.Today.AddDays(5));
+        var end = DateOnly.FromDateTime(DateTime.Today.AddDays(10));
+        _delegations.HasActiveDelegationInPeriodAsync(manager.Id, start, end).Returns(false);
+        var context = CreateContext();
+
+        var result = await context.CreateDelegationAsync(manager.Id, delegateUser.Id, start, end, "Leave");
+
+        Assert.Equal(delegateUser.Id, result.DelegateId);
+        await _delegations.Received(1).CreateAsync(Arg.Any<ManagerDelegation>());
+    }
+
     private (User Manager, User Employee, LeaveRequest Request) ArrangeDirectManagerRequest()
     {
         var regionId = Guid.NewGuid();
