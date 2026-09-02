@@ -220,7 +220,7 @@
                                         }
                                     </FluentStack>
 
-                                    @if (_teamByDay.TryGetValue(date, out var absences))
+                                    @if (!IsWeekend(date) && !IsHoliday(date) && _teamByDay.TryGetValue(date, out var absences))
                                     {
                                         @* Not filtered by the selected type: picking a type to book arms date
                                            selection on this same grid, and hiding a day's other-type entries
@@ -317,19 +317,22 @@
 
                                 @* Unfiltered for the same reason as the month grid above: this view is also
                                    the date picker, and an existing other-type request has to stay visible. *@
-                                @foreach (var item in _ranges.Where(r => r.StartDate <= day && r.EndDate >= day))
+                                @if (!IsWeekend(day) && !IsHoliday(day))
                                 {
-                                    <FluentStack Class="cal-entry cal-entry-block" Orientation="Orientation.Vertical"
-                                                 VerticalGap="0" Style="@EntryTint(item.Type)"
-                                                 Title="@($"{item.MemberName} · {Text[item.Type.ToString()]}")">
-                                        <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold" Class="cal-entry-wrap">
-                                            @item.MemberName
-                                        </FluentLabel>
-                                        <FluentLabel Typo="Typography.Body" Class="cal-entry-wrap app-caption"
-                                                     Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-                                            @LeaveTypePalette.Label(item.Type)
-                                        </FluentLabel>
-                                    </FluentStack>
+                                    @foreach (var item in _ranges.Where(r => r.StartDate <= day && r.EndDate >= day))
+                                    {
+                                        <FluentStack Class="cal-entry cal-entry-block" Orientation="Orientation.Vertical"
+                                                     VerticalGap="0" Style="@EntryTint(item.Type)"
+                                                     Title="@($"{item.MemberName} · {Text[item.Type.ToString()]}")">
+                                            <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold" Class="cal-entry-wrap">
+                                                @item.MemberName
+                                            </FluentLabel>
+                                            <FluentLabel Typo="Typography.Body" Class="cal-entry-wrap app-caption"
+                                                         Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                                                @LeaveTypePalette.Label(item.Type)
+                                            </FluentLabel>
+                                        </FluentStack>
+                                    }
                                 }
                             </FluentStack>
                         }

@@ -121,6 +121,7 @@ public class InMemoryTimeOffService : ITimeOffService
             .SelectMany(m => m.Requests, (m, r) => (Member: m, Request: r))
             .SelectMany(x => DaysInRange(
                     Max(x.Request.StartDate, monthStart), Min(x.Request.EndDate, monthEnd))
+                .Where(day => day.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday && !RomanianPublicHolidays.IsHoliday(day))
                 .Select(day => new TeamAbsence(
                     x.Member.Name, x.Member.Initials, x.Member.Department, x.Request.Type, day)))
             .ToList();

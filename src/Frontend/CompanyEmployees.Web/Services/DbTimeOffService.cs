@@ -127,9 +127,18 @@ public class DbTimeOffService : ITimeOffService
             var monthEnd = monthStart.AddMonths(1).AddDays(-1);
             var requests = await _employee.GetTeamRequestsAsync(user.Id, monthStart, monthEnd);
 
-            // Flatten each request into one entry per day, clamped to the visible month.
+            var holidayDates = new HashSet<DateOnly>();
+            for (var year = monthStart.Year; year <= monthEnd.Year; year++)
+            {
+                foreach (var h in await _employee.GetRegionalHolidaysAsync(user.Id, year))
+                    holidayDates.Add(h.Date);
+            }
+
+            // Flatten each request into one entry per day, clamped to the visible month,
+            // excluding weekends and regional public holidays.
             var absences = requests
                 .SelectMany(r => DaysInRange(Max(r.StartDate, monthStart), Min(r.EndDate, monthEnd))
+                    .Where(day => day.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday && !holidayDates.Contains(day))
                     .Select(day => new TeamAbsence(
                         r.User.Name, Initials(r.User.Name), DepartmentName(r.User), MapType(r.Type), day)))
                 .ToList();
@@ -142,6 +151,7 @@ public class DbTimeOffService : ITimeOffService
             absences.AddRange((await GetOwnApprovedRequestsAsync(user, monthStart, monthEnd))
                 .Where(r => !alreadyIncluded.Contains(r.Id))
                 .SelectMany(r => DaysInRange(Max(r.StartDate, monthStart), Min(r.EndDate, monthEnd))
+                    .Where(day => day.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday && !holidayDates.Contains(day))
                     .Select(day => new TeamAbsence(
                         user.Name, Initials(user.Name), DepartmentName(user), MapType(r.Type), day))));
 
