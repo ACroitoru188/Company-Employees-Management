@@ -19,6 +19,7 @@
 @inject IToastService Toast
 @inject IDialogService DialogService
 @inject LanguagePreferenceService LanguagePreferences
+@inject CircuitCulture CircuitCulture
 @inject ILogger<EmployeeLayout> Logger
 @inject DatabaseRuntimeState DatabaseState
 @inject DatabaseProviderCatalog Catalog
@@ -465,6 +466,11 @@
         ThemeState.OnChange += StateHasChanged;
         DatabaseState.Changed += OnDatabaseStateChanged;
 
+        // Initialization runs on the circuit, so this is the employee's language. The database
+        // monitor publishes from its own thread, and a render started there would otherwise
+        // resolve every label in the drawer and the app bar against English.
+        CircuitCulture.Capture();
+
         if (AuthStateTask is null)
             return;
 
@@ -590,8 +596,13 @@
     private static string Initials(string name) =>
         string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
 
+    // Raised by the availability monitor and the replication service, both of which publish
+    // from a background thread: InvokeAsync moves the work to the circuit but keeps the
+    // publisher's culture, so the language has to be put back before anything renders.
     private void OnDatabaseStateChanged() => _ = InvokeAsync(() =>
     {
+        CircuitCulture.Restore();
+
         if (_observedActiveProviderId != DatabaseState.ActiveProviderId)
         {
             _observedActiveProviderId = DatabaseState.ActiveProviderId;

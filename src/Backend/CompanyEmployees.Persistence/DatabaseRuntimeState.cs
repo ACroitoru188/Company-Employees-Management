@@ -1,4 +1,4 @@
-namespace CompanyEmployees.Persistence;
+﻿namespace CompanyEmployees.Persistence;
 
 /// <summary>
 /// Process-wide database status. It lives outside either database so the admin can still see
@@ -125,14 +125,24 @@ public sealed class DatabaseRuntimeState
         DateTime? lastSynchronizedUtc,
         string? error)
     {
+        // Only when something actually moved, as UpdateAvailability does. The replication
+        // service calls this on a two-second timer whether or not anything replicated, and an
+        // unconditional event re-rendered every connected circuit's layout that often.
+        bool changed;
         lock (_sync)
         {
+            changed = _pendingReplicationChanges != pendingChanges
+                || _oldestPendingChangeUtc != oldestPendingChangeUtc
+                || _lastSynchronizedUtc != lastSynchronizedUtc
+                || _replicationError != error;
             _pendingReplicationChanges = pendingChanges;
             _oldestPendingChangeUtc = oldestPendingChangeUtc;
             _lastSynchronizedUtc = lastSynchronizedUtc;
             _replicationError = error;
         }
-        Changed?.Invoke();
+
+        if (changed)
+            Changed?.Invoke();
     }
 
     internal void SelectProvider(string providerId, string efProviderName)
