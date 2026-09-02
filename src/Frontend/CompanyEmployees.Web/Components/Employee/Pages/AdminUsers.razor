@@ -336,7 +336,7 @@ else
 
 		var user = (await AuthStateTask!).User;
 		var role = user.FindFirst(ClaimTypes.Role)?.Value;
-		if (role != UserRole.Admin.ToString())
+		if (role != UserRole.Admin.ToString() && role != UserRole.CountryManager.ToString())
 		{
 			Nav.NavigateTo("/employee/dashboard");
 			return;

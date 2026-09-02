@@ -130,7 +130,7 @@
         <FluentSelect TOption="string"
                       Items="@_cities"
                       @bind-SelectedOption="_selectedCityFilter"
-                      @bind-SelectedOption:after="ApplyFilters"
+                      @bind-SelectedOption:after="OnFilterChangedAsync"
                       OptionText="@(c => c)"
                       OptionValue="@(c => c)"
                       Placeholder="Filtru Oraș"
@@ -141,7 +141,7 @@
         <FluentSelect TOption="string"
                       Items="@_sites"
                       @bind-SelectedOption="_selectedSiteFilter"
-                      @bind-SelectedOption:after="ApplyFilters"
+                      @bind-SelectedOption:after="OnFilterChangedAsync"
                       OptionText="@(s => s)"
                       OptionValue="@(s => s)"
                       Placeholder="Filtru Sediu"
@@ -150,7 +150,7 @@
         <FluentSelect TOption="string"
                       Items="@_departments"
                       @bind-SelectedOption="_selectedDepartmentFilter"
-                      @bind-SelectedOption:after="ApplyFilters"
+                      @bind-SelectedOption:after="OnFilterChangedAsync"
                       OptionText="@(d => d)"
                       OptionValue="@(d => d)"
                       Placeholder="Filtru Departament"
@@ -612,14 +612,11 @@ else
         var allNodes = new List<OrgChartNode>();
         CollectAllNodes(node, allNodes);
         
-        _cities = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrEmpty(n.City)).Select(n => n.City!).Distinct().OrderBy(c => c).ToList();
-        _cities.Insert(0, "Toate");
+        _cities = new List<string> { "Toate", "Brașov", "București", "Cluj-Napoca" };
         
-        _sites = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrEmpty(n.Site)).Select(n => n.Site!).Distinct().OrderBy(s => s).ToList();
-        _sites.Insert(0, "Toate");
+        _sites = new List<string> { "Toate", "Siemens Advanta", "Siemens Digital Industry Software", "Siemens HQ", "Siemens R&D" };
         
-        _departments = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrEmpty(n.Department) && n.Department != "All Departments").Select(n => n.Department).Distinct().OrderBy(d => d).ToList();
-        _departments.Insert(0, "Toate");
+        _departments = new List<string> { "Toate", "Cloud", "Design", "Engineering", "Executive", "HR", "Industry Software", "Marketing", "Production", "Sales", "Support" };
     }
 
     private void ApplyFilters()
@@ -641,6 +638,12 @@ else
         }
 
         _displayRoot = CloneAndFilterTree(_root);
+    }
+
+    private async Task OnFilterChangedAsync()
+    {
+        _root = await QueryAsync(employees => employees.GetCompanyOrgChartAsync(_currentUserId, null, _selectedCityFilter, _selectedSiteFilter, _selectedDepartmentFilter));
+        ApplyFilters();
     }
 
     private void UpdateFilters()
@@ -689,7 +692,7 @@ else
                 Initials = node.Initials,
                 ManagerId = node.ManagerId,
                 Subordinates = clonedChildren,
-                IsExpanded = clonedChildren.Count > 0 || node.IsExpanded,
+                IsExpanded = (clonedChildren.Count > 0 && node.Role != "LineManager") || node.IsExpanded,
                 HasUnloadedChildren = node.HasUnloadedChildren,
                 IsFocusNode = node.IsFocusNode
             };
@@ -1054,7 +1057,7 @@ else
         StateHasChanged();
     }
 
-    private void OpenOrgChartForHub(RomaniaHubModel? hub)
+    private async Task OpenOrgChartForHub(RomaniaHubModel? hub)
     {
         if (_activeRomaniaCounty != null)
         {
@@ -1082,7 +1085,7 @@ else
                 _selectedSiteFilter = "Toate";
             }
                 
-            ApplyFilters();
+            await OnFilterChangedAsync();
         }
 
         SwitchLevel(HierarchyLevel.CompanyOrgChart);
@@ -1180,7 +1183,7 @@ else
         {
             _selectedCityFilter = "Toate";
             _selectedDepartmentFilter = "Toate";
-            ApplyFilters();
+            await OnFilterChangedAsync();
             
             activeRoot = _displayRoot ?? _root;
             found = ExpandPathToNode(activeRoot, targetUserId);
@@ -1406,4 +1409,5 @@ else
         }
     }
 }
+
 
