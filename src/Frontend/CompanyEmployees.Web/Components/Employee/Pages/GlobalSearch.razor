@@ -55,17 +55,19 @@
                     @if (_regionName is not null)
                     {
                         <FluentButton Appearance="Appearance.Outline"
+                                      IconStart="@(new Icons.Regular.Size16.Globe())"
                                       IconEnd="@(new Icons.Regular.Size16.Dismiss())"
                                       OnClick="ClearRegionAsync">
-                            🌍 @_regionName
+                            @_regionName
                         </FluentButton>
                     }
                     @if (_departmentName is not null)
                     {
                         <FluentButton Appearance="Appearance.Outline"
+                                      IconStart="@(new Icons.Regular.Size16.Building())"
                                       IconEnd="@(new Icons.Regular.Size16.Dismiss())"
                                       OnClick="@(() => ApplyAsync(region: RegionId, department: null))">
-                            🏢 @_departmentName
+                            @_departmentName
                         </FluentButton>
                     }
                 </FluentStack>

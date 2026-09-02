@@ -64,13 +64,17 @@
                     @if (_regionPill is not null)
                     {
                         <button type="button" class="search-pill" @onclick="ClearRegionAsync">
-                            🌍 @_regionPill.Name <span class="search-pill-x">✕</span>
+                            <FluentIcon Value="@(new Icons.Regular.Size16.Globe())" />
+                            @_regionPill.Name
+                            <span class="search-pill-x"><FluentIcon Value="@(new Icons.Regular.Size12.Dismiss())" /></span>
                         </button>
                     }
                     @if (_departmentPill is not null)
                     {
                         <button type="button" class="search-pill" @onclick="ClearDepartmentAsync">
-                            🏢 @_departmentPill.Name <span class="search-pill-x">✕</span>
+                            <FluentIcon Value="@(new Icons.Regular.Size16.Building())" />
+                            @_departmentPill.Name
+                            <span class="search-pill-x"><FluentIcon Value="@(new Icons.Regular.Size12.Dismiss())" /></span>
                         </button>
                     }
                 </div>
@@ -106,7 +110,7 @@
                         @foreach (var region in _result.Regions)
                         {
                             <button type="button" class="search-row" @onclick="@(() => PickRegionAsync(region))">
-                                <span class="search-row-icon">🌍</span>
+                                <span class="search-row-icon"><FluentIcon Value="@(new Icons.Regular.Size20.Globe())" /></span>
                                 <span class="search-row-text">
                                     <span class="search-row-title">@region.Name</span>
                                     <span class="search-row-sub">@Text["Region"] · @region.Code · @Members(region.MemberCount)</span>
@@ -122,7 +126,7 @@
                         @foreach (var department in _result.Departments)
                         {
                             <button type="button" class="search-row" @onclick="@(() => PickDepartmentAsync(department))">
-                                <span class="search-row-icon">🏢</span>
+                                <span class="search-row-icon"><FluentIcon Value="@(new Icons.Regular.Size20.Building())" /></span>
                                 <span class="search-row-text">
                                     <span class="search-row-title">@department.Name</span>
                                     <span class="search-row-sub">
