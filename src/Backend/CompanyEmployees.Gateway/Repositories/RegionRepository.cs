@@ -21,5 +21,5 @@ public sealed class RegionRepository : BaseRepository, IRegionGateway
     }
 
     public Task<Region?> GetByIdAsync(Guid id) =>
-        _context.Regions.AsNoTracking().FirstOrDefaultAsync(region => region.Id == id);
+        _context.Regions.FirstOrDefaultAsync(region => region.Id == id);
 }

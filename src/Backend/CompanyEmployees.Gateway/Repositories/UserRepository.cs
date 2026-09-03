@@ -65,7 +65,10 @@ namespace CompanyEmployees.Gateway.Repositories
 
         public async Task UpdateUserAsync(User user)
         {
-            _context.Users.Update(user);
+            if (_context.Entry(user).State == EntityState.Detached)
+            {
+                _context.Users.Update(user);
+            }
             await _context.SaveChangesAsync();
         }
 

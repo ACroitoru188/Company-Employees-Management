@@ -25,7 +25,7 @@ else
 {
 	<div class="page-shell">
 	<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
-				 HorizontalGap="12" Wrap="true" Width="100%">
+				 HorizontalGap="12" Wrap="true" Width="100%" Style="margin-bottom:16px;">
 		<FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text["Users & Contracts"]</FluentLabel>
 		<FluentSpacer />
 		<FluentSelect TOption="RegionOption" Label="@Text["Preview region"]"
@@ -44,10 +44,13 @@ else
 		   #0F6CBD in light mode, so the icon was the same blue as the button under it and
 		   vanished. --app-icon-on-accent-fill is white there and a no-op on dark, where the
 		   icon's default already reads fine against the fill. *@
-		<FluentAnchor Href="/admin/users/create" Appearance="Appearance.Accent"
-					  IconStart="@(new Icons.Regular.Size20.PersonAdd().WithColor("var(--app-icon-on-accent-fill)"))">
-			@Text["Create employee account"]
-		</FluentAnchor>
+		@if (_isAdmin)
+		{
+			<FluentAnchor Href="/admin/users/create" Appearance="Appearance.Accent"
+						  IconStart="@(new Icons.Regular.Size20.PersonAdd().WithColor("var(--app-icon-on-accent-fill)"))">
+				@Text["Create employee account"]
+			</FluentAnchor>
+		}
 	</FluentStack>
 
 	@if (_regionFilterId.HasValue)
@@ -212,12 +215,12 @@ else
 							  Placeholder="@Text["Filter by region"]" AutoFocus="true" />
 			</ColumnOptions>
 			<ChildContent>
-			<FluentSelect TOption="Region"
-						  Items="@ActiveRegions"
+			<FluentSelect TOption="RegionOption"
+						  Items="@_activeRegionOptions"
 						  OptionValue="@(r => r.Id.ToString())"
 						  OptionText="@(r => r.Name)"
-						  SelectedOption="@_regions.FirstOrDefault(r => r.Id == context.RegionId)"
-						  SelectedOptionChanged="@(region => OnUserRegionChangedAsync(context, region))"
+						  SelectedOption="@RegionOptionFor(context.RegionId)"
+						  SelectedOptionChanged="@(option => OnUserRegionOptionChangedAsync(context, option))"
 						  Disabled="@(!CanEditUser(context))" />
 			</ChildContent>
 		</TemplateColumn>
@@ -263,6 +266,8 @@ else
 	private Guid? _regionFilterId;
 	private Guid _adminId;
 	private Guid _adminRegionId;
+	private bool _isAdmin;
+	private bool _isReloading;
 
 	private readonly PaginationState _pagination = new() { ItemsPerPage = 15 };
 
@@ -282,6 +287,7 @@ else
 	// empty while the pickers are on screen.
 	private List<DepartmentOption> _departmentOptions = [];
 	private List<RegionOption> _regionFilterOptions = [];
+	private List<RegionOption> _activeRegionOptions = [];
 
 	private IEnumerable<Region> ActiveRegions =>
 		_regions.Where(region => region.IsActive).OrderBy(region => region.Name);
@@ -306,13 +312,19 @@ else
 		string.IsNullOrWhiteSpace(filter)
 		|| (value ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase);
 
-	private IQueryable<User> FilteredUsers =>
-		(_regionFilterId.HasValue
-			? _users.Where(user => user.RegionId == _regionFilterId.Value)
-			: _users)
-		.Where(MatchesQuickSearch)
-		.Where(MatchesColumnFilters)
-		.AsQueryable();
+	private IQueryable<User> FilteredUsers
+	{
+		get
+		{
+			var regionFilterId = _regionFilterId;
+			return (regionFilterId.HasValue
+				? _users.Where(user => user.RegionId == regionFilterId.Value)
+				: _users)
+			.Where(MatchesQuickSearch)
+			.Where(MatchesColumnFilters)
+			.AsQueryable();
+		}
+	}
 
 	private bool MatchesColumnFilters(User u)
 	{
@@ -353,6 +365,8 @@ else
 			return;
 		}
 
+		_isAdmin = role == UserRole.Admin.ToString();
+
 		if (!string.IsNullOrWhiteSpace(InitialSearch))
 		{
 			_quickSearch = InitialSearch;
@@ -369,15 +383,19 @@ else
 
 	private async Task LoadAsync()
 	{
-		NoDepartment = new DepartmentOption(Guid.Empty, Text["None"]);
-		AllRegions = new RegionOption(Guid.Empty, Text["All regions"]);
+		_isReloading = true;
+		NoDepartment ??= new DepartmentOption(Guid.Empty, Text["None"]);
+		AllRegions ??= new RegionOption(Guid.Empty, Text["All regions"]);
 
 		// Seeded before the first await, not after: the page renders while these queries are in
 		// flight, and a picker whose selected option is missing from its own Items resets itself
-		// and raises SelectedOptionChanged — which re-renders this component, which hands it the
-		// same missing option again. That is an infinite render loop, not a cosmetic glitch.
-		_departmentOptions = [NoDepartment];
-		_regionFilterOptions = [AllRegions];
+		// and raises SelectedOptionChanged. Only seed when empty so subsequent reloads don't wipe options.
+		if (_departmentOptions.Count == 0)
+			_departmentOptions = [NoDepartment];
+		if (_regionFilterOptions.Count == 0)
+			_regionFilterOptions = [AllRegions];
+		if (_activeRegionOptions.Count == 0)
+			_activeRegionOptions = [];
 
 		_users = await Employees.GetAllUsersAsync();
 		_departments = await Employees.GetDepartmentsAsync();
@@ -393,6 +411,22 @@ else
 			.Select(region => new RegionOption(region.Id, region.Name))
 			.Prepend(AllRegions)
 			.ToList();
+
+		_activeRegionOptions = ActiveRegions
+			.Select(region => new RegionOption(region.Id, region.Name))
+			.ToList();
+
+		var currentAdmin = _users.FirstOrDefault(u => u.Id == _adminId);
+		if (currentAdmin != null)
+		{
+			if (_regionFilterId == _adminRegionId)
+			{
+				_regionFilterId = currentAdmin.RegionId;
+			}
+			_adminRegionId = currentAdmin.RegionId;
+		}
+
+		_isReloading = false;
 	}
 
 	private Contract? GetActiveContract(User user)
@@ -501,46 +535,54 @@ else
 		}
 	}
 
-	private async Task OnUserRegionChangedAsync(User user, Region? region)
+	private readonly SemaphoreSlim _regionSaveLock = new(1, 1);
+
+	private async Task OnUserRegionOptionChangedAsync(User user, RegionOption? option)
 	{
-		if (region is null || !CanEditUser(user))
+		if (option is null || option.Id == Guid.Empty)
 			return;
 
-		if (user.RegionId == region.Id)
+		if (!CanEditUser(user))
+			return;
+
+		if (user.RegionId == option.Id)
 			return;
 
 		var sourceRegion = GetRegionName(user.RegionId);
-		var destinationRegion = GetRegionName(region.Id);
-		var confirmation = await DialogService.ShowConfirmationAsync(
-			Text.Format(
-				"Are you sure you want to move {0} from {1} to {2}? They will no longer appear in the source region's employee lists, and cross-region manager links will be removed.",
-				user.Name, sourceRegion, destinationRegion),
-			Text["Yes, transfer"],
-			Text["Cancel"],
-			Text["Confirm region transfer"]);
+		var destinationRegion = option.Name;
 
-		var confirmed = await confirmation.Result;
-		if (confirmed.Cancelled)
-		{
-			StateHasChanged();
-			return;
-		}
+		var oldRegionId = user.RegionId;
+		user.RegionId = option.Id;
 
+		await _regionSaveLock.WaitAsync();
 		try
 		{
-			await Employees.AssignUserToRegionAsync(_adminId, user.Id, region.Id);
+			await Employees.AssignUserToRegionAsync(_adminId, user.Id, option.Id);
 			Toast.ShowSuccess(Text.Format("{0} moved from {1} to {2}.", user.Name, sourceRegion, destinationRegion));
-			await LoadAsync();
 		}
 		catch (Exception exception)
 		{
+			user.RegionId = oldRegionId;
 			Toast.ShowError(exception.Message);
+		}
+		finally
+		{
+			await LoadAsync();
+			await ResetPageAndRefresh();
+			_regionSaveLock.Release();
 		}
 	}
 
 	private async Task OnViewingRegionChanged(RegionOption? option)
 	{
-		_regionFilterId = option is null || option.Id == Guid.Empty ? null : option.Id;
+		if (option is null || _isReloading)
+			return;
+
+		var incoming = option.Id == Guid.Empty ? (Guid?)null : option.Id;
+		if (incoming == _regionFilterId)
+			return;
+
+		_regionFilterId = incoming;
 		await ResetPageAndRefresh();
 	}
 
@@ -550,8 +592,8 @@ else
 	// what made the search box read as broken when it was really the page index going stale.
 	private async Task ResetPageAndRefresh()
 	{
-		await _pagination.SetCurrentPageIndexAsync(0);
 		StateHasChanged();
+		await _pagination.SetCurrentPageIndexAsync(0);
 	}
 
 	private string GetDepartmentName(Guid? id) =>
@@ -565,6 +607,10 @@ else
 
 	private RegionOption FilterOptionFor(Guid? id) =>
 		id is null ? AllRegions : _regionFilterOptions.FirstOrDefault(option => option.Id == id) ?? AllRegions;
+
+	private RegionOption? RegionOptionFor(Guid id) =>
+		_activeRegionOptions.FirstOrDefault(option => option.Id == id)
+		?? _regions.Where(r => r.Id == id).Select(r => new RegionOption(r.Id, r.Name)).FirstOrDefault();
 
 	private static Guid? ToDepartmentId(DepartmentOption? option) =>
 		option is null || option.Id == Guid.Empty ? null : option.Id;
