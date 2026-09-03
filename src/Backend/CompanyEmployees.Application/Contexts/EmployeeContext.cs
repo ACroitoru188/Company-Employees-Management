@@ -997,6 +997,7 @@ namespace CompanyEmployees.Application.Contexts
             var user = await EnsureRegionalAdminCanManageAsync(adminId, userId);
 
             user.DepartmentId = departmentId;
+            user.Department = departmentId.HasValue ? await _departmentGateway.GetByIdAsync(departmentId.Value) : null;
             await _userGateway.UpdateUserAsync(user);
         }
 
@@ -1013,13 +1014,17 @@ namespace CompanyEmployees.Application.Contexts
                 return;
 
             user.RegionId = regionId;
+            user.Region = region;
 
             // A relocation must not preserve cross-region reporting relationships.
             if (user.ManagerId is Guid managerId)
             {
                 var manager = await _userGateway.GetUserByIdAsync(managerId);
                 if (manager?.RegionId != regionId)
+                {
                     user.ManagerId = null;
+                    user.Manager = null;
+                }
             }
 
             user.SecurityStamp = Guid.NewGuid().ToString("D");
@@ -1030,6 +1035,7 @@ namespace CompanyEmployees.Application.Contexts
             foreach (var report in directReports.Where(report => report.RegionId != regionId))
             {
                 report.ManagerId = null;
+                report.Manager = null;
                 report.UpdatedAt = DateTime.UtcNow;
                 await _userGateway.UpdateUserAsync(report);
             }
