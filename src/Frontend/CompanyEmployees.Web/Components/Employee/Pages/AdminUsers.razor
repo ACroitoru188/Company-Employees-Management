@@ -44,10 +44,13 @@ else
 		   #0F6CBD in light mode, so the icon was the same blue as the button under it and
 		   vanished. --app-icon-on-accent-fill is white there and a no-op on dark, where the
 		   icon's default already reads fine against the fill. *@
-		<FluentAnchor Href="/admin/users/create" Appearance="Appearance.Accent"
-					  IconStart="@(new Icons.Regular.Size20.PersonAdd().WithColor("var(--app-icon-on-accent-fill)"))">
-			@Text["Create employee account"]
-		</FluentAnchor>
+		@if (_isAdmin)
+		{
+			<FluentAnchor Href="/admin/users/create" Appearance="Appearance.Accent"
+						  IconStart="@(new Icons.Regular.Size20.PersonAdd().WithColor("var(--app-icon-on-accent-fill)"))">
+				@Text["Create employee account"]
+			</FluentAnchor>
+		}
 	</FluentStack>
 
 	@if (_regionFilterId.HasValue)
@@ -263,6 +266,7 @@ else
 	private Guid? _regionFilterId;
 	private Guid _adminId;
 	private Guid _adminRegionId;
+	private bool _isAdmin;
 
 	private readonly PaginationState _pagination = new() { ItemsPerPage = 15 };
 
@@ -352,6 +356,8 @@ else
 			Nav.NavigateTo("/employee/dashboard");
 			return;
 		}
+
+		_isAdmin = role == UserRole.Admin.ToString();
 
 		if (!string.IsNullOrWhiteSpace(InitialSearch))
 		{
