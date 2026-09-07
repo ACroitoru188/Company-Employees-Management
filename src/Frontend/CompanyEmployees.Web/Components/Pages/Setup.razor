@@ -60,8 +60,15 @@
                                              Label="@field.Label"
                                              Placeholder="@(field.DefaultValue ?? string.Empty)"
                                              TextFieldType="@(field.IsSecret ? TextFieldType.Password : TextFieldType.Text)"
-                                             Required="true"
+                                             MaxLength="@(field.Definition?.MaxLength ?? 524288)"
+                                             Required="@(field.Definition?.IsRequired ?? true)"
                                              Width="100%" />
+                            @if (!string.IsNullOrEmpty(field.ValidationError))
+                            {
+                                <FluentLabel Style="color:var(--error); font-size:0.85em; margin-top:-6px;">
+                                    @field.ValidationError
+                                </FluentLabel>
+                            }
                         }
 
                         <FluentButton Appearance="Appearance.Outline"
@@ -107,7 +114,15 @@
                                                  Label="@field.Label"
                                                  Placeholder="@(field.DefaultValue ?? string.Empty)"
                                                  TextFieldType="@(field.IsSecret ? TextFieldType.Password : TextFieldType.Text)"
+                                                 MaxLength="@(field.Definition?.MaxLength ?? 524288)"
+                                                 Required="@(field.Definition?.IsRequired ?? true)"
                                                  Width="100%" />
+                                @if (!string.IsNullOrEmpty(field.ValidationError))
+                                {
+                                    <FluentLabel Style="color:var(--error); font-size:0.85em; margin-top:-6px;">
+                                        @field.ValidationError
+                                    </FluentLabel>
+                                }
                             }
 
                             <FluentButton Appearance="Appearance.Outline"
@@ -193,6 +208,7 @@
         _primaryPlugin = plugin;
         _primaryFields = plugin?.RequiredFields.Select(f => new FieldInput
         {
+            Definition = f,
             Key = f.Key,
             Label = f.Label,
             IsSecret = f.IsSecret,
@@ -212,6 +228,7 @@
         _selectedSecondaryOption = option;
         _secondaryFields = option?.Plugin?.RequiredFields.Select(f => new FieldInput
         {
+            Definition = f,
             Key = f.Key,
             Label = f.Label,
             IsSecret = f.IsSecret,
@@ -233,15 +250,29 @@
         _selectedSecondaryOption = none;
     }
 
+    private static bool ValidateFields(List<FieldInput> fields)
+    {
+        var isValid = true;
+        foreach (var field in fields)
+        {
+            field.ValidationError = field.Definition.Validate(field.Value);
+            if (field.ValidationError is not null)
+                isValid = false;
+        }
+        return isValid;
+    }
+
     private sealed record SecondaryProviderOption(string Id, string DisplayName, IDbProviderPlugin? Plugin);
 
     public sealed class FieldInput
     {
+        public ConnectionField Definition { get; set; } = null!;
         public string Key { get; set; } = string.Empty;
         public string Label { get; set; } = string.Empty;
         public bool IsSecret { get; set; }
         public string? DefaultValue { get; set; }
         public string Value { get; set; } = string.Empty;
+        public string? ValidationError { get; set; }
     }
 
     private async Task TestPrimaryAsync()
@@ -249,6 +280,14 @@
         _testingPrimary = true;
         _primaryTestResult = null;
         _primaryOk = false;
+
+        if (!ValidateFields(_primaryFields))
+        {
+            _testingPrimary = false;
+            StateHasChanged();
+            return;
+        }
+
         StateHasChanged();
 
         try
@@ -275,6 +314,14 @@
         _testingSecondary = true;
         _secondaryTestResult = null;
         _secondaryOk = false;
+
+        if (!ValidateFields(_secondaryFields))
+        {
+            _testingSecondary = false;
+            StateHasChanged();
+            return;
+        }
+
         StateHasChanged();
 
         try
@@ -300,6 +347,17 @@
     {
         _saving = true;
         _saveError = null;
+
+        var primaryValid = ValidateFields(_primaryFields);
+        var secondaryValid = _secondaryPlugin is null || ValidateFields(_secondaryFields);
+        if (!primaryValid || !secondaryValid)
+        {
+            _saving = false;
+            _saveError = "Please correct the configuration errors before proceeding.";
+            StateHasChanged();
+            return;
+        }
+
         StateHasChanged();
 
         try
@@ -346,9 +404,9 @@
 
     private static string BuildConnectionString(IDbProviderPlugin plugin, List<FieldInput> fields)
     {
-        var parts = fields
+        var dict = fields
             .Where(f => !string.IsNullOrWhiteSpace(f.Value))
-            .Select(f => $"{f.Key}={f.Value}");
-        return string.Join(";", parts);
+            .ToDictionary(f => f.Key, f => f.Value);
+        return plugin.BuildConnectionString(dict);
     }
 }

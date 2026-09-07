@@ -29,6 +29,24 @@ public interface IDbProviderPlugin
     IReadOnlyList<ConnectionField> RequiredFields { get; }
 
     /// <summary>
+    /// Builds a valid connection string from the collected field values safely.
+    /// The default implementation uses <see cref="System.Data.Common.DbConnectionStringBuilder"/>
+    /// to ensure delimiters, semicolons, and quotes are properly escaped to prevent connection string injection.
+    /// </summary>
+    string BuildConnectionString(IReadOnlyDictionary<string, string> fields)
+    {
+        var builder = new System.Data.Common.DbConnectionStringBuilder();
+        foreach (var (key, value) in fields)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                builder[key] = value;
+            }
+        }
+        return builder.ConnectionString;
+    }
+
+    /// <summary>
     /// Configures <paramref name="options"/> with the provider-specific extension method
     /// (e.g. UseSqlServer / UseNpgsql) and the supplied connection string.
     /// Called both at app startup (to wire up the DI DbContext) and by the replication

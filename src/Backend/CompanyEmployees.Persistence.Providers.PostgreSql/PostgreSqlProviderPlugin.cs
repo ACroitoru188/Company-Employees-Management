@@ -17,12 +17,33 @@ public sealed class PostgreSqlProviderPlugin : IDbProviderPlugin
 
     public IReadOnlyList<ConnectionField> RequiredFields =>
     [
-        new("Host",     "Host",          IsSecret: false, DefaultValue: "postgres"),
-        new("Port",     "Port",          IsSecret: false, DefaultValue: "5432"),
-        new("Database", "Database name", IsSecret: false, DefaultValue: "company_employees"),
-        new("Username", "Username",      IsSecret: false, DefaultValue: "company_app"),
-        new("Password", "Password",      IsSecret: true,  DefaultValue: "company_dev_password"),
+        new("Host", "Host", IsSecret: false, DefaultValue: "postgres", FieldType: ConnectionFieldType.Text, MaxLength: 255),
+        new("Port", "Port", IsSecret: false, DefaultValue: "5432", FieldType: ConnectionFieldType.Integer, MinValue: 1, MaxValue: 65535),
+        new("Database", "Database name", IsSecret: false, DefaultValue: "company_employees", FieldType: ConnectionFieldType.Text, MaxLength: 128),
+        new("Username", "Username", IsSecret: false, DefaultValue: "company_app", FieldType: ConnectionFieldType.Text, MaxLength: 128),
+        new("Password", "Password", IsSecret: true, DefaultValue: "company_dev_password", FieldType: ConnectionFieldType.Password, MaxLength: 256),
     ];
+
+    /// <inheritdoc />
+    public string BuildConnectionString(IReadOnlyDictionary<string, string> fields)
+    {
+        var builder = new NpgsqlConnectionStringBuilder();
+        foreach (var (key, value) in fields)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                continue;
+
+            if (string.Equals(key, "Port", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var port))
+            {
+                builder.Port = port;
+            }
+            else
+            {
+                builder[key] = value;
+            }
+        }
+        return builder.ConnectionString;
+    }
 
     /// <inheritdoc />
     public void ConfigureDbContext(DbContextOptionsBuilder options, string connectionString) =>

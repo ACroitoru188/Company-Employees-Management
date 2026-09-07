@@ -17,13 +17,27 @@ public sealed class SqlServerProviderPlugin : IDbProviderPlugin
 
     public IReadOnlyList<ConnectionField> RequiredFields =>
     [
-        new("Server",                "Server / host",              IsSecret: false, DefaultValue: "sqlserver,1433"),
-        new("Database",              "Database name",              IsSecret: false, DefaultValue: "CompanyEmployees"),
-        new("User Id",               "Username",                   IsSecret: false, DefaultValue: "sa"),
-        new("Password",              "Password",                   IsSecret: true,  DefaultValue: "CompanyEmployees_dev_2026!"),
-        new("TrustServerCertificate","Trust server certificate",   IsSecret: false, DefaultValue: "True"),
-        new("MultipleActiveResultSets", "Multiple Active Result Sets", IsSecret: false, DefaultValue: "true"),
+        new("Server",                "Server / host",              IsSecret: false, DefaultValue: "sqlserver,1433",                  FieldType: ConnectionFieldType.Text,     MaxLength: 255),
+        new("Database",              "Database name",              IsSecret: false, DefaultValue: "CompanyEmployees",                FieldType: ConnectionFieldType.Text,     MaxLength: 128),
+        new("User Id",               "Username",                   IsSecret: false, DefaultValue: "sa",                              FieldType: ConnectionFieldType.Text,     MaxLength: 128),
+        new("Password",              "Password",                   IsSecret: true,  DefaultValue: "CompanyEmployees_dev_2026!",      FieldType: ConnectionFieldType.Password, MaxLength: 256),
+        new("TrustServerCertificate","Trust server certificate",   IsSecret: false, DefaultValue: "True",                            FieldType: ConnectionFieldType.Boolean),
+        new("MultipleActiveResultSets", "Multiple Active Result Sets", IsSecret: false, DefaultValue: "true",                       FieldType: ConnectionFieldType.Boolean),
     ];
+
+    /// <inheritdoc />
+    public string BuildConnectionString(IReadOnlyDictionary<string, string> fields)
+    {
+        var builder = new SqlConnectionStringBuilder();
+        foreach (var (key, value) in fields)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                builder[key] = value;
+            }
+        }
+        return builder.ConnectionString;
+    }
 
     public void ConfigureDbContext(DbContextOptionsBuilder options, string connectionString) =>
         options.UseSqlServer(
