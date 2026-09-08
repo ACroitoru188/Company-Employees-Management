@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "休暇管理",
   "WORKSPACE": "ワークスペース",
   "Dashboard": "ダッシュボード",
@@ -219,5 +219,20 @@
   "{0} people": "{0} 名",
   "Look up anyone in the company, or pick a region and a department to browse.": "会社の誰でも検索できます。または、参照する地域と部門を選択してください。",
   "All departments": "すべての部門",
-  "Clear": "クリア"
+  "Clear": "クリア",
+  "Level 1: Global Continents": "レベル 1: グローバル大陸",
+  "Contract": "契約",
+  "Site Org Chart": "サイト組織図",
+  "Site Filter": "サイトフィルター",
+  "Contract locked": "契約はロックされています",
+  "Focus Me": "自分にフォーカス",
+  "Contract Status": "契約状況",
+  "Romania Map": "ルーマニアの地図",
+  "Location": "場所",
+  "Level 5: Site Org Chart": "レベル 5: サイト組織図",
+  "Manage Contract": "契約の管理",
+  "Search people...": "人を検索...",
+  "City Filter": "都市フィルター",
+  "Department Filter": "部門フィルター",
+  "Global Organization Chart": "グローバル組織図"
 }

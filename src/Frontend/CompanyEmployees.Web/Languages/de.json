@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Abwesenheitsverwaltung",
   "WORKSPACE": "ARBEITSBEREICH",
   "Dashboard": "Übersicht",
@@ -219,5 +219,20 @@
   "{0} people": "{0} Personen",
   "Look up anyone in the company, or pick a region and a department to browse.": "Suchen Sie jeden im Unternehmen, oder wählen Sie eine Region und Abteilung zum Durchsuchen.",
   "All departments": "Alle Abteilungen",
-  "Clear": "Löschen"
+  "Clear": "Löschen",
+  "Level 1: Global Continents": "Ebene 1: Globale Kontinente",
+  "Contract": "Vertrag",
+  "Site Org Chart": "Standort Organigramm",
+  "Site Filter": "Standortfilter",
+  "Contract locked": "Vertrag gesperrt",
+  "Focus Me": "Mich fokussieren",
+  "Contract Status": "Vertragsstatus",
+  "Romania Map": "Rumänien Karte",
+  "Location": "Standort",
+  "Level 5: Site Org Chart": "Ebene 5: Standort Organigramm",
+  "Manage Contract": "Vertrag verwalten",
+  "Search people...": "Personen suchen...",
+  "City Filter": "Stadtfilter",
+  "Department Filter": "Abteilungsfilter",
+  "Global Organization Chart": "Globales Organigramm"
 }

@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Poissaolojen hallinta",
   "WORKSPACE": "TYÖTILA",
   "Dashboard": "Yhteenveto",
@@ -219,5 +219,20 @@
   "{0} people": "{0} henkilöä",
   "Look up anyone in the company, or pick a region and a department to browse.": "Etsi ketä tahansa yrityksestä, tai selaa alueen ja osaston mukaan.",
   "All departments": "Kaikki osastot",
-  "Clear": "Tyhjennä"
+  "Clear": "Tyhjennä",
+  "Level 1: Global Continents": "Taso 1: Maailmanlaajuiset maanosat",
+  "Contract": "Sopimus",
+  "Site Org Chart": "Toimipaikan organisaatiokaavio",
+  "Site Filter": "Toimipaikkasuodatin",
+  "Contract locked": "Sopimus lukittu",
+  "Focus Me": "Keskity minuun",
+  "Contract Status": "Sopimuksen tila",
+  "Romania Map": "Romanian kartta",
+  "Location": "Sijainti",
+  "Level 5: Site Org Chart": "Taso 5: Toimipaikan organisaatiokaavio",
+  "Manage Contract": "Hallitse sopimusta",
+  "Search people...": "Hae henkilöitä...",
+  "City Filter": "Kaupunkisuodatin",
+  "Department Filter": "Osastosuodatin",
+  "Global Organization Chart": "Maailmanlaajuinen organisaatiokaavio"
 }

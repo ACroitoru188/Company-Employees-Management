@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Gestionarea concediilor",
   "WORKSPACE": "SPAȚIU DE LUCRU",
   "Dashboard": "Panou de control",
@@ -219,5 +219,20 @@
   "{0} people": "{0} persoane",
   "Look up anyone in the company, or pick a region and a department to browse.": "Caută pe oricine din companie sau alege o regiune și un departament de explorat.",
   "All departments": "Toate departamentele",
-  "Clear": "Șterge"
+  "Clear": "Șterge",
+  "Level 1: Global Continents": "Nivel 1: Continente Globale",
+  "Contract": "Contract",
+  "Site Org Chart": "Organigramă Sediu",
+  "Site Filter": "Filtru Sediu",
+  "Contract locked": "Contract blocat",
+  "Focus Me": "Centrează-mă",
+  "Contract Status": "Stare Contract",
+  "Romania Map": "Harta României",
+  "Location": "Locație",
+  "Level 5: Site Org Chart": "Nivel 5: Organigramă Sediu",
+  "Manage Contract": "Gestionează Contract",
+  "Search people...": "Caută persoane...",
+  "City Filter": "Filtru Oraș",
+  "Department Filter": "Filtru Departament",
+  "Global Organization Chart": "Organigramă Globală"
 }

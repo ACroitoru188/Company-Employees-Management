@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Távollétkezelés",
   "WORKSPACE": "MUNKATERÜLET",
   "Dashboard": "Irányítópult",
@@ -219,5 +219,20 @@
   "{0} people": "{0} fő",
   "Look up anyone in the company, or pick a region and a department to browse.": "Keressen bárkit a vállalatnál, vagy válasszon régiót és osztályt a böngészéshez.",
   "All departments": "Összes osztály",
-  "Clear": "Törlés"
+  "Clear": "Törlés",
+  "Level 1: Global Continents": "1. szint: Globális kontinensek",
+  "Contract": "Szerződés",
+  "Site Org Chart": "Helyi szervezeti ábra",
+  "Site Filter": "Helyszín szűrő",
+  "Contract locked": "Szerződés zárolva",
+  "Focus Me": "Rám fókuszálás",
+  "Contract Status": "Szerződés állapota",
+  "Romania Map": "Románia térkép",
+  "Location": "Helyszín",
+  "Level 5: Site Org Chart": "5. szint: Helyi szervezeti ábra",
+  "Manage Contract": "Szerződés kezelése",
+  "Search people...": "Emberek keresése...",
+  "City Filter": "Város szűrő",
+  "Department Filter": "Osztály szűrő",
+  "Global Organization Chart": "Globális szervezeti ábra"
 }

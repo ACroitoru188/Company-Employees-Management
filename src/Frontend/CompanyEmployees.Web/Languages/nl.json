@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Verlofbeheer",
   "WORKSPACE": "WERKRUIMTE",
   "Dashboard": "Dashboard",
@@ -219,5 +219,20 @@
   "{0} people": "{0} personen",
   "Look up anyone in the company, or pick a region and a department to browse.": "Zoek iedereen in het bedrijf op, of kies een regio en afdeling om te doorbladeren.",
   "All departments": "Alle afdelingen",
-  "Clear": "Wissen"
+  "Clear": "Wissen",
+  "Level 1: Global Continents": "Niveau 1: Wereldwijde Continenten",
+  "Contract": "Contract",
+  "Site Org Chart": "Locatie Organogram",
+  "Site Filter": "Locatiefilter",
+  "Contract locked": "Contract vergrendeld",
+  "Focus Me": "Op mij focussen",
+  "Contract Status": "Contractstatus",
+  "Romania Map": "Roemenië Kaart",
+  "Location": "Locatie",
+  "Level 5: Site Org Chart": "Niveau 5: Locatie Organogram",
+  "Manage Contract": "Contract beheren",
+  "Search people...": "Personen zoeken...",
+  "City Filter": "Stadsfilter",
+  "Department Filter": "Afdelingsfilter",
+  "Global Organization Chart": "Wereldwijd Organogram"
 }
