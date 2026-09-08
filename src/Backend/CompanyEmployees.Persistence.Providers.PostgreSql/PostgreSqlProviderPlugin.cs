@@ -47,7 +47,9 @@ public sealed class PostgreSqlProviderPlugin : IDbProviderPlugin
 
     /// <inheritdoc />
     public void ConfigureDbContext(DbContextOptionsBuilder options, string connectionString) =>
-        options.UseNpgsql(connectionString);
+        options.UseNpgsql(
+            connectionString,
+            npgsql => npgsql.MigrationsAssembly(typeof(PostgreSqlProviderPlugin).Assembly.GetName().Name));
 
     /// <inheritdoc />
     public async Task TestConnectionAsync(string connectionString, CancellationToken ct = default)
@@ -62,17 +64,34 @@ public sealed class PostgreSqlProviderPlugin : IDbProviderPlugin
         if (!await creator.ExistsAsync(ct))
             await creator.CreateAsync(ct);
 
-        try
+        if (!await creator.HasTablesAsync(ct))
         {
-            await creator.CreateTablesAsync(ct);
+            try
+            {
+                await context.Database.MigrateAsync(ct);
+            }
+            catch
+            {
+                try
+                {
+                    await creator.CreateTablesAsync(ct);
+                }
+                catch (PostgresException ex) when (ex.SqlState is "42P07" or "42710")
+                {
+                    // Table or relation already exists, safe to proceed
+                }
+            }
         }
-        catch (PostgresException ex) when (ex.SqlState == "42P07")
+        else
         {
-            // Table already exists, safe to ignore
-        }
-        catch
-        {
-            await context.Database.EnsureCreatedAsync(ct);
+            try
+            {
+                await context.Database.MigrateAsync(ct);
+            }
+            catch (PostgresException ex) when (ex.SqlState is "42P07" or "42710")
+            {
+                // Tables already created via standby replication / EnsureCreated
+            }
         }
     }
 
