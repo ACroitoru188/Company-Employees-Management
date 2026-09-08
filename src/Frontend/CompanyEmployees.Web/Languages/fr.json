@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Gestion des congés",
   "WORKSPACE": "ESPACE DE TRAVAIL",
   "Dashboard": "Tableau de bord",
@@ -219,5 +219,21 @@
   "{0} people": "{0} personnes",
   "Look up anyone in the company, or pick a region and a department to browse.": "Recherchez n'importe qui dans l'entreprise, ou choisissez une région et un département à parcourir.",
   "All departments": "Tous les départements",
-  "Clear": "Effacer"
+  "Clear": "Effacer",
+  "Level 1: Global Continents": "Niveau 1: Continents Mondiaux",
+  "Contract": "Contrat",
+  "Site Org Chart": "Organigramme du Site",
+  "Site Filter": "Filtre de Site",
+  "Contract locked": "Contrat verrouillé",
+  "Focus Me": "Me cibler",
+  "Contract Status": "Statut du Contrat",
+  "Romania Map": "Carte de la Roumanie",
+  "Location": "Emplacement",
+  "Level 5: Site Org Chart": "Niveau 5: Organigramme du Site",
+  "Manage Contract": "Gérer le contrat",
+  "Search people...": "Rechercher des personnes...",
+  "City Filter": "Filtre de Ville",
+  "Department Filter": "Filtre de Département",
+  "Global Organization Chart": "Organigramme Mondial",
+  "Org Tree": "Arbre d'Organisation"
 }

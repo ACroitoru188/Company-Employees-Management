@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "अवकाश प्रबंधन",
   "WORKSPACE": "कार्यस्थान",
   "Dashboard": "डैशबोर्ड",
@@ -219,5 +219,21 @@
   "{0} people": "{0} लोग",
   "Look up anyone in the company, or pick a region and a department to browse.": "कंपनी में किसी को भी खोजें, या ब्राउज़ करने के लिए एक क्षेत्र और विभाग चुनें।",
   "All departments": "सभी विभाग",
-  "Clear": "साफ़ करें"
+  "Clear": "साफ़ करें",
+  "Level 1: Global Continents": "स्तर 1: वैश्विक महाद्वीप",
+  "Contract": "अनुबंध",
+  "Site Org Chart": "साइट संगठन चार्ट",
+  "Site Filter": "साइट फ़िल्टर",
+  "Contract locked": "अनुबंध लॉक किया गया",
+  "Focus Me": "मुझ पर ध्यान दें",
+  "Contract Status": "अनुबंध की स्थिति",
+  "Romania Map": "रोमानिया का नक्शा",
+  "Location": "स्थान",
+  "Level 5: Site Org Chart": "स्तर 5: साइट संगठन चार्ट",
+  "Manage Contract": "अनुबंध प्रबंधित करें",
+  "Search people...": "लोगों को खोजें...",
+  "City Filter": "शहर फ़िल्टर",
+  "Department Filter": "विभाग फ़िल्टर",
+  "Global Organization Chart": "वैश्विक संगठन चार्ट",
+  "Org Tree": "संगठन वृक्ष"
 }

@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Frånvarohantering",
   "WORKSPACE": "ARBETSOMRÅDE",
   "Dashboard": "Översikt",
@@ -219,5 +219,21 @@
   "{0} people": "{0} personer",
   "Look up anyone in the company, or pick a region and a department to browse.": "Slå upp vem som helst i företaget, eller välj en region och avdelning att bläddra i.",
   "All departments": "Alla avdelningar",
-  "Clear": "Rensa"
+  "Clear": "Rensa",
+  "Level 1: Global Continents": "Nivå 1: Globala kontinenter",
+  "Contract": "Kontrakt",
+  "Site Org Chart": "Plats organisationsschema",
+  "Site Filter": "Platsfilter",
+  "Contract locked": "Kontrakt låst",
+  "Focus Me": "Fokusera på mig",
+  "Contract Status": "Kontraktsstatus",
+  "Romania Map": "Rumänien Karta",
+  "Location": "Plats",
+  "Level 5: Site Org Chart": "Nivå 5: Plats organisationsschema",
+  "Manage Contract": "Hantera kontrakt",
+  "Search people...": "Sök efter personer...",
+  "City Filter": "Stadsfilter",
+  "Department Filter": "Avdelningsfilter",
+  "Global Organization Chart": "Globalt organisationsschema",
+  "Org Tree": "Organisationsträd"
 }

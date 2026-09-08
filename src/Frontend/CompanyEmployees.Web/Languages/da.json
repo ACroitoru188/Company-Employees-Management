@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Ferieadministration",
   "WORKSPACE": "ARBEJDSOMRÅDE",
   "Dashboard": "Oversigt",
@@ -219,5 +219,21 @@
   "{0} people": "{0} personer",
   "Look up anyone in the company, or pick a region and a department to browse.": "Slå enhver i virksomheden op, eller vælg en region og afdeling at gennemse.",
   "All departments": "Alle afdelinger",
-  "Clear": "Ryd"
+  "Clear": "Ryd",
+  "Level 1: Global Continents": "Niveau 1: Globale kontinenter",
+  "Contract": "Kontrakt",
+  "Site Org Chart": "Afdelings organisationsdiagram",
+  "Site Filter": "Afdelingsfilter",
+  "Contract locked": "Kontrakt låst",
+  "Focus Me": "Fokuser på mig",
+  "Contract Status": "Kontraktstatus",
+  "Romania Map": "Rumænien kort",
+  "Location": "Placering",
+  "Level 5: Site Org Chart": "Niveau 5: Afdelings organisationsdiagram",
+  "Manage Contract": "Administrer kontrakt",
+  "Search people...": "Søg efter personer...",
+  "City Filter": "Byfilter",
+  "Department Filter": "Afdelingsfilter",
+  "Global Organization Chart": "Globalt organisationsdiagram",
+  "Org Tree": "Organisationstræ"
 }

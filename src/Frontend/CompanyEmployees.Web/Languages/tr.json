@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "İzin yönetimi",
   "WORKSPACE": "ÇALIŞMA ALANI",
   "Dashboard": "Gösterge paneli",
@@ -219,5 +219,21 @@
   "{0} people": "{0} kişi",
   "Look up anyone in the company, or pick a region and a department to browse.": "Şirketteki herkesi arayın veya göz atmak için bir bölge ve departman seçin.",
   "All departments": "Tüm departmanlar",
-  "Clear": "Temizle"
+  "Clear": "Temizle",
+  "Level 1: Global Continents": "Seviye 1: Küresel Kıtalar",
+  "Contract": "Sözleşme",
+  "Site Org Chart": "Site Organizasyon Şeması",
+  "Site Filter": "Site Filtresi",
+  "Contract locked": "Sözleşme kilitli",
+  "Focus Me": "Bana Odaklan",
+  "Contract Status": "Sözleşme Durumu",
+  "Romania Map": "Romanya Haritası",
+  "Location": "Konum",
+  "Level 5: Site Org Chart": "Seviye 5: Site Organizasyon Şeması",
+  "Manage Contract": "Sözleşmeyi Yönet",
+  "Search people...": "Kişileri ara...",
+  "City Filter": "Şehir Filtresi",
+  "Department Filter": "Departman Filtresi",
+  "Global Organization Chart": "Küresel Organizasyon Şeması",
+  "Org Tree": "Organizasyon Ağacı"
 }

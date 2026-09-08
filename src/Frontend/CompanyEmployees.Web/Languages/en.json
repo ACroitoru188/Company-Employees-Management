@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Time Off Management",
   "WORKSPACE": "WORKSPACE",
   "Dashboard": "Dashboard",
@@ -219,5 +219,21 @@
   "{0} people": "{0} people",
   "Look up anyone in the company, or pick a region and a department to browse.": "Look up anyone in the company, or pick a region and a department to browse.",
   "All departments": "All departments",
-  "Clear": "Clear"
+  "Clear": "Clear",
+  "Level 1: Global Continents": "Level 1: Global Continents",
+  "Contract": "Contract",
+  "Site Org Chart": "Site Org Chart",
+  "Site Filter": "Site Filter",
+  "Contract locked": "Contract locked",
+  "Focus Me": "Focus Me",
+  "Contract Status": "Contract Status",
+  "Romania Map": "Romania Map",
+  "Location": "Location",
+  "Level 5: Site Org Chart": "Level 5: Site Org Chart",
+  "Manage Contract": "Manage Contract",
+  "Search people...": "Search people...",
+  "City Filter": "City Filter",
+  "Department Filter": "Department Filter",
+  "Global Organization Chart": "Global Organization Chart",
+  "Org Tree": "Org Tree"
 }

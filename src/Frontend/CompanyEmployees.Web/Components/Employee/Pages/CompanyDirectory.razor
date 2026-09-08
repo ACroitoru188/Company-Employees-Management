@@ -15,6 +15,7 @@
 @inject IToastService Toast
 @inject IJSRuntime JSRuntime
 @inject ILogger<CompanyDirectory> Logger
+@inject AppLocalizer Text
 @implements IDisposable
 
 <PageTitle>Organization Chart · Global Directory</PageTitle>
@@ -25,11 +26,11 @@
     <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
         <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
                      VerticalAlignment="VerticalAlignment.Center">
-            <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">Global Organization Chart</FluentLabel>
+            <FluentLabel Typo="Typography.PaneHeader" Weight="FontWeight.Bold">@Text["Global Organization Chart"]</FluentLabel>
             @* A caption for the title, not something to press — so it stops wearing the colour
                that means "press me". *@
             <FluentBadge Appearance="Appearance.Neutral">
-                @(_currentLevel == HierarchyLevel.World ? "Level 1: Global Continents" : "Level 5: Site Org Chart")
+                @(_currentLevel == HierarchyLevel.World ? Text["Level 1: Global Continents"] : Text["Level 5: Site Org Chart"])
             </FluentBadge>
         </FluentStack>
 
@@ -39,14 +40,14 @@
                 <FluentBreadcrumbItem Href="javascript:void(0)"
                                       @onclick="@(() => SwitchLevel(HierarchyLevel.World))">
                     <FluentIcon Value="@(new Icons.Regular.Size16.Map())" Slot="start" />
-                    Romania Map
+                    @Text["Romania Map"]
                 </FluentBreadcrumbItem>
             }
             @if (_currentLevel == HierarchyLevel.CompanyOrgChart)
             {
                 <FluentBreadcrumbItem>
                     <FluentIcon Value="@(new Icons.Regular.Size16.Building())" Slot="start" />
-                    Site Org Chart
+                    @Text["Site Org Chart"]
                 </FluentBreadcrumbItem>
             }
         </FluentBreadcrumb>
@@ -63,12 +64,12 @@
         <FluentButton Appearance="@(_currentLevel == HierarchyLevel.World ? Appearance.Neutral : Appearance.Stealth)"
                       IconStart="@(new Icons.Regular.Size20.Map())"
                       OnClick="@(() => SwitchLevel(HierarchyLevel.World))">
-            Romania Map
+            @Text["Romania Map"]
         </FluentButton>
         <FluentButton Appearance="@(_currentLevel == HierarchyLevel.CompanyOrgChart ? Appearance.Neutral : Appearance.Stealth)"
                       IconStart="@(new Icons.Regular.Size20.Organization())"
                       OnClick="@(() => SwitchLevel(HierarchyLevel.CompanyOrgChart))">
-            Org Tree
+            @Text["Org Tree"]
         </FluentButton>
     }
 
@@ -137,7 +138,7 @@
                       @bind-SelectedOption:after="OnFilterChangedAsync"
                       OptionText="@(c => c)"
                       OptionValue="@(c => c)"
-                      Placeholder="Filtru Oraș"
+                      Placeholder="@Text["City Filter"]"
                       Width="140px" />
 
 
@@ -148,7 +149,7 @@
                       @bind-SelectedOption:after="OnFilterChangedAsync"
                       OptionText="@(s => s)"
                       OptionValue="@(s => s)"
-                      Placeholder="Filtru Sediu"
+                      Placeholder="@Text["Site Filter"]"
                       Width="160px" />
 
         <FluentSelect TOption="string"
@@ -157,11 +158,11 @@
                       @bind-SelectedOption:after="OnFilterChangedAsync"
                       OptionText="@(d => d)"
                       OptionValue="@(d => d)"
-                      Placeholder="Filtru Departament"
+                      Placeholder="@Text["Department Filter"]"
                       Width="180px" />
         <FluentAutocomplete Class="org-search-autocomplete"
                             TOption="OrgChartNode"
-                            Placeholder="Search people..."
+                            Placeholder="@Text["Search people..."]"
                             autocomplete="off"
                             OnOptionsSearch="OnSearchAsync"
                             OptionText="@(node => node.Name)"
@@ -193,7 +194,7 @@
                       Appearance="Appearance.Outline"
                       OnClick="FocusOnSelf">
             <FluentIcon Value="@(new Icons.Regular.Size20.Target())" Color="Color.Custom" CustomColor="#009999" Slot="start" />
-            Focus Me
+            @Text["Focus Me"]
         </FluentButton>
     </FluentStack>
     }
@@ -456,7 +457,7 @@ else
 
                         <FluentStack Orientation="Orientation.Vertical" VerticalGap="6">
                             <FluentStack Orientation="Orientation.Horizontal" Width="100%">
-                                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Department</FluentLabel>
+                                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Text["Department"]</FluentLabel>
                                 <FluentSpacer />
                                 @* Admins belong to no department by design, and the field read as
                                    blank rather than as "none". *@
@@ -465,7 +466,7 @@ else
                                 </FluentLabel>
                             </FluentStack>
                             <FluentStack Orientation="Orientation.Horizontal" Width="100%">
-                                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Role</FluentLabel>
+                                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Text["Role"]</FluentLabel>
                                 <FluentSpacer />
                                 <FluentLabel Typo="Typography.Body">@_selectedNode.Role</FluentLabel>
                             </FluentStack>
@@ -474,7 +475,7 @@ else
                             @if (!string.IsNullOrEmpty(_selectedNode.Region))
                             {
                                 <FluentStack Orientation="Orientation.Horizontal" Width="100%">
-                                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Region</FluentLabel>
+                                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Text["Region"]</FluentLabel>
                                     <FluentSpacer />
                                     <FluentLabel Typo="Typography.Body">@_selectedNode.Region</FluentLabel>
                                 </FluentStack>
@@ -486,7 +487,7 @@ else
                             @if (!string.IsNullOrEmpty(_selectedNode.City) || !string.IsNullOrEmpty(_selectedNode.Site))
                             {
                                 <FluentStack Orientation="Orientation.Horizontal" Width="100%">
-                                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Location</FluentLabel>
+                                    <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Text["Location"]</FluentLabel>
                                     <FluentSpacer />
                                     <FluentLabel Typo="Typography.Body">
                                         @(string.Join(" · ", new[] { _selectedNode.City, _selectedNode.Site }
@@ -495,12 +496,12 @@ else
                                 </FluentStack>
                             }
                             <FluentStack Orientation="Orientation.Horizontal" Width="100%">
-                                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Contract</FluentLabel>
+                                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Text["Contract"]</FluentLabel>
                                 <FluentSpacer />
                                 <FluentLabel Typo="Typography.Body">@GetContractPeriodText(_selectedNode)</FluentLabel>
                             </FluentStack>
                             <FluentStack Orientation="Orientation.Horizontal" Width="100%">
-                                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Contract Status</FluentLabel>
+                                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Text["Contract Status"]</FluentLabel>
                                 <FluentSpacer />
                                 @if (_selectedNode.HasContract && _selectedNode.ContractType != null)
                                 {
@@ -544,7 +545,7 @@ else
                                     <FluentButton Disabled="true"
                                                   IconStart="@(new Icons.Regular.Size20.LockClosed())"
                                                   Title="Contract management locked for superiors or unauthorized roles">
-                                        Contract locked
+                                        @Text["Contract locked"]
                                     </FluentButton>
                                 }
                                 else
@@ -553,7 +554,7 @@ else
                                                   IconStart="@(new Icons.Regular.Size20.DocumentText())"
                                                   Title="Manage contract for this employee"
                                                   OnClick="@(() => OnManageContractClicked(_selectedNode))">
-                                        Manage Contract
+                                        @Text["Manage Contract"]
                                     </FluentButton>
                                 }
                             </FluentStack>
@@ -603,23 +604,29 @@ else
     private OrgChartNode? _root;
     private OrgChartNode? _displayRoot;
 
-    private List<string> _cities = new() { "Toate" };
-    private List<string> _sites = new() { "Toate" };
-    private List<string> _departments = new() { "Toate" };
-    private string _selectedCityFilter = "Toate";
-    private string _selectedSiteFilter = "Toate";
-    private string _selectedDepartmentFilter = "Toate";
+    private List<string> _cities = new();
+    private List<string> _sites = new();
+    private List<string> _departments = new();
+    private string _selectedCityFilter = "";
+    private string _selectedSiteFilter = "";
+    private string _selectedDepartmentFilter = "";
 
     private void PopulateFilterOptions(OrgChartNode node)
     {
         var allNodes = new List<OrgChartNode>();
         CollectAllNodes(node, allNodes);
         
-        _cities = new List<string> { "Toate", "Brașov", "București", "Cluj-Napoca" };
+        _cities = new List<string> { Text["All"] };
+        var uniqueCities = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrWhiteSpace(n.City)).Select(n => n.City!).Distinct().OrderBy(c => c);
+        _cities.AddRange(uniqueCities);
         
-        _sites = new List<string> { "Toate", "Siemens Advanta", "Siemens Digital Industry Software", "Siemens HQ", "Siemens R&D" };
+        _sites = new List<string> { Text["All"] };
+        var uniqueSites = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrWhiteSpace(n.Site)).Select(n => n.Site!).Distinct().OrderBy(s => s);
+        _sites.AddRange(uniqueSites);
         
-        _departments = new List<string> { "Toate", "Cloud", "Design", "Engineering", "Executive", "HR", "Industry Software", "Marketing", "Production", "Sales", "Support" };
+        _departments = new List<string> { Text["All"] };
+        var uniqueDepts = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrWhiteSpace(n.Department)).Select(n => n.Department!).Distinct().OrderBy(d => d);
+        _departments.AddRange(uniqueDepts);
     }
 
     private void ApplyFilters()
@@ -630,9 +637,9 @@ else
             return;
         }
 
-        bool isCityAll = string.IsNullOrEmpty(_selectedCityFilter) || _selectedCityFilter == "Toate";
-        bool isSiteAll = string.IsNullOrEmpty(_selectedSiteFilter) || _selectedSiteFilter == "Toate";
-        bool isDeptAll = string.IsNullOrEmpty(_selectedDepartmentFilter) || _selectedDepartmentFilter == "Toate";
+        bool isCityAll = string.IsNullOrEmpty(_selectedCityFilter) || _selectedCityFilter == Text["All"];
+        bool isSiteAll = string.IsNullOrEmpty(_selectedSiteFilter) || _selectedSiteFilter == Text["All"];
+        bool isDeptAll = string.IsNullOrEmpty(_selectedDepartmentFilter) || _selectedDepartmentFilter == Text["All"];
 
         if (isCityAll && isSiteAll && isDeptAll)
         {
@@ -661,11 +668,11 @@ else
     private OrgChartNode? CloneAndFilterTree(OrgChartNode node)
     {
         bool matches = true;
-        if (!string.IsNullOrEmpty(_selectedCityFilter) && _selectedCityFilter != "Toate" && node.City != _selectedCityFilter) matches = false;
+        if (!string.IsNullOrEmpty(_selectedCityFilter) && _selectedCityFilter != Text["All"] && node.City != _selectedCityFilter) matches = false;
         
-        if (!string.IsNullOrEmpty(_selectedSiteFilter) && _selectedSiteFilter != "Toate" && node.Site != _selectedSiteFilter) matches = false;
+        if (!string.IsNullOrEmpty(_selectedSiteFilter) && _selectedSiteFilter != Text["All"] && node.Site != _selectedSiteFilter) matches = false;
         
-        if (!string.IsNullOrEmpty(_selectedDepartmentFilter) && _selectedDepartmentFilter != "Toate" && node.Department != _selectedDepartmentFilter) matches = false;
+        if (!string.IsNullOrEmpty(_selectedDepartmentFilter) && _selectedDepartmentFilter != Text["All"] && node.Department != _selectedDepartmentFilter) matches = false;
 
         var clonedChildren = new List<OrgChartNode>();
         foreach(var child in node.Subordinates)
@@ -754,6 +761,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _selectedCityFilter = Text["All"];
+        _selectedSiteFilter = Text["All"];
+        _selectedDepartmentFilter = Text["All"];
         InitializeContinentsData();
         _romaniaCounties = RomaniaMapData.GetCounties();
 
@@ -1062,7 +1072,7 @@ else
             
             // Ensure the city actually exists in our filter list to avoid empty UI states
             if (!_cities.Contains(_selectedCityFilter))
-                _selectedCityFilter = "Toate";
+                _selectedCityFilter = Text["All"];
                 
             if (hub != null)
             {
@@ -1075,11 +1085,11 @@ else
                 if (siteFilter != null && _sites.Contains(siteFilter))
                     _selectedSiteFilter = siteFilter;
                 else
-                    _selectedSiteFilter = "Toate";
+                    _selectedSiteFilter = Text["All"];
             }
             else
             {
-                _selectedSiteFilter = "Toate";
+                _selectedSiteFilter = Text["All"];
             }
                 
             await OnFilterChangedAsync();
@@ -1178,8 +1188,8 @@ else
 
         if (!found && _displayRoot != null && targetUserId != _displayRoot.UserId)
         {
-            _selectedCityFilter = "Toate";
-            _selectedDepartmentFilter = "Toate";
+            _selectedCityFilter = Text["All"];
+            _selectedDepartmentFilter = Text["All"];
             await OnFilterChangedAsync();
             
             activeRoot = _displayRoot ?? _root;

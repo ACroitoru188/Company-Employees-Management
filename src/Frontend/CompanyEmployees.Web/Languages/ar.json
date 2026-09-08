@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "إدارة الإجازات",
   "WORKSPACE": "مساحة العمل",
   "Dashboard": "لوحة المعلومات",
@@ -219,5 +219,21 @@
   "{0} people": "{0} أشخاص",
   "Look up anyone in the company, or pick a region and a department to browse.": "ابحث عن أي شخص في الشركة، أو اختر منطقة وقسمًا لاستعراضهما.",
   "All departments": "جميع الأقسام",
-  "Clear": "مسح"
+  "Clear": "مسح",
+  "Level 1: Global Continents": "المستوى 1: القارات العالمية",
+  "Contract": "العقد",
+  "Site Org Chart": "مخطط المنظمة للموقع",
+  "Site Filter": "تصفية الموقع",
+  "Contract locked": "العقد مقفل",
+  "Focus Me": "التركيز علي",
+  "Contract Status": "حالة العقد",
+  "Romania Map": "خريطة رومانيا",
+  "Location": "الموقع",
+  "Level 5: Site Org Chart": "المستوى 5: مخطط المنظمة للموقع",
+  "Manage Contract": "إدارة العقد",
+  "Search people...": "البحث عن أشخاص...",
+  "City Filter": "تصفية المدينة",
+  "Department Filter": "تصفية القسم",
+  "Global Organization Chart": "مخطط المنظمة العالمي",
+  "Org Tree": "شجرة المنظمة"
 }

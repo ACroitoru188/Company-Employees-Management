@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "休假管理",
   "WORKSPACE": "工作区",
   "Dashboard": "仪表板",
@@ -219,5 +219,21 @@
   "{0} people": "{0} 人",
   "Look up anyone in the company, or pick a region and a department to browse.": "查找公司内任何人，或选择地区和部门进行浏览。",
   "All departments": "所有部门",
-  "Clear": "清除"
+  "Clear": "清除",
+  "Level 1: Global Continents": "级别 1：全球大陆",
+  "Contract": "合同",
+  "Site Org Chart": "站点组织结构图",
+  "Site Filter": "站点过滤器",
+  "Contract locked": "合同已锁定",
+  "Focus Me": "关注我",
+  "Contract Status": "合同状态",
+  "Romania Map": "罗马尼亚地图",
+  "Location": "位置",
+  "Level 5: Site Org Chart": "级别 5：站点组织结构图",
+  "Manage Contract": "管理合同",
+  "Search people...": "搜索人员...",
+  "City Filter": "城市过滤器",
+  "Department Filter": "部门过滤器",
+  "Global Organization Chart": "全球组织结构图",
+  "Org Tree": "组织树"
 }

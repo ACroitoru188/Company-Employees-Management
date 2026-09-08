@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Správa volna",
   "WORKSPACE": "PRACOVNÍ PROSTOR",
   "Dashboard": "Přehled",
@@ -219,5 +219,21 @@
   "{0} people": "{0} lidí",
   "Look up anyone in the company, or pick a region and a department to browse.": "Vyhledejte kohokoli ve firmě, nebo procházejte podle regionu a oddělení.",
   "All departments": "Všechna oddělení",
-  "Clear": "Vymazat"
+  "Clear": "Vymazat",
+  "Level 1: Global Continents": "Úroveň 1: Globální kontinenty",
+  "Contract": "Smlouva",
+  "Site Org Chart": "Organizační schéma pobočky",
+  "Site Filter": "Filtr pobočky",
+  "Contract locked": "Smlouva uzamčena",
+  "Focus Me": "Zaostřit na mě",
+  "Contract Status": "Stav smlouvy",
+  "Romania Map": "Mapa Rumunska",
+  "Location": "Umístění",
+  "Level 5: Site Org Chart": "Úroveň 5: Organizační schéma pobočky",
+  "Manage Contract": "Spravovat smlouvu",
+  "Search people...": "Hledat lidi...",
+  "City Filter": "Filtr města",
+  "Department Filter": "Filtr oddělení",
+  "Global Organization Chart": "Globální organizační schéma",
+  "Org Tree": "Organizační strom"
 }

@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Gestão de ausências",
   "WORKSPACE": "ESPAÇO DE TRABALHO",
   "Dashboard": "Painel",
@@ -219,5 +219,21 @@
   "{0} people": "{0} pessoas",
   "Look up anyone in the company, or pick a region and a department to browse.": "Procure qualquer pessoa na empresa, ou escolha uma região e um departamento para explorar.",
   "All departments": "Todos os departamentos",
-  "Clear": "Limpar"
+  "Clear": "Limpar",
+  "Level 1: Global Continents": "Nível 1: Continentes Globais",
+  "Contract": "Contrato",
+  "Site Org Chart": "Organograma do Local",
+  "Site Filter": "Filtro de Local",
+  "Contract locked": "Contrato bloqueado",
+  "Focus Me": "Focar em Mim",
+  "Contract Status": "Status do Contrato",
+  "Romania Map": "Mapa da Romênia",
+  "Location": "Localização",
+  "Level 5: Site Org Chart": "Nível 5: Organograma do Local",
+  "Manage Contract": "Gerenciar Contrato",
+  "Search people...": "Pesquisar pessoas...",
+  "City Filter": "Filtro de Cidade",
+  "Department Filter": "Filtro de Departamento",
+  "Global Organization Chart": "Organograma Global",
+  "Org Tree": "Árvore Organizacional"
 }

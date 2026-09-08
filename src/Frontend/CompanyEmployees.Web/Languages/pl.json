@@ -1,4 +1,4 @@
-{
+﻿{
   "Time Off Management": "Zarządzanie urlopami",
   "WORKSPACE": "OBSZAR ROBOCZY",
   "Dashboard": "Pulpit",
@@ -219,5 +219,21 @@
   "{0} people": "{0} osób",
   "Look up anyone in the company, or pick a region and a department to browse.": "Wyszukaj dowolną osobę w firmie lub wybierz region i dział do przeglądania.",
   "All departments": "Wszystkie działy",
-  "Clear": "Wyczyść"
+  "Clear": "Wyczyść",
+  "Level 1: Global Continents": "Poziom 1: Kontynenty Globalne",
+  "Contract": "Umowa",
+  "Site Org Chart": "Schemat Organizacyjny Oddziału",
+  "Site Filter": "Filtr Oddziału",
+  "Contract locked": "Umowa zablokowana",
+  "Focus Me": "Skup się na mnie",
+  "Contract Status": "Status Umowy",
+  "Romania Map": "Mapa Rumunii",
+  "Location": "Lokalizacja",
+  "Level 5: Site Org Chart": "Poziom 5: Schemat Organizacyjny Oddziału",
+  "Manage Contract": "Zarządzaj Umową",
+  "Search people...": "Szukaj osób...",
+  "City Filter": "Filtr Miasta",
+  "Department Filter": "Filtr Działu",
+  "Global Organization Chart": "Globalny Schemat Organizacyjny",
+  "Org Tree": "Drzewo Organizacyjne"
 }
