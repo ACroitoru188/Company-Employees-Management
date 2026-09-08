@@ -64,12 +64,12 @@
         <FluentButton Appearance="@(_currentLevel == HierarchyLevel.World ? Appearance.Neutral : Appearance.Stealth)"
                       IconStart="@(new Icons.Regular.Size20.Map())"
                       OnClick="@(() => SwitchLevel(HierarchyLevel.World))">
-            Romania Map
+            @Text["Romania Map"]
         </FluentButton>
         <FluentButton Appearance="@(_currentLevel == HierarchyLevel.CompanyOrgChart ? Appearance.Neutral : Appearance.Stealth)"
                       IconStart="@(new Icons.Regular.Size20.Organization())"
                       OnClick="@(() => SwitchLevel(HierarchyLevel.CompanyOrgChart))">
-            Org Tree
+            @Text["Org Tree"]
         </FluentButton>
     }
 
@@ -617,15 +617,15 @@ else
         CollectAllNodes(node, allNodes);
         
         _cities = new List<string> { Text["All"] };
-        var uniqueCities = allNodes.Where(n => !string.IsNullOrWhiteSpace(n.City)).Select(n => n.City!).Distinct().OrderBy(c => c);
+        var uniqueCities = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrWhiteSpace(n.City)).Select(n => n.City!).Distinct().OrderBy(c => c);
         _cities.AddRange(uniqueCities);
         
         _sites = new List<string> { Text["All"] };
-        var uniqueSites = allNodes.Where(n => !string.IsNullOrWhiteSpace(n.Site)).Select(n => n.Site!).Distinct().OrderBy(s => s);
+        var uniqueSites = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrWhiteSpace(n.Site)).Select(n => n.Site!).Distinct().OrderBy(s => s);
         _sites.AddRange(uniqueSites);
         
         _departments = new List<string> { Text["All"] };
-        var uniqueDepts = allNodes.Where(n => !string.IsNullOrWhiteSpace(n.Department)).Select(n => n.Department!).Distinct().OrderBy(d => d);
+        var uniqueDepts = allNodes.Where(n => !n.IsSyntheticGroup && !string.IsNullOrWhiteSpace(n.Department)).Select(n => n.Department!).Distinct().OrderBy(d => d);
         _departments.AddRange(uniqueDepts);
     }
 
