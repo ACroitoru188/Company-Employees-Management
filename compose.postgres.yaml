@@ -26,6 +26,9 @@ services:
         INCLUDED_PROVIDERS: "PostgreSql"
     container_name: company-employees-app
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "${APP_PORT:-8080}:8080"
     environment:
