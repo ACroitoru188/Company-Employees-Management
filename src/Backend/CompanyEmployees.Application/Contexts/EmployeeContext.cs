@@ -944,6 +944,10 @@ namespace CompanyEmployees.Application.Contexts
 
             var department = new Department { Name = trimmedName, ManagerId = managerId };
             await _departmentGateway.CreateAsync(department);
+
+            _logger.LogInformation("Admin {AdminId} created department {DepartmentId} (\"{DepartmentName}\") with manager {ManagerId}.",
+                adminId, department.Id, department.Name, managerId);
+
             return department;
         }
 
@@ -964,12 +968,17 @@ namespace CompanyEmployees.Application.Contexts
             department.Name = trimmedName;
             department.ManagerId = managerId;
             await _departmentGateway.UpdateAsync(department);
+
+            _logger.LogInformation("Admin {AdminId} updated department {DepartmentId} (\"{DepartmentName}\") with manager {ManagerId}.",
+                adminId, id, trimmedName, managerId);
         }
 
         public async Task DeleteDepartmentAsync(Guid adminId, Guid id)
         {
             await EnsureAdminAsync(adminId);
             await _departmentGateway.DeleteAsync(id);
+
+            _logger.LogInformation("Admin {AdminId} deleted department {DepartmentId}.", adminId, id);
         }
 
         private async Task EnsureNoDuplicateNameAsync(string name, Guid? excludingId)
@@ -999,6 +1008,9 @@ namespace CompanyEmployees.Application.Contexts
             user.DepartmentId = departmentId;
             user.Department = departmentId.HasValue ? await _departmentGateway.GetByIdAsync(departmentId.Value) : null;
             await _userGateway.UpdateUserAsync(user);
+
+            _logger.LogInformation("Admin {AdminId} assigned user {UserId} to department {DepartmentName} ({DepartmentId}).",
+                adminId, userId, user.Department?.Name ?? "None", departmentId);
         }
 
         public async Task AssignUserToRegionAsync(Guid adminId, Guid userId, Guid regionId)
@@ -1039,6 +1051,9 @@ namespace CompanyEmployees.Application.Contexts
                 report.UpdatedAt = DateTime.UtcNow;
                 await _userGateway.UpdateUserAsync(report);
             }
+
+            _logger.LogInformation("Admin {AdminId} transferred user {UserId} to region {RegionName} ({RegionId}).",
+                adminId, userId, region.Name, regionId);
         }
 
         public async Task<LeaveRequest> SubmitRequestAsync(

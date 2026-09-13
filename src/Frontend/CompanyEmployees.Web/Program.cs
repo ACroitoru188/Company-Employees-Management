@@ -21,24 +21,36 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.FluentUI.AspNetCore.Components;
 using System.Security.Claims;
+using Serilog;
+using Serilog.Events;
 
-var startupSw = System.Diagnostics.Stopwatch.StartNew();
-var builder = WebApplication.CreateBuilder(args);
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
 
-long failoverSelectMs = 0;
-long migrationsMs = 0;
-long seedingMs = 0;
-long standbyBootstrapMs = 0;
+try
+{
+    var startupSw = System.Diagnostics.Stopwatch.StartNew();
+    var builder = WebApplication.CreateBuilder(args);
 
-// provider discovery via ProviderLoader
-// Bootstrap a minimal logger so ProviderLoader can report issues during startup
-// (before the full DI container is built).
-using var bootstrapFactory = LoggerFactory.Create(b =>
-    b.AddConfiguration(builder.Configuration.GetSection("Logging")).AddConsole());
-var bootstrapLogger = bootstrapFactory.CreateLogger("Startup");
+    long failoverSelectMs = 0;
+    long migrationsMs = 0;
+    long seedingMs = 0;
+    long standbyBootstrapMs = 0;
 
-var plugins = ProviderLoader.Load(builder.Environment.ContentRootPath, bootstrapLogger);
-var catalog = new DatabaseProviderCatalog(plugins, builder.Configuration);
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext());
+
+    // provider discovery via ProviderLoader
+    // Bootstrap a minimal logger so ProviderLoader can report issues during startup
+    // (before the full DI container is built).
+    using var bootstrapFactory = LoggerFactory.Create(b => b.AddSerilog(Log.Logger));
+    var bootstrapLogger = bootstrapFactory.CreateLogger("Startup");
+
+    var plugins = ProviderLoader.Load(builder.Environment.ContentRootPath, bootstrapLogger);
+    var catalog = new DatabaseProviderCatalog(plugins, builder.Configuration);
 
 // Load setup state from App_Data/setup-state.json
 var setupStore = new JsonSetupStateStore(builder.Environment);
@@ -78,15 +90,7 @@ if (setupState.IsComplete)
     failoverSelectMs = swFailover.ElapsedMilliseconds;
 }
 
-if (builder.Environment.IsDevelopment())
-{
-    // The Windows Event Log provider can require elevated access and must never make a local
-    // authentication request fail merely because a warning could not be written there.
-    builder.Logging.ClearProviders();
-    builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
-    builder.Logging.AddConsole();
-    builder.Logging.AddDebug();
-}
+
 
 // Persist Data Protection keys to a configurable directory so they survive restarts
 // in both development and containerised production deployments.
@@ -291,6 +295,34 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 app.MapStaticAssets();
+app.UseSerilogRequestLogging(options =>
+{
+    options.GetLevel = (httpContext, _, ex) =>
+    {
+        if (ex != null || httpContext.Response.StatusCode >= 500)
+            return LogEventLevel.Error;
+
+        var path = httpContext.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/_content")
+            || path.StartsWith("/_framework")
+            || path.StartsWith("/_blazor/negotiate")
+            || path.StartsWith("/js")
+            || path.StartsWith("/css")
+            || path.StartsWith("/media")
+            || path.EndsWith(".js")
+            || path.EndsWith(".css")
+            || path.EndsWith(".mp4")
+            || path.EndsWith(".png")
+            || path.EndsWith(".svg")
+            || path.EndsWith(".ico")
+            || path.StartsWith("/api/health"))
+        {
+            return LogEventLevel.Verbose;
+        }
+
+        return LogEventLevel.Information;
+    };
+});
 app.MapControllers();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
@@ -639,5 +671,14 @@ app.MapGet("/api/health/benchmark", async (
     });
 }).AllowAnonymous();
 
-app.Run();
+    app.Run();
+}
+catch (Exception ex) when (ex is not HostAbortedException)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
 
