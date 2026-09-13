@@ -163,7 +163,10 @@ namespace CompanyEmployees.Persistence
             // Use the plugin ID stored in runtime state (e.g. "sqlserver", "postgresql") rather
             // than sniffing the EF provider name, so the outbox reflects the canonical ID that
             // every other part of the system (failover, catalog, setup wizard) uses.
-            var providerName = runtimeState?.ActiveProviderId ?? Database.ProviderName ?? "unknown";
+            var providerName = runtimeState?.ActiveProviderId
+                ?? (Database.ProviderName is { } name
+                    ? (name.Contains("SqlServer") ? "sqlserver" : name.Contains("PostgreSql") ? "postgresql" : name.Length > 32 ? name[..32] : name)
+                    : "unknown");
             var createdAt = DateTime.UtcNow;
             DatabaseOutbox.AddRange(pending.Select((change, order) => new DatabaseOutboxMessage
             {
