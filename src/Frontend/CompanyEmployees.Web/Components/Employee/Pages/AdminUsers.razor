@@ -2,6 +2,7 @@
 @layout EmployeeLayout
 @using System.Globalization
 @using System.Security.Claims
+@using CompanyEmployees.Application
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Domain.Enums
@@ -9,6 +10,7 @@
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
+@inject ActingContext Acting
 @inject AppLocalizer Text
 @inject NavigationManager Nav
 @inject IJSRuntime JSRuntime
@@ -268,6 +270,10 @@ else
 	private Guid _adminRegionId;
 	private bool _isAdmin;
 	private bool _isReloading;
+	private ActingUser? _acting;
+	private ActingOnBehalf? _onBehalf => _acting is { IsImpersonating: true, DelegationId: not null }
+		? new ActingOnBehalf(_acting.RealUserId, _acting.DelegationId.Value)
+		: null;
 
 	private readonly PaginationState _pagination = new() { ItemsPerPage = 15 };
 
@@ -378,6 +384,7 @@ else
 		var currentAdmin = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
 		_adminId = currentAdmin.Id;
 		_adminRegionId = currentAdmin.RegionId;
+		_acting = await Acting.GetAsync();
 		_regionFilterId = currentAdmin.RegionId;
 	}
 
@@ -475,7 +482,7 @@ else
 
 		if (!result.Cancelled && content.TryBuildResult() is { } res)
 		{
-			await Employees.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes);
+			await Employees.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes, _onBehalf);
 			Toast.ShowSuccess(Text.Format("Contract updated for {0}.", user.Name));
 			await LoadAsync();
 		}
@@ -517,7 +524,7 @@ else
 		await _departmentSaveLock.WaitAsync();
 		try
 		{
-			await Employees.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId);
+			await Employees.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId, _onBehalf);
 			Toast.ShowSuccess(Text.Format("{0} moved.", user.Name));
 		}
 		catch (Exception exception)
@@ -557,7 +564,7 @@ else
 		await _regionSaveLock.WaitAsync();
 		try
 		{
-			await Employees.AssignUserToRegionAsync(_adminId, user.Id, option.Id);
+			await Employees.AssignUserToRegionAsync(_adminId, user.Id, option.Id, _onBehalf);
 			Toast.ShowSuccess(Text.Format("{0} moved from {1} to {2}.", user.Name, sourceRegion, destinationRegion));
 		}
 		catch (Exception exception)

@@ -10,5 +10,9 @@ public enum DelegatedActionType
     // Borrowing an ordinary employee's account grants no approval rights, so requesting that
     // person's own leave is the only mark a delegate can leave there. Audited for the same
     // reason the manager ones are: the request table credits the borrowed account.
-    LeaveRequested = 5
+    LeaveRequested = 5,
+
+    DepartmentChanged = 6,
+    ContractUpdated = 7,
+    RegionChanged = 8
 }
