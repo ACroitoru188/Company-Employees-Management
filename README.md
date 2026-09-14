@@ -2,11 +2,11 @@
 
 An enterprise-grade portal platform designed to streamline employee data management, time-off tracking, organizational hierarchy, and workforce administration.
 
-## 📖 Overview
+## Overview
 
 The Employee Management Portal is a comprehensive internal tool that replaces manual HR tracking with an automated, hierarchical system. It features an interactive organizational chart, dynamic calendar views, real-time notifications, and a robust dual-database high-availability architecture.
 
-## 🚀 Key Features
+## Key Features
 
 *   **Hierarchical Approval Workflow:** Automated routing of requests based on the organizational structure (Employee -> Line Manager -> Country Manager).
 *   **Dynamic Organizational Chart:** Visual representation of the company hierarchy grouped by regions, departments, and managerial lines.
@@ -16,7 +16,7 @@ The Employee Management Portal is a comprehensive internal tool that replaces ma
 *   **High Availability & Dynamic Database Providers:** Active-passive dual database setup (PostgreSQL / SQL Server) with automatic synchronization, health monitoring, and seamless failover.
 *   **Containerized Architecture:** Fully dockerized full-stack deployment with Docker Compose.
 
-## 💻 Tech Stack
+## Tech Stack
 
 ### Frontend
 *   **Framework:** Blazor Web App (.NET 9, Interactive Server)
@@ -31,7 +31,7 @@ The Employee Management Portal is a comprehensive internal tool that replaces ma
 *   **Authentication & Security:** ASP.NET Core Identity & Persistent Data Protection Keyring
 *   **Infrastructure:** Docker & Docker Compose
 
-## 👥 User Roles & Permissions
+## User Roles & Permissions
 
 The application implements a strict role-based access control (RBAC) system:
 
@@ -61,7 +61,7 @@ System administrator responsible for platform maintenance and HR data.
 
 ---
 
-## 🐳 Running the Full Stack with Docker (Recommended)
+## Running the Full Stack with Docker (Recommended)
 
 The entire solution — including the web application and both database engines — is containerized and orchestrated via Docker Compose.
 
@@ -112,7 +112,7 @@ Default accounts for testing the system:
 
 ---
 
-## 💻 Local Development Workflow (Hybrid Mode)
+## Local Development Workflow (Hybrid Mode)
 
 For daily UI or backend feature development with Hot Reload:
 
@@ -130,7 +130,7 @@ The app will run locally at **`http://localhost:5269`** (or `https://localhost:7
 
 ---
 
-## 🔄 Dual-Database High Availability & Failover
+## Dual-Database High Availability & Failover
 
 The platform implements an active-passive dual-database architecture with real-time replication and live failover:
 
@@ -163,7 +163,7 @@ The platform implements an active-passive dual-database architecture with real-t
 
 ---
 
-## 📦 Docker Volumes Breakdown
+## Docker Volumes Breakdown
 
 Docker named volumes ensure all data survives container restarts and image updates:
 
@@ -176,7 +176,7 @@ Docker named volumes ensure all data survives container restarts and image updat
 
 ---
 
-## 🧪 Automated Tests
+## Automated Tests
 
 Run the complete test suite from the repository root:
 
