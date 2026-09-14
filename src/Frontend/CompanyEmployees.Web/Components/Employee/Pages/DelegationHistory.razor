@@ -9,6 +9,7 @@
 @using CompanyEmployees.Domain.Enums
 @using CompanyEmployees.Web.Security
 @inject ManagerContext Manager
+@inject ActingContext Acting
 @inject NavigationManager Nav
 @inject ILogger<DelegationHistory> Logger
 
@@ -94,7 +95,7 @@ else
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
-    private Guid _userId;
+    private ActingUser? _acting;
     private string _activeTabId = "mine";
     private int _page = 1;
     private bool _loading = true;
@@ -127,14 +128,15 @@ else
         if (!await PageGuard.IsAuthenticatedAsync(AuthStateTask, Nav, RendererInfo.IsInteractive))
             return;
 
-        var user = (await AuthStateTask!).User;
-        if (!Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out _userId))
+        _acting = await Acting.GetAsync();
+        if (_acting is null)
         {
             _failed = true;
             _loading = false;
             return;
         }
 
+        var user = (await AuthStateTask!).User;
         _isAdmin = user.FindFirst(ClaimTypes.Role)?.Value == UserRole.Admin.ToString();
         _claimRegionName = user.FindFirst("Region")?.Value ?? "my region";
 
@@ -144,16 +146,23 @@ else
 
     private async Task LoadAsync()
     {
+        if (_acting is null)
+            return;
+
         try
         {
             _page = _pagination.CurrentPageIndex + 1;
+            var targetUserId = Scope == DelegationHistoryScope.DoneByMe
+                ? _acting.RealUserId
+                : _acting.EffectiveUserId;
+
             _result = await Manager.GetDelegationHistoryAsync(
-                _userId, Scope, (_page - 1) * PageSize, PageSize);
+                targetUserId, Scope, (_page - 1) * PageSize, PageSize);
             await _pagination.SetTotalItemCountAsync(_result.Total);
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Could not load delegation history for user {UserId}.", _userId);
+            Logger.LogWarning(ex, "Could not load delegation history for user {UserId}.", _acting.RealUserId);
             _failed = true;
         }
     }
@@ -173,13 +182,21 @@ else
         DelegatedActionType.ContractExtended => "Contract extended",
         DelegatedActionType.ContractTerminated => "Contract terminated",
         DelegatedActionType.LeaveRequested => "Leave requested",
+        DelegatedActionType.DepartmentChanged => "Department changed",
+        DelegatedActionType.ContractUpdated => "Contract updated",
+        DelegatedActionType.RegionChanged => "Region changed",
         _ => type.ToString()
     };
 
     private static Appearance ActionAppearance(DelegatedActionType type) => type switch
     {
         DelegatedActionType.LeaveApproved => Appearance.Accent,
+        DelegatedActionType.LeaveRejected => Appearance.Neutral,
+        DelegatedActionType.ContractExtended => Appearance.Accent,
         DelegatedActionType.ContractTerminated => Appearance.Neutral,
+        DelegatedActionType.DepartmentChanged => Appearance.Accent,
+        DelegatedActionType.ContractUpdated => Appearance.Accent,
+        DelegatedActionType.RegionChanged => Appearance.Accent,
         _ => Appearance.Lightweight
     };
 }

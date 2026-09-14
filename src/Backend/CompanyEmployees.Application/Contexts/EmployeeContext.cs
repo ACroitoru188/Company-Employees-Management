@@ -60,6 +60,18 @@ namespace CompanyEmployees.Application.Contexts
                 onBehalf.RealUserId, onBehalf.DelegationId, actingAsUserId);
         }
 
+        private static string ActorLabel(User actingAs, ManagerDelegation? delegation)
+        {
+            var who = actingAs.Role switch
+            {
+                UserRole.LineManager => $"Line Manager {actingAs.Name}",
+                UserRole.Admin => $"Administrator {actingAs.Name}",
+                _ => actingAs.Name
+            };
+
+            return delegation is null ? who : $"{who} (delegate: {delegation.Delegate.Name})";
+        }
+
         private Task RecordDelegatedActionAsync(
             ManagerDelegation? delegation, Guid actingAsUserId, Guid targetUserId,
             DelegatedActionType actionType, Guid targetEntityId, string? details)
@@ -834,8 +846,10 @@ namespace CompanyEmployees.Application.Contexts
             return result;
         }
 
-        public async Task<LeaveRequest> HrDecideRequestAsync(Guid approverId, Guid requestId, bool approve)
+        public async Task<LeaveRequest> HrDecideRequestAsync(
+            Guid approverId, Guid requestId, bool approve, ActingOnBehalf? onBehalf = null)
         {
+            var delegation = await GuardAsync(approverId, onBehalf);
             var approver = await _userGateway.GetUserByIdAsync(approverId);
             if (approver == null)
                 throw new EntityNotFoundException($"No user with id {approverId}.");
@@ -876,20 +890,26 @@ namespace CompanyEmployees.Application.Contexts
 
             await _leaveRequestGateway.SaveDecisionAsync(request, approval);
 
+            var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
+                         + " – " +
+                         request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+
+            await RecordDelegatedActionAsync(
+                delegation, approverId, request.UserId,
+                approve ? DelegatedActionType.LeaveApproved : DelegatedActionType.LeaveRejected,
+                request.Id, $"{request.Type} leave, {period}");
+
             try
             {
-                var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
-                             + " – " +
-                             request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
-                
+                var actor = ActorLabel(approver, delegation);
                 string notificationMessage;
                 if (isFinal)
                 {
-                    notificationMessage = $"Your {request.Type} leave request for {period} was {(request.Status == LeaveStatus.Approved ? "approved" : "declined")}.";
+                    notificationMessage = $"Your {request.Type} leave request for {period} was {(request.Status == LeaveStatus.Approved ? "approved" : "declined")} by {actor}.";
                 }
                 else
                 {
-                    notificationMessage = $"Your {request.Type} leave request for {period} was approved by HR and is now awaiting Manager approval.";
+                    notificationMessage = $"Your {request.Type} leave request for {period} was approved by {actor} and is now awaiting Manager approval.";
                 }
 
                 await _notifications.SendNotificationAsync(
@@ -902,7 +922,7 @@ namespace CompanyEmployees.Application.Contexts
                 _logger.LogWarning(ex, "Decision on {RequestId} saved but the notification failed.", requestId);
             }
 
-            _logger.LogInformation("HR {ApproverId} {Decision} leave request {RequestId}{Final}.",
+            _logger.LogInformation("HR/Delegate {ApproverId} {Decision} leave request {RequestId}{Final}.",
                 approverId, approve ? "approved" : "rejected", requestId, isFinal ? "" : " (still awaiting manager)");
 
             return request;
@@ -1001,20 +1021,30 @@ namespace CompanyEmployees.Application.Contexts
                 throw new UnauthorizedException("Only administrators can manage departments.");
         }
 
-        public async Task AssignUserToDepartmentAsync(Guid adminId, Guid userId, Guid? departmentId)
+        public async Task AssignUserToDepartmentAsync(
+            Guid adminId, Guid userId, Guid? departmentId, ActingOnBehalf? onBehalf = null)
         {
+            var delegation = await GuardAsync(adminId, onBehalf);
             var user = await EnsureRegionalAdminCanManageAsync(adminId, userId);
 
+            var oldDeptName = user.Department?.Name ?? "None";
             user.DepartmentId = departmentId;
             user.Department = departmentId.HasValue ? await _departmentGateway.GetByIdAsync(departmentId.Value) : null;
+            var newDeptName = user.Department?.Name ?? "None";
             await _userGateway.UpdateUserAsync(user);
 
+            await RecordDelegatedActionAsync(
+                delegation, adminId, userId, DelegatedActionType.DepartmentChanged,
+                departmentId ?? Guid.Empty, $"Department: {oldDeptName} → {newDeptName}");
+
             _logger.LogInformation("Admin {AdminId} assigned user {UserId} to department {DepartmentName} ({DepartmentId}).",
-                adminId, userId, user.Department?.Name ?? "None", departmentId);
+                adminId, userId, newDeptName, departmentId);
         }
 
-        public async Task AssignUserToRegionAsync(Guid adminId, Guid userId, Guid regionId)
+        public async Task AssignUserToRegionAsync(
+            Guid adminId, Guid userId, Guid regionId, ActingOnBehalf? onBehalf = null)
         {
+            var delegation = await GuardAsync(adminId, onBehalf);
             var region = await _regionGateway.GetByIdAsync(regionId);
             if (region == null || !region.IsActive)
                 throw new InvalidOperationException("Select a valid active region.");
@@ -1025,6 +1055,7 @@ namespace CompanyEmployees.Application.Contexts
             if (user.RegionId == regionId)
                 return;
 
+            var oldRegionName = user.Region?.Name ?? "Unknown";
             user.RegionId = regionId;
             user.Region = region;
 
@@ -1051,6 +1082,10 @@ namespace CompanyEmployees.Application.Contexts
                 report.UpdatedAt = DateTime.UtcNow;
                 await _userGateway.UpdateUserAsync(report);
             }
+
+            await RecordDelegatedActionAsync(
+                delegation, adminId, userId, DelegatedActionType.RegionChanged,
+                regionId, $"Region: {oldRegionName} → {region.Name}");
 
             _logger.LogInformation("Admin {AdminId} transferred user {UserId} to region {RegionName} ({RegionId}).",
                 adminId, userId, region.Name, regionId);
@@ -1544,13 +1579,21 @@ namespace CompanyEmployees.Application.Contexts
             ContractStatus status,
             DateOnly startDate,
             DateOnly? endDate,
-            string? notes)
+            string? notes,
+            ActingOnBehalf? onBehalf = null)
         {
+            var delegation = await GuardAsync(adminId, onBehalf);
             await EnsureRegionalAdminCanManageAsync(adminId, userId);
 
             var active = await _contractGateway.GetActiveContractByUserIdAsync(userId);
+            bool isExtension = false;
+            string details;
+            Guid contractId;
+
             if (active != null)
             {
+                var prevEnd = active.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "Indefinite";
+                isExtension = type == ContractType.Determinate && endDate.HasValue && active.EndDate.HasValue && endDate.Value > active.EndDate.Value;
                 active.Type = type;
                 active.Status = status;
                 active.StartDate = startDate;
@@ -1558,6 +1601,10 @@ namespace CompanyEmployees.Application.Contexts
                 active.Notes = notes;
                 active.UpdatedAt = DateTime.UtcNow;
                 await _contractGateway.UpdateAsync(active);
+                contractId = active.Id;
+                details = isExtension
+                    ? $"End date {prevEnd} → {endDate:yyyy-MM-dd}"
+                    : $"Type: {type}, Status: {status}, Period: {startDate:yyyy-MM-dd} – {(active.EndDate.HasValue ? active.EndDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "Indefinite")}";
             }
             else
             {
@@ -1574,7 +1621,14 @@ namespace CompanyEmployees.Application.Contexts
                     UpdatedAt = DateTime.UtcNow
                 };
                 await _contractGateway.CreateAsync(newContract);
+                contractId = newContract.Id;
+                details = $"Created contract ({type}, {status}), Period: {startDate:yyyy-MM-dd} – {(newContract.EndDate.HasValue ? newContract.EndDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "Indefinite")}";
             }
+
+            await RecordDelegatedActionAsync(
+                delegation, adminId, userId,
+                isExtension ? DelegatedActionType.ContractExtended : DelegatedActionType.ContractUpdated,
+                contractId, details);
         }
 
         private async Task<User> EnsureRegionalAdminCanManageAsync(Guid adminId, Guid userId)

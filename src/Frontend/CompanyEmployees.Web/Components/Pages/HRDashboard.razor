@@ -7,6 +7,7 @@
 @using CompanyEmployees.Web.Security
 @using DomainInvalidOperationException = CompanyEmployees.Domain.Exceptions.InvalidOperationException
 @inject EmployeeContext Employees
+@inject ActingContext Acting
 @inject NavigationManager Nav
 @inject IDialogService DialogService
 
@@ -236,10 +237,14 @@ else
 	private string _name = "";
 	private HrDashboardResult? _data;
 	private string SearchTerm { get; set; } = "";
+	private ActingUser? _acting;
+	private ActingOnBehalf? _onBehalf => _acting is { IsImpersonating: true, DelegationId: not null }
+		? new ActingOnBehalf(_acting.RealUserId, _acting.DelegationId.Value)
+		: null;
 
 	private async Task DecideAsync(HrPendingRequest request, bool approved)
 	{
-		await Employees.HrDecideRequestAsync(_myId, request.RequestId, approved);
+		await Employees.HrDecideRequestAsync(_myId, request.RequestId, approved, _onBehalf);
 		_data = await Employees.GetHrDashboardAsync(_myId);
 	}
 
@@ -317,6 +322,7 @@ else
 		_name = user.FindFirst("FullName")?.Value ?? "";
 		var me = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
 		_myId = me.Id;
+		_acting = await Acting.GetAsync();
 		_data = await Employees.GetHrDashboardAsync(_myId);
 	}
 
