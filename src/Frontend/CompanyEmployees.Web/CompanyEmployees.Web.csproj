@@ -19,13 +19,13 @@
     <Folder Include="Assets\" />
     <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.14.4" />
     <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.14.4" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- AppLocalizer reads these from ContentRootPath at startup, so they must travel with the app. -->
-    <Content Update="Languages\*.json"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="Languages\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\..\.dockerignore">
       <Link>.dockerignore</Link>
     </Content>
@@ -45,33 +45,23 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Update="Languages\*.json"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="Languages\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 
   <!-- Publish provider plugins to isolated subdirectories on build -->
   <Target Name="PublishSqlServerProvider" AfterTargets="Build">
-    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.SqlServer/CompanyEmployees.Persistence.Providers.SqlServer.csproj"
-             Targets="Publish"
-             Properties="PublishDir=$(MSBuildProjectDirectory)/$(OutputPath)Providers/SqlServer/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.SqlServer/CompanyEmployees.Persistence.Providers.SqlServer.csproj" Targets="Publish" Properties="PublishDir=$(MSBuildProjectDirectory)/$(OutputPath)Providers/SqlServer/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
   </Target>
 
   <Target Name="PublishPostgreSqlProvider" AfterTargets="Build">
-    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.PostgreSql/CompanyEmployees.Persistence.Providers.PostgreSql.csproj"
-             Targets="Publish"
-             Properties="PublishDir=$(MSBuildProjectDirectory)/$(OutputPath)Providers/PostgreSql/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.PostgreSql/CompanyEmployees.Persistence.Providers.PostgreSql.csproj" Targets="Publish" Properties="PublishDir=$(MSBuildProjectDirectory)/$(OutputPath)Providers/PostgreSql/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
   </Target>
 
   <!-- Publish provider plugins when publishing the web application (e.g. inside Docker) -->
   <Target Name="PublishProvidersToPublishDir" AfterTargets="Publish">
-    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.SqlServer/CompanyEmployees.Persistence.Providers.SqlServer.csproj"
-             Targets="Publish"
-             Properties="PublishDir=$(PublishDir)Providers/SqlServer/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
-    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.PostgreSql/CompanyEmployees.Persistence.Providers.PostgreSql.csproj"
-             Targets="Publish"
-             Properties="PublishDir=$(PublishDir)Providers/PostgreSql/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.SqlServer/CompanyEmployees.Persistence.Providers.SqlServer.csproj" Targets="Publish" Properties="PublishDir=$(PublishDir)Providers/SqlServer/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
+    <MSBuild Projects="../../Backend/CompanyEmployees.Persistence.Providers.PostgreSql/CompanyEmployees.Persistence.Providers.PostgreSql.csproj" Targets="Publish" Properties="PublishDir=$(PublishDir)Providers/PostgreSql/;Configuration=$(Configuration);SelfContained=false;RuntimeIdentifier=" />
   </Target>
 
 </Project>

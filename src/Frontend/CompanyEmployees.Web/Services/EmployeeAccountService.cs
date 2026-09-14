@@ -8,6 +8,7 @@ using CompanyEmployees.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CompanyEmployees.Web.Services;
 
@@ -17,15 +18,18 @@ public sealed class EmployeeAccountService
     private readonly UserManager<User> _userManager;
     private readonly CompanyEmployeesDbContext _db;
     private readonly IAccountEmailSender _emailSender;
+    private readonly ILogger<EmployeeAccountService> _logger;
 
     public EmployeeAccountService(
         UserManager<User> userManager,
         CompanyEmployeesDbContext db,
-        IAccountEmailSender emailSender)
+        IAccountEmailSender emailSender,
+        ILogger<EmployeeAccountService> logger)
     {
         _userManager = userManager;
         _db = db;
         _emailSender = emailSender;
+        _logger = logger;
     }
 
     public async Task<EmployeeAccountResult> CreateAsync(
@@ -111,6 +115,9 @@ public sealed class EmployeeAccountService
                 email,
                 setupLink);
 
+            _logger.LogInformation("Admin {AdminId} created user {UserId} ({Email}) with role {Role} in department {DepartmentName} ({DepartmentId}), region {RegionName} ({RegionId}).",
+                adminId, employeeId, email, role, department.Name, department.Id, region.Name, region.Id);
+
             return new EmployeeAccountResult(
                 employeeId,
                 normalizedName,
@@ -155,6 +162,9 @@ public sealed class EmployeeAccountService
         user.EmailConfirmed = true;
         user.UpdatedAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
+
+        _logger.LogInformation("User {UserId} ({Email}) set initial password and activated account.", user.Id, email);
+
         return result;
     }
 

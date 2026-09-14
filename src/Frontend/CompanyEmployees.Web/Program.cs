@@ -21,22 +21,41 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.FluentUI.AspNetCore.Components;
 using System.Security.Claims;
+using Serilog;
+using Serilog.Events;
 
-var builder = WebApplication.CreateBuilder(args);
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
 
-// provider discovery via ProviderLoader
-// Bootstrap a minimal logger so ProviderLoader can report issues during startup
-// (before the full DI container is built).
-using var bootstrapFactory = LoggerFactory.Create(b =>
-    b.AddConfiguration(builder.Configuration.GetSection("Logging")).AddConsole());
-var bootstrapLogger = bootstrapFactory.CreateLogger("Startup");
+try
+{
+    var startupSw = System.Diagnostics.Stopwatch.StartNew();
+    var builder = WebApplication.CreateBuilder(args);
 
-var plugins = ProviderLoader.Load(builder.Environment.ContentRootPath, bootstrapLogger);
-var catalog = new DatabaseProviderCatalog(plugins, builder.Configuration);
+    long failoverSelectMs = 0;
+    long migrationsMs = 0;
+    long seedingMs = 0;
+    long standbyBootstrapMs = 0;
+
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext());
+
+    // provider discovery via ProviderLoader
+    // Bootstrap a minimal logger so ProviderLoader can report issues during startup
+    // (before the full DI container is built).
+    using var bootstrapFactory = LoggerFactory.Create(b => b.AddSerilog(Log.Logger));
+    var bootstrapLogger = bootstrapFactory.CreateLogger("Startup");
+
+    var plugins = ProviderLoader.Load(builder.Environment.ContentRootPath, bootstrapLogger);
+    var catalog = new DatabaseProviderCatalog(plugins, builder.Configuration);
 
 // Load setup state from App_Data/setup-state.json
 var setupStore = new JsonSetupStateStore(builder.Environment);
 var setupState = setupStore.Load();
+var benchmarkStore = new ProviderBenchmarkStore(builder.Environment);
 
 IDbProviderPlugin? primaryPlugin = null;
 IDbProviderPlugin? secondaryPlugin = null;
@@ -61,23 +80,17 @@ if (setupState.IsComplete)
         ? null
         : catalog.FindById(secondaryProviderId);
 
+    var swFailover = System.Diagnostics.Stopwatch.StartNew();
     databaseState = await DatabaseFailoverSelector.SelectAsync(
         primaryPlugin: primaryPlugin,
         primaryConnectionString: primaryConnectionString,
         secondaryPlugin: secondaryPlugin,
         secondaryConnectionString: secondaryConnectionString,
         configuration: builder.Configuration);
+    failoverSelectMs = swFailover.ElapsedMilliseconds;
 }
 
-if (builder.Environment.IsDevelopment())
-{
-    // The Windows Event Log provider can require elevated access and must never make a local
-    // authentication request fail merely because a warning could not be written there.
-    builder.Logging.ClearProviders();
-    builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
-    builder.Logging.AddConsole();
-    builder.Logging.AddDebug();
-}
+
 
 // Persist Data Protection keys to a configurable directory so they survive restarts
 // in both development and containerised production deployments.
@@ -118,6 +131,7 @@ builder.Services.AddScoped<CircuitCulture>();
 
 builder.Services.AddSingleton(catalog);
 builder.Services.AddSingleton<ISetupStateStore>(setupStore);
+builder.Services.AddSingleton(benchmarkStore);
 builder.Services.AddSingleton<AppLocalizer>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 builder.Services.AddSingleton<IAccountEmailSender, SmtpAccountEmailSender>();
@@ -233,20 +247,28 @@ if (setupState.IsComplete)
 {
     if (databaseState!.IsFailoverActive)
     {
+        var swStandby = System.Diagnostics.Stopwatch.StartNew();
         using var scope = app.Services.CreateScope();
         await StandbyBootstrapper.EnsureReadyAsync(
             secondaryPlugin!,
             secondaryConnectionString!,
             builder.Configuration);
+        standbyBootstrapMs = swStandby.ElapsedMilliseconds;
     }
     else if (app.Environment.IsDevelopment())
     {
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CompanyEmployeesDbContext>();
         var activePlugin = catalog.FindById(databaseState!.ActiveProviderId) ?? primaryPlugin!;
+
+        var swMig = System.Diagnostics.Stopwatch.StartNew();
         await activePlugin.ApplyMigrationsAsync(db);
         await DatabaseOutboxSchemaInitializer.EnsureCreatedAsync(db, activePlugin);
+        migrationsMs = swMig.ElapsedMilliseconds;
+
+        var swSeed = System.Diagnostics.Stopwatch.StartNew();
         await DatabaseSeeder.SeedAsync(db);
+        seedingMs = swSeed.ElapsedMilliseconds;
     }
 
     // Production migrations can be applied out of process, but the cross-provider outbox is
@@ -273,6 +295,34 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 app.MapStaticAssets();
+app.UseSerilogRequestLogging(options =>
+{
+    options.GetLevel = (httpContext, _, ex) =>
+    {
+        if (ex != null || httpContext.Response.StatusCode >= 500)
+            return LogEventLevel.Error;
+
+        var path = httpContext.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/_content")
+            || path.StartsWith("/_framework")
+            || path.StartsWith("/_blazor/negotiate")
+            || path.StartsWith("/js")
+            || path.StartsWith("/css")
+            || path.StartsWith("/media")
+            || path.EndsWith(".js")
+            || path.EndsWith(".css")
+            || path.EndsWith(".mp4")
+            || path.EndsWith(".png")
+            || path.EndsWith(".svg")
+            || path.EndsWith(".ico")
+            || path.StartsWith("/api/health"))
+        {
+            return LogEventLevel.Verbose;
+        }
+
+        return LogEventLevel.Information;
+    };
+});
 app.MapControllers();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
@@ -490,7 +540,157 @@ if (setupState.IsComplete)
     }).RequireAuthorization();
 }
 
-app.MapGet("/api/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
+var totalStartupMs = startupSw.ElapsedMilliseconds;
 
-app.Run();
+var activePluginForBenchmark = catalog.FindById(databaseState?.ActiveProviderId ?? primaryPlugin?.Id ?? "") ?? primaryPlugin;
+if (activePluginForBenchmark != null && setupState.IsComplete)
+{
+    await benchmarkStore.RecordStartupAsync(
+        providerId: activePluginForBenchmark.Id,
+        displayName: activePluginForBenchmark.DisplayName,
+        totalStartupMs: totalStartupMs,
+        failoverSelectMs: failoverSelectMs,
+        migrationsMs: migrationsMs,
+        seedingMs: seedingMs,
+        standbyBootstrapMs: standbyBootstrapMs);
+}
+
+app.Logger.LogInformation(
+    "[Startup Timings] Total: {TotalMs}ms | Active Provider: {Active} | Secondary: {Secondary} | FailoverCheck: {FailoverMs}ms | Migrations: {MigMs}ms | Seeding: {SeedMs}ms",
+    totalStartupMs,
+    databaseState?.ActiveProviderId ?? "None",
+    databaseState?.SecondaryProviderId ?? "None",
+    failoverSelectMs,
+    migrationsMs,
+    seedingMs);
+
+app.MapGet("/api/health", (ProviderBenchmarkStore store) =>
+{
+    var comparisonReport = store.GetReport();
+    return Results.Ok(new
+    {
+        status = "healthy",
+        activeProvider = databaseState?.ActiveProviderId ?? "None",
+        secondaryProvider = databaseState?.SecondaryProviderId,
+        isFailoverActive = databaseState?.IsFailoverActive ?? false,
+        startupMetrics = new
+        {
+            totalStartupMs,
+            failoverSelectMs,
+            migrationsMs,
+            seedingMs,
+            standbyBootstrapMs
+        },
+        providerComparison = comparisonReport
+    });
+}).AllowAnonymous();
+
+app.MapGet("/api/health/benchmark", async (
+    DatabaseProviderCatalog cat,
+    CancellationToken ct) =>
+{
+    var candidates = new List<(string Id, string DisplayName, IDbProviderPlugin Plugin, string ConnectionString)>();
+
+    if (primaryPlugin != null && !string.IsNullOrEmpty(primaryConnectionString))
+        candidates.Add((primaryPlugin.Id, primaryPlugin.DisplayName, primaryPlugin, primaryConnectionString));
+
+    if (secondaryPlugin != null && !string.IsNullOrEmpty(secondaryConnectionString))
+        candidates.Add((secondaryPlugin.Id, secondaryPlugin.DisplayName, secondaryPlugin, secondaryConnectionString));
+
+    // Also include any other available plugins with a connection string configured
+    foreach (var p in cat.GetAvailable())
+    {
+        if (candidates.Any(c => c.Id.Equals(p.Id, StringComparison.OrdinalIgnoreCase)))
+            continue;
+
+        var cs = builder.Configuration.GetConnectionString(p.Id)
+            ?? (p.Id.Equals("sqlserver", StringComparison.OrdinalIgnoreCase) ? builder.Configuration.GetConnectionString("Default") : null);
+
+        if (!string.IsNullOrEmpty(cs))
+            candidates.Add((p.Id, p.DisplayName, p, cs));
+    }
+
+    var providerResults = new Dictionary<string, object>();
+    var latencies = new Dictionary<string, (long PingMs, long QueryMs)>();
+
+    foreach (var (id, displayName, plugin, cs) in candidates)
+    {
+        try
+        {
+            var swPing = System.Diagnostics.Stopwatch.StartNew();
+            using var pingCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await plugin.TestConnectionAsync(cs, pingCts.Token);
+            var pingMs = swPing.ElapsedMilliseconds;
+
+            var swQuery = System.Diagnostics.Stopwatch.StartNew();
+            var optionsBuilder = new DbContextOptionsBuilder<CompanyEmployeesDbContext>();
+            plugin.ConfigureDbContext(optionsBuilder, cs);
+            await using var db = new CompanyEmployeesDbContext(optionsBuilder.Options);
+
+            int? userCount = null;
+            try
+            {
+                using var queryCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                userCount = await db.Users.CountAsync(queryCts.Token);
+            }
+            catch
+            {
+                // In case schema is not yet created on this database
+            }
+            var queryMs = swQuery.ElapsedMilliseconds;
+
+            latencies[id] = (pingMs, queryMs);
+            providerResults[id] = new
+            {
+                displayName,
+                available = true,
+                connectionPingMs = pingMs,
+                queryLatencyMs = queryMs,
+                totalRoundTripMs = pingMs + queryMs,
+                userCount
+            };
+        }
+        catch (Exception ex)
+        {
+            providerResults[id] = new
+            {
+                displayName,
+                available = false,
+                error = ex.Message
+            };
+        }
+    }
+
+    var liveAnalysis = new Dictionary<string, object>();
+    var successful = latencies.Where(kv => providerResults.TryGetValue(kv.Key, out var r) && (bool)r.GetType().GetProperty("available")!.GetValue(r)!).ToList();
+    if (successful.Count >= 2)
+    {
+        var fastestConn = successful.OrderBy(s => s.Value.PingMs).First();
+        var slowestConn = successful.OrderBy(s => s.Value.PingMs).Last();
+        var fastestQuery = successful.OrderBy(s => s.Value.QueryMs).First();
+        var slowestQuery = successful.OrderBy(s => s.Value.QueryMs).Last();
+
+        liveAnalysis["fastestConnection"] = $"{fastestConn.Key} ({fastestConn.Value.PingMs}ms vs {slowestConn.Key} {slowestConn.Value.PingMs}ms)";
+        liveAnalysis["fastestQuery"] = $"{fastestQuery.Key} ({fastestQuery.Value.QueryMs}ms vs {slowestQuery.Key} {slowestQuery.Value.QueryMs}ms)";
+    }
+
+    return Results.Ok(new
+    {
+        status = "success",
+        testedUtc = DateTime.UtcNow,
+        providers = providerResults,
+        liveComparison = liveAnalysis
+    });
+}).AllowAnonymous();
+
+    app.Run();
+}
+catch (Exception ex) when (ex is not HostAbortedException)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
 
