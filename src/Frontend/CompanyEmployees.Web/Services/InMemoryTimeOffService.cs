@@ -175,7 +175,7 @@ public class InMemoryTimeOffService : ITimeOffService
         Task.FromResult<IReadOnlyList<RegionalHoliday>>([]);
 
     public Task<TimeOffRequest> SubmitRequestAsync(
-        LeaveType type, DateOnly start, DateOnly end, string? reason, bool allowPastDates = false)
+        LeaveType type, DateOnly start, DateOnly end, string? reason, IEnumerable<CompanyEmployees.Application.DTOs.FileUploadDto>? documents = null, bool allowPastDates = false)
     {
         var request = new TimeOffRequest
         {
@@ -232,3 +232,4 @@ public class InMemoryTimeOffService : ITimeOffService
     private static DateOnly Max(DateOnly a, DateOnly b) => a > b ? a : b;
     private static DateOnly Min(DateOnly a, DateOnly b) => a < b ? a : b;
 }
+

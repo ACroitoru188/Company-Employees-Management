@@ -311,11 +311,11 @@ namespace CompanyEmployees.Application.Contexts
 
 
         // The whole company, lazily. Everyone may see everyone (2026-08-17), which is several
-        // hundred accounts — so exactly two things are open when the chart loads: the chain of
+        // hundred accounts â€” so exactly two things are open when the chart loads: the chain of
         // managers above the viewer, and the viewer's own reports. Every other branch arrives
         // through GetOrgChartChildrenAsync when somebody expands it.
         //
-        // This replaced a builder that assembled the tree around the *viewer* — a non-admin got
+        // This replaced a builder that assembled the tree around the *viewer* â€” a non-admin got
         // their own team branch and nothing else, an admin got one level of synthetic
         // department-group nodes that could never be expanded because the loader was never
         // wired up. Neither could show the company.
@@ -389,7 +389,7 @@ namespace CompanyEmployees.Application.Contexts
             }
 
             // Every region has its own top, so there is no single chief executive to root the
-            // chart on — hence the heading. Its empty id is what the page's action checks use to
+            // chart on â€” hence the heading. Its empty id is what the page's action checks use to
             // recognise a node nobody can act on.
             var root = new OrgChartNode
             {
@@ -582,7 +582,7 @@ namespace CompanyEmployees.Application.Contexts
 
         // One search behind the whole app: the header box, and the /search page it opens.
         //
-        // regionId and departmentId are the scope pills, not text the user typed — picking a
+        // regionId and departmentId are the scope pills, not text the user typed â€” picking a
         // region or a department out of the results narrows everything that follows, which is
         // how "Romania, then Design, then the person" is answered without anyone learning a
         // query syntax. An empty query with a pill set is a legitimate search: it means
@@ -606,7 +606,7 @@ namespace CompanyEmployees.Application.Contexts
 
             // The company directory is deliberately worldwide (2026-08-17): everyone may look
             // up anyone, in any region, exactly as they can in the org chart. What stays
-            // region-scoped is *doing* things — decisions, contracts, team rosters, dashboards
+            // region-scoped is *doing* things â€” decisions, contracts, team rosters, dashboards
             // and every CSV export. Widening this without keeping those scoped is the mistake
             // to avoid; see "Who can see whom" in CLAUDE.md.
             var visible = (await _userGateway.GetAllUsersAsync())
@@ -628,7 +628,7 @@ namespace CompanyEmployees.Application.Contexts
 
             // Grouped by the foreign key, never by the navigation instance. GetAllUsersAsync
             // reads AsNoTracking without identity resolution, so every user carries its *own*
-            // Department and Region objects — grouping by those groups by reference and yields
+            // Department and Region objects â€” grouping by those groups by reference and yields
             // one "department" per employee, each with a member count of 1.
             // The manager's name comes from the department gateway, not from the users: the user
             // query includes Department but not Department.Manager, so reading it off a user's
@@ -663,7 +663,7 @@ namespace CompanyEmployees.Application.Contexts
                 .ToList();
 
             // Counted before the cap and before the type filter: the chips are how the user
-            // switches type, so each has to report what is waiting behind it — including the
+            // switches type, so each has to report what is waiting behind it â€” including the
             // people chip in the opening state, which is what makes it worth pressing.
             var result = new GlobalSearchResult
             {
@@ -674,7 +674,7 @@ namespace CompanyEmployees.Application.Contexts
 
             // Nothing typed and nothing pinned is the dropdown's opening state: the places to
             // drill into are more use there than the first few names in the company in
-            // alphabetical order. Asking for People explicitly overrides that — then listing
+            // alphabetical order. Asking for People explicitly overrides that â€” then listing
             // everyone is exactly what was asked for.
             var browsing = !hasQuery
                            && regionId is null
@@ -811,7 +811,7 @@ namespace CompanyEmployees.Application.Contexts
                 {
                     RequestId = request.Id,
                     Name = request.User.Name,
-                    Department = request.User.Department == null ? "—" : request.User.Department.Name,
+                    Department = request.User.Department == null ? "â€”" : request.User.Department.Name,
                     Type = request.Type.ToString(),
                     StartDate = request.StartDate,
                     EndDate = request.EndDate,
@@ -819,7 +819,8 @@ namespace CompanyEmployees.Application.Contexts
                     WaitingDays = waiting,
                     Role = request.User.Role.ToString(),
                     Reason = request.Reason,
-                    SubmittedAt = request.CreatedAt
+                    SubmittedAt = request.CreatedAt,
+                    Documents = request.Documents.Select(d => new PendingRequestDocumentDto(d.Id, d.OriginalFileName)).ToList()
                 });
             }
 
@@ -850,7 +851,7 @@ namespace CompanyEmployees.Application.Contexts
 
             var requirement = LeaveApprovalPolicy.DetermineRequirement(request.User);
             // The HR dashboard's list already excludes these, but the UI can't be trusted
-            // to enforce it — e.g. HR staff's own requests route to their manager only.
+            // to enforce it â€” e.g. HR staff's own requests route to their manager only.
             if (!requirement.NeedsHrApproval)
                 throw new UnauthorizedException("This request does not require HR approval.");
             if (request.Approvals.Any(a => a.Step == LeaveApproval.HrApprovalStep))
@@ -867,7 +868,7 @@ namespace CompanyEmployees.Application.Contexts
             };
             request.Approvals.Add(approval);
 
-            // A reject is final immediately — no reason to make the manager review a
+            // A reject is final immediately â€” no reason to make the manager review a
             // doomed request. An approve only finalizes once every required approver
             // (the manager, if this request needs one) has also approved.
             var isFinal = !approve || LeaveApprovalPolicy.IsFullyApproved(request, requirement);
@@ -879,7 +880,7 @@ namespace CompanyEmployees.Application.Contexts
             try
             {
                 var period = request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)
-                             + " – " +
+                             + " â€“ " +
                              request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
                 
                 string notificationMessage;
@@ -1043,6 +1044,7 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task<LeaveRequest> SubmitRequestAsync(
             Guid userId, LeaveType type, DateOnly start, DateOnly end, string? reason,
+            IEnumerable<CompanyEmployees.Application.DTOs.FileUploadDto>? documents = null,
             ActingOnBehalf? onBehalf = null, bool allowPastDates = false)
         {
             var delegation = await GuardAsync(userId, onBehalf);
@@ -1077,12 +1079,12 @@ namespace CompanyEmployees.Application.Contexts
                 throw new InvalidOperationException("Not enough days left for this leave type.");
 
             // Admins sit outside the approval workflow entirely (no approve/reject UI
-            // exists for them as either requester's manager or reviewer) — auto-approved.
+            // exists for them as either requester's manager or reviewer) â€” auto-approved.
             var requirement = LeaveApprovalPolicy.DetermineRequirement(requester);
 
             // Nobody reviews an admin's leave, so the only thing standing between them and
             // an unattended account is this: someone has to be covering before the request
-            // is created. Overlap is enough — the cover may be shorter than the leave.
+            // is created. Overlap is enough â€” the cover may be shorter than the leave.
             if (requester.Role == UserRole.Admin
                 && !await _delegationGateway.HasActiveDelegationInPeriodAsync(userId, start, end))
             {
@@ -1100,6 +1102,27 @@ namespace CompanyEmployees.Application.Contexts
                 Status = requirement.AutoApproved ? LeaveStatus.Approved : LeaveStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };
+
+            if (documents != null && documents.Any())
+            {
+                var docFolder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data", "LeaveDocuments");
+                System.IO.Directory.CreateDirectory(docFolder);
+
+                foreach (var doc in documents)
+                {
+                    var hashedName = Guid.NewGuid().ToString("N") + System.IO.Path.GetExtension(doc.FileName);
+                    var filePath = System.IO.Path.Combine(docFolder, hashedName);
+                    
+                    await System.IO.File.WriteAllBytesAsync(filePath, doc.Data);
+
+                    request.Documents.Add(new CompanyEmployees.Domain.Entities.LeaveRequestDocument
+                    {
+                        OriginalFileName = doc.FileName,
+                        HashedFileName = hashedName,
+                        ContentType = doc.ContentType
+                    });
+                }
+            }
             await _leaveRequestGateway.CreateRequestAsync(request);
 
             await RecordDelegatedActionAsync(
@@ -1108,7 +1131,7 @@ namespace CompanyEmployees.Application.Contexts
 
             await TryWarnManagerAboutLowAvailabilityAsync(requester, request);
 
-            _logger.LogInformation("User {UserId} submitted a {Type} leave request {Start}–{End}{AutoApproved}.",
+            _logger.LogInformation("User {UserId} submitted a {Type} leave request {Start}â€“{End}{AutoApproved}.",
                 userId, type, start, end, requirement.AutoApproved ? " (auto-approved)" : "");
             return request;
         }
@@ -1243,11 +1266,11 @@ namespace CompanyEmployees.Application.Contexts
             await _leaveRequestGateway.UpdateRequestDatesAsync(request);
             await TryWarnManagerAboutLowAvailabilityAsync(requester, request);
 
-            _logger.LogInformation("Leave request {RequestId} dates updated to {Start}–{End}.",
+            _logger.LogInformation("Leave request {RequestId} dates updated to {Start}â€“{End}.",
                 requestId, newStart, newEnd);
         }
 
-        // Lets the requester withdraw their own request while it is still Pending — i.e.
+        // Lets the requester withdraw their own request while it is still Pending â€” i.e.
         // before anyone (manager or HR) has acted on it. Once a request is Approved or
         // Rejected it is no longer eligible: the decision has already been made.
         public async Task CancelRequestAsync(Guid userId, Guid requestId, string? reason)
@@ -1268,11 +1291,11 @@ namespace CompanyEmployees.Application.Contexts
             _logger.LogInformation("Leave request {RequestId} cancelled by its owner.", requestId);
         }
 
-        // "Mar 3 – Mar 14, 2026". Invariant on purpose: audit rows are read by whoever opens
+        // "Mar 3 â€“ Mar 14, 2026". Invariant on purpose: audit rows are read by whoever opens
         // the history, in whatever language, and must not shift meaning with the server locale.
         private static string Period(DateOnly start, DateOnly end) =>
             start.ToString("MMM d", CultureInfo.InvariantCulture)
-            + " – "
+            + " â€“ "
             + end.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
 
         private async Task EnsureWorkingDayAsync(User user, DateOnly day)
@@ -1315,8 +1338,8 @@ namespace CompanyEmployees.Application.Contexts
 
 
         // The org chart the global search lands on. GetCompanyOrgChartAsync deliberately builds
-        // a narrow tree — a non-admin gets their own team branch, an admin gets one unexpanded
-        // level of department groups — so the person just searched for is almost never in it,
+        // a narrow tree â€” a non-admin gets their own team branch, an admin gets one unexpanded
+        // level of department groups â€” so the person just searched for is almost never in it,
         // and asking the page to expand a path to them could only ever fail.
         //
         // This builds the tree *around* the target instead: their whole management chain, the
@@ -1327,7 +1350,7 @@ namespace CompanyEmployees.Application.Contexts
             var allUsers = await _userGateway.GetAllUsersAsync();
 
             // Checked, not filtered by: an unknown caller is refused, but a known one may look
-            // at anybody — the directory is worldwide.
+            // at anybody â€” the directory is worldwide.
             _ = allUsers.FirstOrDefault(user => user.Id == currentUserId)
                 ?? throw new EntityNotFoundException($"No user with id {currentUserId}.");
 
@@ -1349,7 +1372,7 @@ namespace CompanyEmployees.Application.Contexts
                 return node;
             }
 
-            // Upwards from the target, stopping at the first manager outside the visible set —
+            // Upwards from the target, stopping at the first manager outside the visible set â€”
             // a cross-region manager is not something to reveal here. Guarded against a cycle
             // for the same reason GetCompanyOrgChartAsync guards: bad data must not hang a page.
             var chain = new List<User>();
@@ -1366,7 +1389,7 @@ namespace CompanyEmployees.Application.Contexts
 
             // Everything already on the path from the root down. Nothing below may attach one
             // of these again: a cycle in the reporting data would otherwise produce a cyclic
-            // *node* graph, and the first recursive walk over it — expanding, rendering —
+            // *node* graph, and the first recursive walk over it â€” expanding, rendering â€”
             // never returns. The chain walk above stops at a repeat; this stops the branches.
             var placed = chain.Select(user => user.Id).ToHashSet();
 
@@ -1399,7 +1422,7 @@ namespace CompanyEmployees.Application.Contexts
             // Wraps the top of the chain in the same Region/City/Site path the worldwide chart
             // would put them behind, innermost first, so a focused tree reads as a branch of
             // that one rather than a fragment nobody can place. Skipped levels the person has
-            // no value for — most chains stop at Region, since City/Site are optional.
+            // no value for â€” most chains stop at Region, since City/Site are optional.
             var topOfChain = chain[0];
             var wrappers = new List<(string Name, string Role)>();
             if (topOfChain.Region is not null)
@@ -1497,7 +1520,7 @@ namespace CompanyEmployees.Application.Contexts
                 PendingRequestId = pending?.Id,
                 PendingRequestType = pending?.Type.ToString(),
                 PendingRequestDates = pending != null
-                    ? $"{pending.StartDate:MMM d} – {pending.EndDate:MMM d, yyyy}"
+                    ? $"{pending.StartDate:MMM d} â€“ {pending.EndDate:MMM d, yyyy}"
                     : null,
                 HasContract = activeContract != null,
                 ContractId = activeContract?.Id,
@@ -1580,6 +1603,7 @@ namespace CompanyEmployees.Application.Contexts
         }
     }
 }
+
 
 
 

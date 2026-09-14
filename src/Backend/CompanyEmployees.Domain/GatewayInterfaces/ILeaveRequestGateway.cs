@@ -24,6 +24,8 @@ public interface ILeaveRequestGateway
     // dashboard reports org-wide, not per hierarchy branch.
     Task<List<LeaveRequest>> GetAllPendingRequestsAsync();
 
+    Task<LeaveRequestDocument?> GetDocumentAsync(Guid documentId);
+
     // All pending requests across all employees in the company (for Org Chart etc.)
     Task<List<LeaveRequest>> GetAllCompanyPendingRequestsAsync();
 

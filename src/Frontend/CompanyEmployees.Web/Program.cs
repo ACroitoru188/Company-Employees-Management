@@ -1,4 +1,4 @@
-﻿using Blazored.LocalStorage;
+using Blazored.LocalStorage;
 using CompanyEmployees.Application;
 using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.Entities;
@@ -475,8 +475,20 @@ if (setupState.IsComplete)
     }).RequireAuthorization(policy => policy.RequireAssertion(context =>
         context.User.IsInRole(UserRole.Admin.ToString())
         || context.User.HasClaim("Department", HomeRouteResolver.HrDepartmentName)));
-}
 
+    app.MapGet("/api/documents/{documentId}", async (Guid documentId, CompanyEmployees.Domain.GatewayInterfaces.ILeaveRequestGateway gateway) =>
+    {
+        var doc = await gateway.GetDocumentAsync(documentId);
+        if (doc == null)
+            return Results.NotFound();
+
+        var path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data", "LeaveDocuments", doc.HashedFileName);
+        if (!System.IO.File.Exists(path))
+            return Results.NotFound();
+
+        return Results.File(path, doc.ContentType, doc.OriginalFileName);
+    }).RequireAuthorization();
+}
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "healthy" })).AllowAnonymous();
 

@@ -8,7 +8,7 @@ namespace CompanyEmployees.Web.Services;
 /// </summary>
 public record TeamAbsence(string MemberName, string Initials, string Department, LeaveType Type, DateOnly Date);
 
-/// <summary>One teammate's whole leave period (start–end), for the dashboard list and calendar views.</summary>
+/// <summary>One teammate's whole leave period (startâ€“end), for the dashboard list and calendar views.</summary>
 public record TeamTimeOff(string MemberName, string Initials, string Department, LeaveType Type, DateOnly StartDate, DateOnly EndDate, string? Team = null)
 {
     public int Days => EndDate.DayNumber - StartDate.DayNumber + 1;
@@ -37,7 +37,8 @@ public interface ITimeOffService
     Task<IReadOnlyList<TeamRosterEntry>> GetTeamRosterAsync();
     Task<IReadOnlyList<RegionalHoliday>> GetRegionalHolidaysAsync(int year);
     Task<TimeOffRequest> SubmitRequestAsync(
-        LeaveType type, DateOnly start, DateOnly end, string? reason, bool allowPastDates = false);
+        LeaveType type, DateOnly start, DateOnly end, string? reason, IEnumerable<CompanyEmployees.Application.DTOs.FileUploadDto>? documents = null, bool allowPastDates = false);
     /// <summary>Withdraws a request the caller owns, as long as it is still Pending (nobody has approved it yet).</summary>
     Task CancelRequestAsync(Guid requestId, string? reason);
 }
+

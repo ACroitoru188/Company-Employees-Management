@@ -44,7 +44,7 @@ public class DbTimeOffService : ITimeOffService
     }
 
     // Who is really at the keyboard. GetDomainUserAsync resolves the *borrowed* account while
-    // an account is being borrowed, which is the right author for the request — but it says
+    // an account is being borrowed, which is the right author for the request â€” but it says
     // nothing about the human, and that is what the audit row needs. Resolved here rather than
     // taken as a parameter so ITimeOffService (and the in-memory mock behind it) stay as they
     // are: delegation has no business on that interface.
@@ -145,7 +145,7 @@ public class DbTimeOffService : ITimeOffService
 
             // GetTeamRequestsAsync already includes the signed-in user for regular employees (see
             // GetOwnApprovedRequestsAsync's doc comment below), so only fold in requests it hasn't
-            // already returned — otherwise a manager's own leave is fine, but everyone else's name
+            // already returned â€” otherwise a manager's own leave is fine, but everyone else's name
             // shows up twice on their own calendar.
             var alreadyIncluded = requests.Select(r => r.Id).ToHashSet();
             absences.AddRange((await GetOwnApprovedRequestsAsync(user, monthStart, monthEnd))
@@ -279,14 +279,14 @@ public class DbTimeOffService : ITimeOffService
     }
 
     public async Task<TimeOffRequest> SubmitRequestAsync(
-        LeaveType type, DateOnly start, DateOnly end, string? reason, bool allowPastDates = false)
+        LeaveType type, DateOnly start, DateOnly end, string? reason, IEnumerable<CompanyEmployees.Application.DTOs.FileUploadDto>? documents = null, bool allowPastDates = false)
     {
         await _lock.WaitAsync();
         try
         {
             var user = await GetDomainUserAsync();
             var created = await _employee.SubmitRequestAsync(
-                user.Id, MapTypeToDomain(type), start, end, reason, await GetOnBehalfAsync(), allowPastDates);
+                user.Id, MapTypeToDomain(type), start, end, reason, documents, await GetOnBehalfAsync(), allowPastDates);
             var holidays = await GetHolidayDatesAsync(user, [created]);
             return MapRequest(created, holidays);
         }
@@ -394,12 +394,12 @@ public class DbTimeOffService : ITimeOffService
         name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(part => part[0]));
 
     // Users without a department (admins, the PM) show a dash rather than an empty label.
-    private static string DepartmentName(User user) => user.Department?.Name ?? "—";
+    private static string DepartmentName(User user) => user.Department?.Name ?? "â€”";
 
     /// <summary>
     /// The signed-in user's own approved leave overlapping a window.
     ///
-    /// <c>EmployeeContext.GetTeamRequestsAsync</c> is the single definition of "team" — the
+    /// <c>EmployeeContext.GetTeamRequestsAsync</c> is the single definition of "team" â€” the
     /// manager plus everyone sharing a manager, <em>excluding the person asking</em>. Right for
     /// the Team page and the dashboard's "Team time off"; wrong for your own calendar, where it
     /// meant your approved days never appeared on it at all, and someone with no teammates saw
@@ -417,7 +417,7 @@ public class DbTimeOffService : ITimeOffService
     }
 
     private static string RoleAndDepartment(User user) =>
-        user.Department == null ? user.Role.ToString() : $"{user.Role} · {user.Department.Name}";
+        user.Department == null ? user.Role.ToString() : $"{user.Role} Â· {user.Department.Name}";
 
     private static IEnumerable<DateOnly> DaysInRange(DateOnly start, DateOnly end)
     {
@@ -428,3 +428,4 @@ public class DbTimeOffService : ITimeOffService
     private static DateOnly Max(DateOnly a, DateOnly b) => a > b ? a : b;
     private static DateOnly Min(DateOnly a, DateOnly b) => a < b ? a : b;
 }
+

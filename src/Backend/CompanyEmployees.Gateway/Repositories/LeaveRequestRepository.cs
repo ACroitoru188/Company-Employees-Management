@@ -98,6 +98,7 @@ namespace CompanyEmployees.Gateway.Repositories
             // Excludes requests this manager has already decided (a Step=ManagerApprovalStep
             // row exists) — those are just waiting on HR now, not on this manager anymore.
             return await _context.LeaveRequests
+                .Include(r => r.Documents)
                 .Include(r => r.User)
                     .ThenInclude(u => u.Department)
                 .Where(r => r.User.ManagerId == managerId
@@ -173,5 +174,9 @@ namespace CompanyEmployees.Gateway.Repositories
             // "request" is already tracked (it came from GetRequestByIdAsync).
             await _context.SaveChangesAsync();
         }
+
+        public Task<LeaveRequestDocument?> GetDocumentAsync(Guid documentId)
+            => _context.Set<LeaveRequestDocument>().FirstOrDefaultAsync(d => d.Id == documentId);
     }
 }
+

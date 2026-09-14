@@ -30,6 +30,7 @@ namespace CompanyEmployees.Application
         public string Role { get; set; } = "";
         public string? Reason { get; set; }
         public DateTime SubmittedAt { get; set; }
+        public List<PendingRequestDocumentDto> Documents { get; set; } = new();
     }
 
     public class HrDepartmentCount

@@ -172,6 +172,21 @@ else
 											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
 												Submitted @request.SubmittedAt.ToString("dd.MM.yyyy - HH:mm")
 											</FluentLabel>
+
+											@if (request.Documents.Any())
+											{
+												<FluentStack Orientation="Orientation.Vertical" VerticalGap="4" Style="margin-top: 8px;">
+													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Attachments</FluentLabel>
+													<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8" Wrap="true">
+														@foreach (var doc in request.Documents)
+														{
+															<FluentAnchor Href="@($"/api/documents/{doc.Id}")" Target="_blank" Appearance="Appearance.Neutral" IconStart="@(new Icons.Regular.Size16.Document())">
+																@doc.OriginalFileName
+															</FluentAnchor>
+														}
+													</FluentStack>
+												</FluentStack>
+											}
 										</FluentStack>
 
 										<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
