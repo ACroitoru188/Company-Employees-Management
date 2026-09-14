@@ -279,14 +279,14 @@ public class DbTimeOffService : ITimeOffService
     }
 
     public async Task<TimeOffRequest> SubmitRequestAsync(
-        LeaveType type, DateOnly start, DateOnly end, string? reason, bool allowPastDates = false)
+        LeaveType type, DateOnly start, DateOnly end, string? reason, IEnumerable<CompanyEmployees.Application.DTOs.FileUploadDto>? documents = null, bool allowPastDates = false)
     {
         await _lock.WaitAsync();
         try
         {
             var user = await GetDomainUserAsync();
             var created = await _employee.SubmitRequestAsync(
-                user.Id, MapTypeToDomain(type), start, end, reason, await GetOnBehalfAsync(), allowPastDates);
+                user.Id, MapTypeToDomain(type), start, end, reason, documents, await GetOnBehalfAsync(), allowPastDates);
             var holidays = await GetHolidayDatesAsync(user, [created]);
             return MapRequest(created, holidays);
         }
@@ -428,3 +428,4 @@ public class DbTimeOffService : ITimeOffService
     private static DateOnly Max(DateOnly a, DateOnly b) => a > b ? a : b;
     private static DateOnly Min(DateOnly a, DateOnly b) => a < b ? a : b;
 }
+

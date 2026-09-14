@@ -831,7 +831,8 @@ namespace CompanyEmployees.Application.Contexts
                     WaitingDays = waiting,
                     Role = request.User.Role.ToString(),
                     Reason = request.Reason,
-                    SubmittedAt = request.CreatedAt
+                    SubmittedAt = request.CreatedAt,
+                    Documents = request.Documents.Select(d => new PendingRequestDocumentDto(d.Id, d.OriginalFileName)).ToList()
                 });
             }
 
@@ -1093,6 +1094,7 @@ namespace CompanyEmployees.Application.Contexts
 
         public async Task<LeaveRequest> SubmitRequestAsync(
             Guid userId, LeaveType type, DateOnly start, DateOnly end, string? reason,
+            IEnumerable<CompanyEmployees.Application.DTOs.FileUploadDto>? documents = null,
             ActingOnBehalf? onBehalf = null, bool allowPastDates = false)
         {
             var delegation = await GuardAsync(userId, onBehalf);
@@ -1150,6 +1152,27 @@ namespace CompanyEmployees.Application.Contexts
                 Status = requirement.AutoApproved ? LeaveStatus.Approved : LeaveStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };
+
+            if (documents != null && documents.Any())
+            {
+                var docFolder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data", "LeaveDocuments");
+                System.IO.Directory.CreateDirectory(docFolder);
+
+                foreach (var doc in documents)
+                {
+                    var hashedName = Guid.NewGuid().ToString("N") + System.IO.Path.GetExtension(doc.FileName);
+                    var filePath = System.IO.Path.Combine(docFolder, hashedName);
+                    
+                    await System.IO.File.WriteAllBytesAsync(filePath, doc.Data);
+
+                    request.Documents.Add(new CompanyEmployees.Domain.Entities.LeaveRequestDocument
+                    {
+                        OriginalFileName = doc.FileName,
+                        HashedFileName = hashedName,
+                        ContentType = doc.ContentType
+                    });
+                }
+            }
             await _leaveRequestGateway.CreateRequestAsync(request);
 
             await RecordDelegatedActionAsync(
@@ -1649,6 +1672,7 @@ namespace CompanyEmployees.Application.Contexts
         }
     }
 }
+
 
 
 

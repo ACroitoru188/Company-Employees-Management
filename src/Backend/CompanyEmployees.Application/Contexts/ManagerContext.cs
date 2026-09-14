@@ -185,7 +185,8 @@ namespace CompanyEmployees.Application.Contexts
                     IsDelegated = false,
                     Role = request.User.Role.ToString(),
                     Reason = request.Reason,
-                    SubmittedAt = request.CreatedAt
+                    SubmittedAt = request.CreatedAt,
+                    Documents = request.Documents.Select(d => new PendingRequestDocumentDto(d.Id, d.OriginalFileName)).ToList()
                 });
             }
 
@@ -216,7 +217,8 @@ namespace CompanyEmployees.Application.Contexts
                         DelegatedFromManagerName = delegation.Manager?.Name ?? "Delegated Manager",
                         Role = request.User.Role.ToString(),
                         Reason = request.Reason,
-                        SubmittedAt = request.CreatedAt
+                        SubmittedAt = request.CreatedAt,
+                        Documents = request.Documents.Select(d => new PendingRequestDocumentDto(d.Id, d.OriginalFileName)).ToList()
                     });
                 }
             }

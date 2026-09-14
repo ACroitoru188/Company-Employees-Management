@@ -478,8 +478,56 @@
             </FluentLabel>
             <FluentTextField @bind-Value="_reason" Label="@Text["Reason (optional)"]" Style="min-width:220px;" />
             <FluentSpacer />
+            
             <FluentButton Appearance="Appearance.Stealth" OnClick="CancelSelection">@Text["Cancel selection"]</FluentButton>
             <FluentButton Appearance="Appearance.Accent" OnClick="Submit">@Text["Submit request"]</FluentButton>
+
+            @if (_selectedType == LeaveType.Sick)
+            {
+                <div style="margin-left: 15px; display: flex; flex-direction: column;">
+                    <style>
+                        .custom-input-file fluent-progress {
+                            display: none !important;
+                        }
+                        .custom-input-file .inputfile-progress {
+                            display: none !important;
+                        }
+                    </style>
+                    <FluentInputFile Id="leave-documents"
+                                     Class="custom-input-file"
+                                     Multiple="true" ShowFiles="false"
+                                     Accept=".pdf,.jpg,.jpeg,.png"
+                                     OnCompleted="OnFilesUploaded"
+                                     MaximumFileSize="5242880"
+                                     Mode="InputFileMode.Stream"
+                                     Style="margin-bottom: 5px;">
+                        <ChildContent>
+                            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; min-height: 100%;">
+                                <label for="leave-documents" style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <FluentIcon Value="@(new Icons.Regular.Size24.DocumentAdd())" /> @Text["select file"]
+                                </label>
+
+                                @if (_uploadedFiles.Any())
+                                {
+                                    <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; justify-content: center;">
+                                        @foreach (var file in _uploadedFiles)
+                                        {
+                                            <div style="background-color: #f0f0f0; padding: 5px 10px; border-radius: 4px; display: flex; align-items: center; gap: 5px;"
+                                                 @onclick:preventDefault="true"
+                                                 @onclick:stopPropagation="true">
+                                                <FluentIcon Value="@(new Icons.Regular.Size16.Document())" />
+                                                <span style="font-size: 12px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@file.Name</span>
+                                                <FluentIcon Value="@(new Icons.Regular.Size16.Dismiss())" Color="Color.Error" OnClick="@(() => RemoveFile(file))" Style="cursor: pointer;" />
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </ChildContent>
+                        <ProgressTemplate></ProgressTemplate>
+                    </FluentInputFile>
+                </div>
+            }
         </FluentStack>
     </FluentStack>
 </FluentStack>
@@ -543,6 +591,42 @@
     private string? _reason;
     private DateOnly? _availabilityStart;
     private DateOnly? _availableUntil;
+
+    private List<Microsoft.FluentUI.AspNetCore.Components.FluentInputFileEventArgs> _uploadedFiles = new();
+    private List<CompanyEmployees.Application.DTOs.FileUploadDto> _fileDtos = new();
+
+    private async Task OnFilesUploaded(IEnumerable<Microsoft.FluentUI.AspNetCore.Components.FluentInputFileEventArgs> files)
+    {
+        foreach (var file in files)
+        {
+            if (_uploadedFiles.Any(f => f.Name == file.Name))
+                continue; // Avoid duplicates with same name for simplicity
+            
+            _uploadedFiles.Add(file);
+            using var stream = file.Stream;
+            if (stream != null)
+            {
+                using var ms = new System.IO.MemoryStream();
+                await stream.CopyToAsync(ms);
+                _fileDtos.Add(new CompanyEmployees.Application.DTOs.FileUploadDto
+                {
+                    FileName = file.Name,
+                    ContentType = file.ContentType,
+                    Data = ms.ToArray()
+                });
+            }
+        }
+    }
+
+    private void RemoveFile(Microsoft.FluentUI.AspNetCore.Components.FluentInputFileEventArgs file)
+    {
+        _uploadedFiles.Remove(file);
+        var dto = _fileDtos.FirstOrDefault(f => f.FileName == file.Name);
+        if (dto != null)
+        {
+            _fileDtos.Remove(dto);
+        }
+    }
 
     private bool ShowSubmitBar => _range is not null && _selectedType is not null;
     private string AllowPastLeaveDatesLabel => Text["Allow past leave dates"];
@@ -877,8 +961,10 @@
 
         try
         {
-            await TimeOff.SubmitRequestAsync(type, range.Start, range.End, _reason, _allowPastDates);
+            await TimeOff.SubmitRequestAsync(type, range.Start, range.End, _reason, _fileDtos, _allowPastDates);
             Toast.ShowSuccess(Text["Time off request submitted"]);
+            _uploadedFiles.Clear();
+            _fileDtos.Clear();
             CancelSelection();
             _selectedType = null;
             // The rail's "used / total" counters read from _balances, which LoadAsync alone

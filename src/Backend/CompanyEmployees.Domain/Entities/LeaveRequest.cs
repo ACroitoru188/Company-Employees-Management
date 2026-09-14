@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Enums;
+using CompanyEmployees.Domain.Enums;
 
 namespace CompanyEmployees.Domain.Entities;
 
@@ -17,4 +17,5 @@ public class LeaveRequest
     public ICollection<LeaveApproval> Approvals { get; set; } = new List<LeaveApproval>();
     public DateTime CreatedAt { get; set; }
     public LeaveType Type { get; set; }
+    public virtual ICollection<LeaveRequestDocument> Documents { get; set; } = new List<LeaveRequestDocument>();
 }
