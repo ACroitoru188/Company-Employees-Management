@@ -417,7 +417,7 @@ public class DbTimeOffService : ITimeOffService
     }
 
     private static string RoleAndDepartment(User user) =>
-        user.Department == null ? user.Role.ToString() : $"{user.Role} Â· {user.Department.Name}";
+        user.Department == null ? user.Role.ToString() : $"{user.Role} · {user.Department.Name}";
 
     private static IEnumerable<DateOnly> DaysInRange(DateOnly start, DateOnly end)
     {
