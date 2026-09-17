@@ -228,23 +228,11 @@ public class EmployeeContextSearchTests
         Department = new Department { Id = department.Id, Name = department.Name }
     };
 
-    private EmployeeContext CreateContext()
+    private SearchContext CreateContext()
     {
-        var notificationContext = new NotificationContext(_notifications, _dispatcher);
-        var impersonationContext = new ImpersonationContext(
-            NullLogger<ImpersonationContext>.Instance, _sessions, _delegations, _users);
-
-        return new EmployeeContext(
-            NullLogger<EmployeeContext>.Instance,
-            _requests,
+        return new SearchContext(
+            NullLogger<SearchContext>.Instance,
             _users,
-            _departments,
-            _regions,
-            _holidays,
-            _contracts,
-            _delegations,
-            notificationContext,
-            impersonationContext,
-            _delegatedActions);
+            _departments);
     }
 }

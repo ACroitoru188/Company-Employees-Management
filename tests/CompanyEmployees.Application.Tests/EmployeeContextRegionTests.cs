@@ -62,23 +62,18 @@ public class EmployeeContextRegionTests
             context.AssignUserToRegionAsync(Guid.NewGuid(), Guid.NewGuid(), inactiveRegion.Id));
     }
 
-    private EmployeeContext CreateContext()
+    private AdminContext CreateContext()
     {
-        var notificationContext = new NotificationContext(_notifications, _dispatcher);
         var impersonationContext = new ImpersonationContext(
             NullLogger<ImpersonationContext>.Instance, _sessions, _delegations, _users);
+        var delegationGuard = new DelegationGuard(impersonationContext, _delegatedActions);
 
-        return new EmployeeContext(
-            NullLogger<EmployeeContext>.Instance,
-            _requests,
+        return new AdminContext(
+            NullLogger<AdminContext>.Instance,
             _users,
             _departments,
             _regions,
-            _holidays,
             _contracts,
-            _delegations,
-            notificationContext,
-            impersonationContext,
-            _delegatedActions);
+            delegationGuard);
     }
 }

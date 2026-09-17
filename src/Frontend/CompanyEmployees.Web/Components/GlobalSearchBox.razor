@@ -314,9 +314,9 @@
             // Own scope: this component lives in the layout and would otherwise share the
             // page's scoped DbContext, where a second query in flight throws.
             await using var scope = ScopeFactory.CreateAsyncScope();
-            var employees = scope.ServiceProvider.GetRequiredService<EmployeeContext>();
+            var search = scope.ServiceProvider.GetRequiredService<SearchContext>();
 
-            var result = await employees.GlobalSearchAsync(
+            var result = await search.GlobalSearchAsync(
                 _userId, _query, _regionPill?.Id, _departmentPill?.Id, _type, DropdownTake);
 
             // The results already on screen stay until the new ones arrive: blanking them for

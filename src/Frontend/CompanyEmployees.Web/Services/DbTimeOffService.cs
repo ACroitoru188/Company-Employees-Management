@@ -15,14 +15,19 @@ namespace CompanyEmployees.Web.Services;
 public class DbTimeOffService : ITimeOffService
 {
     private readonly EmployeeContext _employee;
+    private readonly LeaveContext _leave;
     private readonly AuthenticationStateProvider _authStateProvider;
     private User? _currentUser; // cached per circuit (service is Scoped)
     private Guid? _currentUserId;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    public DbTimeOffService(EmployeeContext employee, AuthenticationStateProvider authStateProvider)
+    public DbTimeOffService(
+        EmployeeContext employee,
+        LeaveContext leave,
+        AuthenticationStateProvider authStateProvider)
     {
         _employee = employee;
+        _leave = leave;
         _authStateProvider = authStateProvider;
     }
 
@@ -78,7 +83,7 @@ public class DbTimeOffService : ITimeOffService
         try
         {
             var user = await GetDomainUserAsync();
-            var balances = await _employee.GetMyBalancesAsync(user.Id, DateTime.Today.Year);
+            var balances = await _leave.GetMyBalancesAsync(user.Id, DateTime.Today.Year);
 
             return balances
                 .Select(b => new LeaveBalance
@@ -108,7 +113,7 @@ public class DbTimeOffService : ITimeOffService
         try
         {
             var user = await GetDomainUserAsync();
-            var requests = await _employee.GetMyRequestsAsync(user.Id);
+            var requests = await _leave.GetMyRequestsAsync(user.Id);
             var holidays = await GetHolidayDatesAsync(user, requests);
             return requests.Select(request => MapRequest(request, holidays)).ToList();
         }
@@ -125,12 +130,12 @@ public class DbTimeOffService : ITimeOffService
         {
             var user = await GetDomainUserAsync();
             var monthEnd = monthStart.AddMonths(1).AddDays(-1);
-            var requests = await _employee.GetTeamRequestsAsync(user.Id, monthStart, monthEnd);
+            var requests = await _leave.GetTeamRequestsAsync(user.Id, monthStart, monthEnd);
 
             var holidayDates = new HashSet<DateOnly>();
             for (var year = monthStart.Year; year <= monthEnd.Year; year++)
             {
-                foreach (var h in await _employee.GetRegionalHolidaysAsync(user.Id, year))
+                foreach (var h in await _leave.GetRegionalHolidaysAsync(user.Id, year))
                     holidayDates.Add(h.Date);
             }
 
@@ -170,7 +175,7 @@ public class DbTimeOffService : ITimeOffService
         {
             var user = await GetDomainUserAsync();
             var today = DateOnly.FromDateTime(DateTime.Today);
-            var requests = await _employee.GetTeamRequestsAsync(user.Id, today, today.AddMonths(3));
+            var requests = await _leave.GetTeamRequestsAsync(user.Id, today, today.AddMonths(3));
 
             return requests
                 .Select(r => new TeamTimeOff(
@@ -191,7 +196,7 @@ public class DbTimeOffService : ITimeOffService
         try
         {
             var user = await GetDomainUserAsync();
-            var requests = await _employee.GetTeamRequestsAsync(user.Id, from, to);
+            var requests = await _leave.GetTeamRequestsAsync(user.Id, from, to);
 
             // Same de-dup as GetTeamScheduleForMonthAsync: GetTeamRequestsAsync already includes
             // the signed-in user for regular employees, so skip anything it already returned.
@@ -223,8 +228,8 @@ public class DbTimeOffService : ITimeOffService
             var user = await GetDomainUserAsync();
             var today = DateOnly.FromDateTime(DateTime.Today);
 
-            var members = await _employee.GetTeamMembersAsync(user.Id);
-            var requests = await _employee.GetTeamRequestsAsync(user.Id, today, today.AddMonths(3));
+            var members = await _leave.GetTeamMembersAsync(user.Id);
+            var requests = await _leave.GetTeamRequestsAsync(user.Id, today, today.AddMonths(3));
             var sortedRequests = requests.OrderBy(r => r.StartDate).ToList();
 
             var roster = new List<TeamRosterEntry>();
@@ -267,7 +272,7 @@ public class DbTimeOffService : ITimeOffService
         try
         {
             var user = await GetDomainUserAsync();
-            var holidays = await _employee.GetRegionalHolidaysAsync(user.Id, year);
+            var holidays = await _leave.GetRegionalHolidaysAsync(user.Id, year);
             return holidays
                 .Select(holiday => new RegionalHoliday(holiday.Date, holiday.Name))
                 .ToList();
@@ -285,7 +290,7 @@ public class DbTimeOffService : ITimeOffService
         try
         {
             var user = await GetDomainUserAsync();
-            var created = await _employee.SubmitRequestAsync(
+            var created = await _leave.SubmitRequestAsync(
                 user.Id, MapTypeToDomain(type), start, end, reason, await GetOnBehalfAsync(), allowPastDates);
             var holidays = await GetHolidayDatesAsync(user, [created]);
             return MapRequest(created, holidays);
@@ -302,7 +307,7 @@ public class DbTimeOffService : ITimeOffService
         try
         {
             var user = await GetDomainUserAsync();
-            await _employee.CancelRequestAsync(user.Id, requestId, reason);
+            await _leave.CancelRequestAsync(user.Id, requestId, reason);
         }
         finally
         {
@@ -318,7 +323,7 @@ public class DbTimeOffService : ITimeOffService
             var user = await GetDomainUserAsync();
             // A delegate borrowing this account can ask on its behalf, so the audit has to
             // record who was really behind it — same as submitting a request.
-            await _employee.RequestCancellationAsync(
+            await _leave.RequestCancellationAsync(
                 user.Id, requestId, reason, await GetOnBehalfAsync());
         }
         finally
@@ -341,7 +346,7 @@ public class DbTimeOffService : ITimeOffService
             .Distinct();
 
         foreach (var year in years)
-            foreach (var holiday in await _employee.GetRegionalHolidaysAsync(user.Id, year))
+            foreach (var holiday in await _leave.GetRegionalHolidaysAsync(user.Id, year))
                 holidays.Add(holiday.Date);
 
         return holidays;
@@ -426,7 +431,7 @@ public class DbTimeOffService : ITimeOffService
     /// </summary>
     private async Task<List<LeaveRequest>> GetOwnApprovedRequestsAsync(User user, DateOnly from, DateOnly to)
     {
-        var mine = await _employee.GetMyRequestsAsync(user.Id);
+        var mine = await _leave.GetMyRequestsAsync(user.Id);
 
         return mine
             .Where(r => r.Status == DomainEnums.LeaveStatus.Approved

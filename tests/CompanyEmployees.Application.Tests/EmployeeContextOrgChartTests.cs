@@ -354,24 +354,12 @@ public class EmployeeContextOrgChartTests
     private sealed record Roster(
         User Director, User Manager, User Target, User Teammate, User Report, User ForeignBoss);
 
-    private EmployeeContext CreateContext()
+    private OrgChartContext CreateContext()
     {
-        var notificationContext = new NotificationContext(_notifications, _dispatcher);
-        var impersonationContext = new ImpersonationContext(
-            NullLogger<ImpersonationContext>.Instance, _sessions, _delegations, _users);
-
-        return new EmployeeContext(
-            NullLogger<EmployeeContext>.Instance,
-            _requests,
+        return new OrgChartContext(
+            NullLogger<OrgChartContext>.Instance,
             _users,
-            _departments,
-            _regions,
-            _holidays,
-            _contracts,
-            _delegations,
-            notificationContext,
-            impersonationContext,
-            _delegatedActions);
+            _requests);
     }
 }
 

@@ -7,6 +7,7 @@
 @using CompanyEmployees.Web.Security
 @using DomainInvalidOperationException = CompanyEmployees.Domain.Exceptions.InvalidOperationException
 @inject EmployeeContext Employees
+@inject LeaveContext Leave
 @inject ActingContext Acting
 @inject NavigationManager Nav
 @inject IDialogService DialogService
@@ -373,8 +374,8 @@ else
 
 	private async Task DecideAsync(HrPendingRequest request, bool approved)
 	{
-		await Employees.HrDecideRequestAsync(_myId, request.RequestId, approved, _onBehalf);
-		_data = await Employees.GetHrDashboardAsync(_myId);
+		await Leave.HrDecideRequestAsync(_myId, request.RequestId, approved, _onBehalf);
+		_data = await Leave.GetHrDashboardAsync(_myId);
 	}
 
 	private async Task EditDates(HrPendingRequest request)
@@ -397,7 +398,7 @@ else
 
 		var result = await dialog.Result;
 		if (!result.Cancelled)
-			_data = await Employees.GetHrDashboardAsync(_myId);
+			_data = await Leave.GetHrDashboardAsync(_myId);
 	}
 
 	private async Task<bool> SaveDatesAsync(EditLeaveDatesDialog.Model content)
@@ -412,7 +413,7 @@ else
 
 		try
 		{
-			await Employees.UpdateRequestDatesAsync(
+			await Leave.UpdateRequestDatesAsync(
 				content.RequestId,
 				DateOnly.FromDateTime(content.Start.Value),
 				DateOnly.FromDateTime(content.End.Value));
@@ -454,15 +455,15 @@ else
 		// user as the page freezing - so a refusal from the backend has to surface as a toast.
 		try
 		{
-			await Employees.HrDecideCancellationAsync(_myId, request.RequestId, approve, _onBehalf);
-			_data = await Employees.GetHrDashboardAsync(_myId);
+			await Leave.HrDecideCancellationAsync(_myId, request.RequestId, approve, _onBehalf);
+			_data = await Leave.GetHrDashboardAsync(_myId);
 			Toast.ShowSuccess(approve
 				? $"{request.Name}'s leave was cancelled."
 				: $"{request.Name}'s cancellation request was declined.");
 		}
 		catch (Exception ex)
 		{
-			_data = await Employees.GetHrDashboardAsync(_myId);
+			_data = await Leave.GetHrDashboardAsync(_myId);
 			Toast.ShowError(ex.Message);
 		}
 	}
@@ -490,7 +491,7 @@ else
 		var me = await Employees.GetEmployeeByEmailAsync(user.Identity!.Name!);
 		_myId = me.Id;
 		_acting = await Acting.GetAsync();
-		_data = await Employees.GetHrDashboardAsync(_myId);
+		_data = await Leave.GetHrDashboardAsync(_myId);
 	}
 
 	private int BarPercent(int count)

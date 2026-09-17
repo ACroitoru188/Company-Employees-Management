@@ -13,6 +13,8 @@
 @using CompanyEmployees.Web.Components.Pages
 @using DomainInvalidOperationException = CompanyEmployees.Domain.Exceptions.InvalidOperationException
 @inject EmployeeContext Employees
+@inject LeaveContext Leave
+@inject AdminContext Admin
 @inject ManagerContext Manager
 @inject NavigationManager Nav
 @inject IToastService Toast
@@ -455,7 +457,7 @@ else
 
         try
         {
-            await Employees.UpdateRequestDatesAsync(
+            await Leave.UpdateRequestDatesAsync(
                 content.RequestId,
                 DateOnly.FromDateTime(content.Start.Value),
                 DateOnly.FromDateTime(content.End.Value));
@@ -635,7 +637,7 @@ else
 
     private async Task OpenCreateDelegationDialog()
     {
-        var regionUsers = await Employees.GetUsersInMyRegionAsync(_managerId);
+        var regionUsers = await Admin.GetUsersInMyRegionAsync(_managerId);
         var candidateDelegates = regionUsers
             .Where(u => u.Id != _managerId)
             .ToList();

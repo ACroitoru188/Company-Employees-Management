@@ -91,8 +91,8 @@ public abstract class LeaveWorkflowTestsBase : IntegrationTestBase
         Db.Contracts.Add(contract);
         await Db.SaveChangesAsync();
 
-        // 2. Submit Leave Request via EmployeeContext
-        var employeeContext = Services.GetRequiredService<EmployeeContext>();
+        // 2. Submit Leave Request via LeaveContext
+        var leaveContext = Services.GetRequiredService<LeaveContext>();
 
         // Find next Monday and Wednesday to ensure working days
         var nextMonday = DateOnly.FromDateTime(DateTime.Today.AddDays(7));
@@ -102,7 +102,7 @@ public abstract class LeaveWorkflowTestsBase : IntegrationTestBase
         }
         var nextWednesday = nextMonday.AddDays(2);
 
-        var submittedRequest = await employeeContext.SubmitRequestAsync(
+        var submittedRequest = await leaveContext.SubmitRequestAsync(
             employeeId,
             LeaveType.Annual,
             nextMonday,
@@ -137,7 +137,7 @@ public abstract class LeaveWorkflowTestsBase : IntegrationTestBase
         Assert.Equal(LeaveStatus.Pending, managerApprovedResult.Status);
 
         // 5. HR approves the request (step 2)
-        var hrApprovedResult = await employeeContext.HrDecideRequestAsync(
+        var hrApprovedResult = await leaveContext.HrDecideRequestAsync(
             hrUserId,
             submittedRequest.Id,
             approve: true);

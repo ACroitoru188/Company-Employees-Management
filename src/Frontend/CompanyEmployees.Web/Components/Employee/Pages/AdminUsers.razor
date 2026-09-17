@@ -10,6 +10,7 @@
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
+@inject AdminContext Admin
 @inject ActingContext Acting
 @inject AppLocalizer Text
 @inject NavigationManager Nav
@@ -404,9 +405,9 @@ else
 		if (_activeRegionOptions.Count == 0)
 			_activeRegionOptions = [];
 
-		_users = await Employees.GetAllUsersAsync();
-		_departments = await Employees.GetDepartmentsAsync();
-		_regions = await Employees.GetRegionsAsync();
+		_users = await Admin.GetAllUsersAsync();
+		_departments = await Admin.GetDepartmentsAsync();
+		_regions = await Admin.GetRegionsAsync();
 
 		_departmentOptions = _departments
 			.OrderBy(department => department.Name)
@@ -482,7 +483,7 @@ else
 
 		if (!result.Cancelled && content.TryBuildResult() is { } res)
 		{
-			await Employees.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes, _onBehalf);
+			await Admin.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes, _onBehalf);
 			Toast.ShowSuccess(Text.Format("Contract updated for {0}.", user.Name));
 			await LoadAsync();
 		}
@@ -524,7 +525,7 @@ else
 		await _departmentSaveLock.WaitAsync();
 		try
 		{
-			await Employees.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId, _onBehalf);
+			await Admin.AssignUserToDepartmentAsync(_adminId, user.Id, departmentId, _onBehalf);
 			Toast.ShowSuccess(Text.Format("{0} moved.", user.Name));
 		}
 		catch (Exception exception)
@@ -564,7 +565,7 @@ else
 		await _regionSaveLock.WaitAsync();
 		try
 		{
-			await Employees.AssignUserToRegionAsync(_adminId, user.Id, option.Id, _onBehalf);
+			await Admin.AssignUserToRegionAsync(_adminId, user.Id, option.Id, _onBehalf);
 			Toast.ShowSuccess(Text.Format("{0} moved from {1} to {2}.", user.Name, sourceRegion, destinationRegion));
 		}
 		catch (Exception exception)

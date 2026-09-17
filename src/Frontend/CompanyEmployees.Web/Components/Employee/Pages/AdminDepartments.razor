@@ -8,6 +8,7 @@
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
+@inject AdminContext Admin
 @inject AppLocalizer Text
 @inject NavigationManager Nav
 @inject IToastService Toast
@@ -236,8 +237,8 @@ else
 		// option again — an infinite render loop.
 		_managerOptions = [_noManager];
 
-		_departments = await Employees.GetDepartmentsAsync();
-		_users = await Employees.GetAllUsersAsync();
+		_departments = await Admin.GetDepartmentsAsync();
+		_users = await Admin.GetAllUsersAsync();
 		_lineManagerOptions = _lineManagers
 			.Select(manager => new ManagerOption(manager.Id, manager.Name))
 			.OrderBy(option => option.Name)
@@ -257,7 +258,7 @@ else
 		await _saveLock.WaitAsync();
 		try
 		{
-			await Employees.UpdateDepartmentAsync(_adminId, dept.Id, dept.Name, dept.ManagerId);
+			await Admin.UpdateDepartmentAsync(_adminId, dept.Id, dept.Name, dept.ManagerId);
 			Toast.ShowSuccess(Text["Department updated."]);
 		}
 		catch (Exception exception)
@@ -312,7 +313,7 @@ else
 		await _saveLock.WaitAsync();
 		try
 		{
-			await Employees.CreateDepartmentAsync(_adminId, _newName, _newManagerId);
+			await Admin.CreateDepartmentAsync(_adminId, _newName, _newManagerId);
 			Toast.ShowSuccess(Text["Department created."]);
 			_newName = "";
 			_newManagerId = null;
@@ -355,7 +356,7 @@ else
 		await _saveLock.WaitAsync();
 		try
 		{
-			await Employees.DeleteDepartmentAsync(_adminId, dept.Id);
+			await Admin.DeleteDepartmentAsync(_adminId, dept.Id);
 			Toast.ShowSuccess(Text["Department deleted."]);
 		}
 		catch (Exception exception)
