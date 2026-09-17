@@ -477,23 +477,21 @@ public class EmployeeContextCancellationRequestTests
         return user;
     }
 
-    private EmployeeContext CreateContext()
+    private LeaveContext CreateContext()
     {
         var notificationContext = new NotificationContext(_notifications, _dispatcher);
         var impersonationContext = new ImpersonationContext(
             NullLogger<ImpersonationContext>.Instance, _sessions, _delegations, _users);
+        var delegationGuard = new DelegationGuard(impersonationContext, _delegatedActions);
 
-        return new EmployeeContext(
-            NullLogger<EmployeeContext>.Instance,
+        return new LeaveContext(
+            NullLogger<LeaveContext>.Instance,
             _requests,
             _users,
-            _departments,
-            _regions,
-            _holidays,
             _contracts,
             _delegations,
+            _holidays,
             notificationContext,
-            impersonationContext,
-            _delegatedActions);
+            delegationGuard);
     }
 }

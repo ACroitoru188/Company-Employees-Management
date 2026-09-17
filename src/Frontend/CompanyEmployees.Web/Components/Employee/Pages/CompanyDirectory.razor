@@ -743,13 +743,27 @@ else
     // would not save us from that.
     private readonly SemaphoreSlim _dbLock = new(1, 1);
 
-    private async Task<T> QueryAsync<T>(Func<EmployeeContext, Task<T>> query)
+    private async Task<T> QueryAsync<T>(Func<OrgChartContext, Task<T>> query)
     {
         await _dbLock.WaitAsync();
         try
         {
             await using var scope = ScopeFactory.CreateAsyncScope();
-            return await query(scope.ServiceProvider.GetRequiredService<EmployeeContext>());
+            return await query(scope.ServiceProvider.GetRequiredService<OrgChartContext>());
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+
+    private async Task<T> QueryAsync<T>(Func<SearchContext, Task<T>> query)
+    {
+        await _dbLock.WaitAsync();
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            return await query(scope.ServiceProvider.GetRequiredService<SearchContext>());
         }
         finally
         {

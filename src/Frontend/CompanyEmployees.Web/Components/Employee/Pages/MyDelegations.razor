@@ -9,7 +9,7 @@
 @using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Web.Security
 @inject ManagerContext Manager
-@inject EmployeeContext Employees
+@inject AdminContext Admin
 @inject ActingContext Acting
 @inject NavigationManager Nav
 @inject IDialogService DialogService
@@ -224,7 +224,7 @@ else
         try
         {
             // The same circle CreateDelegationAsync enforces — colleagues in your own region.
-            candidates = (await Employees.GetUsersInMyRegionAsync(_userId))
+            candidates = (await Admin.GetUsersInMyRegionAsync(_userId))
                 .Where(user => user.Id != _userId)
                 .ToList();
         }

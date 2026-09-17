@@ -27,16 +27,17 @@ src/Backend/CompanyEmployees.Domain          # entities, enums, gateway INTERFAC
 src/Backend/CompanyEmployees.Persistence     # CompanyEmployeesDbContext, IEntityTypeConfigurations,
                                              # Migrations/ (incl. SeedData/*.sql), DesignTimeDbContextFactory
 src/Backend/CompanyEmployees.Gateway         # repository IMPLEMENTATIONS (BaseRepository holds the DbContext)
-src/Backend/CompanyEmployees.Application     # business logic: Contexts/ (BaseContext, EmployeeContext,
-                                             # ManagerContext, NotificationContext, ImpersonationContext)
+src/Backend/CompanyEmployees.Application     # business logic: Contexts/ (BaseContext, LeaveContext,
+                                             # OrgChartContext, SearchContext, AdminContext, ManagerContext,
+                                             # EmployeeContext, NotificationContext, ImpersonationContext, DelegationGuard)
 src/Backend/CompanyEmployees.Infrastructure  # cross-cutting: GlobalExceptionHandler, ResponseHandling
 src/Frontend/CompanyEmployees.Web            # Blazor Server + Fluent UI + minimal-API login
 tests/CompanyEmployees.Domain.Tests          # xunit: LeaveAllocationPolicy, LeaveApprovalPolicy
-tests/CompanyEmployees.Application.Tests     # xunit: ManagerContext, NotificationContext
+tests/CompanyEmployees.Application.Tests     # xunit: ManagerContext, NotificationContext, LeaveContext, etc.
 ```
 
 **Data flow (follow it, don't bypass it):**
-Razor page → `ITimeOffService` (`Web/Services/DbTimeOffService`) → `EmployeeContext`
+Razor page → `ITimeOffService` (`Web/Services/DbTimeOffService`) → `LeaveContext` / `EmployeeContext`
 (Application) → `I*Gateway` (Domain/GatewayInterfaces) → `*Repository` (Gateway) →
 `CompanyEmployeesDbContext` → SQL Server. Application never references Persistence — the gateway
 interfaces live in Domain precisely so the dependency points inward. Web components never touch
@@ -106,12 +107,12 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
 - **`LeaveRequest`** — `UserId`, `DateOnly StartDate/EndDate`, `Reason`, `LeaveStatus`,
   `LeaveType`, `Approvals`.
 - **`LeaveAllocation`** — per user/type/year day quota. Missing allocations are created lazily
-  by `EmployeeContext.GetMyBalancesAsync` through
+  by `LeaveContext.GetMyBalancesAsync` through
   `ILeaveRequestGateway.EnsureDefaultAllocationsAsync`: Annual 21, Sick 10, Parental 10, and
   Unpaid 30 days. This makes new and regionally seeded accounts usable without a separate
   allocation backfill and initializes the next year when it is first viewed.
 - **`LeaveApproval`** — approval chain (`ApproverId`, `Step`, `Status`, `ReviewedAt`). Written by
-  `ManagerContext.DecideRequestAsync` (manager approve/decline) or `EmployeeContext.
+  `ManagerContext.DecideRequestAsync` (manager approve/decline) or `LeaveContext.
   HrDecideRequestAsync` (HR review, added 2026-07-28) in the same SaveChanges as the request's
   status change — one transaction either way.
 - **`Notification`** — per-user message + optional `ActionUrl`, pushed live over SignalR (see
@@ -126,7 +127,7 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
 - **`Department`** — `Name`, `Guid? ManagerId` (a LineManager; separate from `User.ManagerId`),
   `Members`. FKs: `User.DepartmentId` → `SetNull` on department delete;
   `Department.ManagerId` → `NoAction` (avoids an FK cascade cycle — detach a manager before
-  deleting them). Admin CRUD lives in `EmployeeContext` (`GetDepartmentsAsync`,
+  deleting them). Admin CRUD lives in `AdminContext` (`GetDepartmentsAsync`,
   `Create/Update/DeleteDepartmentAsync`, `AssignUserToDepartmentAsync`) behind
   `IDepartmentGateway`/`DepartmentRepository`. Seeded: "Design" (managed by the line manager,
   containing LM + the two employees) and empty "Production"; admin + PM have no department.
@@ -159,13 +160,13 @@ dotnet dotnet-ef database update --project src/Backend/CompanyEmployees.Persiste
   follow the active culture too. Arabic and Urdu set the document direction to RTL.
 - **Departments are org data, not team visibility** (deliberate): **Team** = the user's manager
   **plus** the active users sharing the same `ManagerId` (excluding the user).
-  `EmployeeContext.GetTeamMembersAsync` / `GetTeamRequestsAsync` are the single source of that
+  `LeaveContext.GetTeamMembersAsync` / `GetTeamRequestsAsync` are the single source of that
   definition — calendar, dashboard "Team time off" and the Team page all route through them;
   change team visibility there only. The Web view-models' `Department`/`RoleLabel` fields now
   combine role and department via `DbTimeOffService.GetCurrentUserAsync`'s
   `RoleAndDepartment(user)` helper, rather than the bare `Role.ToString()`.
 - Domain defines its own `InvalidOperationException` in `Domain/Exceptions` —
-  `EmployeeContext` uses a `using` alias to pick it over System's; keep that in mind when
+  `LeaveContext` and `AdminContext` use a `using` alias to pick it over System's; keep that in mind when
   catching.
 
 ## Auth (ASP.NET Core Identity, cookie-based — fully wired)
@@ -261,7 +262,7 @@ HR Dashboard's live counters if you need current numbers.
 - Email convention: `admin.<first>@siemens.com`, `lm.<first>@siemens.com` (LineManagers),
   `hr.<first>@siemens.com` (HR department staff), `first.last@siemens.com` (everyone else).
 - A leave request's `LeaveApproval` comes from either the requester's manager
-  (`ManagerContext.DecideRequestAsync`) or HR (`EmployeeContext.HrDecideRequestAsync`).
+  (`ManagerContext.DecideRequestAsync`) or HR (`LeaveContext.HrDecideRequestAsync`).
 
 ## The live Employee UI (Fluent UI Blazor)
 
@@ -363,7 +364,7 @@ sits on, so one token holds different values in different places — measured in
   leave period or "Available".
 - `AdminDepartments.razor` (`/admin/departments`) and `AdminUsers.razor` (`/admin/users`) are
   the two admin-only CRUD pages (both under the drawer's "IT ADMIN" section, rendered only when
-  the role claim says Admin). Both inject `EmployeeContext` directly (admin CRUD isn't
+  the role claim says Admin). `AdminDepartments` injects `AdminContext` and `AdminUsers` injects `EmployeeContext` directly (admin CRUD isn't
   time-off, so they skip `ITimeOffService`) and gate on the role claim, redirecting non-admins
   to the dashboard. `AdminDepartments` edits name/manager per department and creates/deletes
   departments; `AdminUsers` reassigns a user's department (`AssignUserToDepartmentAsync`) — the
@@ -410,16 +411,16 @@ dev link when SMTP is unconfigured), `EmployeeCsvExportService` (the region-scop
 `/employee/org-chart` shows the whole company, which is several hundred accounts, so it loads a
 branch at a time.
 
-- **`GetCompanyOrgChartAsync(currentUserId)`** returns a synthetic `Company` root (`UserId ==
+- **`GetCompanyOrgChartAsync(currentUserId)`** (in `OrgChartContext`) returns a synthetic `Company` root (`UserId ==
   Guid.Empty` — that is how the action checks recognise a row nobody can act on) holding everyone
   who reports to nobody. Only two things are open on arrival: the chain of managers above the
   viewer, and each of those managers' full teams, so the chart reads as an organisation rather
   than a single line. Everything else is `HasUnloadedChildren = true, IsExpanded = false`.
-- **`GetOrgChartChildrenAsync(parentUserId)`** returns one level, fetched by
+- **`GetOrgChartChildrenAsync(parentUserId)`** (in `OrgChartContext`) returns one level, fetched by
   `CompanyDirectory.LoadChildrenAsync` when a node is first opened. It clears
   `HasUnloadedChildren` whatever comes back, so a reopen does not re-query.
-- **`CompanyDirectory` runs its reads in its own DI scope, behind a `SemaphoreSlim`**, and does
-  not inject `EmployeeContext` at all. Injecting it directly hands the page the *circuit's*
+- **`CompanyDirectory` runs its reads in its own DI scope, behind a `SemaphoreSlim`**, resolving
+  `OrgChartContext` from that scope. Injecting it directly from the page would hand the page the *circuit's*
   DbContext, shared with `DbTimeOffService` and with whatever the previous page left running —
   and two overlapping operations on one context is EF's "a second operation was started on this
   context instance", which killed the chart on every client-side navigation carrying `?focus=`.
@@ -452,17 +453,17 @@ deliberate — widening one without keeping the other is the mistake to avoid.
 - **Worldwide**: the org chart (`/employee/org-chart`) and the global search. Any account,
   including a plain Employee, may look up anybody in any region and see their name, role,
   department, region and contract dates. The only gate left is that the *caller* must exist —
-  `GlobalSearchAsync`, `GetCompanyOrgChartAsync` and `GetOrgChartFocusedOnAsync` all throw
+  `GlobalSearchAsync` (`SearchContext`), `GetCompanyOrgChartAsync` and `GetOrgChartFocusedOnAsync` (`OrgChartContext`) all throw
   `EntityNotFoundException` for an unknown id and otherwise filter nothing by region.
 - **Still region-scoped, unchanged**: manager and HR dashboards, team rosters, leave decisions,
   contract actions, delegation candidates and every CSV export. `ManagerContext` refuses a
   decision or a contract across regions (`DecideRequestAsync`, `ExtendContractAsync`,
-  `TerminateContractAsync`) and so does `EmployeeContext.HrDecideRequestAsync`.
+  `TerminateContractAsync`) and so does `LeaveContext.HrDecideRequestAsync`.
 - **The org chart's own action buttons** are gated by `CanManageRequests`/`CanManageContract` in
   `CompanyDirectory`: a LineManager gets them on their own reports, HR and Admin on their own
   region, nobody on anybody else. `OrgChartNode` carries `RegionId`/`Region` for exactly this —
   without it the page cannot tell its own rows from the ones it may only read.
-- **`EmployeeContext.GetManagedUserIdsAsync`** answers "may I act on this row?" — the transitive
+- **`OrgChartContext.GetManagedUserIdsAsync`** answers "may I act on this row?" — the transitive
   reports of a manager, region-scoped. Computed from the reporting graph, **not** by walking the
   rendered tree: the focused view is built around somebody else and usually does not contain the
   viewer at all, which silently took a manager's own buttons away.
@@ -472,7 +473,7 @@ deliberate — widening one without keeping the other is the mistake to avoid.
 Added 2026-08-17. One search behind both surfaces, answering two different questions with the
 same control: "take me to this person, I know the name" and "who is in Design, in Romania?".
 
-- **`EmployeeContext.GlobalSearchAsync(userId, query, regionId?, departmentId?, type, take)`**
+- **`SearchContext.GlobalSearchAsync(userId, query, regionId?, departmentId?, type, take)`**
   is the only implementation; it replaced the dead `SearchUsersAsync` (written, never called,
   and unscoped). Returns `GlobalSearchResult` — people/departments/regions plus a total per
   type. In memory over `GetAllUsersAsync()`, like the org chart; at a hundred accounts that is
@@ -518,7 +519,7 @@ same control: "take me to this person, I know the name" and "who is in Design, i
     clipped at the viewport of that scroll container — measured, not guessed. Anything that
     needs to escape the page body has to be a card, a dialog, or anchored outside it.
 - A person result lands on `/employee/org-chart?focus={userId}`, which `CompanyDirectory` answers
-  with **`EmployeeContext.GetOrgChartFocusedOnAsync`** — a second tree, built around the target
+  with **`OrgChartContext.GetOrgChartFocusedOnAsync`** — a second tree, built around the target
   rather than around the viewer: their whole manager chain, the colleagues sharing their manager,
   and their own direct reports, with `IsFocusNode` set on the one node to scroll to. Worldwide
   like the search that produced the link; returns null (page shows a notice) only for an unknown
@@ -607,22 +608,22 @@ trace. The compensating controls below are what make that acceptable; don't remo
     `/manager/team` is meaningless (and inaccessible) to an employee delegate, so it points at
     `/employee/delegations` for everybody.
   - Borrowing an employee's account grants no approval rights, so the only mark a delegate can
-    leave is a leave request in that person's name. `EmployeeContext.SubmitRequestAsync` takes
-    the same optional `ActingOnBehalf`, guarded through `EmployeeContext.GuardAsync` and
+    leave is a leave request in that person's name. `LeaveContext.SubmitRequestAsync` takes
+    the same optional `ActingOnBehalf`, guarded through `DelegationGuard.GuardAsync` and
     audited as `DelegatedActionType.LeaveRequested`. `DbTimeOffService` resolves it from the
     auth state and passes it, so `ITimeOffService` — and the in-memory mock behind it — stayed
     untouched.
-  - **Known gap, pre-existing:** `EmployeeContext.UpdateRequestDatesAsync` takes no
+  - **Known gap, pre-existing:** `LeaveContext.UpdateRequestDatesAsync` takes no
     `ActingOnBehalf`. Its only callers are the manager and HR dashboards, where the borrowed
     account is the *reviewer's* and not the request owner's, so the guard would have to be
     against a caller id the method does not receive. A delegate editing leave dates from a
     borrowed manager account is therefore unaudited. Fixing it means adding the acting-as id
     to the signature and to both call sites.
 - **Admins must nominate a stand-in before taking leave**: nobody reviews their requests, so
-  `EmployeeContext.SubmitRequestAsync` throws `DelegationRequiredException` unless an active
+  `LeaveContext.SubmitRequestAsync` throws `DelegationRequiredException` unless an active
   delegation overlaps the period. `EmployeeCalendar` catches that one exception, offers the
   dialog pre-filled with the leave dates, and retries the submit **once**.
-  - That path is the one place an *employee* page injects `EmployeeContext`/`ManagerContext`
+  - That path is the one place an *employee* page injects `AdminContext`/`ManagerContext`
     directly instead of `ITimeOffService`. Deliberate: delegation has no business on that
     interface, and adding it would drag it into `InMemoryTimeOffService` too. Treat it as an
     exception, not precedent.
@@ -658,7 +659,7 @@ trace. The compensating controls below are what make that acceptable; don't remo
 - `NotificationContext.MarkAsReadAsync(userId, notificationId)` is scoped to the owner; an
   id alone must not be enough to flip someone else's row.
 - `ManagerContext.DecideRequestAsync` is the manager approval flow (approve/decline a pending
-  request + notification to the requester); `EmployeeContext.HrDecideRequestAsync` (added
+  request + notification to the requester); `LeaveContext.HrDecideRequestAsync` (added
   2026-07-28) is the equivalent for HR's review from `/hr/dashboard` — same shape (status
   change + `LeaveApproval` + best-effort notification, decision still saved even if the
   notification send fails).
@@ -698,7 +699,7 @@ Several styling worlds coexist; only the Fluent UI one above is on the live path
    Linked from the drawer nav's "HR" section for users in the HR department (`EmployeeLayout`
    checks the `Department` claim); reachable by direct URL for everyone else, but the page
    itself gates on that same claim and redirects non-HR users to the dashboard. Approve/Reject
-   call real backend logic (`EmployeeContext.HrDecideRequestAsync`, added 2026-07-28) — they
+   call real backend logic (`LeaveContext.HrDecideRequestAsync`, added 2026-07-28) — they
    used to be no-op stubs.
 3. **Corporate Siemens system** — `Pages/ForgotPassword.razor` only; class-based styling in the
    `.lm` section of `wwwroot/app.css` (`--l-*` tokens). Don't re-add Dashboard rules there.
@@ -716,8 +717,12 @@ still works if markup opts in. `Login.razor` uses `@layout AuthLayout` (bare `@B
 
 - Team project (4 devs) — avoid unrequested refactors of others' code; keep changes scoped.
 - Follow the layer flow for new features: gateway interface in Domain, implementation in
-  Gateway, logic in an Application context, thin mapping in a Web service. Don't add a new
-  context class for a handful of pass-throughs — extend `EmployeeContext`.
+  Gateway, logic in an Application context, thin mapping in a Web service. Contexts are divided
+  by responsibility: `LeaveContext` (leave submissions, balances, HR decisions), `OrgChartContext`
+  (company tree & focused views), `SearchContext` (global search), `AdminContext` (departments,
+  regions, user transfers, contracts), `ManagerContext` (team requests, approvals), and
+  `EmployeeContext` (user profile lookups). Shared delegation and audit logging are centralized
+  in `DelegationGuard`.
 - `TODO.md` is stale (pre-rearchitecture).
 - New user-facing text means a new key in **all** `Web/Languages/*.json`, not just `en.json`.
 - Any event handler that touches the database from a Razor page needs a `try/catch` that reports

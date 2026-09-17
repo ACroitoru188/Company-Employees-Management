@@ -201,6 +201,7 @@ public class ManagerContextTests
         var notificationContext = new NotificationContext(_notifications, _dispatcher);
         var impersonationContext = new ImpersonationContext(
             NullLogger<ImpersonationContext>.Instance, _sessions, _delegations, _users);
+        var delegationGuard = new DelegationGuard(impersonationContext, _delegatedActions);
         return new ManagerContext(
             NullLogger<ManagerContext>.Instance,
             _requests,
@@ -209,8 +210,8 @@ public class ManagerContextTests
             _delegations,
             _holidays,
             notificationContext,
-            impersonationContext,
-            _delegatedActions);
+            _delegatedActions,
+            delegationGuard);
     }
 
     private static User NewUser(UserRole role, Guid regionId) => new()

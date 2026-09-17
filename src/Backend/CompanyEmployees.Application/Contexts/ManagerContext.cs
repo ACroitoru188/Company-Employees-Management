@@ -16,10 +16,9 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IUserGateway _userGateway;
         private readonly IContractGateway _contractGateway;
         private readonly IManagerDelegationGateway _delegationGateway;
-        private readonly IPublicHolidayProvider _holidayProvider;
         private readonly NotificationContext _notifications;
-        private readonly ImpersonationContext _impersonation;
         private readonly IDelegatedActionGateway _delegatedActions;
+        private readonly DelegationGuard _delegationGuard;
 
         public ManagerContext(
             ILogger<ManagerContext> logger,
@@ -29,67 +28,28 @@ namespace CompanyEmployees.Application.Contexts
             IManagerDelegationGateway delegationGateway,
             IPublicHolidayProvider holidayProvider,
             NotificationContext notifications,
-            ImpersonationContext impersonation,
-            IDelegatedActionGateway delegatedActions) : base(logger)
+            IDelegatedActionGateway delegatedActions,
+            DelegationGuard delegationGuard) : base(logger, holidayProvider)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
             _contractGateway = contractGateway;
             _delegationGateway = delegationGateway;
-            _holidayProvider = holidayProvider;
             _notifications = notifications;
-            _impersonation = impersonation;
             _delegatedActions = delegatedActions;
+            _delegationGuard = delegationGuard;
         }
 
-        // Every action taken from inside a borrowed account passes through here first. It
-        // delegates to ImpersonationContext rather than re-checking the window locally, so
-        // the rule for "is this delegation still good" has exactly one implementation.
-        //
-        // Returns the delegation, which arrives with Manager and Delegate loaded — that is
-        // where the audit row and the notification get the real actor's name, without a
-        // second lookup. Null means the caller is acting as themselves.
-        private async Task<ManagerDelegation?> GuardAsync(Guid actingAsUserId, ActingOnBehalf? onBehalf)
-        {
-            if (onBehalf is null)
-                return null;
+        private Task<ManagerDelegation?> GuardAsync(Guid actingAsUserId, ActingOnBehalf? onBehalf) =>
+            _delegationGuard.GuardAsync(actingAsUserId, onBehalf);
 
-            return await _impersonation.ValidateDelegationAsync(
-                onBehalf.RealUserId, onBehalf.DelegationId, actingAsUserId);
-        }
-
-        // "Line Manager Mihai Georgescu" or, when someone is covering for him,
-        // "Line Manager Mihai Georgescu (delegate: Elena Vasilescu)". The account that
-        // carries the authority is named first — the delegate is the parenthetical.
-        private static string ActorLabel(User actingAs, ManagerDelegation? delegation)
-        {
-            var who = actingAs.Role == UserRole.LineManager
-                ? $"Line Manager {actingAs.Name}"
-                : actingAs.Name;
-
-            return delegation is null ? who : $"{who} (delegate: {delegation.Delegate.Name})";
-        }
+        private static string ActorLabel(User actingAs, ManagerDelegation? delegation) =>
+            DelegationGuard.ActorLabel(actingAs, delegation);
 
         private Task RecordDelegatedActionAsync(
             ManagerDelegation? delegation, Guid actingAsUserId, Guid targetUserId,
-            DelegatedActionType actionType, Guid targetEntityId, string? details)
-        {
-            if (delegation is null)
-                return Task.CompletedTask;
-
-            return _delegatedActions.CreateAsync(new DelegatedAction
-            {
-                Id = Guid.NewGuid(),
-                DelegationId = delegation.Id,
-                RealUserId = delegation.DelegateId,
-                ActedAsUserId = actingAsUserId,
-                TargetUserId = targetUserId,
-                ActionType = actionType,
-                TargetEntityId = targetEntityId,
-                Details = details,
-                CreatedAt = DateTime.UtcNow
-            });
-        }
+            DelegatedActionType actionType, Guid targetEntityId, string? details) =>
+            _delegationGuard.RecordDelegatedActionAsync(delegation, actingAsUserId, targetUserId, actionType, targetEntityId, details);
 
         public async Task<List<LeaveRequest>> GetPendingRequestsForManagerAsync(Guid managerId)
         {
@@ -223,26 +183,6 @@ namespace CompanyEmployees.Application.Contexts
 
             result.PendingRequests = result.Pending.Count;
             return result;
-        }
-
-        private async Task<int> CountWorkingDaysAsync(User user, DateOnly start, DateOnly end)
-        {
-            var holidays = new HashSet<DateOnly>();
-            for (var year = start.Year; year <= end.Year; year++)
-            {
-                foreach (var holiday in await _holidayProvider.GetHolidaysAsync(user.Region.Code, year))
-                    holidays.Add(holiday.Date);
-            }
-
-            var count = 0;
-            for (var day = start; day <= end; day = day.AddDays(1))
-            {
-                if (day.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday
-                    && !holidays.Contains(day))
-                    count++;
-            }
-
-            return count;
         }
 
         public async Task<LeaveRequest> DecideRequestAsync(

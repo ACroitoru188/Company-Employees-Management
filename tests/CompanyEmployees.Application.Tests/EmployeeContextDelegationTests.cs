@@ -180,7 +180,7 @@ public class EmployeeContextDelegationTests
 
         _users.GetUserByIdAsync(employee.Id).Returns(employee);
         _departments.GetByIdAsync(engineering.Id).Returns(engineering);
-        var context = CreateContext();
+        var context = CreateAdminContext();
 
         await context.AssignUserToDepartmentAsync(
             setup.Admin.Id, employee.Id, engineering.Id,
@@ -213,7 +213,7 @@ public class EmployeeContextDelegationTests
 
         _users.GetUserByIdAsync(employee.Id).Returns(employee);
         _contracts.GetActiveContractByUserIdAsync(employee.Id).Returns(activeContract);
-        var context = CreateContext();
+        var context = CreateAdminContext();
 
         var newEndDate = new DateOnly(2026, 12, 31);
         await context.SaveUserContractAsync(
@@ -248,7 +248,7 @@ public class EmployeeContextDelegationTests
 
         _users.GetUserByIdAsync(employee.Id).Returns(employee);
         _contracts.GetActiveContractByUserIdAsync(employee.Id).Returns(activeContract);
-        var context = CreateContext();
+        var context = CreateAdminContext();
 
         await context.SaveUserContractAsync(
             setup.Admin.Id, employee.Id, ContractType.Indeterminate, ContractStatus.Active,
@@ -274,7 +274,7 @@ public class EmployeeContextDelegationTests
         _users.GetUserByIdAsync(employee.Id).Returns(employee);
         _regions.GetByIdAsync(germany.Id).Returns(germany);
         _users.GetAllDirectReportsAsync(employee.Id).Returns(new List<User>());
-        var context = CreateContext();
+        var context = CreateAdminContext();
 
         await context.AssignUserToRegionAsync(
             setup.Admin.Id, employee.Id, germany.Id,
@@ -370,23 +370,36 @@ public class EmployeeContextDelegationTests
         RegionId = Romania.Id
     };
 
-    private EmployeeContext CreateContext()
+    private LeaveContext CreateContext()
     {
         var notificationContext = new NotificationContext(_notifications, _dispatcher);
         var impersonationContext = new ImpersonationContext(
             NullLogger<ImpersonationContext>.Instance, _sessions, _delegations, _users);
+        var delegationGuard = new DelegationGuard(impersonationContext, _delegatedActions);
 
-        return new EmployeeContext(
-            NullLogger<EmployeeContext>.Instance,
+        return new LeaveContext(
+            NullLogger<LeaveContext>.Instance,
             _requests,
+            _users,
+            _contracts,
+            _delegations,
+            _holidays,
+            notificationContext,
+            delegationGuard);
+    }
+
+    private AdminContext CreateAdminContext()
+    {
+        var impersonationContext = new ImpersonationContext(
+            NullLogger<ImpersonationContext>.Instance, _sessions, _delegations, _users);
+        var delegationGuard = new DelegationGuard(impersonationContext, _delegatedActions);
+
+        return new AdminContext(
+            NullLogger<AdminContext>.Instance,
             _users,
             _departments,
             _regions,
-            _holidays,
             _contracts,
-            _delegations,
-            notificationContext,
-            impersonationContext,
-            _delegatedActions);
+            delegationGuard);
     }
 }

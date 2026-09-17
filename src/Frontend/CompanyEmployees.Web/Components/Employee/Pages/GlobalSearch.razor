@@ -8,7 +8,8 @@
 @using CompanyEmployees.Application
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Web.Security
-@inject EmployeeContext Employees
+@inject SearchContext Search
+@inject AdminContext Admin
 @inject ActingContext Acting
 @inject NavigationManager Nav
 @inject AppLocalizer Text
@@ -316,7 +317,7 @@
         _loading = true;
         try
         {
-            _result = await Employees.GlobalSearchAsync(
+            _result = await Search.GlobalSearchAsync(
                 _userId, _query, RegionId, DepartmentId, _type, PageTake);
 
             await LoadDepartmentsInRegionAsync();
@@ -344,7 +345,7 @@
             return;
         }
 
-        var inRegion = await Employees.GlobalSearchAsync(
+        var inRegion = await Search.GlobalSearchAsync(
             _userId, query: null, regionId: region, departmentId: null,
             type: SearchEntityType.Departments, take: PageTake);
 
@@ -361,13 +362,13 @@
 
         if (RegionId is Guid regionId)
         {
-            var regions = await Employees.GetRegionsAsync();
+            var regions = await Admin.GetRegionsAsync();
             _regionName = regions.FirstOrDefault(region => region.Id == regionId)?.Name;
         }
 
         if (DepartmentId is Guid departmentId)
         {
-            var departments = await Employees.GetDepartmentsAsync();
+            var departments = await Admin.GetDepartmentsAsync();
             _departmentName = departments.FirstOrDefault(department => department.Id == departmentId)?.Name;
         }
     }

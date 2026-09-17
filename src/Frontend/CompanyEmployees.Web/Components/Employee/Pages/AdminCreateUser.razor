@@ -8,6 +8,7 @@
 @using CompanyEmployees.Web.Security
 @using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
+@inject AdminContext Admin
 @inject EmployeeAccountService Accounts
 @inject ManagerContext Manager
 @inject NavigationManager Nav
@@ -159,8 +160,8 @@ else
 		var currentAdmin = await Employees.GetEmployeeByEmailAsync(principal.Identity!.Name!);
 		_adminId = currentAdmin.Id;
 		_adminRegionId = currentAdmin.RegionId;
-		_departments = await Employees.GetDepartmentsAsync();
-		_regions = await Employees.GetRegionsAsync();
+		_departments = await Admin.GetDepartmentsAsync();
+		_regions = await Admin.GetRegionsAsync();
 		_authorized = true;
 	}
 
