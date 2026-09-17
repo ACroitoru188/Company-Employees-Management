@@ -16,7 +16,6 @@ public class EmployeeContextRegionTests
     private readonly IDepartmentGateway _departments = Substitute.For<IDepartmentGateway>();
     private readonly IRegionGateway _regions = Substitute.For<IRegionGateway>();
     private readonly IPublicHolidayProvider _holidays = Substitute.For<IPublicHolidayProvider>();
-    private readonly IContractGateway _contracts = Substitute.For<IContractGateway>();
     private readonly IManagerDelegationGateway _delegations = Substitute.For<IManagerDelegationGateway>();
     private readonly INotificationGateway _notifications = Substitute.For<INotificationGateway>();
     private readonly INotificationDispatcher _dispatcher = Substitute.For<INotificationDispatcher>();
@@ -73,7 +72,6 @@ public class EmployeeContextRegionTests
             _users,
             _departments,
             _regions,
-            _contracts,
             delegationGuard);
     }
 }

@@ -10,7 +10,7 @@
 @inject EmployeeContext Employees
 @inject AdminContext Admin
 @inject EmployeeAccountService Accounts
-@inject ManagerContext Manager
+@inject DelegationContext Delegation
 @inject NavigationManager Nav
 @inject IToastService Toast
 @inject AppLocalizer Text
@@ -149,7 +149,7 @@ else
 
 		if (role != UserRole.Admin.ToString())
 		{
-			var receivedDelegations = await Manager.GetActiveDelegationsAssignedToMeAsync(_adminId);
+			var receivedDelegations = await Delegation.GetActiveDelegationsAssignedToMeAsync(_adminId);
 			if (!receivedDelegations.Any(delegation => delegation.Manager.Role == UserRole.Admin))
 			{
 				Nav.NavigateTo("/employee/dashboard");

@@ -11,6 +11,7 @@
 @using CompanyEmployees.Web.Services
 @inject EmployeeContext Employees
 @inject AdminContext Admin
+@inject ContractContext Contracts
 @inject ActingContext Acting
 @inject AppLocalizer Text
 @inject NavigationManager Nav
@@ -483,7 +484,7 @@ else
 
 		if (!result.Cancelled && content.TryBuildResult() is { } res)
 		{
-			await Admin.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes, _onBehalf);
+			await Contracts.SaveUserContractAsync(_adminId, user.Id, res.Type, res.Status, res.StartDate, res.EndDate, res.Notes, _onBehalf);
 			Toast.ShowSuccess(Text.Format("Contract updated for {0}.", user.Name));
 			await LoadAsync();
 		}

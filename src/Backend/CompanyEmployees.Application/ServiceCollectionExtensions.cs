@@ -21,6 +21,8 @@ namespace CompanyEmployees.Application
             services.AddScoped<AdminContext>();
             services.AddScoped<EmployeeContext>();
             services.AddScoped<ManagerContext>();
+            services.AddScoped<ContractContext>();
+            services.AddScoped<DelegationContext>();
 
             return services;
         }

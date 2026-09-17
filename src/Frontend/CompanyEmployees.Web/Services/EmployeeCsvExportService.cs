@@ -1,8 +1,7 @@
 using System.Globalization;
 using System.Text;
+using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.Entities;
-using CompanyEmployees.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace CompanyEmployees.Web.Services;
 
@@ -25,27 +24,16 @@ public sealed class EmployeeCsvExportService
         "contract_end_date"
     ];
 
-    private readonly CompanyEmployeesDbContext _db;
+    private readonly AdminContext _admin;
 
-    public EmployeeCsvExportService(CompanyEmployeesDbContext db)
+    public EmployeeCsvExportService(AdminContext admin)
     {
-        _db = db;
+        _admin = admin;
     }
 
     public async Task<EmployeeCsvExport> GenerateAsync(Guid regionId, CancellationToken cancellationToken = default)
     {
-        var query = _db.Users
-            .Include(user => user.Manager)
-            .Include(user => user.Department)
-            .Include(user => user.Region)
-            .Include(user => user.Contracts)
-            .AsNoTracking()
-            .Where(user => user.RegionId == regionId);
-
-        var users = await query
-            .OrderBy(user => user.Name)
-            .ThenBy(user => user.Id)
-            .ToListAsync(cancellationToken);
+        var users = await _admin.GetUsersForExportAsync(regionId, cancellationToken);
 
         var csv = new StringBuilder();
         AppendRow(csv, Header);

@@ -13,8 +13,7 @@
 @inject ThemeState ThemeState
 @* Admin-only path: submitting leave has to create a stand-in first, which ITimeOffService
    has no business knowing about. Everything else on this page still goes through it. *@
-@inject AdminContext Admin
-@inject ManagerContext Manager
+@inject DelegationContext Delegation
 @inject ActingContext Acting
 @inject IDialogService DialogService
 
@@ -919,9 +918,7 @@
         }
 
         var me = acting.EffectiveUserId;
-        var candidates = (await Admin.GetUsersInMyRegionAsync(me))
-            .Where(user => user.Id != me)
-            .ToList();
+        var candidates = await Delegation.GetEligibleDelegatesAsync(me);
 
         if (candidates.Count == 0)
         {
@@ -959,7 +956,7 @@
 
         try
         {
-            await Manager.CreateDelegationAsync(
+            await Delegation.CreateDelegationAsync(
                 me, result.DelegateId, result.StartDate, result.EndDate, result.Reason);
             return true;
         }

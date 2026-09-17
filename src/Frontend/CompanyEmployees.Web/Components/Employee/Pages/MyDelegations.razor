@@ -8,8 +8,7 @@
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Domain.Entities
 @using CompanyEmployees.Web.Security
-@inject ManagerContext Manager
-@inject AdminContext Admin
+@inject DelegationContext Delegation
 @inject ActingContext Acting
 @inject NavigationManager Nav
 @inject IDialogService DialogService
@@ -203,8 +202,8 @@ else
         _loading = true;
         try
         {
-            _given = await Manager.GetMyDelegationsAsync(_userId);
-            _received = await Manager.GetActiveDelegationsAssignedToMeAsync(_userId);
+            _given = await Delegation.GetMyDelegationsAsync(_userId);
+            _received = await Delegation.GetActiveDelegationsAssignedToMeAsync(_userId);
             _failed = false;
         }
         catch (Exception exception)
@@ -223,10 +222,7 @@ else
         List<User> candidates;
         try
         {
-            // The same circle CreateDelegationAsync enforces — colleagues in your own region.
-            candidates = (await Admin.GetUsersInMyRegionAsync(_userId))
-                .Where(user => user.Id != _userId)
-                .ToList();
+            candidates = await Delegation.GetEligibleDelegatesAsync(_userId);
         }
         catch (Exception exception)
         {
@@ -266,7 +262,7 @@ else
         var result = content.ToResult();
         try
         {
-            await Manager.CreateDelegationAsync(
+            await Delegation.CreateDelegationAsync(
                 _userId, result.DelegateId, result.StartDate, result.EndDate, result.Reason);
             Toast.ShowSuccess(Text["Delegation created."]);
             await LoadAsync();
@@ -281,7 +277,7 @@ else
     {
         try
         {
-            await Manager.CancelDelegationAsync(_userId, delegationId);
+            await Delegation.CancelDelegationAsync(_userId, delegationId);
             Toast.ShowInfo(Text["Delegation cancelled."]);
             await LoadAsync();
         }

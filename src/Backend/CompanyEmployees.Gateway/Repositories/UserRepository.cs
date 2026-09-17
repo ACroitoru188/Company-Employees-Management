@@ -82,5 +82,19 @@ namespace CompanyEmployees.Gateway.Repositories
                 await _context.SaveChangesAsync();
             }
         }
+
+        public async Task<List<User>> GetUsersForExportAsync(Guid regionId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Users
+                .Include(user => user.Manager)
+                .Include(user => user.Department)
+                .Include(user => user.Region)
+                .Include(user => user.Contracts)
+                .AsNoTracking()
+                .Where(user => user.RegionId == regionId)
+                .OrderBy(user => user.Name)
+                .ThenBy(user => user.Id)
+                .ToListAsync(cancellationToken);
+        }
     }
 }

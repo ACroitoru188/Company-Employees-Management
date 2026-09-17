@@ -14,7 +14,6 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IUserGateway _userGateway;
         private readonly IDepartmentGateway _departmentGateway;
         private readonly IRegionGateway _regionGateway;
-        private readonly IContractGateway _contractGateway;
         private readonly DelegationGuard _delegationGuard;
 
         public AdminContext(
@@ -22,13 +21,11 @@ namespace CompanyEmployees.Application.Contexts
             IUserGateway userGateway,
             IDepartmentGateway departmentGateway,
             IRegionGateway regionGateway,
-            IContractGateway contractGateway,
             DelegationGuard delegationGuard) : base(logger)
         {
             _userGateway = userGateway;
             _departmentGateway = departmentGateway;
             _regionGateway = regionGateway;
-            _contractGateway = contractGateway;
             _delegationGuard = delegationGuard;
         }
 
@@ -59,6 +56,35 @@ namespace CompanyEmployees.Application.Contexts
             return (await _userGateway.GetAllUsersAsync())
                 .Where(user => user.RegionId == requester.RegionId)
                 .ToList();
+        }
+
+        public Task<List<User>> GetUsersForExportAsync(Guid regionId, CancellationToken cancellationToken = default) =>
+            _userGateway.GetUsersForExportAsync(regionId, cancellationToken);
+
+        public async Task<(Department Department, Region Region)> ValidateProvisioningPrerequisitesAsync(
+            Guid adminId, Guid departmentId, Guid regionId)
+        {
+            var department = await _departmentGateway.GetByIdAsync(departmentId);
+            if (department == null)
+                throw new InvalidOperationException("Select a valid department.");
+
+            var region = await _regionGateway.GetByIdAsync(regionId);
+            if (region == null || !region.IsActive)
+                throw new InvalidOperationException("Select a valid active region.");
+
+            var admin = await _userGateway.GetUserByIdAsync(adminId);
+            if (admin == null || (admin.Role != UserRole.Admin && admin.Role != UserRole.CountryManager))
+                throw new InvalidOperationException("Only administrators can create employee accounts.");
+            if (admin.RegionId != region.Id)
+                throw new InvalidOperationException("You can only create accounts in your own region.");
+
+            return (department, region);
+        }
+
+        public async Task<bool> IsEmployeeIdTakenAsync(Guid candidateId)
+        {
+            var user = await _userGateway.GetUserByIdAsync(candidateId);
+            return user != null;
         }
 
         public async Task<Department> CreateDepartmentAsync(Guid adminId, string name, Guid? managerId)
@@ -202,69 +228,6 @@ namespace CompanyEmployees.Application.Contexts
                 adminId, userId, region.Name, regionId);
         }
 
-        public async Task<Contract?> GetActiveContractForUserAsync(Guid userId)
-        {
-            return await _contractGateway.GetActiveContractByUserIdAsync(userId);
-        }
-
-        public async Task SaveUserContractAsync(
-            Guid adminId,
-            Guid userId,
-            ContractType type,
-            ContractStatus status,
-            DateOnly startDate,
-            DateOnly? endDate,
-            string? notes,
-            ActingOnBehalf? onBehalf = null)
-        {
-            var delegation = await GuardAsync(adminId, onBehalf);
-            await EnsureRegionalAdminCanManageAsync(adminId, userId);
-
-            var active = await _contractGateway.GetActiveContractByUserIdAsync(userId);
-            bool isExtension = false;
-            string details;
-            Guid contractId;
-
-            if (active != null)
-            {
-                var prevEnd = active.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "Indefinite";
-                isExtension = type == ContractType.Determinate && endDate.HasValue && active.EndDate.HasValue && endDate.Value > active.EndDate.Value;
-                active.Type = type;
-                active.Status = status;
-                active.StartDate = startDate;
-                active.EndDate = type == ContractType.Indeterminate ? null : endDate;
-                active.Notes = notes;
-                active.UpdatedAt = DateTime.UtcNow;
-                await _contractGateway.UpdateAsync(active);
-                contractId = active.Id;
-                details = isExtension
-                    ? $"End date {prevEnd} → {endDate:yyyy-MM-dd}"
-                    : $"Type: {type}, Status: {status}, Period: {startDate:yyyy-MM-dd} – {(active.EndDate.HasValue ? active.EndDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "Indefinite")}";
-            }
-            else
-            {
-                var newContract = new Contract
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    Type = type,
-                    Status = status,
-                    StartDate = startDate,
-                    EndDate = type == ContractType.Indeterminate ? null : endDate,
-                    Notes = notes,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                await _contractGateway.CreateAsync(newContract);
-                contractId = newContract.Id;
-                details = $"Created contract ({type}, {status}), Period: {startDate:yyyy-MM-dd} – {(newContract.EndDate.HasValue ? newContract.EndDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "Indefinite")}";
-            }
-
-            await RecordDelegatedActionAsync(
-                delegation, adminId, userId,
-                isExtension ? DelegatedActionType.ContractExtended : DelegatedActionType.ContractUpdated,
-                contractId, details);
-        }
 
         private async Task<User> EnsureRegionalAdminCanManageAsync(Guid adminId, Guid userId)
         {

@@ -2,12 +2,11 @@ using System.Globalization;
 using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
+using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
-using CompanyEmployees.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace CompanyEmployees.Web.Services;
@@ -16,18 +15,18 @@ public sealed class EmployeeAccountService
 {
     private const string EmailDomain = "siemens.com";
     private readonly UserManager<User> _userManager;
-    private readonly CompanyEmployeesDbContext _db;
+    private readonly AdminContext _adminContext;
     private readonly IAccountEmailSender _emailSender;
     private readonly ILogger<EmployeeAccountService> _logger;
 
     public EmployeeAccountService(
         UserManager<User> userManager,
-        CompanyEmployeesDbContext db,
+        AdminContext adminContext,
         IAccountEmailSender emailSender,
         ILogger<EmployeeAccountService> logger)
     {
         _userManager = userManager;
-        _db = db;
+        _adminContext = adminContext;
         _emailSender = emailSender;
         _logger = logger;
     }
@@ -57,24 +56,7 @@ public sealed class EmployeeAccountService
             throw new InvalidOperationException("Enter the employee's real email address.");
         }
 
-        var department = await _db.Departments
-            .Include(candidate => candidate.Manager)
-            .AsNoTracking()
-            .SingleOrDefaultAsync(d => d.Id == departmentId);
-        if (department == null)
-            throw new InvalidOperationException("Select a valid department.");
-
-        var region = await _db.Regions
-            .AsNoTracking()
-            .SingleOrDefaultAsync(candidate => candidate.Id == regionId && candidate.IsActive);
-        if (region == null)
-            throw new InvalidOperationException("Select a valid active region.");
-
-        var admin = await _userManager.FindByIdAsync(adminId.ToString());
-        if (admin == null || admin.Role != UserRole.Admin)
-            throw new InvalidOperationException("Only administrators can create employee accounts.");
-        if (admin.RegionId != region.Id)
-            throw new InvalidOperationException("You can only create accounts in your own region.");
+        var (department, region) = await _adminContext.ValidateProvisioningPrerequisitesAsync(adminId, departmentId, regionId);
 
         var email = await GenerateUniqueEmailAsync(normalizedName);
         var employeeId = await GenerateNumericEmployeeIdAsync();
@@ -215,7 +197,7 @@ public sealed class EmployeeAccountService
 
             var candidate = Guid.ParseExact(formatted, "D");
             if (candidate != Guid.Empty
-                && !await _db.Users.AnyAsync(user => user.Id == candidate))
+                && !await _adminContext.IsEmployeeIdTakenAsync(candidate))
             {
                 return candidate;
             }
