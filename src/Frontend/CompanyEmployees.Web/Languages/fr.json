@@ -230,10 +230,19 @@
   "Romania Map": "Carte de la Roumanie",
   "Location": "Emplacement",
   "Level 5: Site Org Chart": "Niveau 5: Organigramme du Site",
-  "Manage Contract": "Gérer le contrat",
   "Search people...": "Rechercher des personnes...",
   "City Filter": "Filtre de Ville",
   "Department Filter": "Filtre de Département",
   "Global Organization Chart": "Organigramme Mondial",
-  "Org Tree": "Arbre d'Organisation"
+  "Org Tree": "Arbre d'Organisation",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "Demander aux RH d'annuler votre congé {0} approuvé du {1} au {2} ?",
+  "This leave has already started.": "Ce congé a déjà commencé.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "Votre congé reste approuvé jusqu'à la décision des RH. En cas d'accord, les jours sont recrédités sur votre solde.",
+  "Reason for cancelling (required)": "Motif de l'annulation (obligatoire)",
+  "Tell HR why you no longer need this leave....": "Indiquez aux RH pourquoi vous n'avez plus besoin de ce congé....",
+  "cancellation pending": "annulation en attente",
+  "Request cancellation": "Demander l'annulation",
+  "Send to HR": "Envoyer aux RH",
+  "Cancellation request sent to HR.": "Demande d'annulation envoyée aux RH.",
+  "A reason is required to request a cancellation.": "Un motif est requis pour demander une annulation."
 }

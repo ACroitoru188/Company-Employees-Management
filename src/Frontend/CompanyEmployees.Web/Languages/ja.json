@@ -230,10 +230,19 @@
   "Romania Map": "ルーマニアの地図",
   "Location": "場所",
   "Level 5: Site Org Chart": "レベル 5: サイト組織図",
-  "Manage Contract": "契約の管理",
   "Search people...": "人を検索...",
   "City Filter": "都市フィルター",
   "Department Filter": "部門フィルター",
   "Global Organization Chart": "グローバル組織図",
-  "Org Tree": "組織ツリー"
+  "Org Tree": "組織ツリー",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "{1}～{2} の承認済み{0}休暇の取り消しを人事に依頼しますか?",
+  "This leave has already started.": "この休暇はすでに開始しています。",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "人事が判断するまで休暇は承認済みのままです。承認されると日数が残高に戻ります。",
+  "Reason for cancelling (required)": "取り消しの理由 (必須)",
+  "Tell HR why you no longer need this leave....": "この休暇が不要になった理由を人事に伝えてください....",
+  "cancellation pending": "取り消し保留中",
+  "Request cancellation": "取り消しを依頼",
+  "Send to HR": "人事に送信",
+  "Cancellation request sent to HR.": "取り消し依頼を人事に送信しました。",
+  "A reason is required to request a cancellation.": "取り消しを依頼するには理由が必要です。"
 }

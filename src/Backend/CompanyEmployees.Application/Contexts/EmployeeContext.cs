@@ -1,4 +1,4 @@
-using CompanyEmployees.Domain;
+﻿using CompanyEmployees.Domain;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Domain.Exceptions;
@@ -841,6 +841,36 @@ namespace CompanyEmployees.Application.Contexts
                 var todaysLeave = await _leaveRequestGateway
                     .GetApprovedRequestsForUsersAsync(activeIds, today, today);
                 result.OnLeaveToday = todaysLeave.Count;
+
+                // Approved leave whose owner has asked for it back. The gateway matches on
+                // overlap, so an open-ended "to" gives exactly EndDate >= today: upcoming plus
+                // in progress, and nothing already served out.
+                var approved = await _leaveRequestGateway
+                    .GetApprovedRequestsForUsersAsync(activeIds, today, DateOnly.MaxValue);
+
+                var wanted = approved
+                    .Where(request => request.CancellationRequestedAt is not null)
+                    .OrderBy(request => request.CancellationRequestedAt)
+                    .ToList();
+
+                foreach (var request in wanted)
+                {
+                    result.CancellationRequests.Add(new HrCancellationRequest
+                    {
+                        RequestId = request.Id,
+                        Name = request.User.Name,
+                        Department = request.User.Department == null ? "—" : request.User.Department.Name,
+                        Type = request.Type.ToString(),
+                        StartDate = request.StartDate,
+                        EndDate = request.EndDate,
+                        Days = await CountWorkingDaysAsync(hrUser, request.StartDate, request.EndDate),
+                        Role = request.User.Role.ToString(),
+                        Reason = request.Reason,
+                        CancellationReason = request.CancellationReason,
+                        RequestedAt = request.CancellationRequestedAt!.Value,
+                        InProgress = request.StartDate <= today
+                    });
+                }
             }
 
             return result;
@@ -926,6 +956,185 @@ namespace CompanyEmployees.Application.Contexts
                 approverId, approve ? "approved" : "rejected", requestId, isFinal ? "" : " (still awaiting manager)");
 
             return request;
+        }
+
+        // Asks HR to undo leave that was already approved. Nothing about the request changes
+        // yet — the days stay spent and the leave stays Approved until HR decides, because a
+        // request that might be refused must not free the balance in the meantime.
+        public async Task<LeaveRequest> RequestCancellationAsync(
+            Guid userId, Guid requestId, string reason, ActingOnBehalf? onBehalf = null)
+        {
+            var delegation = await GuardAsync(userId, onBehalf);
+
+            var requester = await _userGateway.GetUserByIdAsync(userId);
+            if (requester == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            // HR is being asked to overturn a decision, so they need to know why.
+            if (string.IsNullOrWhiteSpace(reason))
+                throw new InvalidOperationException("A reason is required to request a cancellation.");
+
+            var request = await _leaveRequestGateway.GetRequestByIdAsync(requestId);
+            if (request == null)
+                throw new EntityNotFoundException($"No leave request with id {requestId}.");
+            if (request.UserId != userId)
+                throw new InvalidOperationException("You can only cancel your own requests.");
+
+            // A Pending request needs no one's permission to withdraw — that is CancelRequestAsync.
+            if (request.Status != LeaveStatus.Approved)
+                throw new InvalidOperationException(
+                    "Only approved leave can be sent to HR for cancellation.");
+            if (request.CancellationRequestedAt is not null)
+                throw new InvalidOperationException(
+                    "HR is already reviewing a cancellation for this request.");
+
+            // Leave that is over cannot be given back.
+            if (request.EndDate < DateOnly.FromDateTime(DateTime.Today))
+                throw new InvalidOperationException("This leave has already ended.");
+
+            request.CancellationRequestedAt = DateTime.UtcNow;
+            request.CancellationReason = reason.Trim();
+            await _leaveRequestGateway.CancelRequestAsync(request);
+
+            var period = Period(request.StartDate, request.EndDate);
+
+            await RecordDelegatedActionAsync(
+                delegation, userId, userId,
+                DelegatedActionType.LeaveCancellationRequested,
+                request.Id, $"{request.Type} leave, {period}");
+
+            // Best effort, like every other notification here: the request is the thing that
+            // must survive, and HR sees it on the dashboard whether or not this lands.
+            try
+            {
+                // The requester gets a receipt for their own action, in the second person, and
+                // pointed at their own requests. Without this an HR employee cancelling their
+                // own leave landed in their own recipient list and was told, in the third
+                // person, that they had asked — reading as somebody else's request to action.
+                await _notifications.SendNotificationAsync(
+                    userId,
+                    $"You asked HR to cancel your approved {request.Type} leave for {period}. "
+                        + $"Reason: {request.CancellationReason}",
+                    "/employee/my-requests");
+
+                foreach (var approver in await HrStaffInRegionAsync(requester.RegionId))
+                {
+                    if (approver.Id == userId)
+                        continue;
+
+                    await _notifications.SendNotificationAsync(
+                        approver.Id,
+                        $"{requester.Name} asked to cancel approved {request.Type} leave for "
+                            + $"{period}. Reason: {request.CancellationReason}",
+                        "/hr/dashboard");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Cancellation request on {RequestId} saved but notifying HR failed.", requestId);
+            }
+
+            _logger.LogInformation(
+                "User {UserId} asked HR to cancel approved leave request {RequestId}.",
+                userId, requestId);
+
+            return request;
+        }
+
+        // HR's answer to the above. Approving is what finally frees the days: the balance
+        // counts Approved rows, so flipping the status to Cancelled is the whole of it.
+        public async Task<LeaveRequest> HrDecideCancellationAsync(
+            Guid hrUserId, Guid requestId, bool approve, ActingOnBehalf? onBehalf = null)
+        {
+            var delegation = await GuardAsync(hrUserId, onBehalf);
+
+            var hrUser = await _userGateway.GetUserByIdAsync(hrUserId);
+            if (hrUser == null)
+                throw new EntityNotFoundException($"No user with id {hrUserId}.");
+
+            // The dashboard gates on the Department claim, but a claim is not a control —
+            // the route is reachable by URL and the cookie outlives a transfer out of HR.
+            if (hrUser.Department?.Name != LeaveApprovalPolicy.HrDepartmentName)
+                throw new UnauthorizedException("Only HR can decide a cancellation request.");
+
+            var request = await _leaveRequestGateway.GetRequestByIdAsync(requestId);
+            if (request == null)
+                throw new EntityNotFoundException($"No leave request with id {requestId}.");
+
+            // Looking is worldwide, acting is regional.
+            if (request.User.RegionId != hrUser.RegionId)
+                throw new UnauthorizedException("You cannot review requests from another region.");
+
+            if (request.CancellationRequestedAt is null)
+                throw new InvalidOperationException("Nobody has asked to cancel this request.");
+            if (request.Status != LeaveStatus.Approved)
+                throw new InvalidOperationException("This request is no longer approved.");
+
+            var employeeReason = request.CancellationReason;
+
+            if (approve)
+            {
+                request.Status = LeaveStatus.Cancelled;
+            }
+            else
+            {
+                // Back to plain approved leave, so the employee can ask again if they need to.
+                request.CancellationRequestedAt = null;
+                request.CancellationReason = null;
+            }
+
+            await _leaveRequestGateway.CancelRequestAsync(request);
+
+            var period = Period(request.StartDate, request.EndDate);
+
+            await RecordDelegatedActionAsync(
+                delegation, hrUserId, request.UserId,
+                approve
+                    ? DelegatedActionType.LeaveCancellationApproved
+                    : DelegatedActionType.LeaveCancellationRejected,
+                request.Id, $"{request.Type} leave, {period}");
+
+            try
+            {
+                var actor = ActorLabel(hrUser, delegation);
+                var message = approve
+                    ? $"Your request to cancel {request.Type} leave for {period} was approved by "
+                        + $"{actor}. The days have been returned to your balance."
+                    : $"Your request to cancel {request.Type} leave for {period} was declined by "
+                        + $"{actor}. The leave stands.";
+
+                await _notifications.SendNotificationAsync(
+                    request.UserId, message, "/employee/my-requests");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Cancellation decision on {RequestId} saved but the notification failed.", requestId);
+            }
+
+            _logger.LogInformation(
+                "HR/Delegate {HrUserId} {Decision} the cancellation of leave request {RequestId} (employee reason: {Reason}).",
+                hrUserId, approve ? "approved" : "declined", requestId, employeeReason);
+
+            return request;
+        }
+
+        // HR decides cancellations for anyone, so the notification goes to the HR department
+        // in the requester's own region — acting stays regional even though looking does not.
+        // Deliberately not narrowed by LeaveApprovalPolicy: that routes the *original*
+        // request, and an approved cancellation is HR's call regardless of who approved first.
+        private async Task<List<User>> HrStaffInRegionAsync(Guid regionId)
+        {
+            var staff = new List<User>();
+            foreach (var user in await _userGateway.GetAllUsersAsync())
+            {
+                if (user.Status == UserStatus.Active
+                    && user.RegionId == regionId
+                    && user.Department?.Name == LeaveApprovalPolicy.HrDepartmentName)
+                    staff.Add(user);
+            }
+            return staff;
         }
 
         // --- administrare departamente (folosit de pagina admin crud) -----------------

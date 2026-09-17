@@ -230,10 +230,19 @@
   "Romania Map": "Romania Map",
   "Location": "Location",
   "Level 5: Site Org Chart": "Level 5: Site Org Chart",
-  "Manage Contract": "Manage Contract",
   "Search people...": "Search people...",
   "City Filter": "City Filter",
   "Department Filter": "Department Filter",
   "Global Organization Chart": "Global Organization Chart",
-  "Org Tree": "Org Tree"
+  "Org Tree": "Org Tree",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "Ask HR to cancel your approved {0} leave for {1}–{2}?",
+  "This leave has already started.": "This leave has already started.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "Your leave stays approved until HR decides. If they approve, the days return to your balance.",
+  "Reason for cancelling (required)": "Reason for cancelling (required)",
+  "Tell HR why you no longer need this leave....": "Tell HR why you no longer need this leave....",
+  "cancellation pending": "cancellation pending",
+  "Request cancellation": "Request cancellation",
+  "Send to HR": "Send to HR",
+  "Cancellation request sent to HR.": "Cancellation request sent to HR.",
+  "A reason is required to request a cancellation.": "A reason is required to request a cancellation."
 }

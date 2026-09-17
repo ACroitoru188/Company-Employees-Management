@@ -10,6 +10,7 @@
 @inject ActingContext Acting
 @inject NavigationManager Nav
 @inject IDialogService DialogService
+@inject IToastService Toast
 
 <PageTitle>HR Dashboard · Time Off Management</PageTitle>
 
@@ -72,130 +73,257 @@ else
 	</FluentGrid>
 
 	<FluentGrid Spacing="3">
+		@* Both request lists share the left column so they share a width; the
+		   departments card stretches down the right instead of stopping short. *@
 		<FluentGridItem xs="12" md="8">
-			<FluentCard Style="padding:16px;">
-				<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
-					<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
-								 VerticalAlignment="VerticalAlignment.Center">
-						<FluentIcon Value="@(new Icons.Regular.Size20.Clock())" Color="Color.Accent" />
-						<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Requests to approve</FluentLabel>
-					</FluentStack>
+			<FluentStack Orientation="Orientation.Vertical" VerticalGap="24">
+				<FluentCard Style="padding:16px;">
+					<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+						<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+									 VerticalAlignment="VerticalAlignment.Center">
+							<FluentIcon Value="@(new Icons.Regular.Size20.Clock())" Color="Color.Accent" />
+							<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Requests to approve</FluentLabel>
+						</FluentStack>
 
-					<FluentSearch @bind-Value="SearchTerm" @bind-Value:after="StateHasChanged"
-								  Placeholder="Search by name..." Style="width:100%;" />
+						<FluentSearch @bind-Value="SearchTerm" @bind-Value:after="StateHasChanged"
+									  Placeholder="Search by name..." Style="width:100%;" />
 
-					@if (!FilteredRequests.Any())
-					{
-						<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-							No requests are waiting for approval.
-						</FluentLabel>
-					}
-					else
-					{
-						@* The accordion replaces the hand-rolled expand/collapse row: one panel open
-						   at a time, which is exactly what ToggleRequest used to do by hand. *@
-						<FluentAccordion>
-							@foreach (var request in FilteredRequests)
-							{
-								<FluentAccordionItem Id="@request.RequestId.ToString()">
-									<HeadingTemplate>
-										<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
-													 VerticalAlignment="VerticalAlignment.Center" Width="100%">
-											<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
-												<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
-													@request.Name
-												</FluentLabel>
-												<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
-											@request.Type &middot; @request.Days @(request.Days == 1 ? "working day" : "working days")
-													&middot; @request.Department
-													&middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)–@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-												</FluentLabel>
+						@if (!FilteredRequests.Any())
+						{
+							<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+								No requests are waiting for approval.
+							</FluentLabel>
+						}
+						else
+						{
+							@* The accordion replaces the hand-rolled expand/collapse row: one panel open
+							   at a time, which is exactly what ToggleRequest used to do by hand. *@
+							@* Both the accordion and its items size to their content, so without these
+							   each row stops short of the card's right edge. *@
+							<FluentAccordion Style="width:100%;">
+								@foreach (var request in FilteredRequests)
+								{
+									<FluentAccordionItem Id="@request.RequestId.ToString()" Style="width:100%;">
+										<HeadingTemplate>
+											<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+														 VerticalAlignment="VerticalAlignment.Center" Width="100%">
+												<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+														@request.Name
+													</FluentLabel>
+													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+												@request.Type &middot; @request.Days @(request.Days == 1 ? "working day" : "working days")
+														&middot; @request.Department
+														&middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)–@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+													</FluentLabel>
+												</FluentStack>
+												<FluentSpacer />
+												@* Amber, the colour this app gives a pending decision everywhere else —
+												   accent blue read as "approved" next to the green and red ones. *@
+												<FluentBadge Fill="highlight" BackgroundColor="var(--warning)" Color="white">pending</FluentBadge>
 											</FluentStack>
-											<FluentSpacer />
-											@* Amber, the colour this app gives a pending decision everywhere else —
-											   accent blue read as "approved" next to the green and red ones. *@
-											<FluentBadge Fill="highlight" BackgroundColor="var(--warning)" Color="white">pending</FluentBadge>
-										</FluentStack>
-									</HeadingTemplate>
+										</HeadingTemplate>
 
-									<ChildContent>
-										@{
-											var nameParts = request.Name.Split(' ', 2);
-											var firstName = nameParts.Length > 0 ? nameParts[0] : "";
-											var lastName = nameParts.Length > 1 ? nameParts[1] : "";
-											var role = request.Role == "LineManager" ? "Manager" : request.Role;
-											var reason = string.IsNullOrWhiteSpace(request.Reason)
-												|| request.Reason.Equals(request.Type, StringComparison.OrdinalIgnoreCase)
-												|| request.Reason.Equals(request.Type + " leave", StringComparison.OrdinalIgnoreCase)
-													? "No reason specified"
-													: request.Reason;
-										}
+										<ChildContent>
+											@{
+												var nameParts = request.Name.Split(' ', 2);
+												var firstName = nameParts.Length > 0 ? nameParts[0] : "";
+												var lastName = nameParts.Length > 1 ? nameParts[1] : "";
+												var role = request.Role == "LineManager" ? "Manager" : request.Role;
+												var reason = string.IsNullOrWhiteSpace(request.Reason)
+													|| request.Reason.Equals(request.Type, StringComparison.OrdinalIgnoreCase)
+													|| request.Reason.Equals(request.Type + " leave", StringComparison.OrdinalIgnoreCase)
+														? "No reason specified"
+														: request.Reason;
+											}
 
-										<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="24" Width="100%">
+											<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="24" Width="100%">
+												<FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+													<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+														<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Name</FluentLabel>
+														<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@firstName</FluentLabel>
+													</FluentStack>
+													<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+														<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Surname</FluentLabel>
+														<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@lastName</FluentLabel>
+													</FluentStack>
+													<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+														<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Department</FluentLabel>
+														<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.Department</FluentLabel>
+													</FluentStack>
+													<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+														<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Role</FluentLabel>
+														<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@role</FluentLabel>
+													</FluentStack>
+												</FluentStack>
+											</FluentStack>
+
+											<FluentDivider Role="DividerRole.Presentation" Style="margin:16px 0;" />
+
 											<FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
 												<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
-													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Name</FluentLabel>
-													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@firstName</FluentLabel>
+													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Leave type</FluentLabel>
+													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.Type</FluentLabel>
 												</FluentStack>
 												<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
-													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Surname</FluentLabel>
-													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@lastName</FluentLabel>
+													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Reason</FluentLabel>
+													<FluentLabel Typo="Typography.Body">@reason</FluentLabel>
 												</FluentStack>
 												<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
-													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Department</FluentLabel>
-													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.Department</FluentLabel>
+													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Period</FluentLabel>
+													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+														@request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy")
+														(@request.Days @(request.Days == 1 ? "working day" : "working days"))
+													</FluentLabel>
 												</FluentStack>
-												<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
-													<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Role</FluentLabel>
-													<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@role</FluentLabel>
-												</FluentStack>
-											</FluentStack>
-										</FluentStack>
-
-										<FluentDivider Role="DividerRole.Presentation" Style="margin:16px 0;" />
-
-										<FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
-											<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
-												<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Leave type</FluentLabel>
-												<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.Type</FluentLabel>
-											</FluentStack>
-											<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
-												<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Reason</FluentLabel>
-												<FluentLabel Typo="Typography.Body">@reason</FluentLabel>
-											</FluentStack>
-											<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
-												<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Period</FluentLabel>
-												<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
-													@request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy")
-													(@request.Days @(request.Days == 1 ? "working day" : "working days"))
+												<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+													Submitted @request.SubmittedAt.ToString("dd.MM.yyyy - HH:mm")
 												</FluentLabel>
 											</FluentStack>
-											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
-												Submitted @request.SubmittedAt.ToString("dd.MM.yyyy - HH:mm")
-											</FluentLabel>
-										</FluentStack>
 
-										<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
-													 HorizontalAlignment="HorizontalAlignment.End" Width="100%"
-													 Style="margin-top:16px;">
-											<FluentButton Appearance="Appearance.Neutral"
-														  OnClick="@(() => EditDates(request))">Edit dates</FluentButton>
-											<FluentButton Appearance="Appearance.Neutral"
-														  OnClick="@(() => DecideAsync(request, false))">Reject</FluentButton>
-											<FluentButton Appearance="Appearance.Accent"
-														  OnClick="@(() => DecideAsync(request, true))">Approve</FluentButton>
-										</FluentStack>
-									</ChildContent>
-								</FluentAccordionItem>
-							}
-						</FluentAccordion>
+											<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+														 HorizontalAlignment="HorizontalAlignment.End" Width="100%"
+														 Style="margin-top:16px;">
+												<FluentButton Appearance="Appearance.Neutral"
+															  OnClick="@(() => EditDates(request))">Edit dates</FluentButton>
+												<FluentButton Appearance="Appearance.Neutral"
+															  OnClick="@(() => DecideAsync(request, false))">Reject</FluentButton>
+												<FluentButton Appearance="Appearance.Accent"
+															  OnClick="@(() => DecideAsync(request, true))">Approve</FluentButton>
+											</FluentStack>
+										</ChildContent>
+									</FluentAccordionItem>
+								}
+							</FluentAccordion>
+						}
+					</FluentStack>
+				</FluentCard>
+		@* Approved leave whose owner has asked for it back. Separate card rather than a second
+		   tab on the one above: the two lists answer different questions and are searched
+		   independently. *@
+		<FluentCard Style="padding:16px;">
+			<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+				<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+							 VerticalAlignment="VerticalAlignment.Center">
+					<FluentIcon Value="@(new Icons.Regular.Size20.ArrowUndo())" Color="Color.Accent" />
+					<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Cancellation requests</FluentLabel>
+					<FluentSpacer />
+					@if (_data.CancellationRequests.Count > 0)
+					{
+						<FluentBadge Fill="highlight" BackgroundColor="var(--warning)" Color="white">
+							@_data.CancellationRequests.Count waiting
+						</FluentBadge>
 					}
 				</FluentStack>
-			</FluentCard>
+
+				<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+					Employees asking to undo leave that was already approved. The leave stands until you
+					decide; approving returns the days to their balance.
+				</FluentLabel>
+
+				@if (_data.CancellationRequests.Count > 0)
+				{
+					<FluentSearch @bind-Value="CancellationSearchTerm" @bind-Value:after="StateHasChanged"
+								  Placeholder="Search by name..." Style="width:100%;" />
+				}
+
+				@if (!FilteredCancellations.Any())
+				{
+					<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+						No one has asked to cancel approved leave.
+					</FluentLabel>
+				}
+				else
+				{
+					<FluentAccordion Style="width:100%;">
+						@foreach (var request in FilteredCancellations)
+						{
+							<FluentAccordionItem Id="@($"cancellation-{request.RequestId}")" Style="width:100%;">
+								<HeadingTemplate>
+									<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+												 VerticalAlignment="VerticalAlignment.Center" Width="100%">
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+											<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+												@request.Name
+											</FluentLabel>
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+												@request.Type &middot; @request.Days @(request.Days == 1 ? "working day" : "working days")
+												&middot; @request.Department
+												&middot; @request.StartDate.ToString("MMM d", CultureInfo.InvariantCulture)&ndash;@request.EndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+											</FluentLabel>
+										</FluentStack>
+										<FluentSpacer />
+										@if (request.InProgress)
+										{
+											@* Already under way, so approving hands back days that were in fact taken. *@
+											<FluentBadge Fill="highlight" BackgroundColor="var(--error)" Color="white">in progress</FluentBadge>
+										}
+										<FluentBadge Fill="highlight" BackgroundColor="var(--warning)" Color="white">cancellation requested</FluentBadge>
+									</FluentStack>
+								</HeadingTemplate>
+								<ChildContent>
+									@{
+										var originalReason = string.IsNullOrWhiteSpace(request.Reason)
+											|| request.Reason.Equals(request.Type, StringComparison.OrdinalIgnoreCase)
+											|| request.Reason.Equals(request.Type + " leave", StringComparison.OrdinalIgnoreCase)
+												? "No reason specified"
+												: request.Reason;
+										var cancellationRole = request.Role == "LineManager" ? "Manager" : request.Role;
+									}
+
+									<FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Why they want it cancelled</FluentLabel>
+											<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.CancellationReason</FluentLabel>
+										</FluentStack>
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Department</FluentLabel>
+											<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.Department</FluentLabel>
+										</FluentStack>
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Role</FluentLabel>
+											<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@cancellationRole</FluentLabel>
+										</FluentStack>
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Leave type</FluentLabel>
+											<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@request.Type</FluentLabel>
+										</FluentStack>
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Original reason</FluentLabel>
+											<FluentLabel Typo="Typography.Body">@originalReason</FluentLabel>
+										</FluentStack>
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Period</FluentLabel>
+											<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+												@request.StartDate.ToString("dd.MM.yyyy") - @request.EndDate.ToString("dd.MM.yyyy")
+												(@request.Days @(request.Days == 1 ? "working day" : "working days"))
+											</FluentLabel>
+										</FluentStack>
+										<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+											Requested @request.RequestedAt.ToString("dd.MM.yyyy - HH:mm")
+										</FluentLabel>
+									</FluentStack>
+
+									<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+												 HorizontalAlignment="HorizontalAlignment.End" Width="100%"
+												 Style="margin-top:16px;">
+										<FluentButton Appearance="Appearance.Neutral"
+													  OnClick="@(() => DecideCancellationAsync(request, false))">Decline</FluentButton>
+										<FluentButton Appearance="Appearance.Accent"
+													  OnClick="@(() => DecideCancellationAsync(request, true))">Approve cancellation</FluentButton>
+									</FluentStack>
+								</ChildContent>
+							</FluentAccordionItem>
+						}
+					</FluentAccordion>
+				}
+			</FluentStack>
+		</FluentCard>
+			</FluentStack>
 		</FluentGridItem>
 
 		<FluentGridItem xs="12" md="4">
-			<FluentCard Style="padding:16px;">
+			<FluentCard Style="padding:16px; height:100%;">
 				<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
 					<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Employees per department</FluentLabel>
 
@@ -237,6 +365,7 @@ else
 	private string _name = "";
 	private HrDashboardResult? _data;
 	private string SearchTerm { get; set; } = "";
+	private string CancellationSearchTerm { get; set; } = "";
 	private ActingUser? _acting;
 	private ActingOnBehalf? _onBehalf => _acting is { IsImpersonating: true, DelegationId: not null }
 		? new ActingOnBehalf(_acting.RealUserId, _acting.DelegationId.Value)
@@ -299,6 +428,44 @@ else
 	private IEnumerable<HrPendingRequest> FilteredRequests => string.IsNullOrWhiteSpace(SearchTerm)
 		? _data!.Pending
 		: _data!.Pending.Where(r => r.Name.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
+
+	private IEnumerable<HrCancellationRequest> FilteredCancellations =>
+		string.IsNullOrWhiteSpace(CancellationSearchTerm)
+			? _data!.CancellationRequests
+			: _data!.CancellationRequests.Where(r =>
+				r.Name.Contains(CancellationSearchTerm, StringComparison.OrdinalIgnoreCase));
+
+	private async Task DecideCancellationAsync(HrCancellationRequest request, bool approve)
+	{
+		var verb = approve ? "Approve" : "Decline";
+		var confirmation = await DialogService.ShowConfirmationAsync(
+			approve
+				? $"Cancel {request.Name}'s {request.Type} leave and return {request.Days} "
+					+ $"{(request.Days == 1 ? "day" : "days")} to their balance?"
+				: $"Decline {request.Name}'s request? Their {request.Type} leave stays approved.",
+			verb,
+			"Back",
+			$"{verb} cancellation");
+
+		if ((await confirmation.Result).Cancelled)
+			return;
+
+		// Blazor Server tears the circuit down on an unhandled exception, which reads to the
+		// user as the page freezing - so a refusal from the backend has to surface as a toast.
+		try
+		{
+			await Employees.HrDecideCancellationAsync(_myId, request.RequestId, approve, _onBehalf);
+			_data = await Employees.GetHrDashboardAsync(_myId);
+			Toast.ShowSuccess(approve
+				? $"{request.Name}'s leave was cancelled."
+				: $"{request.Name}'s cancellation request was declined.");
+		}
+		catch (Exception ex)
+		{
+			_data = await Employees.GetHrDashboardAsync(_myId);
+			Toast.ShowError(ex.Message);
+		}
+	}
 
 	// Same gate as AdminDepartments: HR is a department, so this reads the
 	// Department claim rather than the role one. Non-HR users get sent back.

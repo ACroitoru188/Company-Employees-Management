@@ -230,10 +230,19 @@
   "Romania Map": "Románia térkép",
   "Location": "Helyszín",
   "Level 5: Site Org Chart": "5. szint: Helyi szervezeti ábra",
-  "Manage Contract": "Szerződés kezelése",
   "Search people...": "Emberek keresése...",
   "City Filter": "Város szűrő",
   "Department Filter": "Osztály szűrő",
   "Global Organization Chart": "Globális szervezeti ábra",
-  "Org Tree": "Szervezeti fa"
+  "Org Tree": "Szervezeti fa",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "Megkéri a HR-t, hogy törölje a jóváhagyott {0} szabadságot {1}–{2} között?",
+  "This leave has already started.": "Ez a szabadság már elkezdődött.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "A szabadság a HR döntéséig jóváhagyott marad. Jóváhagyás esetén a napok visszakerülnek az egyenlegébe.",
+  "Reason for cancelling (required)": "A törlés oka (kötelező)",
+  "Tell HR why you no longer need this leave....": "Mondja el a HR-nek, miért nincs már szüksége erre a szabadságra....",
+  "cancellation pending": "törlés folyamatban",
+  "Request cancellation": "Törlés kérése",
+  "Send to HR": "Küldés a HR-nek",
+  "Cancellation request sent to HR.": "A törlési kérelmet elküldtük a HR-nek.",
+  "A reason is required to request a cancellation.": "A törlés kéréséhez indoklás szükséges."
 }

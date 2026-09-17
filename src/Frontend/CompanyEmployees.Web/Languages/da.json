@@ -230,10 +230,19 @@
   "Romania Map": "Rumænien kort",
   "Location": "Placering",
   "Level 5: Site Org Chart": "Niveau 5: Afdelings organisationsdiagram",
-  "Manage Contract": "Administrer kontrakt",
   "Search people...": "Søg efter personer...",
   "City Filter": "Byfilter",
   "Department Filter": "Afdelingsfilter",
   "Global Organization Chart": "Globalt organisationsdiagram",
-  "Org Tree": "Organisationstræ"
+  "Org Tree": "Organisationstræ",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "Bed HR om at annullere din godkendte {0}-orlov fra {1} til {2}?",
+  "This leave has already started.": "Denne orlov er allerede begyndt.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "Din orlov forbliver godkendt, indtil HR beslutter. Ved godkendelse føres dagene tilbage til din saldo.",
+  "Reason for cancelling (required)": "Årsag til annullering (påkrævet)",
+  "Tell HR why you no longer need this leave....": "Fortæl HR, hvorfor du ikke længere har brug for denne orlov....",
+  "cancellation pending": "annullering afventer",
+  "Request cancellation": "Anmod om annullering",
+  "Send to HR": "Send til HR",
+  "Cancellation request sent to HR.": "Anmodning om annullering sendt til HR.",
+  "A reason is required to request a cancellation.": "Der kræves en årsag for at anmode om annullering."
 }

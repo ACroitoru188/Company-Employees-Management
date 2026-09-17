@@ -230,10 +230,19 @@
   "Romania Map": "罗马尼亚地图",
   "Location": "位置",
   "Level 5: Site Org Chart": "级别 5：站点组织结构图",
-  "Manage Contract": "管理合同",
   "Search people...": "搜索人员...",
   "City Filter": "城市过滤器",
   "Department Filter": "部门过滤器",
   "Global Organization Chart": "全球组织结构图",
-  "Org Tree": "组织树"
+  "Org Tree": "组织树",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "请人力资源取消您 {1}–{2} 的已批准{0}假期?",
+  "This leave has already started.": "该假期已经开始。",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "在人力资源作出决定前，您的假期仍为已批准状态。若获批准，天数将返还至您的余额。",
+  "Reason for cancelling (required)": "取消原因（必填）",
+  "Tell HR why you no longer need this leave....": "请告诉人力资源您为何不再需要此假期....",
+  "cancellation pending": "取消待处理",
+  "Request cancellation": "申请取消",
+  "Send to HR": "发送给人力资源",
+  "Cancellation request sent to HR.": "取消申请已发送给人力资源。",
+  "A reason is required to request a cancellation.": "申请取消需要填写原因。"
 }

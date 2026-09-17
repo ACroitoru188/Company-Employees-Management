@@ -14,5 +14,12 @@ public enum DelegatedActionType
 
     DepartmentChanged = 6,
     ContractUpdated = 7,
-    RegionChanged = 8
+    RegionChanged = 8,
+
+    // Undoing leave that was already approved: the employee asks, HR answers. Kept apart from
+    // LeaveRejected, which decides a request nobody had approved yet — these three overturn a
+    // decision that already stood and move days back into a balance.
+    LeaveCancellationRequested = 9,
+    LeaveCancellationApproved = 10,
+    LeaveCancellationRejected = 11
 }

@@ -230,10 +230,19 @@
   "Romania Map": "خريطة رومانيا",
   "Location": "الموقع",
   "Level 5: Site Org Chart": "المستوى 5: مخطط المنظمة للموقع",
-  "Manage Contract": "إدارة العقد",
   "Search people...": "البحث عن أشخاص...",
   "City Filter": "تصفية المدينة",
   "Department Filter": "تصفية القسم",
   "Global Organization Chart": "مخطط المنظمة العالمي",
-  "Org Tree": "شجرة المنظمة"
+  "Org Tree": "شجرة المنظمة",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "هل تطلب من الموارد البشرية إلغاء إجازة {0} المعتمدة من {1} إلى {2}؟",
+  "This leave has already started.": "لقد بدأت هذه الإجازة بالفعل.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "تظل إجازتك معتمدة حتى تقرر الموارد البشرية. في حال الموافقة، تعود الأيام إلى رصيدك.",
+  "Reason for cancelling (required)": "سبب الإلغاء (مطلوب)",
+  "Tell HR why you no longer need this leave....": "أخبر الموارد البشرية لماذا لم تعد بحاجة إلى هذه الإجازة....",
+  "cancellation pending": "الإلغاء قيد الانتظار",
+  "Request cancellation": "طلب الإلغاء",
+  "Send to HR": "إرسال إلى الموارد البشرية",
+  "Cancellation request sent to HR.": "تم إرسال طلب الإلغاء إلى الموارد البشرية.",
+  "A reason is required to request a cancellation.": "يلزم ذكر سبب لطلب الإلغاء."
 }

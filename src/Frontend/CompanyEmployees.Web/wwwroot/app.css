@@ -927,6 +927,14 @@ fluent-select {
         border-top-color: var(--neutral-stroke-divider-rest) !important;
         padding: 4px 12px 10px !important;
         line-height: normal;
+        /* The provider is a column flex container and these cards are its items, so they
+       default to flex-shrink: 1. Once the stack is taller than the 420px above, the browser
+       shrinks every card to make it fit — but a card is a grid with fixed px rows and
+       overflow: visible, so nothing inside shrinks with it and the text spills over the card
+       below. Measured with three notifications: cards needing 154/154/174px were squeezed to
+       128/129/144px and overlapped. Refusing to shrink lets the container scroll instead,
+       which is what its overflow-y: auto was always for. */
+        flex-shrink: 0;
     }
 
         .notification-center .fluent-messagebar-notification:first-child {
