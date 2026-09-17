@@ -527,14 +527,9 @@ namespace CompanyEmployees.Application.Contexts
                 DelegatedActionType.LeaveCancellationRequested,
                 request.Id, $"{request.Type} leave, {period}");
 
-            // Best effort, like every other notification here: the request is the thing that
-            // must survive, and HR sees it on the dashboard whether or not this lands.
+            // Best-effort notifications to requester and regional HR staff.
             try
             {
-                // The requester gets a receipt for their own action, in the second person, and
-                // pointed at their own requests. Without this an HR employee cancelling their
-                // own leave landed in their own recipient list and was told, in the third
-                // person, that they had asked — reading as somebody else's request to action.
                 await _notifications.SendNotificationAsync(
                     userId,
                     $"You asked HR to cancel your approved {request.Type} leave for {period}. "
@@ -566,8 +561,7 @@ namespace CompanyEmployees.Application.Contexts
             return request;
         }
 
-        // HR's answer to the above. Approving is what finally frees the days: the balance
-        // counts Approved rows, so flipping the status to Cancelled is the whole of it.
+        // HR decision on an approved leave cancellation request.
         public async Task<LeaveRequest> HrDecideCancellationAsync(
             Guid hrUserId, Guid requestId, bool approve, ActingOnBehalf? onBehalf = null)
         {
@@ -577,8 +571,7 @@ namespace CompanyEmployees.Application.Contexts
             if (hrUser == null)
                 throw new EntityNotFoundException($"No user with id {hrUserId}.");
 
-            // The dashboard gates on the Department claim, but a claim is not a control —
-            // the route is reachable by URL and the cookie outlives a transfer out of HR.
+            // Backend check to enforce HR department membership.
             if (hrUser.Department?.Name != LeaveApprovalPolicy.HrDepartmentName)
                 throw new UnauthorizedException("Only HR can decide a cancellation request.");
 
@@ -644,10 +637,7 @@ namespace CompanyEmployees.Application.Contexts
             return request;
         }
 
-        // HR decides cancellations for anyone, so the notification goes to the HR department
-        // in the requester's own region — acting stays regional even though looking does not.
-        // Deliberately not narrowed by LeaveApprovalPolicy: that routes the *original*
-        // request, and an approved cancellation is HR's call regardless of who approved first.
+        // Retrieves active regional HR staff to notify for cancellation reviews.
         private async Task<List<User>> HrStaffInRegionAsync(Guid regionId)
         {
             var staff = new List<User>();
@@ -697,13 +687,9 @@ namespace CompanyEmployees.Application.Contexts
             if (balance == null || balance.DaysRemaining < requestedDays)
                 throw new InvalidOperationException("Not enough days left for this leave type.");
 
-            // Admins sit outside the approval workflow entirely (no approve/reject UI
-            // exists for them as either requester's manager or reviewer) — auto-approved.
+            // Admins are auto-approved, but must have an active delegation covering the period.
             var requirement = LeaveApprovalPolicy.DetermineRequirement(requester);
 
-            // Nobody reviews an admin's leave, so the only thing standing between them and
-            // an unattended account is this: someone has to be covering before the request
-            // is created. Overlap is enough — the cover may be shorter than the leave.
             if (requester.Role == UserRole.Admin
                 && !await _delegationGateway.HasActiveDelegationInPeriodAsync(userId, start, end))
             {

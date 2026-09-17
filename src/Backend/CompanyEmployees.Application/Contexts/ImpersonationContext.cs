@@ -7,8 +7,7 @@ using InvalidOperationException = CompanyEmployees.Domain.Exceptions.InvalidOper
 
 namespace CompanyEmployees.Application.Contexts
 {
-    // Borrowing an account is the most powerful thing a non-admin can do here, so every rule
-    // lives in this one class. The endpoints only translate its result into a redirect.
+    // Coordinates impersonation sessions and delegation validation rules.
     public class ImpersonationContext : BaseContext
     {
         private readonly IImpersonationGateway _sessions;
@@ -26,12 +25,7 @@ namespace CompanyEmployees.Application.Contexts
             _users = users;
         }
 
-        // Returns the account to sign in as. Throws when the switch is not allowed.
-        //
-        // Chaining is refused by the caller, from the cookie: a row left open by a sign-out
-        // or an expired cookie says nothing about whether an account is being borrowed right
-        // now, and treating it as if it did locked people out permanently. Any such row is
-        // closed here instead.
+        // Starts an impersonation session and returns the target user account.
         public async Task<User> StartAsync(Guid realUserId, Guid delegationId, string? ipAddress)
         {
             await EndOpenSessionAsync(realUserId);
@@ -71,8 +65,7 @@ namespace CompanyEmployees.Application.Contexts
             return realUser;
         }
 
-        // Also called on sign-out: leaving the row open there is what used to make the next
-        // switch impossible.
+        // Ends any open impersonation session for the given user.
         public async Task EndOpenSessionAsync(Guid realUserId)
         {
             var openSession = await _sessions.GetOpenSessionAsync(realUserId);
@@ -80,9 +73,7 @@ namespace CompanyEmployees.Application.Contexts
                 await _sessions.EndSessionAsync(openSession.Id, DateTime.UtcNow);
         }
 
-        // Re-checked before every impersonated action, not only when switching: the auth
-        // cookie lasts five hours and outlives the delegation, so a cancelled or expired
-        // window has to bite the moment it changes rather than at the next sign-in.
+        // Re-validates delegation validity before each delegated action.
         public async Task<ManagerDelegation> ValidateDelegationAsync(
             Guid realUserId, Guid delegationId, Guid? actingAsUserId = null)
         {
@@ -92,9 +83,7 @@ namespace CompanyEmployees.Application.Contexts
             if (delegation.DelegateId != realUserId)
                 throw new UnauthorizedException("This delegation was not given to you.");
 
-            // The cookie belongs to the borrowed account, so Identity revalidates that
-            // account's security stamp and never the delegate's. Deactivating the delegate
-            // has to end their borrowed access too, hence checking them here.
+            // Ensure the delegate's own account remains active.
             var realUser = await _users.GetUserByIdAsync(realUserId);
             if (realUser is null || realUser.Status != UserStatus.Active)
                 throw new UnauthorizedException("Your own account is no longer active.");

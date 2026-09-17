@@ -40,7 +40,6 @@ namespace CompanyEmployees.Application.Contexts
             DelegatedActionType actionType, Guid targetEntityId, string? details) =>
             _delegationGuard.RecordDelegatedActionAsync(delegation, actingAsUserId, targetUserId, actionType, targetEntityId, details);
 
-        // --- administrare departamente (folosit de pagina admin crud) -----------------
 
         public Task<List<Department>> GetDepartmentsAsync() =>
             _departmentGateway.GetAllAsync();

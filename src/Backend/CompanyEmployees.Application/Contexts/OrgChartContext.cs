@@ -20,10 +20,7 @@ namespace CompanyEmployees.Application.Contexts
             _leaveRequestGateway = leaveRequestGateway;
         }
 
-        // This replaced a builder that assembled the tree around the *viewer* — a non-admin got
-        // their own team branch and nothing else, an admin got one level of synthetic
-        // department-group nodes that could never be expanded because the loader was never
-        // wired up. Neither could show the company.
+        // Builds the company org chart starting from headquarters and regional roots.
         public async Task<OrgChartNode?> GetCompanyOrgChartAsync(
             Guid currentUserId,
             Guid? targetUserId = null,
@@ -40,8 +37,7 @@ namespace CompanyEmployees.Application.Contexts
 
             var byId = activeUsers.ToDictionary(user => user.Id);
 
-            // A manager who is inactive is not in byId, so their reports are treated as tops of
-            // the chart rather than vanishing under a parent that is never drawn.
+            // Reports of inactive managers are treated as top-level.
             var childrenOf = activeUsers
                 .Where(user => user.ManagerId is Guid managerId && byId.ContainsKey(managerId))
                 .GroupBy(user => user.ManagerId!.Value)
@@ -98,9 +94,7 @@ namespace CompanyEmployees.Application.Contexts
                 return node;
             }
 
-            // Every region has its own top, so there is no single chief executive to root the
-            // chart on — hence the heading. Its empty id is what the page's action checks use to
-            // recognise a node nobody can act on.
+            // Synthetic root node for the company tree (Guid.Empty denotes a non-actionable node).
             var root = new OrgChartNode
             {
                 UserId = Guid.Empty,
@@ -227,10 +221,7 @@ namespace CompanyEmployees.Application.Contexts
             return root;
         }
 
-        // Walks down from a node looking for targetId, opening every synthetic group on the way
-        // (a real person is opened by the chain-walking caller instead, which also has to fill
-        // in their team). Shared by the two callers that root a tree away from the person they
-        // need visible: the company chart's own viewer, and the focused tree's top-of-chain.
+        // Recursively expands synthetic groups along the path to targetId.
         private static bool ExpandPathToNode(OrgChartNode node, Guid targetId)
         {
             if (node.UserId == targetId)
@@ -252,9 +243,7 @@ namespace CompanyEmployees.Application.Contexts
             return false;
         }
 
-        // One level of the tree, fetched when a node is expanded. Without this the worldwide
-        // chart would have to materialise every account up front; with it, a branch costs one
-        // query at the moment somebody asks for it.
+        // Fetches child nodes on demand when a parent node is expanded.
         public async Task<List<OrgChartNode>> GetOrgChartChildrenAsync(Guid parentUserId)
         {
             var activeUsers = (await _userGateway.GetAllUsersAsync())
@@ -287,14 +276,7 @@ namespace CompanyEmployees.Application.Contexts
             return reports.Select(NodeFor).ToList();
         }
 
-        // The org chart the global search lands on. GetCompanyOrgChartAsync deliberately builds
-        // a narrow tree — a non-admin gets their own team branch, an admin gets one unexpanded
-        // level of department groups — so the person just searched for is almost never in it,
-        // and asking the page to expand a path to them could only ever fail.
-        //
-        // This builds the tree *around* the target instead: their whole management chain, the
-        // colleagues they share a manager with, and their own direct reports. Worldwide, like
-        // the search that produced the link. Returns null for an unknown or inactive target.
+        // Builds an org chart focused on a target user, including management chain, peers, and direct reports.
         public async Task<OrgChartNode?> GetOrgChartFocusedOnAsync(Guid currentUserId, Guid targetUserId)
         {
             var allUsers = await _userGateway.GetAllUsersAsync();
@@ -322,9 +304,7 @@ namespace CompanyEmployees.Application.Contexts
                 return node;
             }
 
-            // Upwards from the target, stopping at the first manager outside the visible set —
-            // a cross-region manager is not something to reveal here. Guarded against a cycle
-            // for the same reason GetCompanyOrgChartAsync guards: bad data must not hang a page.
+            // Walk up the reporting chain, guarding against cycles.
             var chain = new List<User>();
             var seen = new HashSet<Guid>();
             var current = target;
@@ -337,17 +317,13 @@ namespace CompanyEmployees.Application.Contexts
             }
             chain.Reverse();
 
-            // Everything already on the path from the root down. Nothing below may attach one
-            // of these again: a cycle in the reporting data would otherwise produce a cyclic
-            // *node* graph, and the first recursive walk over it — expanding, rendering —
-            // never returns. The chain walk above stops at a repeat; this stops the branches.
+            // Track placed nodes to prevent cycles and duplicate branches.
             var placed = chain.Select(user => user.Id).ToHashSet();
 
             for (var i = 0; i < chain.Count - 1; i++)
                 NodeFor(chain[i]).Subordinates = new List<OrgChartNode> { NodeFor(chain[i + 1]) };
 
-            // The target's own team: everyone reporting to the same manager, so the person is
-            // shown among their colleagues rather than as a lone node on a stick.
+            // Include peers reporting to the same manager.
             if (target.ManagerId is Guid targetManagerId
                 && visible.FirstOrDefault(user => user.Id == targetManagerId) is { } targetManager)
             {
@@ -369,10 +345,7 @@ namespace CompanyEmployees.Application.Contexts
             var root = NodeFor(chain[0]);
             SetAllExpanded(root, true);
 
-            // Wraps the top of the chain in the same Region/City/Site path the worldwide chart
-            // would put them behind, innermost first, so a focused tree reads as a branch of
-            // that one rather than a fragment nobody can place. Skipped levels the person has
-            // no value for — most chains stop at Region, since City/Site are optional.
+            // Wrap top of chain in synthetic grouping nodes (Region/City) for visual context.
             var topOfChain = chain[0];
             var wrappers = new List<(string Name, string Role)>();
             if (topOfChain.Region is not null)
@@ -401,16 +374,7 @@ namespace CompanyEmployees.Application.Contexts
             return root;
         }
 
-        // Everyone below a manager, however deep. Answers "may I act on this row?" for the org
-        // chart, which since the directory went worldwide shows plenty of people the viewer may
-        // only look at.
-        //
-        // Computed from the reporting graph rather than from the rendered tree: the focused view
-        // is built around somebody else and often does not contain the viewer at all, so walking
-        // it found no subtree and quietly took a manager's own buttons away.
-        //
-        // Region-scoped, because acting is: ManagerContext refuses a decision or a contract
-        // across regions, and a relocation drops reporting links that would cross one.
+        // Returns the transitive reports of a manager within their region, computed from the reporting graph.
         public async Task<HashSet<Guid>> GetManagedUserIdsAsync(Guid managerId)
         {
             var manager = await _userGateway.GetUserByIdAsync(managerId);

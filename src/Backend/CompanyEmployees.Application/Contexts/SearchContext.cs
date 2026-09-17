@@ -20,12 +20,8 @@ namespace CompanyEmployees.Application.Contexts
             _departmentGateway = departmentGateway;
         }
 
-        // query syntax. An empty query with a pill set is a legitimate search: it means
-        // "show me what is in here".
-        //
-        // In memory over GetAllUsersAsync, like the org chart and every other cross-cutting
-        // read in this class. At a hundred accounts that is a non-issue; if the roster ever
-        // grows past a few thousand this is the first thing to push into the gateway.
+        // Performs a cross-cutting search across people, departments, and regions.
+        // An empty query with filters returns browsable entities within that scope.
         public async Task<GlobalSearchResult> GlobalSearchAsync(
             Guid userId,
             string? query,
@@ -34,16 +30,11 @@ namespace CompanyEmployees.Application.Contexts
             SearchEntityType type = SearchEntityType.All,
             int take = 8)
         {
-            // Resolved even though the result is no longer filtered by it: an unknown caller
-            // must still be refused rather than served the whole company.
+            // Ensure caller exists before executing search.
             _ = await _userGateway.GetUserByIdAsync(userId)
                 ?? throw new EntityNotFoundException($"No user with id {userId}.");
 
-            // The company directory is deliberately worldwide (2026-08-17): everyone may look
-            // up anyone, in any region, exactly as they can in the org chart. What stays
-            // region-scoped is *doing* things — decisions, contracts, team rosters, dashboards
-            // and every CSV export. Widening this without keeping those scoped is the mistake
-            // to avoid; see "Who can see whom" in CLAUDE.md.
+            // Directory search is worldwide; actions remain region-scoped.
             var visible = (await _userGateway.GetAllUsersAsync())
                 .Where(user => user.Status == UserStatus.Active)
                 .ToList();
@@ -61,13 +52,8 @@ namespace CompanyEmployees.Application.Contexts
                 .OrderBy(user => user.Name)
                 .ToList();
 
-            // Grouped by the foreign key, never by the navigation instance. GetAllUsersAsync
-            // reads AsNoTracking without identity resolution, so every user carries its *own*
-            // Department and Region objects — grouping by those groups by reference and yields
-            // one "department" per employee, each with a member count of 1.
-            // The manager's name comes from the department gateway, not from the users: the user
-            // query includes Department but not Department.Manager, so reading it off a user's
-            // navigation gives null every time and the column renders permanently empty.
+            // Group by foreign key to avoid reference grouping under AsNoTracking.
+            // Manager names are fetched via IDepartmentGateway since user navigation does not include them.
             var departmentsById = (await _departmentGateway.GetAllAsync())
                 .ToDictionary(department => department.Id);
 
@@ -97,9 +83,7 @@ namespace CompanyEmployees.Application.Contexts
                 .OrderBy(hit => hit.Name)
                 .ToList();
 
-            // Counted before the cap and before the type filter: the chips are how the user
-            // switches type, so each has to report what is waiting behind it — including the
-            // people chip in the opening state, which is what makes it worth pressing.
+            // Totals are computed across all matching entities before pagination or type filtering.
             var result = new GlobalSearchResult
             {
                 PeopleTotal = people.Count,
@@ -107,10 +91,7 @@ namespace CompanyEmployees.Application.Contexts
                 RegionsTotal = regions.Count
             };
 
-            // Nothing typed and nothing pinned is the dropdown's opening state: the places to
-            // drill into are more use there than the first few names in the company in
-            // alphabetical order. Asking for People explicitly overrides that — then listing
-            // everyone is exactly what was asked for.
+            // Default browsing state shows departments and regions rather than an arbitrary list of people.
             var browsing = !hasQuery
                            && regionId is null
                            && departmentId is null

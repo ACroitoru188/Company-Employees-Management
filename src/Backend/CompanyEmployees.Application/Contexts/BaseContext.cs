@@ -4,8 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CompanyEmployees.Application.Contexts
 {
-    // ponytail: contexts reach data only through Gateway interfaces (per the layering spec),
-    // so no DbContext here — Application must not know about Persistence.
+    // Contexts access data exclusively through Gateway interfaces — Application must not reference Persistence.
     public abstract class BaseContext
     {
         protected readonly ILogger _logger;
