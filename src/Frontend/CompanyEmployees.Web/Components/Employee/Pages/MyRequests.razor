@@ -47,9 +47,21 @@
     <TemplateColumn Title="@Text["Status"]">
         @* Amber / green / red, as before: FluentBadge's three appearances cannot tell
            approved from rejected, and that is the one distinction this column exists for. *@
-        <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(context.Status)" Color="white">
-            @Text[context.Status.ToString()]
-        </FluentBadge>
+        @* The leave is still approved while HR reviews the withdrawal, so the badge alone is
+           true but not the whole story. The marker sits beside it rather than under it: the
+           grid's rows are a fixed height, and a second stacked badge is clipped by it. *@
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="6"
+                     VerticalAlignment="VerticalAlignment.Center">
+            <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(context.Status)" Color="white">
+                @Text[context.Status.ToString()]
+            </FluentBadge>
+            @if (context.CancellationPending)
+            {
+                <FluentIcon Value="@(new Icons.Regular.Size16.ArrowUndo())"
+                            Color="Color.Custom" CustomColor="var(--warning)"
+                            Title="@Text["cancellation pending"]" />
+            }
+        </FluentStack>
     </TemplateColumn>
 
     <PropertyColumn Title="@Text["Submitted"]"
@@ -64,11 +76,38 @@
             @* FluentDataGrid's OnRowClick listens on the row itself, so without this the
                click would bubble up and open the details dialog behind the cancel dialog. *@
             <div @onclick:stopPropagation="true">
-                <FluentButton Appearance="Appearance.Stealth"
+                <FluentButton Appearance="Appearance.Outline"
                               Title="@Text["Cancel request"]"
                               IconStart="@(new Icons.Regular.Size20.DismissCircle().WithColor("var(--error)"))"
-                              OnClick="@(() => OpenCancelRequestAsync(context))" />
+                              OnClick="@(() => OpenCancelRequestAsync(context))">
+                    @Text["Cancel request"]
+                </FluentButton>
             </div>
+        }
+        @* Approved leave is somebody else's decision, so it can only be asked back, not taken
+           back — and only once, while the leave has not finished. *@
+        else if (context.Status == RequestStatus.Approved
+                 && !context.CancellationPending
+                 && context.EndDate >= DateOnly.FromDateTime(DateTime.Today))
+        {
+            @* Labelled, not a bare icon: an unlabelled glyph in this column reads as decoration
+               and was missed outright in review. The label is the affordance. *@
+            <div @onclick:stopPropagation="true">
+                <FluentButton Appearance="Appearance.Outline"
+                              Title="@Text["Request cancellation"]"
+                              IconStart="@(new Icons.Regular.Size20.ArrowUndo().WithColor("var(--warning)"))"
+                              OnClick="@(() => OpenRequestCancellationAsync(context))">
+                    @Text["Request cancellation"]
+                </FluentButton>
+            </div>
+        }
+        else if (context.CancellationPending)
+        {
+            @* Already with HR: say so where the button used to be, rather than leaving the
+               cell empty and looking like the request was never sent. *@
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--warning)">
+                @Text["cancellation pending"]
+            </FluentLabel>
         }
     </TemplateColumn>
 </ChildContent>
@@ -103,6 +142,56 @@
             SecondaryAction = null,
             Width = "480px"
         });
+
+    private async Task OpenRequestCancellationAsync(TimeOffRequest request)
+    {
+        var content = RequestCancellationDialog.Model.From(request);
+
+        var parameters = new DialogParameters
+        {
+            Title = Text["Request cancellation"],
+            PrimaryAction = Text["Send to HR"],
+            SecondaryAction = Text["Keep request"],
+            Width = "480px",
+            // Runs before the dialog is allowed to close; returning false keeps it open with
+            // the message written back onto the content the dialog is rendering.
+            ValidateDialogAsync = () => SendCancellationRequestAsync(content)
+        };
+
+        var dialog = await DialogService.ShowDialogAsync<RequestCancellationDialog, RequestCancellationDialog.Model>(
+            content, parameters);
+
+        var result = await dialog.Result;
+        if (result.Cancelled)
+            return;
+
+        _requests = await TimeOff.GetMyRequestsAsync();
+        Toast.ShowSuccess(Text["Cancellation request sent to HR."]);
+    }
+
+    private async Task<bool> SendCancellationRequestAsync(RequestCancellationDialog.Model content)
+    {
+        content.SetError(null);
+
+        if (string.IsNullOrWhiteSpace(content.Reason))
+        {
+            content.SetError(Text["A reason is required to request a cancellation."]);
+            return false;
+        }
+
+        // Blazor Server tears the circuit down on an unhandled exception, which reads to the
+        // user as the dialog freezing — so every backend refusal comes back as a message here.
+        try
+        {
+            await TimeOff.RequestCancellationAsync(content.RequestId, content.Reason);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            content.SetError(ex.Message);
+            return false;
+        }
+    }
 
     private async Task OpenCancelRequestAsync(TimeOffRequest request)
     {

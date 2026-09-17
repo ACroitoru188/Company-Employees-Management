@@ -230,10 +230,19 @@
   "Romania Map": "Rumänien Karte",
   "Location": "Standort",
   "Level 5: Site Org Chart": "Ebene 5: Standort Organigramm",
-  "Manage Contract": "Vertrag verwalten",
   "Search people...": "Personen suchen...",
   "City Filter": "Stadtfilter",
   "Department Filter": "Abteilungsfilter",
   "Global Organization Chart": "Globales Organigramm",
-  "Org Tree": "Organigrammbaum"
+  "Org Tree": "Organigrammbaum",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "HR bitten, Ihren genehmigten {0}-Urlaub vom {1}–{2} zu stornieren?",
+  "This leave has already started.": "Dieser Urlaub hat bereits begonnen.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "Ihr Urlaub bleibt genehmigt, bis HR entscheidet. Bei Zustimmung werden die Tage Ihrem Guthaben gutgeschrieben.",
+  "Reason for cancelling (required)": "Grund für die Stornierung (erforderlich)",
+  "Tell HR why you no longer need this leave....": "Teilen Sie HR mit, warum Sie diesen Urlaub nicht mehr benötigen....",
+  "cancellation pending": "Stornierung ausstehend",
+  "Request cancellation": "Stornierung beantragen",
+  "Send to HR": "An HR senden",
+  "Cancellation request sent to HR.": "Stornierungsantrag an HR gesendet.",
+  "A reason is required to request a cancellation.": "Für einen Stornierungsantrag ist ein Grund erforderlich."
 }

@@ -230,10 +230,19 @@
   "Romania Map": "रोमानिया का नक्शा",
   "Location": "स्थान",
   "Level 5: Site Org Chart": "स्तर 5: साइट संगठन चार्ट",
-  "Manage Contract": "अनुबंध प्रबंधित करें",
   "Search people...": "लोगों को खोजें...",
   "City Filter": "शहर फ़िल्टर",
   "Department Filter": "विभाग फ़िल्टर",
   "Global Organization Chart": "वैश्विक संगठन चार्ट",
-  "Org Tree": "संगठन वृक्ष"
+  "Org Tree": "संगठन वृक्ष",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "क्या HR से {1}–{2} की स्वीकृत {0} छुट्टी रद्द करने के लिए कहें?",
+  "This leave has already started.": "यह छुट्टी पहले ही शुरू हो चुकी है।",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "HR के निर्णय तक आपकी छुट्टी स्वीकृत रहेगी। स्वीकृति मिलने पर दिन आपके शेष में वापस आ जाएंगे।",
+  "Reason for cancelling (required)": "रद्द करने का कारण (आवश्यक)",
+  "Tell HR why you no longer need this leave....": "HR को बताएं कि अब आपको इस छुट्टी की आवश्यकता क्यों नहीं है....",
+  "cancellation pending": "रद्दीकरण लंबित",
+  "Request cancellation": "रद्दीकरण का अनुरोध करें",
+  "Send to HR": "HR को भेजें",
+  "Cancellation request sent to HR.": "रद्दीकरण अनुरोध HR को भेजा गया।",
+  "A reason is required to request a cancellation.": "रद्दीकरण का अनुरोध करने के लिए कारण आवश्यक है।"
 }

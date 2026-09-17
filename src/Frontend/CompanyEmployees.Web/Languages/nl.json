@@ -230,10 +230,19 @@
   "Romania Map": "Roemenië Kaart",
   "Location": "Locatie",
   "Level 5: Site Org Chart": "Niveau 5: Locatie Organogram",
-  "Manage Contract": "Contract beheren",
   "Search people...": "Personen zoeken...",
   "City Filter": "Stadsfilter",
   "Department Filter": "Afdelingsfilter",
   "Global Organization Chart": "Wereldwijd Organogram",
-  "Org Tree": "Organogramboom"
+  "Org Tree": "Organogramboom",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "HR vragen om je goedgekeurde {0}-verlof van {1} tot {2} te annuleren?",
+  "This leave has already started.": "Dit verlof is al begonnen.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "Je verlof blijft goedgekeurd totdat HR beslist. Bij goedkeuring komen de dagen terug op je saldo.",
+  "Reason for cancelling (required)": "Reden voor annulering (verplicht)",
+  "Tell HR why you no longer need this leave....": "Vertel HR waarom je dit verlof niet meer nodig hebt....",
+  "cancellation pending": "annulering in behandeling",
+  "Request cancellation": "Annulering aanvragen",
+  "Send to HR": "Naar HR sturen",
+  "Cancellation request sent to HR.": "Annuleringsverzoek naar HR gestuurd.",
+  "A reason is required to request a cancellation.": "Een reden is vereist om een annulering aan te vragen."
 }

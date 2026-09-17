@@ -230,10 +230,19 @@
   "Romania Map": "Romanya Haritası",
   "Location": "Konum",
   "Level 5: Site Org Chart": "Seviye 5: Site Organizasyon Şeması",
-  "Manage Contract": "Sözleşmeyi Yönet",
   "Search people...": "Kişileri ara...",
   "City Filter": "Şehir Filtresi",
   "Department Filter": "Departman Filtresi",
   "Global Organization Chart": "Küresel Organizasyon Şeması",
-  "Org Tree": "Organizasyon Ağacı"
+  "Org Tree": "Organizasyon Ağacı",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "İK'dan {1}–{2} tarihli onaylı {0} izninizi iptal etmesini isteyin?",
+  "This leave has already started.": "Bu izin çoktan başladı.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "İK karar verene kadar izniniz onaylı kalır. Onaylanırsa günler bakiyenize geri döner.",
+  "Reason for cancelling (required)": "İptal nedeni (zorunlu)",
+  "Tell HR why you no longer need this leave....": "İK'ya bu izne neden artık ihtiyacınız olmadığını anlatın....",
+  "cancellation pending": "iptal bekliyor",
+  "Request cancellation": "İptal talep et",
+  "Send to HR": "İK'ya gönder",
+  "Cancellation request sent to HR.": "İptal talebi İK'ya gönderildi.",
+  "A reason is required to request a cancellation.": "İptal talebi için bir neden gereklidir."
 }

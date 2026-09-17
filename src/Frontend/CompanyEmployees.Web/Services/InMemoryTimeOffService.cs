@@ -204,6 +204,26 @@ public class InMemoryTimeOffService : ITimeOffService
         return Task.CompletedTask;
     }
 
+    public Task RequestCancellationAsync(Guid requestId, string reason)
+    {
+        var request = _myRequests.FirstOrDefault(r => r.Id == requestId);
+        if (request == null)
+            throw new InvalidOperationException($"No leave request with id {requestId}.");
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new InvalidOperationException("A reason is required to request a cancellation.");
+        if (request.Status != RequestStatus.Approved)
+            throw new InvalidOperationException(
+                "Only approved leave can be sent to HR for cancellation.");
+        if (request.CancellationRequestedAt is not null)
+            throw new InvalidOperationException(
+                "HR is already reviewing a cancellation for this request.");
+
+        // Stays Approved on purpose: only HR's decision frees the days.
+        request.CancellationRequestedAt = DateTime.Now;
+        request.CancellationReason = reason.Trim();
+        return Task.CompletedTask;
+    }
+
     private static TeamMember Member(string name, string department, string team, LeaveType type, DateOnly start, DateOnly end) =>
         new()
         {

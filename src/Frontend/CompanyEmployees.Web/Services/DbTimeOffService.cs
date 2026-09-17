@@ -310,6 +310,23 @@ public class DbTimeOffService : ITimeOffService
         }
     }
 
+    public async Task RequestCancellationAsync(Guid requestId, string reason)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            // A delegate borrowing this account can ask on its behalf, so the audit has to
+            // record who was really behind it — same as submitting a request.
+            await _employee.RequestCancellationAsync(
+                user.Id, requestId, reason, await GetOnBehalfAsync());
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     // --- mapping helpers -------------------------------------------------
 
     private async Task<HashSet<DateOnly>> GetHolidayDatesAsync(
@@ -350,6 +367,7 @@ public class DbTimeOffService : ITimeOffService
             DecidedBy = decision?.Approver?.Name,
             DecidedAt = decision?.ReviewedAt,
             CancellationReason = request.CancellationReason,
+            CancellationRequestedAt = request.CancellationRequestedAt,
             WorkingDayCount = CountWorkingDays(request.StartDate, request.EndDate, holidays)
         };
     }

@@ -230,10 +230,19 @@
   "Romania Map": "Rumänien Karta",
   "Location": "Plats",
   "Level 5: Site Org Chart": "Nivå 5: Plats organisationsschema",
-  "Manage Contract": "Hantera kontrakt",
   "Search people...": "Sök efter personer...",
   "City Filter": "Stadsfilter",
   "Department Filter": "Avdelningsfilter",
   "Global Organization Chart": "Globalt organisationsschema",
-  "Org Tree": "Organisationsträd"
+  "Org Tree": "Organisationsträd",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "Be HR att annullera din godkända {0}-ledighet {1}–{2}?",
+  "This leave has already started.": "Den här ledigheten har redan börjat.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "Din ledighet förblir godkänd tills HR beslutar. Vid godkännande återförs dagarna till ditt saldo.",
+  "Reason for cancelling (required)": "Orsak till annullering (obligatoriskt)",
+  "Tell HR why you no longer need this leave....": "Berätta för HR varför du inte längre behöver den här ledigheten....",
+  "cancellation pending": "annullering väntar",
+  "Request cancellation": "Begär annullering",
+  "Send to HR": "Skicka till HR",
+  "Cancellation request sent to HR.": "Begäran om annullering skickad till HR.",
+  "A reason is required to request a cancellation.": "En orsak krävs för att begära en annullering."
 }

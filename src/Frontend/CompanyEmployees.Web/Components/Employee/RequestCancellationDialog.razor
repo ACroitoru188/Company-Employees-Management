@@ -1,0 +1,79 @@
+@* Asking HR to undo leave that was already approved. Sibling of CancelRequestDialog, which
+   covers the other case: withdrawing a request nobody has decided yet, which needs nobody's
+   permission. State travels on the Content object, which the caller reads back. *@
+@using System.Globalization
+@inject AppLocalizer Text
+@implements IDialogContentComponent<RequestCancellationDialog.Model>
+
+<FluentDialogBody>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+        <FluentLabel Typo="Typography.Body">
+            @Text.Format("Ask HR to cancel your approved {0} leave for {1}–{2}?",
+                Text[Content.Type.ToString()], Content.StartDate.ToString("MMM d", CultureInfo.CurrentCulture),
+                Content.EndDate.ToString("MMM d, yyyy", CultureInfo.CurrentCulture))
+        </FluentLabel>
+
+        @if (Content.InProgress)
+        {
+            <FluentMessageBar Intent="MessageIntent.Warning" AllowDismiss="false">
+                @Text["This leave has already started."]
+            </FluentMessageBar>
+        }
+
+        @* The error replaces the hint rather than stacking under it. FluentDialog fixes its
+           control's height when it opens and never re-measures, so a bar added afterwards is
+           painted past the bottom of the white card — measured, not guessed. Swapping keeps
+           the content height the same whether or not there is an error. *@
+        @if (Content.Error is not null)
+        {
+            <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">@Content.Error</FluentMessageBar>
+        }
+        else
+        {
+            <FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false">
+                @Text["Your leave stays approved until HR decides. If they approve, the days return to your balance."]
+            </FluentMessageBar>
+        }
+
+        <FluentTextArea @bind-Value="Content.Reason"
+                        Label="@Text["Reason for cancelling (required)"]"
+                        Placeholder="@Text["Tell HR why you no longer need this leave...."]"
+                        Rows="3"
+                        Style="width:100%;" />
+    </FluentStack>
+</FluentDialogBody>
+
+@code {
+    [Parameter]
+    public Model Content { get; set; } = default!;
+
+    // Fluent runs the primary action's validation outside this component's event loop, so a
+    // message written onto Content during it would never reach the screen without this.
+    protected override void OnInitialized() => Content.Refresh = () => InvokeAsync(StateHasChanged);
+
+    public class Model : DialogContentModel
+    {
+        public Guid RequestId { get; set; }
+        public LeaveType Type { get; set; }
+        public DateOnly StartDate { get; set; }
+        public DateOnly EndDate { get; set; }
+        public bool InProgress { get; set; }
+        public string Reason { get; set; } = "";
+        public string? Error { get; private set; }
+
+        public void SetError(string? message)
+        {
+            Error = message;
+            NotifyChanged();
+        }
+
+        public static Model From(TimeOffRequest request) => new()
+        {
+            RequestId = request.Id,
+            Type = request.Type,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            InProgress = request.StartDate <= DateOnly.FromDateTime(DateTime.Today)
+        };
+    }
+}

@@ -230,10 +230,19 @@
   "Romania Map": "Mapa Rumunska",
   "Location": "Umístění",
   "Level 5: Site Org Chart": "Úroveň 5: Organizační schéma pobočky",
-  "Manage Contract": "Spravovat smlouvu",
   "Search people...": "Hledat lidi...",
   "City Filter": "Filtr města",
   "Department Filter": "Filtr oddělení",
   "Global Organization Chart": "Globální organizační schéma",
-  "Org Tree": "Organizační strom"
+  "Org Tree": "Organizační strom",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "Požádat HR o zrušení schválené dovolené {0} od {1} do {2}?",
+  "This leave has already started.": "Tato dovolená již začala.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "Dovolená zůstává schválená, dokud HR nerozhodne. Při schválení se dny vrátí do vašeho zůstatku.",
+  "Reason for cancelling (required)": "Důvod zrušení (povinný)",
+  "Tell HR why you no longer need this leave....": "Vysvětlete HR, proč tuto dovolenou již nepotřebujete....",
+  "cancellation pending": "zrušení čeká",
+  "Request cancellation": "Požádat o zrušení",
+  "Send to HR": "Odeslat HR",
+  "Cancellation request sent to HR.": "Žádost o zrušení byla odeslána HR.",
+  "A reason is required to request a cancellation.": "K žádosti o zrušení je nutné uvést důvod."
 }

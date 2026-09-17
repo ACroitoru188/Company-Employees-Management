@@ -40,4 +40,10 @@ public interface ITimeOffService
         LeaveType type, DateOnly start, DateOnly end, string? reason, bool allowPastDates = false);
     /// <summary>Withdraws a request the caller owns, as long as it is still Pending (nobody has approved it yet).</summary>
     Task CancelRequestAsync(Guid requestId, string? reason);
+
+    /// <summary>
+    /// Asks HR to undo leave the caller owns that was already approved. Nothing changes until
+    /// HR decides — the leave stays Approved and the days stay spent in the meantime.
+    /// </summary>
+    Task RequestCancellationAsync(Guid requestId, string reason);
 }

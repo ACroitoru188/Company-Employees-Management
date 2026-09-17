@@ -230,10 +230,19 @@
   "Romania Map": "Romania kart",
   "Location": "Plassering",
   "Level 5: Site Org Chart": "Nivå 5: Avdelings organisasjonskart",
-  "Manage Contract": "Administrer kontrakt",
   "Search people...": "Søk etter personer...",
   "City Filter": "Byfilter",
   "Department Filter": "Avdelingsfilter",
   "Global Organization Chart": "Globalt organisasjonskart",
-  "Org Tree": "Organisasjonstre"
+  "Org Tree": "Organisasjonstre",
+  "Ask HR to cancel your approved {0} leave for {1}–{2}?": "Be HR om å annullere den godkjente {0}-permisjonen fra {1} til {2}?",
+  "This leave has already started.": "Denne permisjonen har allerede startet.",
+  "Your leave stays approved until HR decides. If they approve, the days return to your balance.": "Permisjonen forblir godkjent til HR bestemmer. Ved godkjenning føres dagene tilbake til saldoen din.",
+  "Reason for cancelling (required)": "Årsak til annullering (påkrevd)",
+  "Tell HR why you no longer need this leave....": "Fortell HR hvorfor du ikke lenger trenger denne permisjonen....",
+  "cancellation pending": "annullering venter",
+  "Request cancellation": "Be om annullering",
+  "Send to HR": "Send til HR",
+  "Cancellation request sent to HR.": "Forespørsel om annullering sendt til HR.",
+  "A reason is required to request a cancellation.": "Det kreves en årsak for å be om annullering."
 }
