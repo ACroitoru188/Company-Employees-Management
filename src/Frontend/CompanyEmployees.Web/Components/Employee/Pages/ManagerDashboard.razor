@@ -16,6 +16,8 @@
 @inject LeaveContext Leave
 @inject AdminContext Admin
 @inject ManagerContext Manager
+@inject ContractContext Contracts
+@inject DelegationContext Delegation
 @inject NavigationManager Nav
 @inject IToastService Toast
 @inject IDialogService DialogService
@@ -571,7 +573,7 @@ else
             var newEndDate = content.SelectedDate;
             try
             {
-                await Manager.ExtendContractAsync(_managerId, member.ContractId.Value, newEndDate, _onBehalf);
+                await Contracts.ExtendContractAsync(_managerId, member.ContractId.Value, newEndDate, _onBehalf);
                 Toast.ShowSuccess($"Contract extended for {member.Name} until {newEndDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}.");
                 await LoadAsync();
             }
@@ -611,7 +613,7 @@ else
 
             try
             {
-                await Manager.TerminateContractAsync(_managerId, member.ContractId.Value, reason, _onBehalf);
+                await Contracts.TerminateContractAsync(_managerId, member.ContractId.Value, reason, _onBehalf);
                 Toast.ShowWarning($"Contract terminated for {member.Name}.");
                 await LoadAsync();
             }
@@ -637,10 +639,7 @@ else
 
     private async Task OpenCreateDelegationDialog()
     {
-        var regionUsers = await Admin.GetUsersInMyRegionAsync(_managerId);
-        var candidateDelegates = regionUsers
-            .Where(u => u.Id != _managerId)
-            .ToList();
+        var candidateDelegates = await Delegation.GetEligibleDelegatesAsync(_managerId);
 
         var content = new CreateDelegationDialog.Model { AvailableUsers = candidateDelegates };
 
@@ -662,7 +661,7 @@ else
             var res = content.ToResult();
             try
             {
-                await Manager.CreateDelegationAsync(_managerId, res.DelegateId, res.StartDate, res.EndDate, res.Reason, _onBehalf);
+                await Delegation.CreateDelegationAsync(_managerId, res.DelegateId, res.StartDate, res.EndDate, res.Reason, _onBehalf);
                 Toast.ShowSuccess("Delegation created successfully.");
                 await LoadAsync();
             }
@@ -677,7 +676,7 @@ else
     {
         try
         {
-            await Manager.CancelDelegationAsync(_managerId, delegationId);
+            await Delegation.CancelDelegationAsync(_managerId, delegationId);
             Toast.ShowInfo("Delegation cancelled.");
             await LoadAsync();
         }

@@ -8,7 +8,7 @@
 @using CompanyEmployees.Application.Contexts
 @using CompanyEmployees.Domain.Enums
 @using CompanyEmployees.Web.Security
-@inject ManagerContext Manager
+@inject DelegationContext Delegation
 @inject ActingContext Acting
 @inject NavigationManager Nav
 @inject ILogger<DelegationHistory> Logger
@@ -156,7 +156,7 @@ else
                 ? _acting.RealUserId
                 : _acting.EffectiveUserId;
 
-            _result = await Manager.GetDelegationHistoryAsync(
+            _result = await Delegation.GetDelegationHistoryAsync(
                 targetUserId, Scope, (_page - 1) * PageSize, PageSize);
             await _pagination.SetTotalItemCountAsync(_result.Total);
         }

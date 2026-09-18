@@ -29,7 +29,8 @@ src/Backend/CompanyEmployees.Persistence     # CompanyEmployeesDbContext, IEntit
 src/Backend/CompanyEmployees.Gateway         # repository IMPLEMENTATIONS (BaseRepository holds the DbContext)
 src/Backend/CompanyEmployees.Application     # business logic: Contexts/ (BaseContext, LeaveContext,
                                              # OrgChartContext, SearchContext, AdminContext, ManagerContext,
-                                             # EmployeeContext, NotificationContext, ImpersonationContext, DelegationGuard)
+                                             # EmployeeContext, NotificationContext, ImpersonationContext, DelegationGuard,
+                                             # ContractContext, DelegationContext)
 src/Backend/CompanyEmployees.Infrastructure  # cross-cutting: GlobalExceptionHandler, ResponseHandling
 src/Frontend/CompanyEmployees.Web            # Blazor Server + Fluent UI + minimal-API login
 tests/CompanyEmployees.Domain.Tests          # xunit: LeaveAllocationPolicy, LeaveApprovalPolicy
@@ -40,8 +41,9 @@ tests/CompanyEmployees.Application.Tests     # xunit: ManagerContext, Notificati
 Razor page → `ITimeOffService` (`Web/Services/DbTimeOffService`) → `LeaveContext` / `EmployeeContext`
 (Application) → `I*Gateway` (Domain/GatewayInterfaces) → `*Repository` (Gateway) →
 `CompanyEmployeesDbContext` → SQL Server. Application never references Persistence — the gateway
-interfaces live in Domain precisely so the dependency points inward. Web components never touch
-the DbContext directly (only Identity's `UserManager`/`SignInManager` do, via DI).
+interfaces live in Domain precisely so the dependency points inward. Web components and Web services never touch
+the DbContext directly (only Identity's `UserManager`/`SignInManager` do, via DI). All database
+operations route strictly through Application Contexts.
 
 Each layer registers itself via its own `ServiceCollectionExtensions`
 (`AddPersistenceLayer(config)` / `AddGatewayLayer()` / `AddApplicationLayer()` /
@@ -356,9 +358,8 @@ sits on, so one token holds different values in different places — measured in
 - **View-models vs domain**: `Web/Models/` (`TeamMember`, `TimeOffRequest`, `LeaveBalance`) and
   the Web-side `LeaveType`/`RequestStatus` enums are **separate from the domain enums** and
   explicitly mapped in `DbTimeOffService` (numeric orders differ — never cast between them).
-- **`ITimeOffService`** is the page-facing seam. `DbTimeOffService` (registered Scoped, real DB
-  path) is live; `InMemoryTimeOffService` is an unregistered mock kept as a fallback — when the
-  interface grows, both must implement the new member.
+- **`ITimeOffService`** is the page-facing seam implemented by `DbTimeOffService` (registered Scoped, real DB
+  path via `LeaveContext` and `EmployeeContext`).
 - `EmployeeTeam.razor` lists the team roster (`GetTeamRosterAsync` → `TeamRosterEntry`):
   manager first with a "Manager" chip, then teammates, each with their current-or-next approved
   leave period or "Available".
@@ -623,9 +624,8 @@ trace. The compensating controls below are what make that acceptable; don't remo
   `LeaveContext.SubmitRequestAsync` throws `DelegationRequiredException` unless an active
   delegation overlaps the period. `EmployeeCalendar` catches that one exception, offers the
   dialog pre-filled with the leave dates, and retries the submit **once**.
-  - That path is the one place an *employee* page injects `AdminContext`/`ManagerContext`
-    directly instead of `ITimeOffService`. Deliberate: delegation has no business on that
-    interface, and adding it would drag it into `InMemoryTimeOffService` too. Treat it as an
+  - That path injects `DelegationContext` directly instead of `ITimeOffService`. Deliberate:
+    delegation has no business on the time-off service interface. Treat it as an
     exception, not precedent.
 
 ## Notifications (in-process dispatcher)

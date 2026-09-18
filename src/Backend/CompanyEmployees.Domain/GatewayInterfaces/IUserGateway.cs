@@ -17,5 +17,7 @@ namespace CompanyEmployees.Domain.GatewayInterfaces
         Task CreateUserAsync(User user);
         Task UpdateUserAsync(User user);
         Task DeleteUserAsync(Guid userId);
+
+        Task<List<User>> GetUsersForExportAsync(Guid regionId, CancellationToken cancellationToken = default);
     }
 }

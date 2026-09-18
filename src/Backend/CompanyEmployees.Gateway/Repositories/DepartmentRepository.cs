@@ -20,10 +20,10 @@ namespace CompanyEmployees.Gateway.Repositories
                 .ToListAsync();
         }
 
-        // tracked (fara asnotracking) ca update/delete sa mearga simplu.
         public async Task<Department?> GetByIdAsync(Guid id)
         {
             return await _context.Departments
+                .Include(d => d.Manager)
                 .FirstOrDefaultAsync(d => d.Id == id);
         }
 

@@ -213,7 +213,7 @@ public class EmployeeContextDelegationTests
 
         _users.GetUserByIdAsync(employee.Id).Returns(employee);
         _contracts.GetActiveContractByUserIdAsync(employee.Id).Returns(activeContract);
-        var context = CreateAdminContext();
+        var context = CreateContractContext();
 
         var newEndDate = new DateOnly(2026, 12, 31);
         await context.SaveUserContractAsync(
@@ -248,7 +248,7 @@ public class EmployeeContextDelegationTests
 
         _users.GetUserByIdAsync(employee.Id).Returns(employee);
         _contracts.GetActiveContractByUserIdAsync(employee.Id).Returns(activeContract);
-        var context = CreateAdminContext();
+        var context = CreateContractContext();
 
         await context.SaveUserContractAsync(
             setup.Admin.Id, employee.Id, ContractType.Indeterminate, ContractStatus.Active,
@@ -399,7 +399,22 @@ public class EmployeeContextDelegationTests
             _users,
             _departments,
             _regions,
+            delegationGuard);
+    }
+
+    private ContractContext CreateContractContext()
+    {
+        var notificationContext = new NotificationContext(_notifications, _dispatcher);
+        var impersonationContext = new ImpersonationContext(
+            NullLogger<ImpersonationContext>.Instance, _sessions, _delegations, _users);
+        var delegationGuard = new DelegationGuard(impersonationContext, _delegatedActions);
+
+        return new ContractContext(
+            NullLogger<ContractContext>.Instance,
             _contracts,
+            _users,
+            _delegations,
+            notificationContext,
             delegationGuard);
     }
 }
