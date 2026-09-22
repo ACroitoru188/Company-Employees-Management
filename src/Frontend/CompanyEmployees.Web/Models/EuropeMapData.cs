@@ -1,10 +1,12 @@
 namespace CompanyEmployees.Web.Models;
 
+[Obsolete("Currently unused in the active UI. Retained for potential future European regional mapping.")]
 public class EuropeCountryModel
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
-    public string Code { get; set; } = "";    public string Capital { get; set; } = "";
+    public string Code { get; set; } = "";
+    public string Capital { get; set; } = "";
     public string HqLocation { get; set; } = "";
     public string ManagingDirector { get; set; } = "";
     public int TotalEmployees { get; set; }
@@ -15,6 +17,7 @@ public class EuropeCountryModel
     public List<EuropeHubModel> Hubs { get; set; } = new();
 }
 
+[Obsolete("Currently unused in the active UI. Retained for potential future European regional mapping.")]
 public class EuropeHubModel
 {
     public string Name { get; set; } = "";
@@ -24,6 +27,7 @@ public class EuropeHubModel
     public bool IsHQ { get; set; }
 }
 
+[Obsolete("Currently unused in the active UI. Retained for potential future European regional mapping.")]
 public static class EuropeMapData
 {
     public static List<EuropeCountryModel> GetCountries()
@@ -34,7 +38,8 @@ public static class EuropeMapData
             {
                 Id = "deu",
                 Name = "Germany",
-                Code = "DE",                Capital = "Berlin",
+                Code = "DE",
+                Capital = "Berlin",
                 HqLocation = "Munich (Global HQ)",
                 ManagingDirector = "Dr. Roland Busch",
                 TotalEmployees = 38500,
@@ -55,7 +60,8 @@ public static class EuropeMapData
             {
                 Id = "rou",
                 Name = "Romania",
-                Code = "RO",                Capital = "Bucharest",
+                Code = "RO",
+                Capital = "Bucharest",
                 HqLocation = "Bucharest HQ",
                 ManagingDirector = "Florian Ciolacu",
                 TotalEmployees = 2400,
@@ -74,7 +80,8 @@ public static class EuropeMapData
             {
                 Id = "fra",
                 Name = "France",
-                Code = "FR",                Capital = "Paris",
+                Code = "FR",
+                Capital = "Paris",
                 HqLocation = "Paris HQ",
                 ManagingDirector = "Doris Birkhofer",
                 TotalEmployees = 6200,
@@ -93,7 +100,8 @@ public static class EuropeMapData
             {
                 Id = "gbr",
                 Name = "United Kingdom",
-                Code = "GB",                Capital = "London",
+                Code = "GB",
+                Capital = "London",
                 HqLocation = "London HQ",
                 ManagingDirector = "Carl Ennis",
                 TotalEmployees = 8900,
@@ -112,7 +120,8 @@ public static class EuropeMapData
             {
                 Id = "ita",
                 Name = "Italy",
-                Code = "IT",                Capital = "Rome",
+                Code = "IT",
+                Capital = "Rome",
                 HqLocation = "Milan HQ",
                 ManagingDirector = "Floriano Masoero",
                 TotalEmployees = 3100,
@@ -131,7 +140,8 @@ public static class EuropeMapData
             {
                 Id = "esp",
                 Name = "Spain",
-                Code = "ES",                Capital = "Madrid",
+                Code = "ES",
+                Capital = "Madrid",
                 HqLocation = "Madrid HQ",
                 ManagingDirector = "Agustin Escobar",
                 TotalEmployees = 3400,
@@ -150,7 +160,8 @@ public static class EuropeMapData
             {
                 Id = "che",
                 Name = "Switzerland",
-                Code = "CH",                Capital = "Bern",
+                Code = "CH",
+                Capital = "Bern",
                 HqLocation = "Zug (Siemens SI HQ)",
                 ManagingDirector = "Matthias Rebellius",
                 TotalEmployees = 5800,
@@ -168,7 +179,8 @@ public static class EuropeMapData
             {
                 Id = "aut",
                 Name = "Austria",
-                Code = "AT",                Capital = "Vienna",
+                Code = "AT",
+                Capital = "Vienna",
                 HqLocation = "Vienna Siemens City",
                 ManagingDirector = "Patricia Neumann",
                 TotalEmployees = 4200,
@@ -186,7 +198,8 @@ public static class EuropeMapData
             {
                 Id = "pol",
                 Name = "Poland",
-                Code = "PL",                Capital = "Warsaw",
+                Code = "PL",
+                Capital = "Warsaw",
                 HqLocation = "Warsaw HQ",
                 ManagingDirector = "Maciej Zielinski",
                 TotalEmployees = 1950,
@@ -203,7 +216,8 @@ public static class EuropeMapData
             {
                 Id = "nld",
                 Name = "Netherlands",
-                Code = "NL",                Capital = "Amsterdam",
+                Code = "NL",
+                Capital = "Amsterdam",
                 HqLocation = "The Hague HQ",
                 ManagingDirector = "Dirk De Bilde",
                 TotalEmployees = 2100,
@@ -220,7 +234,8 @@ public static class EuropeMapData
             {
                 Id = "bel",
                 Name = "Belgium",
-                Code = "BE",                Capital = "Brussels",
+                Code = "BE",
+                Capital = "Brussels",
                 HqLocation = "Brussels HQ",
                 ManagingDirector = "Serge Molinari",
                 TotalEmployees = 1750,
@@ -237,7 +252,8 @@ public static class EuropeMapData
             {
                 Id = "swe",
                 Name = "Sweden",
-                Code = "SE",                Capital = "Stockholm",
+                Code = "SE",
+                Capital = "Stockholm",
                 HqLocation = "Stockholm HQ",
                 ManagingDirector = "Mikael Kraft",
                 TotalEmployees = 1400,
@@ -254,7 +270,8 @@ public static class EuropeMapData
             {
                 Id = "nor",
                 Name = "Norway",
-                Code = "NO",                Capital = "Oslo",
+                Code = "NO",
+                Capital = "Oslo",
                 HqLocation = "Oslo HQ",
                 ManagingDirector = "Frank Hovde",
                 TotalEmployees = 980,
@@ -271,7 +288,8 @@ public static class EuropeMapData
             {
                 Id = "fin",
                 Name = "Finland",
-                Code = "FI",                Capital = "Helsinki",
+                Code = "FI",
+                Capital = "Helsinki",
                 HqLocation = "Espoo HQ",
                 ManagingDirector = "Juha Häkkinen",
                 TotalEmployees = 850,
@@ -288,7 +306,8 @@ public static class EuropeMapData
             {
                 Id = "dnk",
                 Name = "Denmark",
-                Code = "DK",                Capital = "Copenhagen",
+                Code = "DK",
+                Capital = "Copenhagen",
                 HqLocation = "Ballerup HQ",
                 ManagingDirector = "Bjarne Lykke Sørensen",
                 TotalEmployees = 1100,
@@ -305,7 +324,8 @@ public static class EuropeMapData
             {
                 Id = "cze",
                 Name = "Czech Republic",
-                Code = "CZ",                Capital = "Prague",
+                Code = "CZ",
+                Capital = "Prague",
                 HqLocation = "Prague HQ",
                 ManagingDirector = "Eduard Palíšek",
                 TotalEmployees = 2900,
@@ -322,7 +342,8 @@ public static class EuropeMapData
             {
                 Id = "prt",
                 Name = "Portugal",
-                Code = "PT",                Capital = "Lisbon",
+                Code = "PT",
+                Capital = "Lisbon",
                 HqLocation = "Lisbon Tech Hub",
                 ManagingDirector = "Fernando Silva",
                 TotalEmployees = 3100,
@@ -339,7 +360,8 @@ public static class EuropeMapData
             {
                 Id = "hun",
                 Name = "Hungary",
-                Code = "HU",                Capital = "Budapest",
+                Code = "HU",
+                Capital = "Budapest",
                 HqLocation = "Budapest HQ",
                 ManagingDirector = "Jerome Dale",
                 TotalEmployees = 1600,
@@ -355,7 +377,8 @@ public static class EuropeMapData
             {
                 Id = "irl",
                 Name = "Ireland",
-                Code = "IE",                Capital = "Dublin",
+                Code = "IE",
+                Capital = "Dublin",
                 HqLocation = "Dublin HQ",
                 ManagingDirector = "Joe Walsh",
                 TotalEmployees = 750,
@@ -371,7 +394,8 @@ public static class EuropeMapData
             {
                 Id = "grc",
                 Name = "Greece",
-                Code = "GR",                Capital = "Athens",
+                Code = "GR",
+                Capital = "Athens",
                 HqLocation = "Athens HQ",
                 ManagingDirector = "Vassilis Chatzikos",
                 TotalEmployees = 620,
@@ -387,7 +411,8 @@ public static class EuropeMapData
             {
                 Id = "svk",
                 Name = "Slovakia",
-                Code = "SK",                Capital = "Bratislava",
+                Code = "SK",
+                Capital = "Bratislava",
                 HqLocation = "Bratislava HQ",
                 ManagingDirector = "Vladimir Slezak",
                 TotalEmployees = 850,
@@ -403,7 +428,8 @@ public static class EuropeMapData
             {
                 Id = "hrv",
                 Name = "Croatia",
-                Code = "HR",                Capital = "Zagreb",
+                Code = "HR",
+                Capital = "Zagreb",
                 HqLocation = "Zagreb HQ",
                 ManagingDirector = "Medeja Loncar",
                 TotalEmployees = 520,
@@ -419,7 +445,8 @@ public static class EuropeMapData
             {
                 Id = "svn",
                 Name = "Slovenia",
-                Code = "SI",                Capital = "Ljubljana",
+                Code = "SI",
+                Capital = "Ljubljana",
                 HqLocation = "Ljubljana HQ",
                 ManagingDirector = "Medeja Loncar",
                 TotalEmployees = 410,
@@ -435,7 +462,8 @@ public static class EuropeMapData
             {
                 Id = "bgr",
                 Name = "Bulgaria",
-                Code = "BG",                Capital = "Sofia",
+                Code = "BG",
+                Capital = "Sofia",
                 HqLocation = "Sofia Hub",
                 ManagingDirector = "Borislav Dimitrov",
                 TotalEmployees = 490,
@@ -451,7 +479,8 @@ public static class EuropeMapData
             {
                 Id = "tur",
                 Name = "Turkey",
-                Code = "TR",                Capital = "Ankara",
+                Code = "TR",
+                Capital = "Ankara",
                 HqLocation = "Istanbul (Kartal Campus)",
                 ManagingDirector = "Hüseyin Gelis",
                 TotalEmployees = 4100,
@@ -469,7 +498,8 @@ public static class EuropeMapData
             {
                 Id = "rus",
                 Name = "Russia (European Region)",
-                Code = "RU",                Capital = "Moscow",
+                Code = "RU",
+                Capital = "Moscow",
                 HqLocation = "Moscow Hub",
                 ManagingDirector = "Siemens Eastern Region",
                 TotalEmployees = 1200,
@@ -486,7 +516,8 @@ public static class EuropeMapData
             {
                 Id = "ukr",
                 Name = "Ukraine",
-                Code = "UA",                Capital = "Kyiv",
+                Code = "UA",
+                Capital = "Kyiv",
                 HqLocation = "Kyiv Office",
                 ManagingDirector = "Siemens Ukraine",
                 TotalEmployees = 450,
@@ -502,7 +533,8 @@ public static class EuropeMapData
             {
                 Id = "blr",
                 Name = "Belarus",
-                Code = "BY",                Capital = "Minsk",
+                Code = "BY",
+                Capital = "Minsk",
                 HqLocation = "Minsk Office",
                 ManagingDirector = "Siemens CEE",
                 TotalEmployees = 130,
@@ -518,7 +550,8 @@ public static class EuropeMapData
             {
                 Id = "est",
                 Name = "Estonia",
-                Code = "EE",                Capital = "Tallinn",
+                Code = "EE",
+                Capital = "Tallinn",
                 HqLocation = "Tallinn Hub",
                 ManagingDirector = "Siemens Nordics",
                 TotalEmployees = 180,
@@ -534,7 +567,8 @@ public static class EuropeMapData
             {
                 Id = "lva",
                 Name = "Latvia",
-                Code = "LV",                Capital = "Riga",
+                Code = "LV",
+                Capital = "Riga",
                 HqLocation = "Riga Office",
                 ManagingDirector = "Siemens Nordics",
                 TotalEmployees = 160,
@@ -550,7 +584,8 @@ public static class EuropeMapData
             {
                 Id = "ltu",
                 Name = "Lithuania",
-                Code = "LT",                Capital = "Vilnius",
+                Code = "LT",
+                Capital = "Vilnius",
                 HqLocation = "Vilnius Office",
                 ManagingDirector = "Siemens Nordics",
                 TotalEmployees = 210,
@@ -566,7 +601,8 @@ public static class EuropeMapData
             {
                 Id = "lux",
                 Name = "Luxembourg",
-                Code = "LU",                Capital = "Luxembourg City",
+                Code = "LU",
+                Capital = "Luxembourg City",
                 HqLocation = "Luxembourg Office",
                 ManagingDirector = "Siemens Belux",
                 TotalEmployees = 150,
@@ -582,7 +618,8 @@ public static class EuropeMapData
             {
                 Id = "srb",
                 Name = "Serbia",
-                Code = "RS",                Capital = "Belgrade",
+                Code = "RS",
+                Capital = "Belgrade",
                 HqLocation = "Belgrade Tech",
                 ManagingDirector = "Siemens Adria",
                 TotalEmployees = 320,
@@ -598,7 +635,8 @@ public static class EuropeMapData
             {
                 Id = "bih",
                 Name = "Bosnia & Herzegovina",
-                Code = "BA",                Capital = "Sarajevo",
+                Code = "BA",
+                Capital = "Sarajevo",
                 HqLocation = "Sarajevo Office",
                 ManagingDirector = "Siemens Adria",
                 TotalEmployees = 120,
@@ -614,7 +652,8 @@ public static class EuropeMapData
             {
                 Id = "alb",
                 Name = "Albania",
-                Code = "AL",                Capital = "Tirana",
+                Code = "AL",
+                Capital = "Tirana",
                 HqLocation = "Tirana Office",
                 ManagingDirector = "Siemens SE",
                 TotalEmployees = 90,
@@ -630,7 +669,8 @@ public static class EuropeMapData
             {
                 Id = "mkd",
                 Name = "North Macedonia",
-                Code = "MK",                Capital = "Skopje",
+                Code = "MK",
+                Capital = "Skopje",
                 HqLocation = "Skopje Office",
                 ManagingDirector = "Siemens SE",
                 TotalEmployees = 80,
@@ -646,7 +686,8 @@ public static class EuropeMapData
             {
                 Id = "mne",
                 Name = "Montenegro",
-                Code = "ME",                Capital = "Podgorica",
+                Code = "ME",
+                Capital = "Podgorica",
                 HqLocation = "Podgorica Office",
                 ManagingDirector = "Siemens Adria",
                 TotalEmployees = 60,
@@ -662,7 +703,8 @@ public static class EuropeMapData
             {
                 Id = "mda",
                 Name = "Moldova",
-                Code = "MD",                Capital = "Chișinău",
+                Code = "MD",
+                Capital = "Chișinău",
                 HqLocation = "Chișinău Office",
                 ManagingDirector = "Siemens CEE",
                 TotalEmployees = 110,
@@ -678,7 +720,8 @@ public static class EuropeMapData
             {
                 Id = "cyp",
                 Name = "Cyprus",
-                Code = "CY",                Capital = "Nicosia",
+                Code = "CY",
+                Capital = "Nicosia",
                 HqLocation = "Nicosia Office",
                 ManagingDirector = "Siemens ME",
                 TotalEmployees = 85,
