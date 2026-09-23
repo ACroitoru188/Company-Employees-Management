@@ -1,4 +1,4 @@
-using CompanyEmployees.Web.Models;
+﻿using CompanyEmployees.Web.Models;
 
 namespace CompanyEmployees.Web.Services;
 
@@ -19,7 +19,7 @@ public record TeamTimeOff(string MemberName, string Initials, string Department,
 /// and their current-or-next approved leave. The leave fields are null when the
 /// member has no upcoming leave.
 /// </summary>
-public record TeamRosterEntry(string Name, string Initials, string RoleLabel, bool IsManager,
+public record TeamRosterEntry(Guid UserId, string Name, string Initials, string RoleLabel, bool IsManager,
     LeaveType? Type, DateOnly? Start, DateOnly? End);
 
 public record RegionalHoliday(DateOnly Date, string Name);

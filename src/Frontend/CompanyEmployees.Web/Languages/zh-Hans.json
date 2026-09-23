@@ -244,5 +244,18 @@
   "Request cancellation": "申请取消",
   "Send to HR": "发送给人力资源",
   "Cancellation request sent to HR.": "取消申请已发送给人力资源。",
-  "A reason is required to request a cancellation.": "申请取消需要填写原因。"
+  "A reason is required to request a cancellation.": "申请取消需要填写原因。",
+  "Messages": "消息",
+  "Your team": "您的团队",
+  "No messages yet": "暂无消息",
+  "Pick someone to start a conversation.": "选择一位同事开始对话。",
+  "Write a message...": "写条消息...",
+  "Send": "发送",
+  "Time off": "假期",
+  "Show profile": "查看资料",
+  "Not available yet": "暂不可用",
+  "Send message": "发送消息",
+  "Back": "返回",
+  "Search teammates...": "搜索团队成员...",
+  "No teammates match that search.": "没有匹配该搜索的团队成员。"
 }

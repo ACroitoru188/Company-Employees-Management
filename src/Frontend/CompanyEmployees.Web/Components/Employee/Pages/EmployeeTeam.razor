@@ -6,6 +6,8 @@
 @using CompanyEmployees.Web.Services
 @inject ITimeOffService TimeOff
 @inject AppLocalizer Text
+@inject IDialogService DialogService
+@inject ChatPanelState ChatPanel
 @inject NavigationManager Nav
 
 <PageTitle>@Text["Team"] · @Text["Time Off Management"]</PageTitle>
@@ -28,6 +30,8 @@
             @foreach (var member in _team)
             {
                 <FluentDivider Role="DividerRole.Presentation" />
+                <div class="team-row @(member.UserId == Guid.Empty ? "" : "team-row-clickable")"
+                     @onclick="@(() => OpenMemberAsync(member))">
                 <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
                              VerticalAlignment="VerticalAlignment.Center" Width="100%">
                     <FluentPersona Name="@member.Name" Initials="@member.Initials"
@@ -72,6 +76,7 @@
                         <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">@Text["Available"]</FluentLabel>
                     }
                 </FluentStack>
+                </div>
             }
         }
     </FluentStack>
@@ -90,6 +95,34 @@
             return;
 
         _team = await TimeOff.GetTeamRosterAsync();
+    }
+
+    private async Task OpenMemberAsync(TeamRosterEntry member)
+    {
+        // Guid.Empty is the in-memory mock, which has no user ids: nothing to open.
+        if (member.UserId == Guid.Empty)
+            return;
+
+        var content = new TeamMemberDialog.Model
+        {
+            Member = member,
+            RoleLabel = LocalizedRoleLabel(member.RoleLabel)
+        };
+
+        var dialog = await DialogService.ShowDialogAsync<TeamMemberDialog, TeamMemberDialog.Model>(
+            content, new DialogParameters
+            {
+                Title = member.Name,
+                PrimaryAction = Text["Send message"],
+                SecondaryAction = Text["Close"],
+                Width = "420px"
+            });
+
+        var result = await dialog.Result;
+        if (!result.Cancelled)
+            // Opens the floating panel rather than navigating: chat is not a page any more,
+            // so sending a message should not take you off the one you are on.
+            await ChatPanel.OpenAsync(member.UserId);
     }
 
     // The label arrives already composed as "Role · Department" from DbTimeOffService. Only the

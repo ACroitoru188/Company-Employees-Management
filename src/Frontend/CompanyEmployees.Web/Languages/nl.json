@@ -244,5 +244,18 @@
   "Request cancellation": "Annulering aanvragen",
   "Send to HR": "Naar HR sturen",
   "Cancellation request sent to HR.": "Annuleringsverzoek naar HR gestuurd.",
-  "A reason is required to request a cancellation.": "Een reden is vereist om een annulering aan te vragen."
+  "A reason is required to request a cancellation.": "Een reden is vereist om een annulering aan te vragen.",
+  "Messages": "Berichten",
+  "Your team": "Jouw team",
+  "No messages yet": "Nog geen berichten",
+  "Pick someone to start a conversation.": "Kies iemand om een gesprek te beginnen.",
+  "Write a message...": "Schrijf een bericht...",
+  "Send": "Verzenden",
+  "Time off": "Verlof",
+  "Show profile": "Profiel tonen",
+  "Not available yet": "Nog niet beschikbaar",
+  "Send message": "Bericht sturen",
+  "Back": "Terug",
+  "Search teammates...": "Teamgenoten zoeken...",
+  "No teammates match that search.": "Geen teamgenoten komen overeen met die zoekopdracht."
 }

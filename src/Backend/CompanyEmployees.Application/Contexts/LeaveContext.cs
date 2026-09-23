@@ -1,4 +1,4 @@
-using CompanyEmployees.Domain;
+﻿using CompanyEmployees.Domain;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Domain.Exceptions;
@@ -379,6 +379,14 @@ namespace CompanyEmployees.Application.Contexts
 
                 foreach (var request in wanted)
                 {
+                    // Approving shortens leave that is under way rather than cancelling it, so
+                    // what comes back is only the part after today.
+                    var underWay = request.StartDate <= today;
+                    var returnedFrom = underWay ? today.AddDays(1) : request.StartDate;
+                    var daysReturned = returnedFrom > request.EndDate
+                        ? 0
+                        : await CountWorkingDaysAsync(hrUser, returnedFrom, request.EndDate);
+
                     result.CancellationRequests.Add(new HrCancellationRequest
                     {
                         RequestId = request.Id,
@@ -388,11 +396,12 @@ namespace CompanyEmployees.Application.Contexts
                         StartDate = request.StartDate,
                         EndDate = request.EndDate,
                         Days = await CountWorkingDaysAsync(hrUser, request.StartDate, request.EndDate),
+                        DaysReturned = daysReturned,
                         Role = request.User.Role.ToString(),
                         Reason = request.Reason,
                         CancellationReason = request.CancellationReason,
                         RequestedAt = request.CancellationRequestedAt!.Value,
-                        InProgress = request.StartDate <= today
+                        InProgress = underWay
                     });
                 }
             }
@@ -512,9 +521,12 @@ namespace CompanyEmployees.Application.Contexts
                 throw new InvalidOperationException(
                     "HR is already reviewing a cancellation for this request.");
 
-            // Leave that is over cannot be given back.
-            if (request.EndDate < DateOnly.FromDateTime(DateTime.Today))
-                throw new InvalidOperationException("This leave has already ended.");
+            // Nothing left to hand back. Approving shortens an in-progress leave to end today,
+            // so a period that already ends today or earlier would return zero days — there is
+            // no point putting it in front of HR.
+            if (request.EndDate <= DateOnly.FromDateTime(DateTime.Today))
+                throw new InvalidOperationException(
+                    "This leave has no remaining days to return.");
 
             request.CancellationRequestedAt = DateTime.UtcNow;
             request.CancellationReason = reason.Trim();
@@ -589,10 +601,27 @@ namespace CompanyEmployees.Application.Contexts
                 throw new InvalidOperationException("This request is no longer approved.");
 
             var employeeReason = request.CancellationReason;
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var originalPeriod = Period(request.StartDate, request.EndDate);
 
-            if (approve)
+            // Leave that is under way cannot simply be cancelled: the balance counts the working
+            // days between StartDate and EndDate of every Approved request, so flipping the whole
+            // row to Cancelled would hand back days the employee has already spent at home.
+            // Shortening it to end today leaves exactly those days spent and returns the rest,
+            // using the same arithmetic the balance already does. Today counts as taken — they
+            // were away for it.
+            var shortened = approve && request.StartDate <= today;
+
+            if (approve && !shortened)
             {
+                // Has not started, so nothing was consumed and the whole thing goes back.
                 request.Status = LeaveStatus.Cancelled;
+            }
+            else if (shortened)
+            {
+                request.EndDate = today;
+                // Stays Approved, and the pending flag has to clear or HR keeps seeing it.
+                request.CancellationRequestedAt = null;
             }
             else
             {
@@ -603,7 +632,7 @@ namespace CompanyEmployees.Application.Contexts
 
             await _leaveRequestGateway.CancelRequestAsync(request);
 
-            var period = Period(request.StartDate, request.EndDate);
+            var period = originalPeriod;
 
             await RecordDelegatedActionAsync(
                 delegation, hrUserId, request.UserId,
@@ -615,11 +644,25 @@ namespace CompanyEmployees.Application.Contexts
             try
             {
                 var actor = ActorLabel(hrUser, delegation);
-                var message = approve
-                    ? $"Your request to cancel {request.Type} leave for {period} was approved by "
-                        + $"{actor}. The days have been returned to your balance."
-                    : $"Your request to cancel {request.Type} leave for {period} was declined by "
+                string message;
+                if (shortened)
+                {
+                    // Says what actually happened: "cancelled" would be wrong, and the employee
+                    // needs to know the days they already took are not coming back.
+                    message = $"Your {request.Type} leave for {period} was cut short by {actor} "
+                        + $"and now ends on {request.EndDate:MMM d, yyyy}. The days up to then "
+                        + "stay used; the rest have been returned to your balance.";
+                }
+                else if (approve)
+                {
+                    message = $"Your request to cancel {request.Type} leave for {period} was approved by "
+                        + $"{actor}. The days have been returned to your balance.";
+                }
+                else
+                {
+                    message = $"Your request to cancel {request.Type} leave for {period} was declined by "
                         + $"{actor}. The leave stands.";
+                }
 
                 await _notifications.SendNotificationAsync(
                     request.UserId, message, "/employee/my-requests");

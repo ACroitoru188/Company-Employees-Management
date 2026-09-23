@@ -244,5 +244,18 @@
   "Request cancellation": "Pyydä perumista",
   "Send to HR": "Lähetä HR:lle",
   "Cancellation request sent to HR.": "Perumispyyntö lähetetty HR:lle.",
-  "A reason is required to request a cancellation.": "Perumisen pyytämiseen tarvitaan syy."
+  "A reason is required to request a cancellation.": "Perumisen pyytämiseen tarvitaan syy.",
+  "Messages": "Viestit",
+  "Your team": "Tiimisi",
+  "No messages yet": "Ei viestejä vielä",
+  "Pick someone to start a conversation.": "Valitse henkilö aloittaaksesi keskustelun.",
+  "Write a message...": "Kirjoita viesti...",
+  "Send": "Lähetä",
+  "Time off": "Vapaa",
+  "Show profile": "Näytä profiili",
+  "Not available yet": "Ei vielä saatavilla",
+  "Send message": "Lähetä viesti",
+  "Back": "Takaisin",
+  "Search teammates...": "Hae tiimiläisiä...",
+  "No teammates match that search.": "Yksikään tiimiläinen ei vastaa hakua."
 }

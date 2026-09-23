@@ -1,4 +1,4 @@
-using CompanyEmployees.Domain.Entities;
+﻿using CompanyEmployees.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +27,7 @@ namespace CompanyEmployees.Persistence
         public DbSet<LeaveApproval> LeaveApprovals { get; set; }
         public DbSet<LeaveAllocation> LeaveAllocations { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<ChatMessage> Messages { get; set; }
         public DbSet<Department> Departments { get; set; }
         public DbSet<Region> Regions { get; set; }
         public DbSet<Contract> Contracts { get; set; }

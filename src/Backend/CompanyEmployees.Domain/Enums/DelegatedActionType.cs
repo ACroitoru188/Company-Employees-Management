@@ -21,5 +21,10 @@ public enum DelegatedActionType
     // decision that already stood and move days back into a balance.
     LeaveCancellationRequested = 9,
     LeaveCancellationApproved = 10,
-    LeaveCancellationRejected = 11
+    LeaveCancellationRejected = 11,
+
+    // A chat message written from a borrowed account. The message itself credits the account
+    // that was borrowed, so without this row there is nothing tying the words to whoever
+    // actually typed them.
+    MessageSent = 12
 }
