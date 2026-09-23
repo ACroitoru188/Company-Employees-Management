@@ -1,0 +1,24 @@
+@using CompanyEmployees.Domain.Enums
+@using CompanyEmployees.Web.Services
+@inject AppLocalizer Text
+
+@if (Status.HasValue)
+{
+    <FluentBadge Fill="highlight" BackgroundColor="@StatusPalette.ForContract(Status)" Color="white" Class="@Class">
+        @Text[Status.Value.ToString()]
+    </FluentBadge>
+}
+else
+{
+    <FluentBadge Fill="highlight" BackgroundColor="@StatusPalette.ForContract(null)" Color="white" Class="@Class">
+        —
+    </FluentBadge>
+}
+
+@code {
+    [Parameter]
+    public ContractStatus? Status { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+}

@@ -1,0 +1,15 @@
+@using CompanyEmployees.Web.Models
+@using CompanyEmployees.Web.Services
+@inject AppLocalizer Text
+
+<FluentBadge Fill="highlight" BackgroundColor="@StatusPalette.ForRequest(Status)" Color="white" Class="@Class">
+    @Text[Status.ToString()]
+</FluentBadge>
+
+@code {
+    [Parameter, EditorRequired]
+    public RequestStatus Status { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+}

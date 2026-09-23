@@ -314,9 +314,7 @@ else
                 {
                     <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="6"
                                  VerticalAlignment="VerticalAlignment.Center">
-                        <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(context.ContractStatus)" Color="white">
-                            @context.ContractStatus
-                        </FluentBadge>
+                        <ContractStatusBadge Status="@context.ContractStatus" />
                         <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
                             @(context.ContractStartDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "—") –
                             @(context.ContractEndDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Indefinite")
@@ -511,14 +509,6 @@ else
     {
         _data = await Manager.GetManagerDashboardAsync(_managerId);
     }
-
-    private static string StatusColor(ContractStatus? status) => status switch
-    {
-        ContractStatus.Active => "var(--success)",
-        ContractStatus.Terminated => "var(--error)",
-        ContractStatus.Expired => "var(--neutral-foreground-hint)",
-        _ => "var(--neutral-foreground-hint)"
-    };
 
     private async Task DecideAsync(Guid requestId, bool approve)
     {
