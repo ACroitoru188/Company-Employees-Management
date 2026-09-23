@@ -1,4 +1,5 @@
-using CompanyEmployees.Application.Contexts;
+﻿using CompanyEmployees.Application.Contexts;
+using CompanyEmployees.Application.Messaging;
 using CompanyEmployees.Application.Notifications;
 using CompanyEmployees.Domain.GatewayInterfaces;
 using CompanyEmployees.Gateway.Repositories;
@@ -11,6 +12,7 @@ namespace CompanyEmployees.Application
         public static IServiceCollection AddApplicationLayer(this IServiceCollection services)
         {
             services.AddSingleton<INotificationDispatcher, NotificationDispatcher>();
+            services.AddSingleton<IMessageDispatcher, MessageDispatcher>();
             services.AddScoped<INotificationGateway, NotificationGateway>();
             services.AddScoped<NotificationContext>();
             services.AddScoped<ImpersonationContext>();
@@ -23,6 +25,7 @@ namespace CompanyEmployees.Application
             services.AddScoped<ManagerContext>();
             services.AddScoped<ContractContext>();
             services.AddScoped<DelegationContext>();
+            services.AddScoped<MessagingContext>();
 
             return services;
         }

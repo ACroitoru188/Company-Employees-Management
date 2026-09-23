@@ -244,5 +244,18 @@
   "Request cancellation": "रद्दीकरण का अनुरोध करें",
   "Send to HR": "HR को भेजें",
   "Cancellation request sent to HR.": "रद्दीकरण अनुरोध HR को भेजा गया।",
-  "A reason is required to request a cancellation.": "रद्दीकरण का अनुरोध करने के लिए कारण आवश्यक है।"
+  "A reason is required to request a cancellation.": "रद्दीकरण का अनुरोध करने के लिए कारण आवश्यक है।",
+  "Messages": "संदेश",
+  "Your team": "आपकी टीम",
+  "No messages yet": "अभी कोई संदेश नहीं",
+  "Pick someone to start a conversation.": "बातचीत शुरू करने के लिए किसी को चुनें।",
+  "Write a message...": "एक संदेश लिखें...",
+  "Send": "भेजें",
+  "Time off": "छुट्टी",
+  "Show profile": "प्रोफ़ाइल देखें",
+  "Not available yet": "अभी उपलब्ध नहीं",
+  "Send message": "संदेश भेजें",
+  "Back": "वापस",
+  "Search teammates...": "साथियों को खोजें...",
+  "No teammates match that search.": "उस खोज से कोई साथी मेल नहीं खाता।"
 }

@@ -244,5 +244,18 @@
   "Request cancellation": "طلب الإلغاء",
   "Send to HR": "إرسال إلى الموارد البشرية",
   "Cancellation request sent to HR.": "تم إرسال طلب الإلغاء إلى الموارد البشرية.",
-  "A reason is required to request a cancellation.": "يلزم ذكر سبب لطلب الإلغاء."
+  "A reason is required to request a cancellation.": "يلزم ذكر سبب لطلب الإلغاء.",
+  "Messages": "الرسائل",
+  "Your team": "فريقك",
+  "No messages yet": "لا توجد رسائل بعد",
+  "Pick someone to start a conversation.": "اختر شخصًا لبدء محادثة.",
+  "Write a message...": "اكتب رسالة...",
+  "Send": "إرسال",
+  "Time off": "إجازة",
+  "Show profile": "عرض الملف الشخصي",
+  "Not available yet": "غير متاح بعد",
+  "Send message": "إرسال رسالة",
+  "Back": "رجوع",
+  "Search teammates...": "ابحث عن زملاء الفريق...",
+  "No teammates match that search.": "لا يوجد زميل يطابق هذا البحث."
 }

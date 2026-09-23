@@ -1,0 +1,18 @@
+/* CSS isolation: reaches only the divs authored directly in EmployeeTeam.razor. The row's
+   contents are Fluent components, whose own roots are unreachable from here — which is fine,
+   because the wrapper is what carries the click. */
+
+.team-row {
+    padding: 4px 6px;
+    border-radius: 6px;
+}
+
+/* Only rows that open something get the affordance. A row with no user id (the in-memory
+   mock) stays inert, so it must not look clickable either. */
+.team-row-clickable {
+    cursor: pointer;
+}
+
+    .team-row-clickable:hover {
+        background: var(--neutral-fill-stealth-hover);
+    }

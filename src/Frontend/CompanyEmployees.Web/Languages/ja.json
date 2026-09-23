@@ -244,5 +244,18 @@
   "Request cancellation": "取り消しを依頼",
   "Send to HR": "人事に送信",
   "Cancellation request sent to HR.": "取り消し依頼を人事に送信しました。",
-  "A reason is required to request a cancellation.": "取り消しを依頼するには理由が必要です。"
+  "A reason is required to request a cancellation.": "取り消しを依頼するには理由が必要です。",
+  "Messages": "メッセージ",
+  "Your team": "あなたのチーム",
+  "No messages yet": "まだメッセージはありません",
+  "Pick someone to start a conversation.": "会話を始める相手を選んでください。",
+  "Write a message...": "メッセージを入力...",
+  "Send": "送信",
+  "Time off": "休暇",
+  "Show profile": "プロフィールを表示",
+  "Not available yet": "まだ利用できません",
+  "Send message": "メッセージを送る",
+  "Back": "戻る",
+  "Search teammates...": "チームメンバーを検索...",
+  "No teammates match that search.": "検索に一致するチームメンバーはいません。"
 }

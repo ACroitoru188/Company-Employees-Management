@@ -1,4 +1,4 @@
-using CompanyEmployees.Application;
+﻿using CompanyEmployees.Application;
 using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Web.Models;
@@ -249,12 +249,12 @@ public class DbTimeOffService : ITimeOffService
                 var isManager = member.Id == user.ManagerId;
                 if (leave == null)
                 {
-                    roster.Add(new TeamRosterEntry(member.Name, Initials(member.Name),
+                    roster.Add(new TeamRosterEntry(member.Id, member.Name, Initials(member.Name),
                         RoleAndDepartment(member), isManager, null, null, null));
                 }
                 else
                 {
-                    roster.Add(new TeamRosterEntry(member.Name, Initials(member.Name),
+                    roster.Add(new TeamRosterEntry(member.Id, member.Name, Initials(member.Name),
                         RoleAndDepartment(member), isManager, MapType(leave.Type), leave.StartDate, leave.EndDate));
                 }
             }

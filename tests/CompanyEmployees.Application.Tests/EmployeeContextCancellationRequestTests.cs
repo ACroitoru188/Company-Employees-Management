@@ -1,4 +1,4 @@
-using CompanyEmployees.Application.Contexts;
+﻿using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Application.Notifications;
 using CompanyEmployees.Domain;
 using CompanyEmployees.Domain.Entities;
@@ -252,6 +252,80 @@ public class EmployeeContextCancellationRequestTests
         // Cancelled is what the balance reads as "not spent".
         Assert.Equal(LeaveStatus.Cancelled, request.Status);
         await _requests.Received(1).CancelRequestAsync(request);
+    }
+
+    [Fact]
+    public async Task Approving_an_in_progress_leave_shortens_it_instead_of_cancelling()
+    {
+        // The balance counts the working days of every Approved request, so cancelling leave
+        // that is under way would hand back days the employee has already spent at home.
+        // Shortening it to end today leaves those days spent and returns only the rest.
+        var employee = NewUser("Ion Angajat");
+        var hr = NewHrUser("Elena HR");
+        var request = RequestedForCancellation(employee);
+        request.StartDate = Today.AddDays(-3);
+        request.EndDate = Today.AddDays(4);
+        var context = CreateContext();
+
+        await context.HrDecideCancellationAsync(hr.Id, request.Id, approve: true);
+
+        Assert.Equal(LeaveStatus.Approved, request.Status);
+        Assert.Equal(Today, request.EndDate);
+        Assert.Equal(request.StartDate, Today.AddDays(-3));
+        // Cleared, or HR keeps seeing it in their queue for ever.
+        Assert.Null(request.CancellationRequestedAt);
+        await _requests.Received(1).CancelRequestAsync(request);
+    }
+
+    [Fact]
+    public async Task Approving_leave_that_has_not_started_still_cancels_it_outright()
+    {
+        // Nothing was consumed, so there is nothing to keep.
+        var employee = NewUser("Ion Angajat");
+        var hr = NewHrUser("Elena HR");
+        var request = RequestedForCancellation(employee);
+        request.StartDate = Today.AddDays(3);
+        request.EndDate = Today.AddDays(6);
+        var context = CreateContext();
+
+        await context.HrDecideCancellationAsync(hr.Id, request.Id, approve: true);
+
+        Assert.Equal(LeaveStatus.Cancelled, request.Status);
+        Assert.Equal(Today.AddDays(6), request.EndDate);
+    }
+
+    [Fact]
+    public async Task Leave_starting_today_keeps_today_as_taken()
+    {
+        // They were away today, so today counts — the shortening lands on today, not yesterday.
+        var employee = NewUser("Ion Angajat");
+        var hr = NewHrUser("Elena HR");
+        var request = RequestedForCancellation(employee);
+        request.StartDate = Today;
+        request.EndDate = Today.AddDays(5);
+        var context = CreateContext();
+
+        await context.HrDecideCancellationAsync(hr.Id, request.Id, approve: true);
+
+        Assert.Equal(LeaveStatus.Approved, request.Status);
+        Assert.Equal(Today, request.EndDate);
+    }
+
+    [Fact]
+    public async Task Cannot_ask_to_cancel_leave_with_no_days_left_to_return()
+    {
+        // Ends today: approving would shorten it to today and give back nothing, so there is
+        // no point putting it in front of HR at all.
+        var employee = NewUser("Ion Angajat");
+        var request = ApprovedRequest(employee);
+        request.StartDate = Today.AddDays(-2);
+        request.EndDate = Today;
+        var context = CreateContext();
+
+        await Assert.ThrowsAsync<DomainInvalidOperationException>(() =>
+            context.RequestCancellationAsync(employee.Id, request.Id, "Prea tarziu."));
+
+        await _requests.DidNotReceiveWithAnyArgs().CancelRequestAsync(default!);
     }
 
     [Fact]

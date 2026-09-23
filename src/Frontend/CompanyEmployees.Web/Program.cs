@@ -1,4 +1,4 @@
-using Blazored.LocalStorage;
+﻿using Blazored.LocalStorage;
 using CompanyEmployees.Application;
 using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Gateway;
@@ -92,6 +92,8 @@ try
     builder.Services.AddFluentUIComponents();
     builder.Services.AddBlazoredLocalStorage();
     builder.Services.AddScoped<ThemeState>();
+// Scoped: the Team page and the layout's chat panel share one instance per circuit.
+builder.Services.AddScoped<ChatPanelState>();
     builder.Services.AddScoped<CircuitCulture>();
 
     builder.Services.AddSingleton(catalog);

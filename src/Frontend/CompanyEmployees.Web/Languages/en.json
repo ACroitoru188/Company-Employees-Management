@@ -244,5 +244,18 @@
   "Request cancellation": "Request cancellation",
   "Send to HR": "Send to HR",
   "Cancellation request sent to HR.": "Cancellation request sent to HR.",
-  "A reason is required to request a cancellation.": "A reason is required to request a cancellation."
+  "A reason is required to request a cancellation.": "A reason is required to request a cancellation.",
+  "Messages": "Messages",
+  "Your team": "Your team",
+  "No messages yet": "No messages yet",
+  "Pick someone to start a conversation.": "Pick someone to start a conversation.",
+  "Write a message...": "Write a message...",
+  "Send": "Send",
+  "Time off": "Time off",
+  "Show profile": "Show profile",
+  "Not available yet": "Not available yet",
+  "Send message": "Send message",
+  "Back": "Back",
+  "Search teammates...": "Search teammates...",
+  "No teammates match that search.": "No teammates match that search."
 }
