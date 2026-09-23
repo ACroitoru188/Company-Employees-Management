@@ -16,5 +16,6 @@
     <Project Path="tests/CompanyEmployees.Application.Tests/CompanyEmployees.Application.Tests.csproj" />
     <Project Path="tests/CompanyEmployees.Domain.Tests/CompanyEmployees.Domain.Tests.csproj" />
     <Project Path="tests/CompanyEmployees.Integration.Tests/CompanyEmployees.Integration.Tests.csproj" />
+    <Project Path="tests/CompanyEmployees.Web.Tests/CompanyEmployees.Web.Tests.csproj" />
   </Folder>
 </Solution>
