@@ -1,4 +1,4 @@
-namespace CompanyEmployees.Application
+﻿namespace CompanyEmployees.Application
 {
     // Everything the HR dashboard shows, gathered in one call so the page
     // doesn't fire several queries at the same scoped DbContext.
@@ -48,6 +48,11 @@ namespace CompanyEmployees.Application
         public DateOnly StartDate { get; set; }
         public DateOnly EndDate { get; set; }
         public int Days { get; set; }
+
+        // What approving actually gives back. For leave that has not started this is the whole
+        // period; for leave under way it is only the part after today, because approving
+        // shortens the request rather than cancelling it.
+        public int DaysReturned { get; set; }
 
         public string Role { get; set; } = "";
 

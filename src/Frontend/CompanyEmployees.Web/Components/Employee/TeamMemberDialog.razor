@@ -1,0 +1,66 @@
+@* Opened by clicking a row on the Team page. Presentational only: the caller reads the
+   result and does the navigating, so this component never touches the router. *@
+@using System.Globalization
+@using CompanyEmployees.Web.Services
+@inject AppLocalizer Text
+@implements IDialogContentComponent<TeamMemberDialog.Model>
+
+<FluentDialogBody>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+                     VerticalAlignment="VerticalAlignment.Center">
+            <FluentPersona Name="@Content.Member.Name" Initials="@Content.Member.Initials"
+                           ImageSize="48px" TextPosition="TextPosition.End">
+                <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@Content.Member.Name</FluentLabel>
+                <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+                    @Content.RoleLabel
+                </FluentLabel>
+            </FluentPersona>
+            @if (Content.Member.IsManager)
+            {
+                <FluentBadge Appearance="Appearance.Lightweight">@Text["Manager"]</FluentBadge>
+            }
+        </FluentStack>
+
+        <FluentDivider Role="DividerRole.Presentation" />
+
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+            <FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                @Text["Time off"]
+            </FluentLabel>
+            @if (Content.Member.Type is { } type && Content.Member.Start is { } start && Content.Member.End is { } end)
+            {
+                <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+                    @Text[type.ToString()] &middot;
+                    @start.ToString("MMM d", CultureInfo.CurrentCulture) –
+                    @end.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)
+                </FluentLabel>
+            }
+            else
+            {
+                <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@Text["Available"]</FluentLabel>
+            }
+        </FluentStack>
+
+        @* Disabled on purpose: the profile page does not exist yet, and a button that goes
+           nowhere is worse than one that says it is not ready. *@
+        <FluentButton Appearance="Appearance.Outline" Disabled="true"
+                      IconStart="@(new Icons.Regular.Size20.Person())"
+                      Title="@Text["Not available yet"]">
+            @Text["Show profile"]
+        </FluentButton>
+    </FluentStack>
+</FluentDialogBody>
+
+@code {
+    [Parameter]
+    public Model Content { get; set; } = default!;
+
+    public class Model
+    {
+        public required TeamRosterEntry Member { get; init; }
+
+        // Already composed and translated by the caller, which owns that mapping.
+        public required string RoleLabel { get; init; }
+    }
+}

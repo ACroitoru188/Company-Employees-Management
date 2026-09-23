@@ -244,5 +244,18 @@
   "Request cancellation": "Požádat o zrušení",
   "Send to HR": "Odeslat HR",
   "Cancellation request sent to HR.": "Žádost o zrušení byla odeslána HR.",
-  "A reason is required to request a cancellation.": "K žádosti o zrušení je nutné uvést důvod."
+  "A reason is required to request a cancellation.": "K žádosti o zrušení je nutné uvést důvod.",
+  "Messages": "Zprávy",
+  "Your team": "Váš tým",
+  "No messages yet": "Zatím žádné zprávy",
+  "Pick someone to start a conversation.": "Vyberte někoho a začněte konverzaci.",
+  "Write a message...": "Napište zprávu...",
+  "Send": "Odeslat",
+  "Time off": "Dovolená",
+  "Show profile": "Zobrazit profil",
+  "Not available yet": "Zatím nedostupné",
+  "Send message": "Odeslat zprávu",
+  "Back": "Zpět",
+  "Search teammates...": "Hledat členy týmu...",
+  "No teammates match that search.": "Žádný člen týmu neodpovídá tomuto hledání."
 }

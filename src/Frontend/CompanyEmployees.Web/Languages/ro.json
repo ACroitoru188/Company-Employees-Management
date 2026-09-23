@@ -244,5 +244,18 @@
   "Request cancellation": "Solicită anularea",
   "Send to HR": "Trimite la HR",
   "Cancellation request sent to HR.": "Cererea de anulare a fost trimisă la HR.",
-  "A reason is required to request a cancellation.": "Este necesar un motiv pentru a solicita anularea."
+  "A reason is required to request a cancellation.": "Este necesar un motiv pentru a solicita anularea.",
+  "Messages": "Mesaje",
+  "Your team": "Echipa ta",
+  "No messages yet": "Niciun mesaj încă",
+  "Pick someone to start a conversation.": "Alege pe cineva ca să începi o conversație.",
+  "Write a message...": "Scrie un mesaj...",
+  "Send": "Trimite",
+  "Time off": "Concediu",
+  "Show profile": "Vezi profilul",
+  "Not available yet": "Indisponibil deocamdată",
+  "Send message": "Trimite mesaj",
+  "Back": "Înapoi",
+  "Search teammates...": "Caută coechipieri...",
+  "No teammates match that search.": "Niciun coechipier nu se potrivește căutării."
 }

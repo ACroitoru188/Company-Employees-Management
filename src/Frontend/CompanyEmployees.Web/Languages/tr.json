@@ -244,5 +244,18 @@
   "Request cancellation": "İptal talep et",
   "Send to HR": "İK'ya gönder",
   "Cancellation request sent to HR.": "İptal talebi İK'ya gönderildi.",
-  "A reason is required to request a cancellation.": "İptal talebi için bir neden gereklidir."
+  "A reason is required to request a cancellation.": "İptal talebi için bir neden gereklidir.",
+  "Messages": "Mesajlar",
+  "Your team": "Ekibiniz",
+  "No messages yet": "Henüz mesaj yok",
+  "Pick someone to start a conversation.": "Bir sohbet başlatmak için birini seçin.",
+  "Write a message...": "Bir mesaj yazın...",
+  "Send": "Gönder",
+  "Time off": "İzin",
+  "Show profile": "Profili görüntüle",
+  "Not available yet": "Henüz kullanılamıyor",
+  "Send message": "Mesaj gönder",
+  "Back": "Geri",
+  "Search teammates...": "Takım arkadaşlarını ara...",
+  "No teammates match that search.": "Bu aramayla eşleşen takım arkadaşı yok."
 }

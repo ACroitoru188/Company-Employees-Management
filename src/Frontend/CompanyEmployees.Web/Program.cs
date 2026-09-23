@@ -1,4 +1,4 @@
-using Blazored.LocalStorage;
+﻿using Blazored.LocalStorage;
 using CompanyEmployees.Application;
 using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.Entities;
@@ -125,6 +125,8 @@ builder.Services.AddRazorComponents()
 builder.Services.AddFluentUIComponents();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddScoped<ThemeState>();
+// Scoped: the Team page and the layout's chat panel share one instance per circuit.
+builder.Services.AddScoped<ChatPanelState>();
 // Per circuit: remembers the language the circuit was created with, so a render started from a
 // background thread can put it back before AppLocalizer reads CultureInfo.CurrentUICulture.
 builder.Services.AddScoped<CircuitCulture>();

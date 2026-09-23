@@ -244,5 +244,18 @@
   "Request cancellation": "Begär annullering",
   "Send to HR": "Skicka till HR",
   "Cancellation request sent to HR.": "Begäran om annullering skickad till HR.",
-  "A reason is required to request a cancellation.": "En orsak krävs för att begära en annullering."
+  "A reason is required to request a cancellation.": "En orsak krävs för att begära en annullering.",
+  "Messages": "Meddelanden",
+  "Your team": "Ditt team",
+  "No messages yet": "Inga meddelanden ännu",
+  "Pick someone to start a conversation.": "Välj någon för att starta en konversation.",
+  "Write a message...": "Skriv ett meddelande...",
+  "Send": "Skicka",
+  "Time off": "Ledighet",
+  "Show profile": "Visa profil",
+  "Not available yet": "Inte tillgängligt ännu",
+  "Send message": "Skicka meddelande",
+  "Back": "Tillbaka",
+  "Search teammates...": "Sök lagkamrater...",
+  "No teammates match that search.": "Inga lagkamrater matchar den sökningen."
 }

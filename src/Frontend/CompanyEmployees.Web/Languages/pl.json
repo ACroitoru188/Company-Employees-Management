@@ -244,5 +244,18 @@
   "Request cancellation": "Poproś o anulowanie",
   "Send to HR": "Wyślij do HR",
   "Cancellation request sent to HR.": "Wniosek o anulowanie wysłany do HR.",
-  "A reason is required to request a cancellation.": "Podanie powodu jest wymagane, aby poprosić o anulowanie."
+  "A reason is required to request a cancellation.": "Podanie powodu jest wymagane, aby poprosić o anulowanie.",
+  "Messages": "Wiadomości",
+  "Your team": "Twój zespół",
+  "No messages yet": "Brak wiadomości",
+  "Pick someone to start a conversation.": "Wybierz osobę, aby rozpocząć rozmowę.",
+  "Write a message...": "Napisz wiadomość...",
+  "Send": "Wyślij",
+  "Time off": "Urlop",
+  "Show profile": "Pokaż profil",
+  "Not available yet": "Jeszcze niedostępne",
+  "Send message": "Wyślij wiadomość",
+  "Back": "Wstecz",
+  "Search teammates...": "Szukaj członków zespołu...",
+  "No teammates match that search.": "Żaden członek zespołu nie pasuje do tego wyszukiwania."
 }

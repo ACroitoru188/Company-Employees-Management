@@ -244,5 +244,18 @@
   "Request cancellation": "Törlés kérése",
   "Send to HR": "Küldés a HR-nek",
   "Cancellation request sent to HR.": "A törlési kérelmet elküldtük a HR-nek.",
-  "A reason is required to request a cancellation.": "A törlés kéréséhez indoklás szükséges."
+  "A reason is required to request a cancellation.": "A törlés kéréséhez indoklás szükséges.",
+  "Messages": "Üzenetek",
+  "Your team": "A csapata",
+  "No messages yet": "Még nincsenek üzenetek",
+  "Pick someone to start a conversation.": "Válasszon valakit a beszélgetés megkezdéséhez.",
+  "Write a message...": "Írjon üzenetet...",
+  "Send": "Küldés",
+  "Time off": "Szabadság",
+  "Show profile": "Profil megtekintése",
+  "Not available yet": "Még nem elérhető",
+  "Send message": "Üzenet küldése",
+  "Back": "Vissza",
+  "Search teammates...": "Csapattagok keresése...",
+  "No teammates match that search.": "Nincs a keresésnek megfelelő csapattag."
 }

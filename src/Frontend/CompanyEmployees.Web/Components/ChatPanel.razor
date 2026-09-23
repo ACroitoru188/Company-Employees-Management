@@ -1,0 +1,394 @@
+@* The floating chat, bottom-right on every authenticated page. Rendered by EmployeeLayout
+   *outside* FluentBodyContent on purpose: that element is `overflow: hidden auto`, so anything
+   fixed-positioned inside it is clipped at its scroll viewport — measured once already on the
+   global search dropdown, and the reason this is not a popover on a page.
+
+   Icons are the project's pinned Fluent outline set (speech bubble, paper plane, magnifier):
+   the same thin-line family the messaging apps use, without lifting anyone's artwork. *@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.Extensions.DependencyInjection
+@using System.Globalization
+@using CompanyEmployees.Application
+@using CompanyEmployees.Application.Contexts
+@using CompanyEmployees.Application.Messaging
+@using CompanyEmployees.Domain.Entities
+@using CompanyEmployees.Web.Security
+@using CompanyEmployees.Web.Services
+@inject IServiceScopeFactory ScopeFactory
+@inject AuthenticationStateProvider AuthState
+@inject IMessageDispatcher Dispatcher
+@inject ChatPanelState PanelState
+@inject ActingContext Acting
+@inject AppLocalizer Text
+@inject IToastService Toast
+@implements IDisposable
+
+@if (_myId != Guid.Empty)
+{
+    <div class="chat-dock">
+        @if (_open)
+        {
+            <div class="chat-panel">
+                <div class="chat-header">
+                    @if (_openWith is null)
+                    {
+                        <span class="chat-title">@Text["Messages"]</span>
+                    }
+                    else
+                    {
+                        <button class="chat-icon-button" title="@Text["Back"]" @onclick="BackToListAsync">
+                            <FluentIcon Value="@(new Icons.Regular.Size20.ArrowLeft())" Color="Color.Neutral" />
+                        </button>
+                        <span class="chat-title">@_openName</span>
+                    }
+                    <span class="chat-grow"></span>
+                    <button class="chat-icon-button" title="@Text["Close"]" @onclick="Close">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.Dismiss())" Color="Color.Neutral" />
+                    </button>
+                </div>
+
+                @if (_openWith is null)
+                {
+                    <div class="chat-search">
+                        <FluentSearch @bind-Value="_query" @bind-Value:after="StateHasChanged"
+                                      Immediate="true"
+                                      Placeholder="@Text["Search teammates..."]"
+                                      Style="width:100%;" />
+                    </div>
+
+                    <div class="chat-list">
+                        @if (!FilteredPeople.Any())
+                        {
+                            <div class="chat-empty">
+                                @(_people.Count == 0
+                                    ? Text["You are not part of a team yet."]
+                                    : Text["No teammates match that search."])
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var person in FilteredPeople)
+                            {
+                                <div class="chat-person" @onclick="@(() => OpenAsync(person.UserId))">
+                                    <FluentPersona Initials="@person.Initials" ImageSize="36px" />
+                                    <div class="chat-person-text">
+                                        <div class="chat-person-name">@person.Name</div>
+                                        <div class="chat-person-preview">
+                                            @(string.IsNullOrEmpty(person.Preview) ? Text["No messages yet"] : person.Preview)
+                                        </div>
+                                    </div>
+                                    @if (person.Unread > 0)
+                                    {
+                                        <span class="chat-unread">@person.Unread</span>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="chat-thread">
+                        @if (_thread.Count == 0)
+                        {
+                            <div class="chat-empty">@Text["No messages yet"]</div>
+                        }
+                        else
+                        {
+                            @foreach (var message in _thread)
+                            {
+                                var mine = message.SenderId == _myId;
+                                <div class="chat-bubble-row @(mine ? "chat-mine" : "chat-theirs")">
+                                    <div class="chat-bubble">
+                                        <div class="chat-body">@message.Body</div>
+                                        <div class="chat-time">
+                                            @message.CreatedAt.ToLocalTime().ToString("HH:mm", CultureInfo.CurrentCulture)
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    <div class="chat-composer" @onkeydown="OnComposerKeyDownAsync">
+                        <FluentTextArea @bind-Value="_draft" Immediate="true" Rows="1"
+                                        Placeholder="@Text["Write a message..."]"
+                                        Style="width:100%;" />
+                        <button class="chat-send" title="@Text["Send"]"
+                                disabled="@(!CanSend)"
+                                @onclick="SendAsync">
+                            <FluentIcon Value="@(new Icons.Regular.Size20.Send())"
+                                        Color="@(CanSend ? Color.Accent : Color.Neutral)" />
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+
+        <button class="chat-launcher" title="@Text["Messages"]" @onclick="ToggleAsync">
+            <FluentIcon Value="@(new Icons.Regular.Size24.Chat())" Color="Color.Custom" CustomColor="#FFFFFF" />
+            @if (_unread > 0 && !_open)
+            {
+                <span class="chat-launcher-badge">@(_unread > 9 ? "9+" : _unread.ToString())</span>
+            }
+        </button>
+    </div>
+}
+
+@code {
+    private Guid _myId;
+    private Guid? _openWith;
+    private string _openName = "";
+    private string _query = "";
+    private string _draft = "";
+    private bool _open;
+    private bool _sending;
+    private int _unread;
+
+    private readonly List<ChatMessage> _thread = new();
+    private List<PersonRow> _people = new();
+    private IDisposable? _subscription;
+
+    private sealed record PersonRow(Guid UserId, string Name, string Initials, string Preview, int Unread);
+
+    private IEnumerable<PersonRow> FilteredPeople => string.IsNullOrWhiteSpace(_query)
+        ? _people
+        : _people.Where(p => p.Name.Contains(_query, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var email = state.User.Identity?.Name;
+        if (string.IsNullOrEmpty(email))
+            return;
+
+        // This renders on every page, so a failure must not take the circuit down with it —
+        // no chat is survivable, a dead layout is not.
+        try
+        {
+            using var scope = ScopeFactory.CreateScope();
+            var employees = scope.ServiceProvider.GetRequiredService<EmployeeContext>();
+            _myId = (await employees.GetEmployeeByEmailAsync(email)).Id;
+        }
+        catch
+        {
+            return;
+        }
+
+        await RefreshUnreadAsync();
+
+        _subscription = Dispatcher.Subscribe(_myId, OnChangeAsync);
+        PanelState.OpenRequested += OnOpenRequestedAsync;
+    }
+
+    // Team's "Send message" lands here rather than navigating: the panel is not a page.
+    private async Task OnOpenRequestedAsync(Guid userId) =>
+        await InvokeAsync(async () =>
+        {
+            _open = true;
+            await LoadPeopleAsync();
+            await OpenAsync(userId);
+        });
+
+    private async Task ToggleAsync()
+    {
+        _open = !_open;
+        if (!_open)
+        {
+            _openWith = null;
+            return;
+        }
+
+        await LoadPeopleAsync();
+    }
+
+    private void Close()
+    {
+        _open = false;
+        _openWith = null;
+    }
+
+    private async Task BackToListAsync()
+    {
+        _openWith = null;
+        _thread.Clear();
+        _query = "";
+        await LoadPeopleAsync();
+    }
+
+    private async Task OpenAsync(Guid userId)
+    {
+        try
+        {
+            using var scope = ScopeFactory.CreateScope();
+            var messaging = scope.ServiceProvider.GetRequiredService<MessagingContext>();
+
+            var messages = await messaging.GetConversationAsync(_myId, userId);
+            _thread.Clear();
+            _thread.AddRange(messages);
+
+            _openWith = userId;
+            _openName = _people.FirstOrDefault(p => p.UserId == userId)?.Name ?? "";
+            _draft = "";
+
+            // Opening the thread is what marks it read.
+            await messaging.MarkConversationReadAsync(_myId, userId);
+            await RefreshUnreadAsync(messaging);
+            await LoadPeopleAsync(messaging);
+        }
+        catch (Exception ex)
+        {
+            // An id for somebody outside your team lands here — the backend refuses reads too.
+            _openWith = null;
+            _thread.Clear();
+            Toast.ShowError(ex.Message);
+        }
+    }
+
+    private bool CanSend => !_sending && !string.IsNullOrWhiteSpace(_draft);
+
+    private async Task OnComposerKeyDownAsync(KeyboardEventArgs args)
+    {
+        // Shift+Enter keeps the newline; plain Enter sends.
+        if (args.Key != "Enter" || args.ShiftKey)
+            return;
+
+        await SendAsync();
+    }
+
+    private async Task SendAsync()
+    {
+        if (_openWith is null || string.IsNullOrWhiteSpace(_draft) || _sending)
+            return;
+
+        // Blazor Server tears the circuit down on an unhandled exception, which reads as the
+        // panel freezing, so every backend refusal comes back as a toast.
+        _sending = true;
+        try
+        {
+            using var scope = ScopeFactory.CreateScope();
+            var messaging = scope.ServiceProvider.GetRequiredService<MessagingContext>();
+
+            var sent = await messaging.SendMessageAsync(
+                _myId, _openWith.Value, _draft, await ActingOnBehalfAsync());
+
+            _thread.Add(sent);
+            _draft = "";
+            await LoadPeopleAsync(messaging);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError(ex.Message);
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+
+    private async Task<ActingOnBehalf?> ActingOnBehalfAsync()
+    {
+        var acting = await Acting.GetAsync();
+        return acting is { IsImpersonating: true, DelegationId: not null }
+            ? new ActingOnBehalf(acting.RealUserId, acting.DelegationId.Value)
+            : null;
+    }
+
+    private async Task OnChangeAsync(MessageChange change) =>
+        await InvokeAsync(async () =>
+        {
+            try
+            {
+                using var scope = ScopeFactory.CreateScope();
+                var messaging = scope.ServiceProvider.GetRequiredService<MessagingContext>();
+
+                // Null Message means only read state moved; there is nothing to append.
+                if (change.Message is { } message && _openWith == message.SenderId)
+                {
+                    _thread.Add(message);
+                    await messaging.MarkConversationReadAsync(_myId, message.SenderId);
+                }
+
+                await RefreshUnreadAsync(messaging);
+                if (_open)
+                    await LoadPeopleAsync(messaging);
+
+                StateHasChanged();
+            }
+            catch
+            {
+                // Leave the panel as it is rather than tearing the layout down.
+            }
+        });
+
+    // Every read opens its own scope: the layout shares the page's scoped DbContext, and the
+    // dispatcher calls back from the sender's thread.
+    private async Task LoadPeopleAsync(MessagingContext? messaging = null)
+    {
+        if (messaging is not null)
+        {
+            _people = await BuildPeopleAsync(messaging);
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+        _people = await BuildPeopleAsync(scope.ServiceProvider.GetRequiredService<MessagingContext>());
+    }
+
+    private async Task<List<PersonRow>> BuildPeopleAsync(MessagingContext messaging)
+    {
+        // The context's own contact list, not the Team roster: the roster leaves out your
+        // direct reports, so a manager would see nobody they could actually write to.
+        var team = await messaging.GetChatContactsAsync(_myId);
+        var inbox = await messaging.GetInboxAsync(_myId);
+
+        var rows = new List<PersonRow>();
+        foreach (var member in team)
+        {
+            var summary = inbox.FirstOrDefault(entry => entry.Other.Id == member.Id);
+            rows.Add(new PersonRow(
+                member.Id,
+                member.Name,
+                Initials(member.Name),
+                summary is null ? "" : Shorten(summary.LastMessage.Body),
+                summary?.UnreadCount ?? 0));
+        }
+
+        // Unread first, so the person waiting on you is at the top.
+        rows.Sort((a, b) => b.Unread.CompareTo(a.Unread));
+        return rows;
+    }
+
+    private async Task RefreshUnreadAsync(MessagingContext? messaging = null)
+    {
+        try
+        {
+            if (messaging is not null)
+            {
+                _unread = await messaging.GetUnreadCountAsync(_myId);
+                return;
+            }
+
+            using var scope = ScopeFactory.CreateScope();
+            var scoped = scope.ServiceProvider.GetRequiredService<MessagingContext>();
+            _unread = await scoped.GetUnreadCountAsync(_myId);
+        }
+        catch
+        {
+            // Keep the previous count rather than blanking the badge.
+        }
+    }
+
+    private static string Initials(string name) => string.Concat(
+        name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[0]));
+
+    private static string Shorten(string body) =>
+        body.Length <= 32 ? body : body[..32] + "…";
+
+    public void Dispose()
+    {
+        PanelState.OpenRequested -= OnOpenRequestedAsync;
+        _subscription?.Dispose();
+    }
+}

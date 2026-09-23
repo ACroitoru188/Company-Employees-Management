@@ -244,5 +244,18 @@
   "Request cancellation": "Anmod om annullering",
   "Send to HR": "Send til HR",
   "Cancellation request sent to HR.": "Anmodning om annullering sendt til HR.",
-  "A reason is required to request a cancellation.": "Der kræves en årsag for at anmode om annullering."
+  "A reason is required to request a cancellation.": "Der kræves en årsag for at anmode om annullering.",
+  "Messages": "Beskeder",
+  "Your team": "Dit team",
+  "No messages yet": "Ingen beskeder endnu",
+  "Pick someone to start a conversation.": "Vælg en person for at starte en samtale.",
+  "Write a message...": "Skriv en besked...",
+  "Send": "Send",
+  "Time off": "Orlov",
+  "Show profile": "Vis profil",
+  "Not available yet": "Ikke tilgængelig endnu",
+  "Send message": "Send besked",
+  "Back": "Tilbage",
+  "Search teammates...": "Søg efter teammedlemmer...",
+  "No teammates match that search.": "Ingen teammedlemmer matcher den søgning."
 }

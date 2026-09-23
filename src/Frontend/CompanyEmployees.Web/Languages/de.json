@@ -244,5 +244,18 @@
   "Request cancellation": "Stornierung beantragen",
   "Send to HR": "An HR senden",
   "Cancellation request sent to HR.": "Stornierungsantrag an HR gesendet.",
-  "A reason is required to request a cancellation.": "Für einen Stornierungsantrag ist ein Grund erforderlich."
+  "A reason is required to request a cancellation.": "Für einen Stornierungsantrag ist ein Grund erforderlich.",
+  "Messages": "Nachrichten",
+  "Your team": "Ihr Team",
+  "No messages yet": "Noch keine Nachrichten",
+  "Pick someone to start a conversation.": "Wählen Sie jemanden aus, um ein Gespräch zu beginnen.",
+  "Write a message...": "Nachricht schreiben...",
+  "Send": "Senden",
+  "Time off": "Urlaub",
+  "Show profile": "Profil anzeigen",
+  "Not available yet": "Noch nicht verfügbar",
+  "Send message": "Nachricht senden",
+  "Back": "Zurück",
+  "Search teammates...": "Teamkollegen suchen...",
+  "No teammates match that search.": "Keine Teamkollegen entsprechen dieser Suche."
 }
