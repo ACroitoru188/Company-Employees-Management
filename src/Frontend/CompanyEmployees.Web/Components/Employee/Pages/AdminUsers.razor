@@ -177,9 +177,7 @@ else
 			{
 				<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="6"
 							 VerticalAlignment="VerticalAlignment.Center">
-					<FluentBadge Fill="highlight" BackgroundColor="@StatusColor(periodContract.Status)" Color="white">
-						@Text[periodContract.Status.ToString()]
-					</FluentBadge>
+					<ContractStatusBadge Status="@periodContract.Status" />
 					<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
 						@periodContract.StartDate.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) –
 						@(periodContract.EndDate?.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) ?? Text["Indefinite"])
@@ -444,14 +442,6 @@ else
 			.OrderByDescending(c => c.CreatedAt)
 			.FirstOrDefault();
 	}
-
-	private static string StatusColor(ContractStatus status) => status switch
-	{
-		ContractStatus.Active => "var(--success)",
-		ContractStatus.Terminated => "var(--error)",
-		ContractStatus.Expired => "var(--neutral-foreground-hint)",
-		_ => "var(--neutral-foreground-hint)"
-	};
 
 	private async Task OpenEditContractDialog(User user)
 	{

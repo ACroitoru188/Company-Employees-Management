@@ -13,9 +13,7 @@
                          Color="white">
                 @Text[Content.Type.ToString()]
             </FluentBadge>
-            <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(Content.Status)" Color="white">
-                @Text[Content.Status.ToString()]
-            </FluentBadge>
+            <RequestStatusBadge Status="@Content.Status" />
         </FluentStack>
 
         <FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">
@@ -60,11 +58,4 @@
 @code {
     [Parameter]
     public TimeOffRequest Content { get; set; } = default!;
-
-    private static string StatusColor(RequestStatus status) => status switch
-    {
-        RequestStatus.Approved => "var(--success)",
-        RequestStatus.Rejected => "var(--error)",
-        _ => "var(--warning)"
-    };
 }

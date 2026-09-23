@@ -79,58 +79,7 @@
        already hidden for the same reason. *@
     @if (_currentLevel == HierarchyLevel.CompanyOrgChart)
     {
-    <style>
-        /* Force override any cached CSS and hide the extra clear button */
-        fluent-autocomplete::part(clear-button),
-        fluent-search::part(clear-button),
-        fluent-text-field::part(clear-button) {
-            display: none !important;
-        }
-        fluent-autocomplete::part(control)::-webkit-search-cancel-button,
-        fluent-autocomplete::part(control)::-webkit-search-decoration,
-        fluent-autocomplete::part(control)::-webkit-search-results-button,
-        fluent-autocomplete::part(control)::-webkit-search-results-decoration {
-            display: none !important;
-            -webkit-appearance: none !important;
-        }
-        .org-path-highlight::part(positioning-region) {
-            background-color: rgba(245, 124, 0, 0.15) !important;
-            border-radius: 4px !important;
-            box-shadow: inset 3px 0 0 0 #F57C00 !important;
-            border-left: none !important;
-            padding-left: 0 !important;
-        }
-        .org-search-result::part(positioning-region) {
-            background-color: rgba(118, 255, 3, 0.25) !important;
-            border-radius: 4px !important;
-            box-shadow: inset 3px 0 0 0 #76FF03 !important;
-            border-left: none !important;
-            padding-left: 0 !important;
-        }
-        .org-current-user::part(positioning-region) {
-            background-color: rgba(255, 193, 7, 0.15) !important;
-            border-radius: 4px !important;
-            box-shadow: inset 3px 0 0 0 #FFC107 !important;
-            border-left: none !important;
-            padding-left: 0 !important;
-        }
-        .org-search-autocomplete,
-        .focus-me-btn {
-            --accent-fill-rest: #009999 !important;
-            --accent-foreground-rest: #009999 !important;
-            --accent-foreground-active: #009999 !important;
-            --accent-foreground-hover: #009999 !important;
-            --accent-fill-active: #009999 !important;
-            --accent-fill-hover: #009999 !important;
-        }
-        .org-search-autocomplete::part(search-icon),
-        .org-search-autocomplete svg,
-        .focus-me-btn::part(start) svg,
-        .focus-me-btn svg {
-            fill: #009999 !important;
-            color: #009999 !important;
-        }
-    </style>
+
     <FluentStack Horizontal="true" Tokens="10" Style="margin-bottom: 20px; align-items: center; flex-wrap: wrap;">
         <FluentSelect TOption="string"
                       Items="@_cities"
@@ -208,86 +157,7 @@
     <div style="position: relative; width: 100%; height: 650px; background: var(--neutral-layer-2); overflow: hidden; margin-top: 16px; border-radius: 8px;">
         <svg width="100%" height="100%" viewBox="0 0 1000 650" preserveAspectRatio="xMidYMid meet">
             <defs>
-                <style>
-                    .romania-county-path {
-                        fill: var(--neutral-fill-rest);
-                        stroke: #009999;
-                        stroke-width: 1.4px;
-                        stroke-linejoin: round;
-                        stroke-linecap: round;
-                        transition: fill 0.25s ease, stroke 0.25s ease, stroke-width 0.25s ease, filter 0.25s ease;
-                        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.15));
-                        cursor: pointer;
-                    }
-                    .romania-county-path.has-presence {
-                        fill: var(--neutral-fill-secondary-rest);
-                        stroke: #009999;
-                        stroke-width: 1.8px;
-                        filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.25));
-                    }
-                    .romania-county-group:hover .romania-county-path,
-                    .romania-county-path.selected {
-                        fill: var(--neutral-fill-stealth-hover);
-                        stroke: #009999;
-                        stroke-width: 2.5px;
-                        filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.4));
-                    }
 
-                    /* Siemens Pin styles - Light Mode */
-                    .siemens-pin-dot {
-                        fill: #009999;
-                        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-                    }
-                    .siemens-pin-hq {
-                        fill: #E68A00;
-                        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
-                    }
-                    .siemens-hq-pulse-ring {
-                        fill: none;
-                        stroke: #E68A00;
-                        stroke-width: 2px;
-                        animation: romaniaPulse 2s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
-                    }
-                    .siemens-hub-pulse-ring {
-                        fill: none;
-                        stroke: #009999;
-                        stroke-width: 1.8px;
-                        animation: romaniaPulse 2.2s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
-                    }
-
-                    /* City Tag Badges Light */
-                    .siemens-city-tag-hq {
-                        fill: var(--neutral-layer-1);
-                        stroke: #E68A00;
-                        stroke-width: 1.5px;
-                        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
-                    }
-                    .siemens-city-text-hq {
-                        font-family: 'Roboto', 'Inter', sans-serif;
-                        font-size: 11px;
-                        font-weight: 800;
-                        fill: #E68A00;
-                        letter-spacing: 0.5px;
-                    }
-                    .siemens-city-tag {
-                        fill: var(--neutral-layer-1);
-                        stroke: #009999;
-                        stroke-width: 1.2px;
-                        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
-                    }
-                    .siemens-city-text {
-                        font-family: 'Roboto', 'Inter', sans-serif;
-                        font-size: 10px;
-                        font-weight: 700;
-                        fill: #009999;
-                        letter-spacing: 0.4px;
-                    }
-
-                    @@keyframes romaniaPulse {
-                        0% { r: 6; opacity: 1; }
-                        100% { r: 18; opacity: 0; }
-                    }
-                </style>
 
                 <pattern id="romaniaCyberGrid" width="40" height="40" patternUnits="userSpaceOnUse">
                     <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--neutral-stroke-divider-rest)" stroke-width="1"/>

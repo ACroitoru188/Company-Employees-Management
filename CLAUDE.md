@@ -30,7 +30,7 @@ src/Backend/CompanyEmployees.Gateway         # repository IMPLEMENTATIONS (BaseR
 src/Backend/CompanyEmployees.Application     # business logic: Contexts/ (BaseContext, LeaveContext,
                                              # OrgChartContext, SearchContext, AdminContext, ManagerContext,
                                              # EmployeeContext, NotificationContext, ImpersonationContext, DelegationGuard,
-                                             # ContractContext, DelegationContext)
+                                             # ContractContext, DelegationContext, MessagingContext)
 src/Backend/CompanyEmployees.Infrastructure  # cross-cutting: GlobalExceptionHandler, ResponseHandling
 src/Frontend/CompanyEmployees.Web            # Blazor Server + Fluent UI + minimal-API login
 tests/CompanyEmployees.Domain.Tests          # xunit: LeaveAllocationPolicy, LeaveApprovalPolicy
@@ -664,6 +664,20 @@ trace. The compensating controls below are what make that acceptable; don't remo
   change + `LeaveApproval` + best-effort notification, decision still saved even if the
   notification send fails).
 
+## Team Chat (1:1 messaging, in-process dispatcher)
+
+- **`MessagingContext`** (`Application/Contexts/MessagingContext.cs`): handles 1:1 chat between
+  teammates (your manager plus peers sharing the same manager, *plus* your own direct reports so the
+  relationship is symmetric). Enforces team membership on both read and write operations. Supports
+  delegation auditing via `DelegationGuard` (`DelegatedActionType.MessageSent`).
+- **`Application/Messaging/IMessageDispatcher`** (**singleton**): in-process fan-out mirroring
+  `INotificationDispatcher`. Publishes new message delivery (`PublishCreatedAsync`) and read-state
+  changes (`PublishReadStateChangedAsync`) without awaiting subscribers.
+- **`ChatPanel.razor`** (rendered in `EmployeeLayout`, bottom-right): floating dock outside `FluentLayout`
+  to avoid scroll-clipping. Opens its own DI scope via `IServiceScopeFactory` for DB reads and writes to
+  prevent circuit `DbContext` collisions. Coordinated with the Team page via `ChatPanelState` (scoped).
+- Persistence: `ChatMessage` entity, `IMessageGateway` / `MessageRepository`, `NoAction` on foreign keys.
+
 ## Other UI in the tree (know before styling)
 
 Several styling worlds coexist; only the Fluent UI one above is on the live path from login.
@@ -720,9 +734,9 @@ still works if markup opts in. `Login.razor` uses `@layout AuthLayout` (bare `@B
   Gateway, logic in an Application context, thin mapping in a Web service. Contexts are divided
   by responsibility: `LeaveContext` (leave submissions, balances, HR decisions), `OrgChartContext`
   (company tree & focused views), `SearchContext` (global search), `AdminContext` (departments,
-  regions, user transfers, contracts), `ManagerContext` (team requests, approvals), and
-  `EmployeeContext` (user profile lookups). Shared delegation and audit logging are centralized
-  in `DelegationGuard`.
+  regions, user transfers, contracts), `ManagerContext` (team requests, approvals),
+  `EmployeeContext` (user profile lookups), and `MessagingContext` (team chat and messaging). Shared delegation
+  and audit logging are centralized in `DelegationGuard`.
 - `TODO.md` is stale (pre-rearchitecture).
 - New user-facing text means a new key in **all** `Web/Languages/*.json`, not just `en.json`.
 - Any event handler that touches the database from a Razor page needs a `try/catch` that reports

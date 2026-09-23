@@ -75,17 +75,9 @@
                                          Expanded="@(_expandedId == notification.Id)"
                                          ExpandedChanged="@(expanded => OnExpandedChangedAsync(notification, expanded))">
                         <HeadingTemplate>
-                            <FluentStack Orientation="Orientation.Vertical" VerticalGap="2"
-                                         HorizontalAlignment="HorizontalAlignment.Stretch" Width="100%">
-                                <FluentLabel Typo="Typography.Body" Class="notification-summary"
-                                             Weight="@(notification.IsRead ? FontWeight.Normal : FontWeight.Bold)">
-                                    @notification.Message
-                                </FluentLabel>
-                                <FluentLabel Typo="Typography.Body" Color="Color.Custom"
-                                             CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
-                                    @notification.CreatedAt.ToString("MMM d, yyyy HH:mm", CultureInfo.InvariantCulture)
-                                </FluentLabel>
-                            </FluentStack>
+                            <NotificationRow Notification="@notification"
+                                             ShowUnreadIndicator="false"
+                                             MessageClass="notification-summary" />
                         </HeadingTemplate>
 
                         <ChildContent>

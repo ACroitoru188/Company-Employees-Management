@@ -1,20 +1,23 @@
-@* Presentation only — the parent owns the click. Used by the history page; the bell now
-   renders Fluent's own notification cards instead. *@
+@* Presentation only — the parent owns the click. Used by the history page and notifications panel. *@
 @using System.Globalization
 @using CompanyEmployees.Domain.Entities
 
 <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
-             HorizontalGap="12" Width="100%">
-    @* Fixed-width slot so read and unread rows stay aligned. *@
-    <FluentStack Orientation="Orientation.Horizontal" Width="8px" HorizontalGap="0">
-        @if (!Notification.IsRead)
-        {
-            <FluentBadge Circular="true" Appearance="Appearance.Accent" Width="8px" Height="8px" />
-        }
-    </FluentStack>
+             HorizontalGap="@(ShowUnreadIndicator ? 12 : 0)" Width="100%">
+    @if (ShowUnreadIndicator)
+    {
+        @* Fixed-width slot so read and unread rows stay aligned. *@
+        <FluentStack Orientation="Orientation.Horizontal" Width="8px" HorizontalGap="0">
+            @if (!Notification.IsRead)
+            {
+                <FluentBadge Circular="true" Appearance="Appearance.Accent" Width="8px" Height="8px" />
+            }
+        </FluentStack>
+    }
 
-    <FluentStack Orientation="Orientation.Vertical" VerticalGap="2" Width="100%">
-        <FluentLabel Typo="Typography.Body"
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="2"
+                 HorizontalAlignment="HorizontalAlignment.Stretch" Width="100%">
+        <FluentLabel Typo="Typography.Body" Class="@MessageClass"
                      Weight="@(Notification.IsRead ? FontWeight.Normal : FontWeight.Bold)">
             @Notification.Message
         </FluentLabel>
@@ -35,4 +38,10 @@
 
     [Parameter]
     public bool ShowNavigationHint { get; set; }
+
+    [Parameter]
+    public bool ShowUnreadIndicator { get; set; } = true;
+
+    [Parameter]
+    public string? MessageClass { get; set; }
 }

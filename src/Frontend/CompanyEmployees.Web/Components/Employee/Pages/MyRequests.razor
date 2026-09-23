@@ -52,9 +52,7 @@
            grid's rows are a fixed height, and a second stacked badge is clipped by it. *@
         <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="6"
                      VerticalAlignment="VerticalAlignment.Center">
-            <FluentBadge Fill="highlight" BackgroundColor="@StatusColor(context.Status)" Color="white">
-                @Text[context.Status.ToString()]
-            </FluentBadge>
+            <RequestStatusBadge Status="@context.Status" />
             @if (context.CancellationPending)
             {
                 <FluentIcon Value="@(new Icons.Regular.Size16.ArrowUndo())"
@@ -126,13 +124,6 @@
 
         _requests = await TimeOff.GetMyRequestsAsync();
     }
-
-    private static string StatusColor(RequestStatus status) => status switch
-    {
-        RequestStatus.Approved => "var(--success)",
-        RequestStatus.Rejected => "var(--error)",
-        _ => "var(--warning)"
-    };
 
     private Task OpenDetailsAsync(TimeOffRequest request) =>
         DialogService.ShowDialogAsync<RequestDetailsDialog>(request, new DialogParameters
