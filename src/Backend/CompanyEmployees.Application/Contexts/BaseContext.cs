@@ -1,6 +1,11 @@
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.GatewayInterfaces;
 using Microsoft.Extensions.Logging;
+// The domain defines its own InvalidOperationException and the pages catch that one by name.
+// The working-day guards below moved here from EmployeeContext, which had this alias; without
+// it they threw System's type instead and escaped every catch — an HR user editing leave onto
+// a weekend lost the whole circuit rather than seeing a validation message.
+using InvalidOperationException = CompanyEmployees.Domain.Exceptions.InvalidOperationException;
 
 namespace CompanyEmployees.Application.Contexts
 {
