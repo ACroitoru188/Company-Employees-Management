@@ -1168,6 +1168,24 @@ body:has(fluent-design-theme[mode="dark"]) .cal-swatch-weekend {
     padding-inline-start: 8px;
 }
 
+.cal-toolbar fluent-button,
+.cal-toolbar fluent-select {
+    flex-shrink: 0;
+}
+
+.cal-rail-availability {
+    margin: 4px 0 6px 0;
+    padding: 8px 10px;
+    border-radius: calc(var(--control-corner-radius) * 1px);
+}
+
+.cal-rail-availability-desc {
+    white-space: normal;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    color: var(--neutral-foreground-rest);
+}
+
 /* The two period pickers read as one control, so they sit closer to each other than the
    toolbar's own gap and keep a step away from the arrows before them. */
 .cal-monthpicker {
@@ -1363,8 +1381,40 @@ body:has(fluent-design-theme[mode="dark"]) .cal-cell.cal-empty {
 }
 
 .cal-more {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 1px 6px;
+    margin-top: 1px;
+    font-family: inherit;
+    font-size: var(--type-ramp-minus-1-font-size);
+    font-weight: 600;
+    color: var(--neutral-foreground-hint);
+    border-radius: calc(var(--control-corner-radius) * 1px);
+    transition: background 0.12s ease, color 0.12s ease;
+    text-align: left;
+    width: fit-content;
+    line-height: 16px;
+}
+
+.cal-more:hover {
+    background: var(--neutral-fill-stealth-hover);
+    color: var(--accent-fill-rest);
+}
+
+.cal-popover-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: transparent;
     cursor: default;
-    padding-inline-start: 2px;
+}
+
+.cal-popover-entry {
+    padding: 4px 8px;
+    border-radius: calc(var(--control-corner-radius) * 1px);
 }
 
 /* The request bar, as the last row of the surface. Always mounted (see the .razor comment)

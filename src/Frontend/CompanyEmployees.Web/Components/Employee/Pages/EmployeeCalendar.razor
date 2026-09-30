@@ -68,6 +68,25 @@
                         </FluentLabel>
                     </FluentStack>
                 </FluentButton>
+
+                @if (isSelected && SelectedBalance is { } selectedBalance && _availabilityStart is { } availabilityStart && _availableUntil is { } availableUntil)
+                {
+                    var typeColor = LeaveTypePalette.Hex(selectedBalance.Type, ThemeState.IsDarkMode);
+                    <div class="cal-rail-availability"
+                         style="@($"background: color-mix(in srgb, {typeColor} 12%, transparent); border-inline-start: 3px solid {typeColor};")">
+                        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="6" VerticalAlignment="VerticalAlignment.Top">
+                            <FluentIcon Value="@(new Icons.Regular.Size16.Info().WithColor(typeColor))" Style="margin-top: 2px; flex-shrink: 0;" />
+                            <FluentLabel Typo="Typography.Body" Class="app-caption cal-rail-availability-desc">
+                                @Text.Format(
+                                    "{0}: {1} working days available. Starting {2}, the last available day is {3}.",
+                                    Text[selectedBalance.Type.ToString()],
+                                    selectedBalance.Remaining,
+                                    availabilityStart.ToString("d", CultureInfo.CurrentCulture),
+                                    availableUntil.ToString("d", CultureInfo.CurrentCulture))
+                            </FluentLabel>
+                        </FluentStack>
+                    </div>
+                }
             }
         </FluentStack>
 
@@ -108,18 +127,6 @@
     <FluentStack Class="cal-main" Orientation="Orientation.Vertical" VerticalGap="0"
                  HorizontalAlignment="HorizontalAlignment.Stretch"
                  Style="flex:1 1 auto; min-width:0;">
-
-        @if (SelectedBalance is { } selectedBalance && _availabilityStart is { } availabilityStart && _availableUntil is { } availableUntil)
-        {
-            <FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false">
-                @Text.Format(
-                    "{0}: {1} working days available. Starting {2}, the last available day is {3}.",
-                    Text[selectedBalance.Type.ToString()],
-                    selectedBalance.Remaining,
-                    availabilityStart.ToString("d", CultureInfo.CurrentCulture),
-                    availableUntil.ToString("d", CultureInfo.CurrentCulture))
-            </FluentMessageBar>
-        }
 
         @* Teams' order exactly: Today, the two arrows, then the period; the view picker sits on
            the far right as a dropdown rather than a row of tabs. *@
@@ -243,22 +250,13 @@
 
                                         @if (visible.Count > VisibleEntriesPerDay)
                                         {
-                                            @* Hover, not click: this sits inside the day, and a
-                                               click here would also land on the day and move the
-                                               selection. *@
                                             var moreId = $"more-{date:yyyyMMdd}";
-                                            <FluentLabel Id="@moreId" Typo="Typography.Body" Class="cal-more app-caption"
-                                                         Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                                            <button id="@moreId" type="button" class="cal-more app-caption"
+                                                    @onclick="@(() => TogglePopover(date, moreId))"
+                                                    @onclick:stopPropagation="true"
+                                                    aria-label="@Text.Format("{0} more", visible.Count - VisibleEntriesPerDay)">
                                                 @Text.Format("{0} more", visible.Count - VisibleEntriesPerDay)
-                                            </FluentLabel>
-                                            <FluentTooltip Anchor="@moreId" Position="TooltipPosition.Bottom">
-                                                @foreach (var absence in visible.Skip(VisibleEntriesPerDay))
-                                                {
-                                                    <FluentLabel Typo="Typography.Body">
-                                                        @absence.MemberName · @LeaveTypePalette.Label(absence.Type)
-                                                    </FluentLabel>
-                                                }
-                                            </FluentTooltip>
+                                            </button>
                                         }
                                     }
                                     }
@@ -481,6 +479,51 @@
             <FluentButton Appearance="Appearance.Accent" OnClick="Submit">@Text["Submit request"]</FluentButton>
         </FluentStack>
     </FluentStack>
+
+    @if (_popoverOpen)
+    {
+        <div class="cal-popover-backdrop" @onclick="ClosePopover" @onclick:stopPropagation="true"></div>
+    }
+
+    @if (_popoverDate is { } popDate && _popoverAnchorId is { } anchorId && _teamByDay.TryGetValue(popDate, out var popoverAbsences))
+    {
+        <FluentPopover AnchorId="@anchorId" @bind-Open="_popoverOpen"
+                       FixedPlacement="true" VerticalThreshold="240"
+                       Style="min-width: 280px; max-width: 340px; z-index: 1000;">
+            <Header>
+                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"
+                             HorizontalGap="8" Width="100%">
+                    <FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+                        @popDate.ToString("dddd, MMM d", CalendarCulture)
+                    </FluentLabel>
+                    <FluentSpacer />
+                    <FluentButton Appearance="Appearance.Stealth" IconStart="@(new Icons.Regular.Size16.Dismiss())"
+                                  OnClick="ClosePopover" AriaLabel="@Text["Close"]" />
+                </FluentStack>
+            </Header>
+            <Body>
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="4" Width="100%"
+                             Style="max-height: 260px; overflow-y: auto; padding: 4px 0;">
+                    @foreach (var absence in popoverAbsences)
+                    {
+                        <FluentStack Class="cal-entry cal-popover-entry" Orientation="Orientation.Horizontal"
+                                     HorizontalGap="8" VerticalAlignment="VerticalAlignment.Center"
+                                     Style="@EntryTint(absence.Type)"
+                                     Title="@($"{absence.MemberName} · {Text[absence.Type.ToString()]}")">
+                            <FluentLabel Typo="Typography.Body" Class="cal-entry-text">
+                                @absence.MemberName
+                            </FluentLabel>
+                            <FluentSpacer />
+                            <FluentLabel Typo="Typography.Body" Class="app-caption"
+                                         Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                                @Text[absence.Type.ToString()]
+                            </FluentLabel>
+                        </FluentStack>
+                    }
+                </FluentStack>
+            </Body>
+        </FluentPopover>
+    }
 </FluentStack>
 
 @code {
@@ -490,7 +533,7 @@
     private enum CalView { Month, Week, Grid, List }
 
     // Entries drawn in a day cell before the rest collapse into "N more".
-    private const int VisibleEntriesPerDay = 3;
+    private const int VisibleEntriesPerDay = 1;
 
     private static readonly string[] ViewNames = Enum.GetNames<CalView>();
 
@@ -548,6 +591,28 @@
     private LeaveBalance? SelectedBalance => _selectedType is { } type
         ? _balances.FirstOrDefault(balance => balance.Type == type)
         : null;
+
+    private DateOnly? _popoverDate;
+    private string? _popoverAnchorId;
+    private bool _popoverOpen;
+
+    private void TogglePopover(DateOnly date, string anchorId)
+    {
+        if (_popoverOpen && _popoverDate == date)
+        {
+            ClosePopover();
+            return;
+        }
+
+        _popoverDate = date;
+        _popoverAnchorId = anchorId;
+        _popoverOpen = true;
+    }
+
+    private void ClosePopover()
+    {
+        _popoverOpen = false;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -676,6 +741,7 @@
     // The arrows, Today and both pickers differ only in the date they land on.
     private async Task MoveToAsync(DateOnly target)
     {
+        ClosePopover();
         _anchor = target;
         await LoadAsync();
     }
@@ -685,6 +751,7 @@
         if (!Enum.TryParse<CalView>(name, out var view) || _view == view)
             return;
 
+        ClosePopover();
         _view = view;
         await LoadAsync();
     }
@@ -738,6 +805,7 @@
 
     private async Task SelectType(LeaveType type)
     {
+        ClosePopover();
         if (_selectedType == type)
         {
             _selectedType = null;
@@ -805,6 +873,7 @@
     // Click the first day, then the last; clicking inside the range clears it.
     private async Task OnDayClick(DateOnly day)
     {
+        ClosePopover();
         if (!CanSelectDay(day))
             return;
 
@@ -859,6 +928,7 @@
 
     private void CancelSelection()
     {
+        ClosePopover();
         _range = null;
         _anchorDay = null;
         _reason = null;
