@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "İzin yönetimi",
   "WORKSPACE": "ÇALIŞMA ALANI",
   "Dashboard": "Gösterge paneli",
@@ -257,5 +257,18 @@
   "Send message": "Mesaj gönder",
   "Back": "Geri",
   "Search teammates...": "Takım arkadaşlarını ara...",
-  "No teammates match that search.": "Bu aramayla eşleşen takım arkadaşı yok."
+  "No teammates match that search.": "Bu aramayla eşleşen takım arkadaşı yok.",
+  "Company event — working day": "Şirket etkinliği — iş günü",
+  "Company event": "Şirket etkinliği",
+  "Company events": "Şirket etkinlikleri",
+  "Add event": "Etkinlik ekle",
+  "Edit event": "Etkinliği düzenle",
+  "Delete event": "Etkinliği sil",
+  "Event title": "Etkinlik başlığı",
+  "Event date": "Etkinlik tarihi",
+  "Category": "Kategori",
+  "Region scope": "Bölge kapsamı",
+  "Search company events...": "Şirket etkinliklerini ara...",
+  "No company events found.": "Şirket etkinliği bulunamadı.",
+  "Delete company event": "Şirket etkinliğini sil"
 }

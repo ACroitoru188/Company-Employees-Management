@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Távollétkezelés",
   "WORKSPACE": "MUNKATERÜLET",
   "Dashboard": "Irányítópult",
@@ -257,5 +257,18 @@
   "Send message": "Üzenet küldése",
   "Back": "Vissza",
   "Search teammates...": "Csapattagok keresése...",
-  "No teammates match that search.": "Nincs a keresésnek megfelelő csapattag."
+  "No teammates match that search.": "Nincs a keresésnek megfelelő csapattag.",
+  "Company event — working day": "Vállalati esemény — munkanap",
+  "Company event": "Vállalati esemény",
+  "Company events": "Vállalati események",
+  "Add event": "Esemény hozzáadása",
+  "Edit event": "Esemény szerkesztése",
+  "Delete event": "Esemény törlése",
+  "Event title": "Esemény címe",
+  "Event date": "Esemény dátuma",
+  "Category": "Kategória",
+  "Region scope": "Régió",
+  "Search company events...": "Vállalati események keresése...",
+  "No company events found.": "Nem találhatók vállalati események.",
+  "Delete company event": "Vállalati esemény törlése"
 }

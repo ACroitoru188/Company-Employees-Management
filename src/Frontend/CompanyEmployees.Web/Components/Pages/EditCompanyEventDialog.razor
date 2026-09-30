@@ -1,0 +1,235 @@
+@using CompanyEmployees.Application
+@using CompanyEmployees.Domain.Entities
+@implements IDialogContentComponent<EditCompanyEventDialog.Model>
+
+<FluentDialogBody>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="14">
+        <FluentTextField Label="Event title"
+                         @bind-Value="Content.Title"
+                         @bind-Value:after="Content.NotifyChanged"
+                         Immediate="true"
+                         Required="true"
+                         MaxLength="@CompanyEvent.MaxTitleLength"
+                         Style="width:100%;"
+                         Placeholder="e.g. Siemens Anniversary" />
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.End" Style="margin-top:-10px;">
+            <FluentLabel Typo="Typography.Body" Style="font-size:12px;" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                @(Content.Title?.Length ?? 0) / @CompanyEvent.MaxTitleLength characters (min. @CompanyEvent.MinTitleLength)
+            </FluentLabel>
+        </FluentStack>
+
+        <FluentDatePicker Label="Event date" @bind-Value="Content.Date" @bind-Value:after="Content.NotifyChanged" Required="true" Style="width:100%;" />
+
+        @if (Content.IsAnnual && Content.Date.HasValue && Content.Date.Value.Month == 2 && Content.Date.Value.Day == 29)
+        {
+            <FluentMessageBar Intent="MessageIntent.Info" AllowDismiss="false" Style="margin-top:-6px;">
+                Note: In non-leap years, this annual event will be displayed on February 28.
+            </FluentMessageBar>
+        }
+
+        <FluentCheckbox @bind-Value="Content.IsAnnual" @bind-Value:after="Content.NotifyChanged" Label="Recurs annually on this month and day" />
+
+        <FluentSelect TOption="string"
+                      Label="Category"
+                      Items="@CompanyEvent.Categories"
+                      SelectedOption="@Content.Category"
+                      SelectedOptionChanged="@(c => { Content.Category = c ?? CompanyEvent.DefaultCategory; Content.NotifyChanged(); })"
+                      Style="width:100%;" />
+
+        <FluentSelect TOption="RegionOption"
+                      Label="Region scope"
+                      Items="@Content.AvailableRegions"
+                      OptionValue="@(r => r.Code ?? "")"
+                      OptionText="@(r => r.DisplayName)"
+                      SelectedOption="@SelectedRegion"
+                      SelectedOptionChanged="@OnRegionChanged"
+                      Style="width:100%;" />
+
+        <FluentTextArea Label="Description"
+                        @bind-Value="Content.Description"
+                        @bind-Value:after="Content.NotifyChanged"
+                        Immediate="true"
+                        MaxLength="@CompanyEvent.MaxDescriptionLength"
+                        Rows="3"
+                        Style="width:100%;"
+                        Placeholder="Event details, agenda, or background..." />
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalAlignment="HorizontalAlignment.End" Style="margin-top:-10px;">
+            <FluentLabel Typo="Typography.Body" Style="font-size:12px;" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                @(Content.Description?.Length ?? 0) / @CompanyEvent.MaxDescriptionLength characters
+            </FluentLabel>
+        </FluentStack>
+
+        @if (Content.Error is not null)
+        {
+            <FluentMessageBar Intent="MessageIntent.Error" AllowDismiss="false">@Content.Error</FluentMessageBar>
+        }
+    </FluentStack>
+</FluentDialogBody>
+
+@code {
+    [Parameter]
+    public Model Content { get; set; } = default!;
+
+    private RegionOption? SelectedRegion =>
+        Content.AvailableRegions.FirstOrDefault(r => string.Equals(r.Code, Content.RegionCode, StringComparison.OrdinalIgnoreCase))
+        ?? Content.AvailableRegions.FirstOrDefault();
+
+    private void OnRegionChanged(RegionOption? option)
+    {
+        Content.RegionCode = option?.Code;
+        Content.NotifyChanged();
+    }
+
+    protected override void OnInitialized()
+    {
+        Content.Refresh = () => InvokeAsync(StateHasChanged);
+        if (string.IsNullOrWhiteSpace(Content.Category))
+        {
+            Content.Category = CompanyEvent.DefaultCategory;
+        }
+    }
+
+    public sealed record RegionOption(string? Code, string DisplayName);
+
+    public class Model : DialogContentModel
+    {
+        public Guid? EventId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public DateTime? Date { get; set; }
+        public string? Description { get; set; }
+        public bool IsAnnual { get; set; }
+        public string Category { get; set; } = CompanyEvent.DefaultCategory;
+        public string? RegionCode { get; set; }
+        public List<RegionOption> AvailableRegions { get; set; } = [];
+        public List<CompanyEvent> ExistingEvents { get; set; } = [];
+        public string? Error { get; private set; }
+
+        public new void NotifyChanged()
+        {
+            if (Error is not null && IsValid)
+            {
+                Error = null;
+            }
+            base.NotifyChanged();
+        }
+
+        public bool IsValid =>
+            !string.IsNullOrWhiteSpace(Title)
+            && Title.Trim().Length >= CompanyEvent.MinTitleLength
+            && Title.Trim().Length <= CompanyEvent.MaxTitleLength
+            && Date.HasValue
+            && Date.Value.Year >= DateTime.UtcNow.Year + CompanyEvent.MinYearOffset
+            && Date.Value.Year <= DateTime.UtcNow.Year + CompanyEvent.MaxYearOffset
+            && (Description == null || Description.Length <= CompanyEvent.MaxDescriptionLength)
+            && !string.IsNullOrWhiteSpace(Category)
+            && CompanyEvent.Categories.Contains(Category, StringComparer.OrdinalIgnoreCase);
+
+        public void SetError(string? message)
+        {
+            Error = message;
+            NotifyChanged();
+        }
+
+        public bool Validate()
+        {
+            var trimmedTitle = Title?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(trimmedTitle))
+            {
+                SetError("Event title is required.");
+                return false;
+            }
+
+            if (trimmedTitle.Length < CompanyEvent.MinTitleLength)
+            {
+                SetError($"Event title must be at least {CompanyEvent.MinTitleLength} characters.");
+                return false;
+            }
+
+            if (trimmedTitle.Length > CompanyEvent.MaxTitleLength)
+            {
+                SetError($"Event title cannot exceed {CompanyEvent.MaxTitleLength} characters.");
+                return false;
+            }
+
+            if (Date is null)
+            {
+                SetError("Event date is required.");
+                return false;
+            }
+
+            var currentYear = DateTime.UtcNow.Year;
+            var minYear = currentYear + CompanyEvent.MinYearOffset;
+            var maxYear = currentYear + CompanyEvent.MaxYearOffset;
+            if (Date.Value.Year < minYear || Date.Value.Year > maxYear)
+            {
+                SetError($"Event date year must be between {minYear} and {maxYear}.");
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(Description) && Description.Length > CompanyEvent.MaxDescriptionLength)
+            {
+                SetError($"Description cannot exceed {CompanyEvent.MaxDescriptionLength} characters.");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(Category) || !CompanyEvent.Categories.Contains(Category, StringComparer.OrdinalIgnoreCase))
+            {
+                SetError("Please select a valid category.");
+                return false;
+            }
+
+            var eventDate = DateOnly.FromDateTime(Date.Value);
+            var normalizedRegion = string.IsNullOrWhiteSpace(RegionCode) ? null : RegionCode.Trim().ToUpperInvariant();
+
+            // Duplicate check
+            var duplicate = ExistingEvents.FirstOrDefault(e =>
+                e.Id != EventId
+                && string.Equals(e.Title, trimmedTitle, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(e.RegionCode, normalizedRegion, StringComparison.OrdinalIgnoreCase)
+                && ((e.IsAnnual || IsAnnual) ? (e.Date.Month == eventDate.Month && e.Date.Day == eventDate.Day) : e.Date == eventDate));
+
+            if (duplicate != null)
+            {
+                SetError("A company event with this title already exists on this date for the selected region.");
+                return false;
+            }
+
+            // Daily clutter guard: max events on a single date per region scope
+            var eventsOnDateCount = ExistingEvents.Count(e =>
+                e.Id != EventId
+                && string.Equals(e.RegionCode, normalizedRegion, StringComparison.OrdinalIgnoreCase)
+                && ((e.IsAnnual || IsAnnual) ? (e.Date.Month == eventDate.Month && e.Date.Day == eventDate.Day) : e.Date == eventDate));
+
+            if (eventsOnDateCount >= CompanyEvent.MaxEventsPerDatePerRegion)
+            {
+                SetError($"A maximum of {CompanyEvent.MaxEventsPerDatePerRegion} company events are allowed on a single date for the selected region.");
+                return false;
+            }
+
+            SetError(null);
+            return true;
+        }
+
+        public static Model CreateNew(List<RegionOption> regions, List<CompanyEvent> existingEvents) => new()
+        {
+            Date = DateTime.Today,
+            IsAnnual = false,
+            Category = CompanyEvent.DefaultCategory,
+            AvailableRegions = regions,
+            ExistingEvents = existingEvents
+        };
+
+        public static Model FromExisting(CompanyEvent ev, List<RegionOption> regions, List<CompanyEvent> existingEvents) => new()
+        {
+            EventId = ev.Id,
+            Title = ev.Title,
+            Date = ev.Date.ToDateTime(TimeOnly.MinValue),
+            Description = ev.Description,
+            IsAnnual = ev.IsAnnual,
+            Category = string.IsNullOrWhiteSpace(ev.Category) ? CompanyEvent.DefaultCategory : ev.Category,
+            RegionCode = ev.RegionCode,
+            AvailableRegions = regions,
+            ExistingEvents = existingEvents
+        };
+    }
+}

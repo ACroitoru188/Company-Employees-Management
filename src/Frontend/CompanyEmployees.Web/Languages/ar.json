@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "إدارة الإجازات",
   "WORKSPACE": "مساحة العمل",
   "Dashboard": "لوحة المعلومات",
@@ -257,5 +257,18 @@
   "Send message": "إرسال رسالة",
   "Back": "رجوع",
   "Search teammates...": "ابحث عن زملاء الفريق...",
-  "No teammates match that search.": "لا يوجد زميل يطابق هذا البحث."
+  "No teammates match that search.": "لا يوجد زميل يطابق هذا البحث.",
+  "Company event — working day": "حدث للشركة — يوم عمل",
+  "Company event": "حدث للشركة",
+  "Company events": "فعاليات الشركة",
+  "Add event": "إضافة فعالية",
+  "Edit event": "تعديل الفعالية",
+  "Delete event": "حذف الفعالية",
+  "Event title": "عنوان الفعالية",
+  "Event date": "تاريخ الفعالية",
+  "Category": "الفئة",
+  "Region scope": "النطاق الإقليمي",
+  "Search company events...": "البحث في فعاليات الشركة...",
+  "No company events found.": "لم يتم العثور على فعاليات للشركة.",
+  "Delete company event": "حذف فعالية الشركة"
 }

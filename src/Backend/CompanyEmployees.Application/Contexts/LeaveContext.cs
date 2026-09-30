@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain;
+using CompanyEmployees.Domain;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
 using CompanyEmployees.Domain.Exceptions;
@@ -18,6 +18,8 @@ namespace CompanyEmployees.Application.Contexts
         private readonly IManagerDelegationGateway _delegationGateway;
         private readonly NotificationContext _notifications;
         private readonly DelegationGuard _delegationGuard;
+        private readonly ICompanyEventProvider? _companyEventProvider;
+        private readonly ICompanyEventGateway? _companyEventGateway;
 
         public LeaveContext(
             ILogger<LeaveContext> logger,
@@ -27,7 +29,9 @@ namespace CompanyEmployees.Application.Contexts
             IManagerDelegationGateway delegationGateway,
             IPublicHolidayProvider holidayProvider,
             NotificationContext notifications,
-            DelegationGuard delegationGuard) : base(logger, holidayProvider)
+            DelegationGuard delegationGuard,
+            ICompanyEventProvider? companyEventProvider = null,
+            ICompanyEventGateway? companyEventGateway = null) : base(logger, holidayProvider)
         {
             _leaveRequestGateway = leaveRequestGateway;
             _userGateway = userGateway;
@@ -35,6 +39,8 @@ namespace CompanyEmployees.Application.Contexts
             _delegationGateway = delegationGateway;
             _notifications = notifications;
             _delegationGuard = delegationGuard;
+            _companyEventProvider = companyEventProvider;
+            _companyEventGateway = companyEventGateway;
         }
 
         private Task<ManagerDelegation?> GuardAsync(Guid actingAsUserId, ActingOnBehalf? onBehalf) =>
@@ -217,6 +223,161 @@ namespace CompanyEmployees.Application.Contexts
                 throw new EntityNotFoundException($"No user with id {userId}.");
 
             return await _holidayProvider!.GetHolidaysAsync(user.Region.Code, year);
+        }
+
+        public async Task<IReadOnlyList<CompanyEvent>> GetCompanyEventsAsync(Guid userId, int year)
+        {
+            var user = await _userGateway.GetUserByIdAsync(userId);
+            if (user == null)
+                throw new EntityNotFoundException($"No user with id {userId}.");
+
+            if (_companyEventGateway != null)
+            {
+                var dbEvents = await _companyEventGateway.GetEventsAsync(user.Region?.Code, year);
+                if (dbEvents.Count > 0)
+                    return dbEvents;
+            }
+
+            if (_companyEventProvider == null)
+                return [];
+
+            return await _companyEventProvider.GetCompanyEventsAsync(user.Region?.Code, year);
+        }
+
+        public async Task<List<CompanyEvent>> GetAllCompanyEventsAsync()
+        {
+            if (_companyEventGateway == null)
+                return [];
+
+            return await _companyEventGateway.GetAllAsync();
+        }
+
+        private static readonly HashSet<string> ValidCompanyEventCategories = new(CompanyEvent.Categories, StringComparer.OrdinalIgnoreCase);
+
+        private async Task ValidateCompanyEventDetailsAsync(
+            Guid? eventId,
+            string title,
+            DateOnly date,
+            string? description,
+            bool isAnnual,
+            string category,
+            string? regionCode)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+                throw new InvalidOperationException("Event title is required.");
+
+            var trimmedTitle = title.Trim();
+            if (trimmedTitle.Length < CompanyEvent.MinTitleLength || trimmedTitle.Length > CompanyEvent.MaxTitleLength)
+                throw new InvalidOperationException($"Event title must be between {CompanyEvent.MinTitleLength} and {CompanyEvent.MaxTitleLength} characters.");
+
+            var currentYear = DateTime.UtcNow.Year;
+            var minYear = currentYear + CompanyEvent.MinYearOffset;
+            var maxYear = currentYear + CompanyEvent.MaxYearOffset;
+            if (date.Year < minYear || date.Year > maxYear)
+                throw new InvalidOperationException($"Event date year must be between {minYear} and {maxYear}.");
+
+            if (!string.IsNullOrEmpty(description) && description.Trim().Length > CompanyEvent.MaxDescriptionLength)
+                throw new InvalidOperationException($"Event description cannot exceed {CompanyEvent.MaxDescriptionLength} characters.");
+
+            if (string.IsNullOrWhiteSpace(category) || !ValidCompanyEventCategories.Contains(category.Trim()))
+                throw new InvalidOperationException("A valid event category must be specified.");
+
+            if (_companyEventGateway == null)
+                throw new InvalidOperationException("Event storage is not configured.");
+
+            var allEvents = (await _companyEventGateway.GetAllAsync()) ?? [];
+            var normalizedRegion = string.IsNullOrWhiteSpace(regionCode) ? null : regionCode.Trim().ToUpperInvariant();
+
+            // Duplicate check: Same title (case-insensitive) on same date (or same month/day if annual) for same region scope (or both global)
+            var duplicate = allEvents.FirstOrDefault(e =>
+                e.Id != eventId
+                && string.Equals(e.Title, trimmedTitle, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(e.RegionCode, normalizedRegion, StringComparison.OrdinalIgnoreCase)
+                && ((e.IsAnnual || isAnnual) ? (e.Date.Month == date.Month && e.Date.Day == date.Day) : e.Date == date));
+
+            if (duplicate != null)
+                throw new InvalidOperationException("A company event with this title already exists on this date for the selected region.");
+
+            // Daily clutter guard: max events on a single date per region scope
+            var eventsOnDateCount = allEvents.Count(e =>
+                e.Id != eventId
+                && string.Equals(e.RegionCode, normalizedRegion, StringComparison.OrdinalIgnoreCase)
+                && ((e.IsAnnual || isAnnual) ? (e.Date.Month == date.Month && e.Date.Day == date.Day) : e.Date == date));
+
+            if (eventsOnDateCount >= CompanyEvent.MaxEventsPerDatePerRegion)
+                throw new InvalidOperationException($"A maximum of {CompanyEvent.MaxEventsPerDatePerRegion} company events are allowed on a single date for the selected region.");
+        }
+
+        public async Task<CompanyEvent> CreateCompanyEventAsync(
+            Guid actingUserId,
+            string title,
+            DateOnly date,
+            string? description,
+            bool isAnnual,
+            string category,
+            string? regionCode)
+        {
+            await ValidateCompanyEventDetailsAsync(null, title, date, description, isAnnual, category, regionCode);
+
+            var newEvent = new CompanyEvent
+            {
+                Id = Guid.NewGuid(),
+                Title = title.Trim(),
+                Date = date,
+                Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
+                IsAnnual = isAnnual,
+                Category = string.IsNullOrWhiteSpace(category) ? CompanyEvent.DefaultCategory : category.Trim(),
+                RegionCode = string.IsNullOrWhiteSpace(regionCode) ? null : regionCode.Trim().ToUpperInvariant(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var created = await _companyEventGateway!.CreateAsync(newEvent);
+            _logger.LogInformation("Company event {EventId} '{Title}' created by user {UserId}.", created.Id, created.Title, actingUserId);
+            return created;
+        }
+
+        public async Task UpdateCompanyEventAsync(
+            Guid actingUserId,
+            Guid eventId,
+            string title,
+            DateOnly date,
+            string? description,
+            bool isAnnual,
+            string category,
+            string? regionCode)
+        {
+            if (_companyEventGateway == null)
+                throw new InvalidOperationException("Event storage is not configured.");
+
+            var existing = await _companyEventGateway.GetByIdAsync(eventId);
+            if (existing == null)
+                throw new EntityNotFoundException($"No company event with id {eventId}.");
+
+            await ValidateCompanyEventDetailsAsync(eventId, title, date, description, isAnnual, category, regionCode);
+
+            existing.Title = title.Trim();
+            existing.Date = date;
+            existing.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+            existing.IsAnnual = isAnnual;
+            existing.Category = string.IsNullOrWhiteSpace(category) ? CompanyEvent.DefaultCategory : category.Trim();
+            existing.RegionCode = string.IsNullOrWhiteSpace(regionCode) ? null : regionCode.Trim().ToUpperInvariant();
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            await _companyEventGateway.UpdateAsync(existing);
+            _logger.LogInformation("Company event {EventId} '{Title}' updated by user {UserId}.", eventId, existing.Title, actingUserId);
+        }
+
+        public async Task DeleteCompanyEventAsync(Guid actingUserId, Guid eventId)
+        {
+            if (_companyEventGateway == null)
+                throw new InvalidOperationException("Event storage is not configured.");
+
+            var existing = await _companyEventGateway.GetByIdAsync(eventId);
+            if (existing == null)
+                throw new EntityNotFoundException($"No company event with id {eventId}.");
+
+            await _companyEventGateway.DeleteAsync(eventId);
+            _logger.LogInformation("Company event {EventId} '{Title}' deleted by user {UserId}.", eventId, existing.Title, actingUserId);
         }
 
         // Everyone sees pending and approved requests for their own team so employees

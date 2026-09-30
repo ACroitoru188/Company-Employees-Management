@@ -54,6 +54,49 @@ namespace CompanyEmployees.Persistence.Providers.PostgreSql.Migrations
                     b.ToTable("Messages");
                 });
 
+            modelBuilder.Entity("CompanyEmployees.Domain.Entities.CompanyEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsAnnual")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("RegionCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date", "RegionCode");
+
+                    b.ToTable("CompanyEvents");
+                });
+
             modelBuilder.Entity("CompanyEmployees.Domain.Entities.Contract", b =>
                 {
                     b.Property<Guid>("Id")

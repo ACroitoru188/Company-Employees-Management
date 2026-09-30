@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Správa volna",
   "WORKSPACE": "PRACOVNÍ PROSTOR",
   "Dashboard": "Přehled",
@@ -257,5 +257,18 @@
   "Send message": "Odeslat zprávu",
   "Back": "Zpět",
   "Search teammates...": "Hledat členy týmu...",
-  "No teammates match that search.": "Žádný člen týmu neodpovídá tomuto hledání."
+  "No teammates match that search.": "Žádný člen týmu neodpovídá tomuto hledání.",
+  "Company event — working day": "Firemní událost — pracovní den",
+  "Company event": "Firemní událost",
+  "Company events": "Firemní události",
+  "Add event": "Přidat událost",
+  "Edit event": "Upravit událost",
+  "Delete event": "Smazat událost",
+  "Event title": "Název události",
+  "Event date": "Datum události",
+  "Category": "Kategorie",
+  "Region scope": "Regionální rozsah",
+  "Search company events...": "Hledat firemní události...",
+  "No company events found.": "Nenalezeny žádné firemní události.",
+  "Delete company event": "Smazat firemní událost"
 }

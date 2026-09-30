@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Gestion des congés",
   "WORKSPACE": "ESPACE DE TRAVAIL",
   "Dashboard": "Tableau de bord",
@@ -257,5 +257,18 @@
   "Send message": "Envoyer un message",
   "Back": "Retour",
   "Search teammates...": "Rechercher des coéquipiers...",
-  "No teammates match that search.": "Aucun coéquipier ne correspond à cette recherche."
+  "No teammates match that search.": "Aucun coéquipier ne correspond à cette recherche.",
+  "Company event — working day": "Événement d'entreprise — jour ouvrable",
+  "Company event": "Événement d'entreprise",
+  "Company events": "Événements d'entreprise",
+  "Add event": "Ajouter un événement",
+  "Edit event": "Modifier l'événement",
+  "Delete event": "Supprimer l'événement",
+  "Event title": "Titre de l'événement",
+  "Event date": "Date de l'événement",
+  "Category": "Catégorie",
+  "Region scope": "Région",
+  "Search company events...": "Rechercher des événements d'entreprise...",
+  "No company events found.": "Aucun événement d'entreprise trouvé.",
+  "Delete company event": "Supprimer l'événement d'entreprise"
 }

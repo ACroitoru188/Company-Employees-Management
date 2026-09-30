@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Abwesenheitsverwaltung",
   "WORKSPACE": "ARBEITSBEREICH",
   "Dashboard": "Übersicht",
@@ -257,5 +257,18 @@
   "Send message": "Nachricht senden",
   "Back": "Zurück",
   "Search teammates...": "Teamkollegen suchen...",
-  "No teammates match that search.": "Keine Teamkollegen entsprechen dieser Suche."
+  "No teammates match that search.": "Keine Teamkollegen entsprechen dieser Suche.",
+  "Company event — working day": "Unternehmensevent — Arbeitstag",
+  "Company event": "Unternehmensevent",
+  "Company events": "Unternehmensevents",
+  "Add event": "Event hinzufügen",
+  "Edit event": "Event bearbeiten",
+  "Delete event": "Event löschen",
+  "Event title": "Event-Titel",
+  "Event date": "Event-Datum",
+  "Category": "Kategorie",
+  "Region scope": "Regionsbereich",
+  "Search company events...": "Unternehmensevents suchen...",
+  "No company events found.": "Keine Unternehmensevents gefunden.",
+  "Delete company event": "Unternehmensevent löschen"
 }

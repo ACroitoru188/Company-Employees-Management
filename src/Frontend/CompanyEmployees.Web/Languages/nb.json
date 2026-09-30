@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Fraværsadministrasjon",
   "WORKSPACE": "ARBEIDSOMRÅDE",
   "Dashboard": "Oversikt",
@@ -257,5 +257,18 @@
   "Send message": "Send melding",
   "Back": "Tilbake",
   "Search teammates...": "Søk etter lagkamerater...",
-  "No teammates match that search.": "Ingen lagkamerater samsvarer med det søket."
+  "No teammates match that search.": "Ingen lagkamerater samsvarer med det søket.",
+  "Company event — working day": "Bedriftsarrangement — arbeidsdag",
+  "Company event": "Bedriftsarrangement",
+  "Company events": "Bedriftsarrangementer",
+  "Add event": "Legg til arrangement",
+  "Edit event": "Rediger arrangement",
+  "Delete event": "Slett arrangement",
+  "Event title": "Arrangementstittel",
+  "Event date": "Arrangementsdato",
+  "Category": "Kategori",
+  "Region scope": "Region",
+  "Search company events...": "Søk bedriftsarrangementer...",
+  "No company events found.": "Ingen bedriftsarrangementer funnet.",
+  "Delete company event": "Slett bedriftsarrangement"
 }

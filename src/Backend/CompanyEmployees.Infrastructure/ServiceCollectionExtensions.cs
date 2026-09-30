@@ -13,6 +13,7 @@ namespace CompanyEmployees.Infrastructure
                 client.BaseAddress = new Uri("https://date.nager.at/api/v3/");
                 client.Timeout = TimeSpan.FromSeconds(8);
             });
+            services.AddSingleton<ICompanyEventProvider, CompanyEmployees.Infrastructure.Events.CompanyEventProvider>();
             return services;
         }
     }

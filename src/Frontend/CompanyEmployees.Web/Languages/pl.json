@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Zarządzanie urlopami",
   "WORKSPACE": "OBSZAR ROBOCZY",
   "Dashboard": "Pulpit",
@@ -257,5 +257,18 @@
   "Send message": "Wyślij wiadomość",
   "Back": "Wstecz",
   "Search teammates...": "Szukaj członków zespołu...",
-  "No teammates match that search.": "Żaden członek zespołu nie pasuje do tego wyszukiwania."
+  "No teammates match that search.": "Żaden członek zespołu nie pasuje do tego wyszukiwania.",
+  "Company event — working day": "Wydarzenie firmowe — dzień roboczy",
+  "Company event": "Wydarzenie firmowe",
+  "Company events": "Wydarzenia firmowe",
+  "Add event": "Dodaj wydarzenie",
+  "Edit event": "Edytuj wydarzenie",
+  "Delete event": "Usuń wydarzenie",
+  "Event title": "Tytuł wydarzenia",
+  "Event date": "Data wydarzenia",
+  "Category": "Kategoria",
+  "Region scope": "Zakres regionalny",
+  "Search company events...": "Szukaj wydarzeń firmowych...",
+  "No company events found.": "Nie znaleziono wydarzeń firmowych.",
+  "Delete company event": "Usuń wydarzenie firmowe"
 }

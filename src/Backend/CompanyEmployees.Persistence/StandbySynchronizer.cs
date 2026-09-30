@@ -102,7 +102,8 @@ public sealed class StandbySynchronizer(
             await db.Notifications.AsNoTracking().ToListAsync(cancellationToken),
             await db.ManagerDelegations.AsNoTracking().ToListAsync(cancellationToken),
             await db.ImpersonationSessions.AsNoTracking().ToListAsync(cancellationToken),
-            await db.DelegatedActions.AsNoTracking().ToListAsync(cancellationToken));
+            await db.DelegatedActions.AsNoTracking().ToListAsync(cancellationToken),
+            await db.CompanyEvents.AsNoTracking().ToListAsync(cancellationToken));
     }
 
     private static async Task ReplaceStandbyAsync(
@@ -153,6 +154,7 @@ public sealed class StandbySynchronizer(
         db.LeaveApprovals.AddRange(snapshot.LeaveApprovals);
         db.ImpersonationSessions.AddRange(snapshot.ImpersonationSessions);
         db.DelegatedActions.AddRange(snapshot.DelegatedActions);
+        db.CompanyEvents.AddRange(snapshot.CompanyEvents);
         await db.SaveChangesAsync(cancellationToken);
 
         // Let each provider perform any engine-specific post-insert housekeeping
@@ -177,5 +179,6 @@ public sealed class StandbySynchronizer(
         List<Notification> Notifications,
         List<ManagerDelegation> ManagerDelegations,
         List<ImpersonationSession> ImpersonationSessions,
-        List<DelegatedAction> DelegatedActions);
+        List<DelegatedAction> DelegatedActions,
+        List<CompanyEvent> CompanyEvents);
 }
