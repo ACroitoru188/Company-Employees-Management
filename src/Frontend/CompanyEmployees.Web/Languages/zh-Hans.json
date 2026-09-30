@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "休假管理",
   "WORKSPACE": "工作区",
   "Dashboard": "仪表板",
@@ -257,5 +257,18 @@
   "Send message": "发送消息",
   "Back": "返回",
   "Search teammates...": "搜索团队成员...",
-  "No teammates match that search.": "没有匹配该搜索的团队成员。"
+  "No teammates match that search.": "没有匹配该搜索的团队成员。",
+  "Company event — working day": "公司活动 — 工作日",
+  "Company event": "公司活动",
+  "Company events": "公司活动",
+  "Add event": "添加活动",
+  "Edit event": "编辑活动",
+  "Delete event": "删除活动",
+  "Event title": "活动标题",
+  "Event date": "活动日期",
+  "Category": "类别",
+  "Region scope": "适用区域",
+  "Search company events...": "搜索公司活动...",
+  "No company events found.": "未找到公司活动。",
+  "Delete company event": "删除公司活动"
 }

@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "अवकाश प्रबंधन",
   "WORKSPACE": "कार्यस्थान",
   "Dashboard": "डैशबोर्ड",
@@ -257,5 +257,18 @@
   "Send message": "संदेश भेजें",
   "Back": "वापस",
   "Search teammates...": "साथियों को खोजें...",
-  "No teammates match that search.": "उस खोज से कोई साथी मेल नहीं खाता।"
+  "No teammates match that search.": "उस खोज से कोई साथी मेल नहीं खाता।",
+  "Company event — working day": "कंपनी कार्यक्रम — कार्य दिवस",
+  "Company event": "कंपनी कार्यक्रम",
+  "Company events": "कंपनी के कार्यक्रम",
+  "Add event": "कार्यक्रम जोड़ें",
+  "Edit event": "कार्यक्रम संपादित करें",
+  "Delete event": "कार्यक्रम हटाएं",
+  "Event title": "कार्यक्रम शीर्षक",
+  "Event date": "कार्यक्रम दिनांक",
+  "Category": "श्रेणी",
+  "Region scope": "क्षेत्र दायरा",
+  "Search company events...": "कंपनी के कार्यक्रम खोजें...",
+  "No company events found.": "कोई कंपनी कार्यक्रम नहीं मिला।",
+  "Delete company event": "कंपनी का कार्यक्रम हटाएं"
 }

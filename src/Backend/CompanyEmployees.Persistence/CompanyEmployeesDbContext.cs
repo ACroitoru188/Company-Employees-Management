@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +34,7 @@ namespace CompanyEmployees.Persistence
         public DbSet<ManagerDelegation> ManagerDelegations { get; set; }
         public DbSet<ImpersonationSession> ImpersonationSessions { get; set; }
         public DbSet<DelegatedAction> DelegatedActions { get; set; }
+        public DbSet<CompanyEvent> CompanyEvents { get; set; }
         public DbSet<DatabaseOutboxMessage> DatabaseOutbox { get; set; }
 
         // Baseline and replication contexts must never generate another outbox event.

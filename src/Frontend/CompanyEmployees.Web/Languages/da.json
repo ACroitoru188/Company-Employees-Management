@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Ferieadministration",
   "WORKSPACE": "ARBEJDSOMRÅDE",
   "Dashboard": "Oversigt",
@@ -257,5 +257,18 @@
   "Send message": "Send besked",
   "Back": "Tilbage",
   "Search teammates...": "Søg efter teammedlemmer...",
-  "No teammates match that search.": "Ingen teammedlemmer matcher den søgning."
+  "No teammates match that search.": "Ingen teammedlemmer matcher den søgning.",
+  "Company event — working day": "Virksomhedsbegivenhed — arbejdsdag",
+  "Company event": "Virksomhedsbegivenhed",
+  "Company events": "Virksomhedsbegivenheder",
+  "Add event": "Tilføj begivenhed",
+  "Edit event": "Rediger begivenhed",
+  "Delete event": "Slet begivenhed",
+  "Event title": "Begivenhedstitel",
+  "Event date": "Begivenhedsdato",
+  "Category": "Kategori",
+  "Region scope": "Region",
+  "Search company events...": "Søg virksomhedsbegivenheder...",
+  "No company events found.": "Ingen virksomhedsbegivenheder fundet.",
+  "Delete company event": "Slet virksomhedsbegivenhed"
 }

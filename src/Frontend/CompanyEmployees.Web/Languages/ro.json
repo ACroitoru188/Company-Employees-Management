@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Gestionarea concediilor",
   "WORKSPACE": "SPAȚIU DE LUCRU",
   "Dashboard": "Panou de control",
@@ -257,5 +257,18 @@
   "Send message": "Trimite mesaj",
   "Back": "Înapoi",
   "Search teammates...": "Caută coechipieri...",
-  "No teammates match that search.": "Niciun coechipier nu se potrivește căutării."
+  "No teammates match that search.": "Niciun coechipier nu se potrivește căutării.",
+  "Company event — working day": "Eveniment al companiei — zi lucrătoare",
+  "Company event": "Eveniment al companiei",
+  "Company events": "Evenimente companie",
+  "Add event": "Adaugă eveniment",
+  "Edit event": "Editează eveniment",
+  "Delete event": "Șterge eveniment",
+  "Event title": "Titlu eveniment",
+  "Event date": "Data evenimentului",
+  "Category": "Categorie",
+  "Region scope": "Regiune",
+  "Search company events...": "Caută evenimente companie...",
+  "No company events found.": "Nu s-au găsit evenimente ale companiei.",
+  "Delete company event": "Șterge evenimentul companiei"
 }

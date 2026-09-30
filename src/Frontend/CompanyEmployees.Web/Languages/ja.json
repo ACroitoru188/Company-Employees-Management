@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "休暇管理",
   "WORKSPACE": "ワークスペース",
   "Dashboard": "ダッシュボード",
@@ -257,5 +257,18 @@
   "Send message": "メッセージを送る",
   "Back": "戻る",
   "Search teammates...": "チームメンバーを検索...",
-  "No teammates match that search.": "検索に一致するチームメンバーはいません。"
+  "No teammates match that search.": "検索に一致するチームメンバーはいません。",
+  "Company event — working day": "社内イベント — 営業日",
+  "Company event": "社内イベント",
+  "Company events": "社内イベント",
+  "Add event": "イベントを追加",
+  "Edit event": "イベントを編集",
+  "Delete event": "イベントを削除",
+  "Event title": "イベント名",
+  "Event date": "イベント日程",
+  "Category": "カテゴリー",
+  "Region scope": "対象地域",
+  "Search company events...": "社内イベントを検索...",
+  "No company events found.": "社内イベントが見つかりません。",
+  "Delete company event": "社内イベントを削除"
 }

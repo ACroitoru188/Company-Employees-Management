@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Frånvarohantering",
   "WORKSPACE": "ARBETSOMRÅDE",
   "Dashboard": "Översikt",
@@ -257,5 +257,18 @@
   "Send message": "Skicka meddelande",
   "Back": "Tillbaka",
   "Search teammates...": "Sök lagkamrater...",
-  "No teammates match that search.": "Inga lagkamrater matchar den sökningen."
+  "No teammates match that search.": "Inga lagkamrater matchar den sökningen.",
+  "Company event — working day": "Företagsevenemang — arbetsdag",
+  "Company event": "Företagsevenemang",
+  "Company events": "Företagsevenemang",
+  "Add event": "Lägg till evenemang",
+  "Edit event": "Redigera evenemang",
+  "Delete event": "Ta bort evenemang",
+  "Event title": "Evenemangstitel",
+  "Event date": "Evenemangsdatum",
+  "Category": "Kategori",
+  "Region scope": "Region",
+  "Search company events...": "Sök företagsevenemang...",
+  "No company events found.": "Inga företagsevenemang hittades.",
+  "Delete company event": "Ta bort företagsevenemang"
 }

@@ -1081,6 +1081,16 @@ body:has(fluent-design-theme[mode="dark"]) .cal-swatch-weekend {
     border: 1px solid var(--error);
 }
 
+.cal-swatch-event {
+    background: color-mix(in srgb, #00646E 16%, transparent);
+    border: 1px solid #00646E;
+}
+
+body:has(fluent-design-theme[mode="dark"]) .cal-swatch-event {
+    background: color-mix(in srgb, #00A3A6 24%, transparent);
+    border: 1px solid #00A3A6;
+}
+
 /* The holiday line is a full sentence, so it wraps instead of being cut. */
 .cal-legend-text {
     white-space: normal;
@@ -1351,6 +1361,49 @@ body:has(fluent-design-theme[mode="dark"]) .cal-cell.cal-empty {
 .cal-holiday-block {
     font-size: var(--type-ramp-minus-1-font-size);
     line-height: 1.25;
+}
+
+/* Company specific event badge (e.g. Siemens anniversary, town halls) */
+.cal-event-badge {
+    display: block;
+    width: 100%;
+    padding: 2px 6px;
+    margin-bottom: 2px;
+    border-radius: 3px;
+    font-size: var(--type-ramp-minus-1-font-size);
+    font-weight: 600;
+    line-height: 16px;
+    color: #005F68;
+    background: color-mix(in srgb, #00646E 12%, transparent);
+    border-inline-start: 3px solid #00646E;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body:has(fluent-design-theme[mode="dark"]) .cal-event-badge {
+    color: #55DFDE;
+    background: color-mix(in srgb, #00A3A6 18%, transparent);
+    border-inline-start: 3px solid #00A3A6;
+}
+
+.cal-event-badge-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cal-event-badge-block {
+    padding: 4px 6px;
+    margin-bottom: 4px;
+}
+
+.cal-popover-event-badge {
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    border-radius: calc(var(--control-corner-radius) * 1px);
 }
 
 /* An entry, across the whole cell. */

@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Application;
+using CompanyEmployees.Application;
 using CompanyEmployees.Application.Contexts;
 using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Web.Models;
@@ -275,6 +275,23 @@ public class DbTimeOffService : ITimeOffService
             var holidays = await _leave.GetRegionalHolidaysAsync(user.Id, year);
             return holidays
                 .Select(holiday => new RegionalHoliday(holiday.Date, holiday.Name))
+                .ToList();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<CompanyCalendarEvent>> GetCompanyEventsAsync(int year)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var user = await GetDomainUserAsync();
+            var events = await _leave.GetCompanyEventsAsync(user.Id, year);
+            return events
+                .Select(e => new CompanyCalendarEvent(e.Date, e.Title, e.Description, e.Category))
                 .ToList();
         }
         finally

@@ -5,8 +5,10 @@
 @using CompanyEmployees.Application.Contexts
 @using Microsoft.AspNetCore.Components.Authorization
 @using CompanyEmployees.Web.Security
+@using CompanyEmployees.Domain.Entities
 @using DomainInvalidOperationException = CompanyEmployees.Domain.Exceptions.InvalidOperationException
 @inject EmployeeContext Employees
+@inject AdminContext Admin
 @inject LeaveContext Leave
 @inject ActingContext Acting
 @inject NavigationManager Nav
@@ -104,7 +106,7 @@ else
 							<FluentAccordion Style="width:100%;">
 								@foreach (var request in FilteredRequests)
 								{
-									<FluentAccordionItem Id="@request.RequestId.ToString()" Style="width:100%;">
+									<FluentAccordionItem @key="request.RequestId" Style="width:100%;">
 										<HeadingTemplate>
 											<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
 														 VerticalAlignment="VerticalAlignment.Center" Width="100%">
@@ -239,7 +241,7 @@ else
 					<FluentAccordion Style="width:100%;">
 						@foreach (var request in FilteredCancellations)
 						{
-							<FluentAccordionItem Id="@($"cancellation-{request.RequestId}")" Style="width:100%;">
+							<FluentAccordionItem @key="request.RequestId" Style="width:100%;">
 								<HeadingTemplate>
 									<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
 												 VerticalAlignment="VerticalAlignment.Center" Width="100%">
@@ -320,6 +322,124 @@ else
 													  OnClick="@(() => DecideCancellationAsync(request, false))">Decline</FluentButton>
 										<FluentButton Appearance="Appearance.Accent"
 													  OnClick="@(() => DecideCancellationAsync(request, true))">Approve cancellation</FluentButton>
+									</FluentStack>
+								</ChildContent>
+							</FluentAccordionItem>
+						}
+					</FluentAccordion>
+				}
+			</FluentStack>
+		</FluentCard>
+
+		@* Company events management: corporate milestones, anniversaries, town halls.
+		   Events remain working days without restricting leave requests. *@
+		<FluentCard Style="padding:16px;">
+			<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+				<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+							 VerticalAlignment="VerticalAlignment.Center" Width="100%">
+					<FluentIcon Value="@(new Icons.Regular.Size20.CalendarLtr())" Color="Color.Accent" />
+					<FluentLabel Typo="Typography.Subject" Weight="FontWeight.Bold">Company events</FluentLabel>
+					@if (_companyEvents.Count > 0)
+					{
+						<FluentBadge Fill="highlight" BackgroundColor="var(--accent-fill-rest)" Color="white">
+							@_companyEvents.Count
+						</FluentBadge>
+					}
+					<FluentSpacer />
+					<FluentButton Appearance="Appearance.Accent"
+								  IconStart="@(new Icons.Regular.Size16.Add())"
+								  OnClick="@OpenAddEventDialogAsync">
+						Add event
+					</FluentButton>
+				</FluentStack>
+
+				<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+					Company milestones, corporate anniversaries, and town halls. These appear in employee calendars as working days without restricting leave requests.
+				</FluentLabel>
+
+				@if (_companyEvents.Count > 0)
+				{
+					<FluentSearch @bind-Value="EventSearchTerm" @bind-Value:after="StateHasChanged"
+								  Placeholder="Search company events..." Style="width:100%;" />
+				}
+
+				@if (!FilteredEvents.Any())
+				{
+					<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+						No company events found.
+					</FluentLabel>
+				}
+				else
+				{
+					<FluentAccordion @key="_eventsAccordionKey" Style="width:100%;">
+						@foreach (var ev in FilteredEvents)
+						{
+							<FluentAccordionItem @key="ev.Id" Style="width:100%;">
+								<HeadingTemplate>
+									<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="12"
+												 VerticalAlignment="VerticalAlignment.Center" Width="100%">
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="2">
+											<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+												@ev.Title
+											</FluentLabel>
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+												@ev.Date.ToString("MMM d", CultureInfo.InvariantCulture)@(ev.IsAnnual ? " (Annual)" : $", {ev.Date.Year}")
+												&middot; @ev.Category
+												&middot; @(string.IsNullOrEmpty(ev.RegionCode) ? "Global" : ev.RegionCode)
+											</FluentLabel>
+										</FluentStack>
+										<FluentSpacer />
+										<FluentBadge Fill="outline" Color="var(--accent-fill-rest)">@ev.Category</FluentBadge>
+										@if (ev.IsAnnual)
+										{
+											<FluentBadge Fill="highlight" BackgroundColor="var(--neutral-fill-secondary-rest)" Color="var(--neutral-foreground-rest)">annual</FluentBadge>
+										}
+										@if (!string.IsNullOrEmpty(ev.RegionCode))
+										{
+											<FluentBadge Fill="outline" Color="var(--neutral-foreground-hint)">@ev.RegionCode</FluentBadge>
+										}
+									</FluentStack>
+								</HeadingTemplate>
+								<ChildContent>
+									<FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Date</FluentLabel>
+											<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+												@ev.Date.ToString("dd.MM.yyyy") @(ev.IsAnnual ? " (Recurs annually on this date)" : "")
+											</FluentLabel>
+										</FluentStack>
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Category</FluentLabel>
+											<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">@ev.Category</FluentLabel>
+										</FluentStack>
+										<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Region</FluentLabel>
+											<FluentLabel Typo="Typography.Body" Weight="FontWeight.Bold">
+												@(string.IsNullOrEmpty(ev.RegionCode) ? "All regions (Global)" : ev.RegionCode)
+											</FluentLabel>
+										</FluentStack>
+										@if (!string.IsNullOrWhiteSpace(ev.Description))
+										{
+											<FluentStack Orientation="Orientation.Vertical" VerticalGap="0">
+												<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">Description</FluentLabel>
+												<FluentLabel Typo="Typography.Body">@ev.Description</FluentLabel>
+											</FluentStack>
+										}
+										@if (ev.UpdatedAt.HasValue)
+										{
+											<FluentLabel Typo="Typography.Body" Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)" Class="app-caption">
+												Last updated @ev.UpdatedAt.Value.ToString("dd.MM.yyyy - HH:mm")
+											</FluentLabel>
+										}
+									</FluentStack>
+
+									<FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+												 HorizontalAlignment="HorizontalAlignment.End" Width="100%"
+												 Style="margin-top:16px;">
+										<FluentButton Appearance="Appearance.Neutral"
+													  OnClick="@(() => ConfirmDeleteEventAsync(ev))">Delete</FluentButton>
+										<FluentButton Appearance="Appearance.Accent"
+													  OnClick="@(() => OpenEditEventDialogAsync(ev))">Edit event</FluentButton>
 									</FluentStack>
 								</ChildContent>
 							</FluentAccordionItem>
@@ -509,6 +629,135 @@ else
 		_myId = me.Id;
 		_acting = await Acting.GetAsync();
 		_data = await Leave.GetHrDashboardAsync(_myId);
+		await LoadCompanyEventsAndRegionsAsync();
+	}
+
+	private List<CompanyEvent> _companyEvents = [];
+	private List<EditCompanyEventDialog.RegionOption> _regionOptions = [];
+	private string EventSearchTerm { get; set; } = "";
+	private Guid _eventsAccordionKey = Guid.NewGuid();
+
+	private IEnumerable<CompanyEvent> FilteredEvents => string.IsNullOrWhiteSpace(EventSearchTerm)
+		? _companyEvents
+		: _companyEvents.Where(e =>
+			e.Title.Contains(EventSearchTerm, StringComparison.OrdinalIgnoreCase)
+			|| (e.Category != null && e.Category.Contains(EventSearchTerm, StringComparison.OrdinalIgnoreCase))
+			|| (e.Description != null && e.Description.Contains(EventSearchTerm, StringComparison.OrdinalIgnoreCase)));
+
+	private async Task LoadCompanyEventsAndRegionsAsync()
+	{
+		_companyEvents = await Leave.GetAllCompanyEventsAsync();
+		var dbRegions = await Admin.GetRegionsAsync(activeOnly: true);
+		_regionOptions =
+		[
+			new EditCompanyEventDialog.RegionOption(null, "All regions (Global)"),
+			.. dbRegions.Select(r => new EditCompanyEventDialog.RegionOption(r.Code, $"{r.Code} — {r.Name}"))
+		];
+		_eventsAccordionKey = Guid.NewGuid();
+	}
+
+	private async Task OpenAddEventDialogAsync()
+	{
+		var content = EditCompanyEventDialog.Model.CreateNew(_regionOptions, _companyEvents);
+		var parameters = new DialogParameters
+		{
+			Title = "Add company event",
+			PrimaryAction = "Create",
+			SecondaryAction = "Cancel",
+			Width = "460px",
+			ValidateDialogAsync = () => Task.FromResult(content.Validate())
+		};
+
+		var dialog = await DialogService.ShowDialogAsync<EditCompanyEventDialog, EditCompanyEventDialog.Model>(
+			content, parameters);
+
+		var result = await dialog.Result;
+		if (!result.Cancelled && content.IsValid)
+		{
+			try
+			{
+				var eventDate = DateOnly.FromDateTime(content.Date!.Value);
+				await Leave.CreateCompanyEventAsync(
+					_myId,
+					content.Title.Trim(),
+					eventDate,
+					content.Description,
+					content.IsAnnual,
+					content.Category,
+					content.RegionCode);
+
+				await LoadCompanyEventsAndRegionsAsync();
+				Toast.ShowSuccess($"Event \"{content.Title.Trim()}\" was created.");
+			}
+			catch (Exception ex)
+			{
+				Toast.ShowError(ex.Message);
+			}
+		}
+	}
+
+	private async Task OpenEditEventDialogAsync(CompanyEvent ev)
+	{
+		var content = EditCompanyEventDialog.Model.FromExisting(ev, _regionOptions, _companyEvents);
+		var parameters = new DialogParameters
+		{
+			Title = "Edit company event",
+			PrimaryAction = "Save",
+			SecondaryAction = "Cancel",
+			Width = "460px",
+			ValidateDialogAsync = () => Task.FromResult(content.Validate())
+		};
+
+		var dialog = await DialogService.ShowDialogAsync<EditCompanyEventDialog, EditCompanyEventDialog.Model>(
+			content, parameters);
+
+		var result = await dialog.Result;
+		if (!result.Cancelled && content.IsValid)
+		{
+			try
+			{
+				var eventDate = DateOnly.FromDateTime(content.Date!.Value);
+				await Leave.UpdateCompanyEventAsync(
+					_myId,
+					content.EventId!.Value,
+					content.Title.Trim(),
+					eventDate,
+					content.Description,
+					content.IsAnnual,
+					content.Category,
+					content.RegionCode);
+
+				await LoadCompanyEventsAndRegionsAsync();
+				Toast.ShowSuccess($"Event \"{content.Title.Trim()}\" was updated.");
+			}
+			catch (Exception ex)
+			{
+				Toast.ShowError(ex.Message);
+			}
+		}
+	}
+
+	private async Task ConfirmDeleteEventAsync(CompanyEvent ev)
+	{
+		var confirmation = await DialogService.ShowConfirmationAsync(
+			$"Delete company event \"{ev.Title}\"? This will remove it from all employee calendars.",
+			"Delete",
+			"Back",
+			"Delete company event");
+
+		if ((await confirmation.Result).Cancelled)
+			return;
+
+		try
+		{
+			await Leave.DeleteCompanyEventAsync(_myId, ev.Id);
+			await LoadCompanyEventsAndRegionsAsync();
+			Toast.ShowSuccess($"Event \"{ev.Title}\" was deleted.");
+		}
+		catch (Exception ex)
+		{
+			Toast.ShowError(ex.Message);
+		}
 	}
 
 	private int BarPercent(int count)

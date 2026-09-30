@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Domain.Entities;
+using CompanyEmployees.Domain.Entities;
 using CompanyEmployees.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +25,7 @@ public static class DatabaseSeeder
         await SeedLeaveRequestsAndApprovalsAsync(db, ct);
         await SeedCarryOverDemoAsync(db, ct);
         await SeedContractsAsync(db, ct);
+        await SeedCompanyEventsAsync(db, ct);
     }
 
     private static async Task SeedRegionsAsync(CompanyEmployeesDbContext db, CancellationToken ct)
@@ -649,6 +650,39 @@ public static class DatabaseSeeder
             hash = (hash * 31) + b;
 
         return hash & 0x7FFFFFFF;
+    }
+
+    private static async Task SeedCompanyEventsAsync(CompanyEmployeesDbContext db, CancellationToken ct)
+    {
+        var defaultEvents = new (Guid Id, int Month, int Day, string Title, string Description, string Category)[]
+        {
+            (new("77777777-7777-7777-7777-777777770001"), 10, 12, "Siemens Anniversary", "Celebrating the founding of Siemens on October 12, 1847", "Anniversary"),
+            (new("77777777-7777-7777-7777-777777770002"), 4, 7, "Health & Wellbeing Day", "Company-wide focus on mental and physical wellness", "Wellbeing"),
+            (new("77777777-7777-7777-7777-777777770003"), 6, 5, "Sustainability Day", "Global sustainability workshops and green initiatives", "Sustainability"),
+            (new("77777777-7777-7777-7777-777777770004"), 11, 14, "Innovation & Tech Day", "Showcasing breakthroughs, engineering patents, and AI solutions", "Innovation"),
+            (new("77777777-7777-7777-7777-777777770005"), 12, 18, "Annual All-Hands & Town Hall", "Global company review, milestones, and future vision", "TownHall")
+        };
+
+        var currentYear = DateTime.UtcNow.Year;
+        foreach (var (id, month, day, title, description, category) in defaultEvents)
+        {
+            if (!await db.CompanyEvents.AnyAsync(e => e.Id == id, ct))
+            {
+                db.CompanyEvents.Add(new CompanyEvent
+                {
+                    Id = id,
+                    Title = title,
+                    Date = new DateOnly(currentYear, month, day),
+                    Description = description,
+                    IsAnnual = true,
+                    Category = category,
+                    RegionCode = null, // Global event
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
     }
 }
 

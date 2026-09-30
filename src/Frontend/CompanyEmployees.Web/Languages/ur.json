@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "چھٹیوں کا انتظام",
   "WORKSPACE": "ورک اسپیس",
   "Dashboard": "ڈیش بورڈ",
@@ -257,5 +257,18 @@
   "Send message": "پیغام بھیجیں",
   "Back": "واپس",
   "Search teammates...": "ٹیم کے ساتھیوں کو تلاش کریں...",
-  "No teammates match that search.": "اس تلاش سے کوئی ساتھی مطابقت نہیں رکھتا۔"
+  "No teammates match that search.": "اس تلاش سے کوئی ساتھی مطابقت نہیں رکھتا۔",
+  "Company event — working day": "کمپنی ایونٹ — کام کا دن",
+  "Company event": "کمپنی ایونٹ",
+  "Company events": "کمپنی کے ایونٹس",
+  "Add event": "ایونٹ شامل کریں",
+  "Edit event": "ایونٹ میں ترمیم کریں",
+  "Delete event": "ایونٹ حذف کریں",
+  "Event title": "ایونٹ کا عنوان",
+  "Event date": "ایونٹ کی تاریخ",
+  "Category": "زمرہ",
+  "Region scope": "علاقائی دائرہ کار",
+  "Search company events...": "کمپنی کے ایونٹس تلاش کریں...",
+  "No company events found.": "کمپنی کے کوئی ایونٹس نہیں ملے۔",
+  "Delete company event": "کمپنی کا ایونٹ حذف کریں"
 }

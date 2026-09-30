@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Poissaolojen hallinta",
   "WORKSPACE": "TYÖTILA",
   "Dashboard": "Yhteenveto",
@@ -257,5 +257,18 @@
   "Send message": "Lähetä viesti",
   "Back": "Takaisin",
   "Search teammates...": "Hae tiimiläisiä...",
-  "No teammates match that search.": "Yksikään tiimiläinen ei vastaa hakua."
+  "No teammates match that search.": "Yksikään tiimiläinen ei vastaa hakua.",
+  "Company event — working day": "Yritystapahtuma — työpäivä",
+  "Company event": "Yritystapahtuma",
+  "Company events": "Yrityksen tapahtumat",
+  "Add event": "Lisää tapahtuma",
+  "Edit event": "Muokkaa tapahtumaa",
+  "Delete event": "Poista tapahtuma",
+  "Event title": "Tapahtuman nimi",
+  "Event date": "Tapahtuman päivämäärä",
+  "Category": "Kategoria",
+  "Region scope": "Alue",
+  "Search company events...": "Hae yrityksen tapahtumia...",
+  "No company events found.": "Yrityksen tapahtumia ei löytynyt.",
+  "Delete company event": "Poista yrityksen tapahtuma"
 }

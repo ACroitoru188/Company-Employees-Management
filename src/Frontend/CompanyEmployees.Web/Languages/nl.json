@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Verlofbeheer",
   "WORKSPACE": "WERKRUIMTE",
   "Dashboard": "Dashboard",
@@ -257,5 +257,18 @@
   "Send message": "Bericht sturen",
   "Back": "Terug",
   "Search teammates...": "Teamgenoten zoeken...",
-  "No teammates match that search.": "Geen teamgenoten komen overeen met die zoekopdracht."
+  "No teammates match that search.": "Geen teamgenoten komen overeen met die zoekopdracht.",
+  "Company event — working day": "Bedrijfsevenement — werkdag",
+  "Company event": "Bedrijfsevenement",
+  "Company events": "Bedrijfsevenementen",
+  "Add event": "Evenement toevoegen",
+  "Edit event": "Evenement bewerken",
+  "Delete event": "Evenement verwijderen",
+  "Event title": "Evenementtitel",
+  "Event date": "Evenementdatum",
+  "Category": "Categorie",
+  "Region scope": "Regiobereik",
+  "Search company events...": "Bedrijfsevenementen zoeken...",
+  "No company events found.": "Geen bedrijfsevenementen gevonden.",
+  "Delete company event": "Bedrijfsevenement verwijderen"
 }

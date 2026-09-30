@@ -118,6 +118,15 @@
                     @Text["National public holiday — non-working day"]
                 </FluentLabel>
             </FluentStack>
+
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8"
+                         VerticalAlignment="VerticalAlignment.Center" Style="padding:0 4px;">
+                <FluentStack Class="cal-swatch cal-swatch-event" HorizontalGap="0" />
+                <FluentLabel Typo="Typography.Body" Class="app-caption cal-legend-text"
+                             Color="Color.Custom" CustomColor="var(--neutral-foreground-hint)">
+                    @Text["Company event — working day"]
+                </FluentLabel>
+            </FluentStack>
         </FluentStack>
 
         <FluentCheckbox @bind-Value="_allowPastDates" Class="cal-past-dates"
@@ -226,6 +235,13 @@
                                         }
                                     </FluentStack>
 
+                                    @if (_companyEvents.TryGetValue(date, out var compEvent))
+                                    {
+                                        <div class="cal-event-badge" Title="@($"{compEvent.Title}{(string.IsNullOrEmpty(compEvent.Description) ? "" : $": {compEvent.Description}")}")">
+                                            <span class="cal-event-badge-text">@compEvent.Title</span>
+                                        </div>
+                                    }
+
                                     @if (!IsWeekend(date) && !IsHoliday(date) && _teamByDay.TryGetValue(date, out var absences))
                                     {
                                         @* Not filtered by the selected type: picking a type to book arms date
@@ -310,6 +326,13 @@
                                                  Color="Color.Error" Title="@holiday.Name">
                                         @holiday.Name
                                     </FluentLabel>
+                                }
+
+                                @if (_companyEvents.TryGetValue(day, out var weekEvent))
+                                {
+                                    <div class="cal-event-badge cal-event-badge-block" Title="@($"{weekEvent.Title}{(string.IsNullOrEmpty(weekEvent.Description) ? "" : $": {weekEvent.Description}")}")">
+                                        <span class="cal-event-badge-text">@weekEvent.Title</span>
+                                    </div>
                                 }
 
                                 @* Unfiltered for the same reason as the month grid above: this view is also
@@ -504,6 +527,12 @@
             <Body>
                 <FluentStack Orientation="Orientation.Vertical" VerticalGap="4" Width="100%"
                              Style="max-height: 260px; overflow-y: auto; padding: 4px 0;">
+                    @if (_companyEvents.TryGetValue(popDate, out var popEvent))
+                    {
+                        <div class="cal-event-badge cal-popover-event-badge" Title="@popEvent.Description">
+                            <span class="cal-event-badge-text">@popEvent.Title</span>
+                        </div>
+                    }
                     @foreach (var absence in popoverAbsences)
                     {
                         <FluentStack Class="cal-entry cal-popover-entry" Orientation="Orientation.Horizontal"
@@ -567,6 +596,7 @@
     private Dictionary<DateOnly, List<TeamAbsence>> _teamByDay = [];
     private IReadOnlyList<TeamTimeOff> _ranges = [];
     private Dictionary<DateOnly, RegionalHoliday> _holidays = [];
+    private Dictionary<DateOnly, CompanyCalendarEvent> _companyEvents = [];
 
     private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.Today);
     private CalView _view = CalView.Month;
@@ -632,9 +662,12 @@
                 .GroupBy(a => a.Date)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
-            // The grid draws six weeks around the month, so holidays are loaded for the same
+            // The grid draws six weeks around the month, so holidays and events are loaded for the same
             // span rather than for the month alone.
-            await LoadHolidaysAsync(MonthGridStart, MonthGridStart.AddDays(41));
+            var gridStart = MonthGridStart;
+            var gridEnd = MonthGridStart.AddDays(41);
+            await LoadHolidaysAsync(gridStart, gridEnd);
+            await LoadCompanyEventsAsync(gridStart, gridEnd);
         }
         else
         {
@@ -643,6 +676,7 @@
                 : (VisibleMonth, VisibleMonth.AddMonths(1).AddDays(-1));
             _ranges = await TimeOff.GetTeamTimeOffForRangeAsync(from, to);
             await LoadHolidaysAsync(from, to);
+            await LoadCompanyEventsAsync(from, to);
         }
     }
 
@@ -654,6 +688,17 @@
 
         _holidays = holidays
             .GroupBy(holiday => holiday.Date)
+            .ToDictionary(group => group.Key, group => group.First());
+    }
+
+    private async Task LoadCompanyEventsAsync(DateOnly from, DateOnly to)
+    {
+        var events = new List<CompanyCalendarEvent>();
+        for (var year = from.Year; year <= to.Year; year++)
+            events.AddRange(await TimeOff.GetCompanyEventsAsync(year));
+
+        _companyEvents = events
+            .GroupBy(e => e.Date)
             .ToDictionary(group => group.Key, group => group.First());
     }
 

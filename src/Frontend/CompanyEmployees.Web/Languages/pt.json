@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Gestão de ausências",
   "WORKSPACE": "ESPAÇO DE TRABALHO",
   "Dashboard": "Painel",
@@ -257,5 +257,18 @@
   "Send message": "Enviar mensagem",
   "Back": "Voltar",
   "Search teammates...": "Procurar colegas...",
-  "No teammates match that search.": "Nenhum colega corresponde a essa pesquisa."
+  "No teammates match that search.": "Nenhum colega corresponde a essa pesquisa.",
+  "Company event — working day": "Evento da empresa — dia útil",
+  "Company event": "Evento da empresa",
+  "Company events": "Eventos da empresa",
+  "Add event": "Adicionar evento",
+  "Edit event": "Editar evento",
+  "Delete event": "Excluir evento",
+  "Event title": "Título do evento",
+  "Event date": "Data do evento",
+  "Category": "Categoria",
+  "Region scope": "Âmbito regional",
+  "Search company events...": "Pesquisar eventos da empresa...",
+  "No company events found.": "Nenhum evento da empresa encontrado.",
+  "Delete company event": "Excluir evento da empresa"
 }

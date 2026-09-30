@@ -1,4 +1,4 @@
-﻿using CompanyEmployees.Web.Models;
+using CompanyEmployees.Web.Models;
 
 namespace CompanyEmployees.Web.Services;
 
@@ -24,6 +24,8 @@ public record TeamRosterEntry(Guid UserId, string Name, string Initials, string 
 
 public record RegionalHoliday(DateOnly Date, string Name);
 
+public record CompanyCalendarEvent(DateOnly Date, string Title, string? Description = null, string? Category = null);
+
 // Async because the real implementation hits the database.
 public interface ITimeOffService
 {
@@ -36,6 +38,7 @@ public interface ITimeOffService
     Task<IReadOnlyList<TeamTimeOff>> GetTeamTimeOffForRangeAsync(DateOnly from, DateOnly to);
     Task<IReadOnlyList<TeamRosterEntry>> GetTeamRosterAsync();
     Task<IReadOnlyList<RegionalHoliday>> GetRegionalHolidaysAsync(int year);
+    Task<IReadOnlyList<CompanyCalendarEvent>> GetCompanyEventsAsync(int year);
     Task<TimeOffRequest> SubmitRequestAsync(
         LeaveType type, DateOnly start, DateOnly end, string? reason, bool allowPastDates = false);
     /// <summary>Withdraws a request the caller owns, as long as it is still Pending (nobody has approved it yet).</summary>

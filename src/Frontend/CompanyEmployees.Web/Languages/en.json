@@ -1,4 +1,4 @@
-﻿{
+{
   "Time Off Management": "Time Off Management",
   "WORKSPACE": "WORKSPACE",
   "Dashboard": "Dashboard",
@@ -257,5 +257,18 @@
   "Send message": "Send message",
   "Back": "Back",
   "Search teammates...": "Search teammates...",
-  "No teammates match that search.": "No teammates match that search."
+  "No teammates match that search.": "No teammates match that search.",
+  "Company event — working day": "Company event — working day",
+  "Company event": "Company event",
+  "Company events": "Company events",
+  "Add event": "Add event",
+  "Edit event": "Edit event",
+  "Delete event": "Delete event",
+  "Event title": "Event title",
+  "Event date": "Event date",
+  "Category": "Category",
+  "Region scope": "Region scope",
+  "Search company events...": "Search company events...",
+  "No company events found.": "No company events found.",
+  "Delete company event": "Delete company event"
 }
